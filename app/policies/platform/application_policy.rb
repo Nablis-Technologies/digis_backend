@@ -51,7 +51,7 @@ module Platform
 
       def resource_name
         if scope.respond_to?(:model_name)
-          scope.model_name.collection
+            scope.model_name.param_key.pluralize
         else
           scope.name.demodulize.underscore.pluralize
         end
@@ -73,7 +73,7 @@ module Platform
 
     def resource_name
       target = record.is_a?(Class) ? record : record.class
-      target.model_name.collection
+      target.model_name.param_key.pluralize
     end
   end
 end
