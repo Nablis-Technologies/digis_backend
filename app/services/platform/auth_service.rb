@@ -52,22 +52,26 @@ module Platform
 
         validate_device!(refresh_token, request)
 
-        # Rotate: destroy old, create new
-        old_device_id = refresh_token.device_id
-        user = refresh_token.user
-        refresh_token.destroy
+        ActiveRecord::Base.transaction do
+          # Create new token first, then destroy the old one
+          old_device_id = refresh_token.device_id
+          user = refresh_token.user
 
-        access_token = Platform::TokenService.issue(
-          Platform::TokenService.access_token_payload(user)
-        )
-        new_refresh = create_refresh_token(user, request)
-        new_refresh.update!(device_id: old_device_id)  # preserve device binding
+          new_refresh = create_refresh_token(user, request)
+          new_refresh.update!(device_id: old_device_id)  # preserve device binding
 
-        {
-          access_token: access_token,
-          refresh_token: new_refresh.refresh_token,
-          user: user
-        }
+          refresh_token.destroy
+
+          access_token = Platform::TokenService.issue(
+            Platform::TokenService.access_token_payload(user)
+          )
+
+          {
+            access_token: access_token,
+            refresh_token: new_refresh.refresh_token,
+            user: user
+          }
+        end
       end
 
       def revoke_refresh_token(token_value)
