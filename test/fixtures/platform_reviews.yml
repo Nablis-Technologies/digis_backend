@@ -1,0 +1,11 @@
+attendee_profile_submission:
+  id: 12121212-1212-1212-1212-121212121212
+  reviewable_type: Platform::Role
+  reviewable_id: cccccccc-cccc-cccc-cccc-cccccccccccc
+  context: default
+  status: pending
+  feedback:
+    note: pending review
+  reviewed_by_type: Platform::User
+  reviewed_by_id: 11111111-1111-1111-1111-111111111111
+  reviewed_at: <%= 2.hours.ago %>

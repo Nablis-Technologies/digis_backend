@@ -1,0 +1,17 @@
+roles_index:
+  id: dddddddd-dddd-dddd-dddd-dddddddddddd
+  code: roles.index
+  resource: roles
+  action: index
+  namespace: platform
+  description: List platform roles
+  active: true
+
+permissions_manage:
+  id: eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee
+  code: permissions.manage
+  resource: permissions
+  action: manage
+  namespace: platform
+  description: Manage permissions
+  active: true

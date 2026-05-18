@@ -1,0 +1,20 @@
+super_admin:
+  id: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+  code: SUPER_ADMIN
+  name: Super Administrator
+  description: Full access to all resources
+  active: true
+
+platform_admin:
+  id: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
+  code: PLATFORM_ADMIN
+  name: Platform Administrator
+  description: Platform-level operational access
+  active: true
+
+user:
+  id: cccccccc-cccc-cccc-cccc-cccccccccccc
+  code: USER
+  name: User
+  description: Default end-user role
+  active: true

@@ -1,0 +1,8 @@
+attendee_web_token:
+  id: 12121212-1212-1212-1212-121212121212
+  user_id: 33333333-3333-3333-3333-333333333333
+  refresh_token: attendee-refresh-token
+  expires_at: <%= 30.days.from_now %>
+  device_id: web-browser
+  ip_address: 127.0.0.1
+  user_agent: Rails Integration Test
