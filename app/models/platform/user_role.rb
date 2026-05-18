@@ -13,8 +13,14 @@ module Platform
 
     validates :user_id, uniqueness: { scope: :role_id }
 
-    scope :active, -> { where("expires_at IS NULL OR expires_at > ?", Time.current) }
-    scope :expired, -> { where("expires_at IS NOT NULL AND expires_at <= ?", Time.current) }
+    scope :active, -> {
+      table = Platform::UserRole.arel_table
+      where(table[:expires_at].eq(nil).or(table[:expires_at].gt(Time.current)))
+    }
+    scope :expired, -> {
+      table = Platform::UserRole.arel_table
+      where(table[:expires_at].not_eq(nil).and(table[:expires_at].lteq(Time.current)))
+    }
 
     after_commit :clear_user_cache!
 

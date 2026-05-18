@@ -56,9 +56,9 @@ module Platform
     def active_permissions
       @active_permissions ||= Platform::Permission
         .joins(role_permissions: { role: :user_roles })
+        .merge(Platform::UserRole.active)
         .where(platform_user_roles: { user_id: id })
         .where(platform_roles: { active: true }, platform_permissions: { active: true })
-        .where("platform_user_roles.expires_at IS NULL OR platform_user_roles.expires_at > ?", Time.current)
         .distinct
         .pluck(:code)
     end
@@ -67,8 +67,8 @@ module Platform
       @active_role_codes ||= roles
         .where(active: true)
         .joins(:user_roles)
+        .merge(Platform::UserRole.active)
         .where(platform_user_roles: { user_id: id })
-        .where("platform_user_roles.expires_at IS NULL OR platform_user_roles.expires_at > ?", Time.current)
         .distinct
         .pluck(:code)
     end
