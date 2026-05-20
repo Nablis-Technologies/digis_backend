@@ -1,16 +1,16 @@
 require "test_helper"
 
-class PlatformAuditLoggerJobTest < ActiveJob::TestCase
+class CoreAuditLoggerJobTest < ActiveJob::TestCase
   setup do
-    @role = platform_roles(:platform_admin)
-    @actor = platform_users(:super_admin)
+    @role = core_roles(:core_admin)
+    @actor = core_users(:super_admin)
     # Clear any existing audit logs
-    Platform::AuditLog.delete_all
+    Core::AuditLog.delete_all
   end
 
   test "creates an audit log for the auditable record (legacy signature)" do
-    assert_difference("Platform::AuditLog.count", 1) do
-      Platform::AuditLoggerJob.perform_now(
+    assert_difference("Core::AuditLog.count", 1) do
+      Core::AuditLoggerJob.perform_now(
         auditable_type: @role.class.name,
         auditable_id: @role.id,
         actor_type: @actor.class.name,
@@ -21,7 +21,7 @@ class PlatformAuditLoggerJobTest < ActiveJob::TestCase
       )
     end
 
-    audit = Platform::AuditLog.recent.first
+    audit = Core::AuditLog.recent.first
     assert_equal @role, audit.auditable
     assert_equal @actor, audit.actor
     assert_equal "role.updated", audit.action
@@ -43,8 +43,8 @@ class PlatformAuditLoggerJobTest < ActiveJob::TestCase
       timestamp: Time.current.to_f
     }
 
-    assert_difference("Platform::AuditLog.count", 1) do
-      Platform::AuditLoggerJob.perform_now(
+    assert_difference("Core::AuditLog.count", 1) do
+      Core::AuditLoggerJob.perform_now(
         record_id: @role.id,
         record_type: @role.class.name,
         before_main: before_main,
@@ -62,7 +62,7 @@ class PlatformAuditLoggerJobTest < ActiveJob::TestCase
       )
     end
 
-    audit = Platform::AuditLog.recent.first
+    audit = Core::AuditLog.recent.first
     assert_not_nil audit
     changes = audit.audited_changes.with_indifferent_access
     assert changes.is_a?(Hash), "Changes should be a hash, got #{changes.class}"
@@ -80,8 +80,8 @@ class PlatformAuditLoggerJobTest < ActiveJob::TestCase
 
     after_main = before_main.dup
 
-    assert_no_difference("Platform::AuditLog.count") do
-      Platform::AuditLoggerJob.perform_now(
+    assert_no_difference("Core::AuditLog.count") do
+      Core::AuditLoggerJob.perform_now(
         record_id: @role.id,
         record_type: @role.class.name,
         before_main: before_main,
@@ -110,8 +110,8 @@ class PlatformAuditLoggerJobTest < ActiveJob::TestCase
       timestamp: Time.current.to_f
     }
 
-    assert_difference("Platform::AuditLog.count", 1) do
-      Platform::AuditLoggerJob.perform_now(
+    assert_difference("Core::AuditLog.count", 1) do
+      Core::AuditLoggerJob.perform_now(
         record_id: @role.id,
         record_type: @role.class.name,
         before_main: before_main,
@@ -124,7 +124,7 @@ class PlatformAuditLoggerJobTest < ActiveJob::TestCase
       )
     end
 
-    audit = Platform::AuditLog.recent.first
+    audit = Core::AuditLog.recent.first
     assert_not_nil audit, "Audit should be created"
     changes = audit.audited_changes.with_indifferent_access
     assert changes.is_a?(Hash), "Changes should be a hash"
@@ -148,8 +148,8 @@ class PlatformAuditLoggerJobTest < ActiveJob::TestCase
       timestamp: Time.current.to_f
     }
 
-    assert_difference("Platform::AuditLog.count", 1) do
-      Platform::AuditLoggerJob.perform_now(
+    assert_difference("Core::AuditLog.count", 1) do
+      Core::AuditLoggerJob.perform_now(
         record_id: @role.id,
         record_type: @role.class.name,
         before_main: before_main,
@@ -162,7 +162,7 @@ class PlatformAuditLoggerJobTest < ActiveJob::TestCase
       )
     end
 
-    audit = Platform::AuditLog.recent.first
+    audit = Core::AuditLog.recent.first
     assert_not_nil audit, "Audit should be created"
     changes = audit.audited_changes.with_indifferent_access
     assert changes.is_a?(Hash), "Changes should be a hash"
@@ -171,8 +171,8 @@ class PlatformAuditLoggerJobTest < ActiveJob::TestCase
   end
 
   test "discards job when record not found" do
-    assert_no_difference("Platform::AuditLog.count") do
-      Platform::AuditLoggerJob.perform_now(
+    assert_no_difference("Core::AuditLog.count") do
+      Core::AuditLoggerJob.perform_now(
         auditable_type: "Role",
         auditable_id: 999_999,
         action: "deleted",
@@ -197,8 +197,8 @@ class PlatformAuditLoggerJobTest < ActiveJob::TestCase
       timestamp: Time.current.to_f
     }
 
-    assert_difference("Platform::AuditLog.count", 1) do
-      Platform::AuditLoggerJob.perform_now(
+    assert_difference("Core::AuditLog.count", 1) do
+      Core::AuditLoggerJob.perform_now(
         record_id: @role.id,
         record_type: @role.class.name,
         before_main: before_main,
@@ -211,12 +211,12 @@ class PlatformAuditLoggerJobTest < ActiveJob::TestCase
       )
     end
 
-    audit = Platform::AuditLog.recent.first
+    audit = Core::AuditLog.recent.first
     assert_equal "published", audit.action
   end
 
   test "handles create action with nil before_main" do
-    new_role = Platform::Role.create!(name: "Test Role", description: "Test", code: "TEST")
+    new_role = Core::Role.create!(name: "Test Role", description: "Test", code: "TEST")
 
     before_main = nil
     after_main = {
@@ -226,8 +226,8 @@ class PlatformAuditLoggerJobTest < ActiveJob::TestCase
       timestamp: Time.current.to_f
     }
 
-    assert_difference("Platform::AuditLog.count", 1) do
-      Platform::AuditLoggerJob.perform_now(
+    assert_difference("Core::AuditLog.count", 1) do
+      Core::AuditLoggerJob.perform_now(
         record_id: new_role.id,
         record_type: new_role.class.name,
         before_main: before_main,
@@ -240,7 +240,7 @@ class PlatformAuditLoggerJobTest < ActiveJob::TestCase
       )
     end
 
-    audit = Platform::AuditLog.recent.first
+    audit = Core::AuditLog.recent.first
     assert_equal "create", audit.action
     changes = audit.audited_changes.with_indifferent_access
     assert changes["main"]["changes"].present?
@@ -260,7 +260,7 @@ class PlatformAuditLoggerJobTest < ActiveJob::TestCase
       permissions: [
         {
           id: 1,
-          type: "Platform::Permission",
+          type: "Core::Permission",
           attributes: { code: "orders.read", resource: "orders", action: "read" }
         }
       ]
@@ -270,8 +270,8 @@ class PlatformAuditLoggerJobTest < ActiveJob::TestCase
       permissions: []
     }
 
-    assert_difference("Platform::AuditLog.count", 1) do
-      Platform::AuditLoggerJob.perform_now(
+    assert_difference("Core::AuditLog.count", 1) do
+      Core::AuditLoggerJob.perform_now(
         record_id: @role.id,
         record_type: @role.class.name,
         before_main: before_main,
@@ -284,7 +284,7 @@ class PlatformAuditLoggerJobTest < ActiveJob::TestCase
       )
     end
 
-    audit = Platform::AuditLog.recent.first
+    audit = Core::AuditLog.recent.first
     changes = audit.audited_changes.with_indifferent_access
     assert changes["associated"].present?, "Associated changes should be present"
     deleted = changes["associated"]["permissions"].find { |entry| entry["action"] == "deleted" }
@@ -292,8 +292,8 @@ class PlatformAuditLoggerJobTest < ActiveJob::TestCase
   end
 
   test "logs ip_address and user_agent from request" do
-    assert_difference("Platform::AuditLog.count", 1) do
-      Platform::AuditLoggerJob.perform_now(
+    assert_difference("Core::AuditLog.count", 1) do
+      Core::AuditLoggerJob.perform_now(
         auditable_type: @role.class.name,
         auditable_id: @role.id,
         action: "updated",
@@ -304,7 +304,7 @@ class PlatformAuditLoggerJobTest < ActiveJob::TestCase
       )
     end
 
-    audit = Platform::AuditLog.recent.first
+    audit = Core::AuditLog.recent.first
     assert_equal "192.168.1.1", audit.ip_address
     assert_equal "Custom Browser/1.0", audit.user_agent
   end

@@ -6,7 +6,7 @@ super_admin:
   temp_password: false
   password_digest: <%= BCrypt::Password.create("password123") %>
 
-platform_admin:
+core_admin:
   id: 22222222-2222-2222-2222-222222222222
   email: admin@example.com
   phone: "251911000002"

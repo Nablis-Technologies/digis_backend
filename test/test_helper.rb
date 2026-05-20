@@ -11,14 +11,14 @@ module ActiveSupport
     fixtures :all
 
     set_fixture_class(
-      platform_users: Platform::User,
-      platform_roles: Platform::Role,
-      platform_permissions: Platform::Permission,
-      platform_role_permissions: Platform::RolePermission,
-      platform_user_roles: Platform::UserRole,
-      platform_refresh_tokens: Platform::RefreshToken,
-      platform_audit_logs: Platform::AuditLog,
-      platform_reviews: Platform::Review
+      core_users: Core::User,
+      core_roles: Core::Role,
+      core_permissions: Core::Permission,
+      core_role_permissions: Core::RolePermission,
+      core_user_roles: Core::UserRole,
+      core_refresh_tokens: Core::RefreshToken,
+      core_audit_logs: Core::AuditLog,
+      core_reviews: Core::Review
     )
 
     # Add more helper methods to be used by all tests here...

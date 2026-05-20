@@ -1,10 +1,10 @@
 require "test_helper"
 
-class PlatformRoleTest < ActiveSupport::TestCase
+class CoreRoleTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
   test "normalizes role codes" do
-    role = Platform::Role.new(code: " mixed_case ", name: "Mixed")
+    role = Core::Role.new(code: " mixed_case ", name: "Mixed")
 
     role.valid?
 
@@ -12,10 +12,10 @@ class PlatformRoleTest < ActiveSupport::TestCase
   end
 
   test "records audit entries inline" do
-    role = platform_roles(:user)
-    actor = platform_users(:super_admin)
+    role = core_roles(:user)
+    actor = core_users(:super_admin)
 
-    assert_difference("Platform::AuditLog.count", 1) do
+    assert_difference("Core::AuditLog.count", 1) do
       role.record_audit!(
         "role.updated",
         audited_changes: { "name" => { old: "User", new: "Attendee" } },
@@ -29,10 +29,10 @@ class PlatformRoleTest < ActiveSupport::TestCase
   end
 
   test "enqueues audit logging job" do
-    role = platform_roles(:user)
-    actor = platform_users(:super_admin)
+    role = core_roles(:user)
+    actor = core_users(:super_admin)
 
-    assert_enqueued_with(job: Platform::AuditLoggerJob) do
+    assert_enqueued_with(job: Core::AuditLoggerJob) do
       role.record_audit_later!(
         "role.permissions_updated",
         audited_changes: { "permission_count" => { old: 1, new: 2 } },

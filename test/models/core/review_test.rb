@@ -1,9 +1,9 @@
 require "test_helper"
 
-class PlatformReviewTest < ActiveSupport::TestCase
+class CoreReviewTest < ActiveSupport::TestCase
   test "defaults context and status when blank" do
-    review = Platform::Review.new(
-      reviewable: platform_roles(:user)
+    review = Core::Review.new(
+      reviewable: core_roles(:user)
     )
 
     review.valid?

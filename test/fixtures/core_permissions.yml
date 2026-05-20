@@ -3,8 +3,8 @@ roles_index:
   code: roles.index
   resource: roles
   action: index
-  namespace: platform
-  description: List platform roles
+  namespace: core
+  description: List core roles
   active: true
 
 permissions_manage:
@@ -12,6 +12,6 @@ permissions_manage:
   code: permissions.manage
   resource: permissions
   action: manage
-  namespace: platform
+  namespace: core
   description: Manage permissions
   active: true

@@ -5,11 +5,11 @@ super_admin:
   description: Full access to all resources
   active: true
 
-platform_admin:
+core_admin:
   id: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
-  code: PLATFORM_ADMIN
-  name: Platform Administrator
-  description: Platform-level operational access
+  code: CORE_ADMIN
+  name: Core Administrator
+  description: Core-level operational access
   active: true
 
 user:
