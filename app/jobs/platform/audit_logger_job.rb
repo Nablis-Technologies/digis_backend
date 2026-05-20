@@ -130,7 +130,7 @@ module Platform
                          assoc_name.to_s.singularize.camelize
 
             structured_changes[:associated][assoc_name.to_s] << {
-              id: record_id.to_i,
+              id: record_id,
               action: value[:action] || value["action"],
               model: model_name,
               changes: value[:changes] || value["changes"] || {}
