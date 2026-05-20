@@ -15,7 +15,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_000900) do
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
 
-  create_table "platform_audit_logs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "core_audit_logs", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.string "action", null: false
     t.uuid "actor_id"
     t.string "actor_type"
@@ -28,30 +28,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_000900) do
     t.string "request_uuid"
     t.datetime "updated_at", null: false
     t.string "user_agent"
-    t.index ["action"], name: "index_platform_audit_logs_on_action"
-    t.index ["actor_type", "actor_id"], name: "index_platform_audit_logs_on_actor"
-    t.index ["auditable_type", "auditable_id"], name: "index_platform_audit_logs_on_auditable"
-    t.index ["created_at"], name: "index_platform_audit_logs_on_created_at"
-    t.index ["request_uuid"], name: "index_platform_audit_logs_on_request_uuid"
+    t.index ["action"], name: "index_core_audit_logs_on_action"
+    t.index ["actor_type", "actor_id"], name: "index_core_audit_logs_on_actor"
+    t.index ["auditable_type", "auditable_id"], name: "index_core_audit_logs_on_auditable"
+    t.index ["created_at"], name: "index_core_audit_logs_on_created_at"
+    t.index ["request_uuid"], name: "index_core_audit_logs_on_request_uuid"
   end
 
-  create_table "platform_permissions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "core_permissions", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.string "action", limit: 50, null: false
     t.boolean "active", default: true, null: false
     t.string "code", limit: 100, null: false
     t.datetime "created_at", null: false
     t.string "description"
-    t.string "namespace", limit: 50, default: "platform", null: false
+    t.string "namespace", limit: 50, default: "core", null: false
     t.string "resource", limit: 50, null: false
     t.datetime "updated_at", null: false
-    t.index ["active"], name: "index_platform_permissions_on_active"
-    t.index ["code"], name: "index_platform_permissions_on_code", unique: true
-    t.index ["namespace"], name: "index_platform_permissions_on_namespace"
-    t.index ["resource", "action", "namespace"], name: "index_platform_permissions_on_resource_action_namespace", unique: true
-    t.index ["resource"], name: "index_platform_permissions_on_resource"
+    t.index ["active"], name: "index_core_permissions_on_active"
+    t.index ["code"], name: "index_core_permissions_on_code", unique: true
+    t.index ["namespace"], name: "index_core_permissions_on_namespace"
+    t.index ["resource", "action", "namespace"], name: "index_core_permissions_on_resource_action_namespace", unique: true
+    t.index ["resource"], name: "index_core_permissions_on_resource"
   end
 
-  create_table "platform_refresh_tokens", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "core_refresh_tokens", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "device_id"
     t.datetime "expires_at", null: false
@@ -60,13 +60,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_000900) do
     t.datetime "updated_at", null: false
     t.string "user_agent"
     t.uuid "user_id", null: false
-    t.index ["device_id"], name: "index_platform_refresh_tokens_on_device_id"
-    t.index ["expires_at"], name: "index_platform_refresh_tokens_on_expires_at"
-    t.index ["refresh_token"], name: "index_platform_refresh_tokens_on_refresh_token", unique: true
-    t.index ["user_id"], name: "index_platform_refresh_tokens_on_user_id"
+    t.index ["device_id"], name: "index_core_refresh_tokens_on_device_id"
+    t.index ["expires_at"], name: "index_core_refresh_tokens_on_expires_at"
+    t.index ["refresh_token"], name: "index_core_refresh_tokens_on_refresh_token", unique: true
+    t.index ["user_id"], name: "index_core_refresh_tokens_on_user_id"
   end
 
-  create_table "platform_reviews", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "core_reviews", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.string "context", default: "default", null: false
     t.datetime "created_at", null: false
     t.jsonb "feedback", default: {}, null: false
@@ -77,47 +77,47 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_000900) do
     t.string "reviewed_by_type"
     t.string "status", default: "draft", null: false
     t.datetime "updated_at", null: false
-    t.index ["reviewable_type", "reviewable_id", "context"], name: "idx_platform_reviews_resource_context"
-    t.index ["reviewed_by_type", "reviewed_by_id"], name: "idx_platform_reviews_reviewer"
-    t.index ["status"], name: "index_platform_reviews_on_status"
+    t.index ["reviewable_type", "reviewable_id", "context"], name: "idx_core_reviews_resource_context"
+    t.index ["reviewed_by_type", "reviewed_by_id"], name: "idx_core_reviews_reviewer"
+    t.index ["status"], name: "index_core_reviews_on_status"
   end
 
-  create_table "platform_role_permissions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "core_role_permissions", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.uuid "permission_id", null: false
     t.uuid "role_id", null: false
     t.datetime "updated_at", null: false
-    t.index ["permission_id"], name: "index_platform_role_permissions_on_permission_id"
-    t.index ["role_id", "permission_id"], name: "index_platform_role_permissions_on_role_id_and_permission_id", unique: true
-    t.index ["role_id"], name: "index_platform_role_permissions_on_role_id"
+    t.index ["permission_id"], name: "index_core_role_permissions_on_permission_id"
+    t.index ["role_id", "permission_id"], name: "index_core_role_permissions_on_role_id_and_permission_id", unique: true
+    t.index ["role_id"], name: "index_core_role_permissions_on_role_id"
   end
 
-  create_table "platform_roles", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "core_roles", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.string "code", limit: 50, null: false
     t.datetime "created_at", null: false
     t.string "description"
     t.string "name", limit: 100, null: false
     t.datetime "updated_at", null: false
-    t.index ["active"], name: "index_platform_roles_on_active"
-    t.index ["code"], name: "index_platform_roles_on_code", unique: true
+    t.index ["active"], name: "index_core_roles_on_active"
+    t.index ["code"], name: "index_core_roles_on_code", unique: true
   end
 
-  create_table "platform_user_roles", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "core_user_roles", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.uuid "assigned_by_id"
     t.datetime "created_at", null: false
     t.datetime "expires_at"
     t.uuid "role_id", null: false
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
-    t.index ["assigned_by_id"], name: "index_platform_user_roles_on_assigned_by_id"
-    t.index ["expires_at"], name: "index_platform_user_roles_on_expires_at"
-    t.index ["role_id"], name: "index_platform_user_roles_on_role_id"
-    t.index ["user_id", "role_id"], name: "index_platform_user_roles_on_user_id_and_role_id", unique: true
-    t.index ["user_id"], name: "index_platform_user_roles_on_user_id"
+    t.index ["assigned_by_id"], name: "index_core_user_roles_on_assigned_by_id"
+    t.index ["expires_at"], name: "index_core_user_roles_on_expires_at"
+    t.index ["role_id"], name: "index_core_user_roles_on_role_id"
+    t.index ["user_id", "role_id"], name: "index_core_user_roles_on_user_id_and_role_id", unique: true
+    t.index ["user_id"], name: "index_core_user_roles_on_user_id"
   end
 
-  create_table "platform_users", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "core_users", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "email", limit: 150
     t.string "password_digest", null: false
@@ -125,14 +125,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_000900) do
     t.boolean "temp_password", default: false, null: false
     t.datetime "updated_at", null: false
     t.datetime "verified_at"
-    t.index ["email"], name: "index_platform_users_on_email", unique: true
-    t.index ["phone"], name: "index_platform_users_on_phone", unique: true
+    t.index ["email"], name: "index_core_users_on_email", unique: true
+    t.index ["phone"], name: "index_core_users_on_phone", unique: true
   end
 
-  add_foreign_key "platform_refresh_tokens", "platform_users", column: "user_id"
-  add_foreign_key "platform_role_permissions", "platform_permissions", column: "permission_id"
-  add_foreign_key "platform_role_permissions", "platform_roles", column: "role_id"
-  add_foreign_key "platform_user_roles", "platform_roles", column: "role_id"
-  add_foreign_key "platform_user_roles", "platform_users", column: "assigned_by_id"
-  add_foreign_key "platform_user_roles", "platform_users", column: "user_id"
+  add_foreign_key "core_refresh_tokens", "core_users", column: "user_id"
+  add_foreign_key "core_role_permissions", "core_permissions", column: "permission_id"
+  add_foreign_key "core_role_permissions", "core_roles", column: "role_id"
+  add_foreign_key "core_user_roles", "core_roles", column: "role_id"
+  add_foreign_key "core_user_roles", "core_users", column: "assigned_by_id"
+  add_foreign_key "core_user_roles", "core_users", column: "user_id"
 end
