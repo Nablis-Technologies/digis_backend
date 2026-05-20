@@ -1,4 +1,4 @@
-module Platform
+module Core
   class PermissionRegistry
     REGISTRY = {} # rubocop:disable Style/MutableConstant
 
@@ -42,7 +42,7 @@ module Platform
 
       def persist!
         @permissions.each do |attributes|
-          permission = Platform::Permission.find_or_initialize_by(code: attributes[:code])
+          permission = Core::Permission.find_or_initialize_by(code: attributes[:code])
           permission.assign_attributes(attributes.merge(active: true))
           permission.save! if permission.new_record? || permission.changed?
         end
