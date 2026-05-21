@@ -33,9 +33,12 @@ module Core
     def signup
       skip_authorization
       user = Core::User.new(user_params)
+      begin
+        ActiveRecord::Base.transaction do
+          user.save!
+          assign_default_role(user)
+        end
 
-      if user.save
-        assign_default_role(user)
         render_success(
           "Signup successful",
           data: {
@@ -46,11 +49,19 @@ module Core
             user: { serializer: Core::UserAuthSerializer }
           }
         )
-      else
+      rescue ActiveRecord::RecordInvalid => e
         render_error(
           "Signup failed",
-          errors: user.errors.full_messages,
+          errors: e.record.errors.full_messages,
           status: :unprocessable_entity,
+          code: "signup_failed"
+        )
+      rescue StandardError => e
+        Rails.logger.error "Signup error: #{e.class} #{e.message}\n#{e.backtrace.first(8).join("\n")}" if defined?(Rails)
+        render_error(
+          "Signup failed",
+          errors: [ e.message.to_s ],
+          status: :internal_server_error,
           code: "signup_failed"
         )
       end
