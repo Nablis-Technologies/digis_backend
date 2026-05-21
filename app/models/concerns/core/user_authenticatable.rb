@@ -2,8 +2,8 @@ module Core
   module UserAuthenticatable
     extend ActiveSupport::Concern
 
-    included do
-      has_secure_password
+  included do
+    has_secure_password validations: false
 
       has_many :refresh_tokens,
                class_name: "Core::RefreshToken",
