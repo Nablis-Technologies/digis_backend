@@ -17,6 +17,7 @@ module Core
       data, serializer_options = resolve_block_result(default: policy_scope(@clazz))
       data = data.includes(eager_loaded_associations) if eager_loaded_associations.present?
       data = filter_records(data)
+      data = apply_ordering(data)
 
       total_count = data.count if paginated_request?
       data = apply_pagination(data) if paginated_request?

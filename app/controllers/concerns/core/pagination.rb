@@ -41,8 +41,12 @@ module Core
       %w[asc desc].include?(requested) ? requested : "desc"
     end
 
+    def apply_ordering(records)
+      records.order(order_by => order_direction)
+    end
+
     def apply_pagination(records)
-      records.order(order_by => order_direction).limit(per_page).offset(paginate_offset)
+      records.limit(per_page).offset(paginate_offset)
     end
 
     def pagination_metadata(total_count)
