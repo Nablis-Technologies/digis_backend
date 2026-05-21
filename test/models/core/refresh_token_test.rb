@@ -13,7 +13,7 @@ class CoreRefreshTokenTest < ActiveSupport::TestCase
     assert_equal true, token.expired?
   end
 
-  test "generates raw token, fingerprint, and BCrypt hash on creation" do
+  test "generates raw token, fingerprint, BCrypt hash, and JTI on creation" do
     user = core_users(:attendee)
     request = ActionDispatch::TestRequest.create
     request.params[:device_id] = "test-device"
@@ -23,6 +23,7 @@ class CoreRefreshTokenTest < ActiveSupport::TestCase
     assert token.raw_token.present?
     assert token.token_fingerprint.present?
     assert token.token_hash.present?
+    assert token.jti.present?
     assert_equal Digest::SHA256.hexdigest(token.raw_token), token.token_fingerprint
     assert token.valid_token?(token.raw_token)
   end

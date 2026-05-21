@@ -2,12 +2,14 @@
 raw_token = "attendee-refresh-token-secure-value"
 fingerprint = Digest::SHA256.hexdigest(raw_token)
 token_hash = BCrypt::Password.create(raw_token)
+jti = "550e8400-e29b-41d4-a716-446655440000"
 %>
 attendee_web_token:
   id: 12121212-1212-1212-1212-121212121212
   user_id: 33333333-3333-3333-3333-333333333333
   token_fingerprint: <%= fingerprint %>
   token_hash: <%= token_hash %>
+  jti: <%= jti %>
   expires_at: <%= 30.days.from_now %>
   device_id: web-browser
   ip_address: 127.0.0.1

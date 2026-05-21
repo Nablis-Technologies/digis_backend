@@ -45,7 +45,8 @@ class CoreAuthTest < ActionDispatch::IntegrationTest
 
   test "me returns the authenticated user" do
     user = core_users(:attendee)
-    token = Core::TokenService.issue(Core::TokenService.access_token_payload(user))
+    jti = core_refresh_tokens(:attendee_web_token).jti
+    token = Core::TokenService.issue(Core::TokenService.access_token_payload(user, jti: jti))
 
     get "/auth/me", headers: { "Authorization" => "Bearer #{token}" }, as: :json
 
@@ -79,7 +80,8 @@ class CoreAuthTest < ActionDispatch::IntegrationTest
 
   test "logout revokes the supplied refresh token" do
     user = core_users(:attendee)
-    token = Core::TokenService.issue(Core::TokenService.access_token_payload(user))
+    jti = core_refresh_tokens(:attendee_web_token).jti
+    token = Core::TokenService.issue(Core::TokenService.access_token_payload(user, jti: jti))
 
     post "/auth/logout",
          params: { refresh_token: "attendee-refresh-token-secure-value" },
@@ -91,5 +93,9 @@ class CoreAuthTest < ActionDispatch::IntegrationTest
     # Verify token is revoked (not destroyed)
     revoked_record = Core::RefreshToken.find_by(token_fingerprint: Digest::SHA256.hexdigest("attendee-refresh-token-secure-value"))
     assert revoked_record.revoked?, "Token should be revoked"
+
+    # Verify the access token is now invalid (JTI revoked)
+    get "/auth/me", headers: { "Authorization" => "Bearer #{token}" }, as: :json
+    assert_response :unauthorized, "Access token should be invalid after logout"
   end
 end
