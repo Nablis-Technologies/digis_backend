@@ -102,10 +102,15 @@ module Core
 
       def validate_device!(refresh_token, request)
         requested_device_id = request.params[:device_id].presence
-        return if requested_device_id.blank? || refresh_token.device_id.blank?
-        return if requested_device_id == refresh_token.device_id
 
-        raise Core::AuthenticationError.new("Refresh token is not valid for this device", code: "invalid_device")
+        # If the stored refresh token is bound to a device, require the request
+        # to provide the same device_id. Previously we returned early when the
+        # request omitted device_id which allowed replay from other devices.
+        if refresh_token.device_id.present?
+          unless requested_device_id.present? && requested_device_id.to_s == refresh_token.device_id.to_s
+            raise Core::AuthenticationError.new("Refresh token is not valid for this device", code: "invalid_device")
+          end
+        end
       end
     end
   end
