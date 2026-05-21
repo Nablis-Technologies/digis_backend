@@ -19,7 +19,7 @@ module Core
       requested = params[:per_page].to_i
       return default_per_page if requested <= 0
 
-      [requested, max_per_page].min
+      [ requested, max_per_page ].min
     end
 
     def paginated_request?

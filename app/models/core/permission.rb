@@ -41,7 +41,7 @@ module Core
     end
 
     def set_default_code
-      self.code ||= [resource, action].compact.join(".")
+      self.code ||= [ resource, action ].compact.join(".")
     end
   end
 end

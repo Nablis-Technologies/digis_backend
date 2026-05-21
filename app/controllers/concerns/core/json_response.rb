@@ -80,7 +80,7 @@ module Core
       when ActiveModel::Errors
         errors.to_hash(true)
       when String
-        [errors]
+        [ errors ]
       else
         errors
       end
