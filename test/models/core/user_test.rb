@@ -24,10 +24,10 @@ class CoreUserTest < ActiveSupport::TestCase
     admin = core_users(:core_admin)
 
     assert admin.has_role?("CORE_ADMIN")
-    assert admin.has_permission?("roles.index")
-    assert admin.has_all_permissions?("roles.index", "permissions.manage")
-    assert admin.has_any_permission?("permissions.manage", "users.index")
-    assert_equal admin.can?("roles.index"), admin.has_permission?("roles.index")
+    assert admin.has_permission?("role.index")
+    assert admin.has_all_permissions?("role.index", "permission.create")
+    assert admin.has_any_permission?("permission.create", "user.index")
+    assert_equal admin.can?("role.index"), admin.has_permission?("role.index")
   end
 
   test "super admins bypass explicit permission checks" do

@@ -56,16 +56,14 @@ class CoreAuthTest < ActionDispatch::IntegrationTest
   end
 
   test "refresh returns a new access token when the refresh token is valid" do
-    old_refresh_token = core_refresh_tokens(:attendee_web_token).refresh_token
+    old_refresh_token = "attendee-refresh-token-secure-value"
 
-    assert_no_difference("Core::RefreshToken.count") do
-      post "/auth/refresh",
-           params: {
-             refresh_token: old_refresh_token,
-             device_id: "web-browser"
-           },
-           as: :json
-    end
+    post "/auth/refresh",
+         params: {
+           refresh_token: old_refresh_token,
+           device_id: "web-browser"
+         },
+         as: :json
 
     assert_response :success
 
@@ -74,21 +72,24 @@ class CoreAuthTest < ActionDispatch::IntegrationTest
     assert payload.dig("data", "refresh_token").present?, "Should return new refresh token"
     assert_not_equal old_refresh_token, payload.dig("data", "refresh_token"), "Should be a different token"
 
-    # Verify old token is no longer valid
-    assert_nil Core::RefreshToken.find_by(refresh_token: old_refresh_token), "Old token should be destroyed"
+    # Verify old token is revoked
+    old_record = Core::RefreshToken.find_by(token_fingerprint: Digest::SHA256.hexdigest(old_refresh_token))
+    assert old_record.revoked?, "Old token should be revoked"
   end
 
   test "logout revokes the supplied refresh token" do
     user = core_users(:attendee)
     token = Core::TokenService.issue(Core::TokenService.access_token_payload(user))
 
-    assert_difference("Core::RefreshToken.count", -1) do
-      post "/auth/logout",
-           params: { refresh_token: core_refresh_tokens(:attendee_web_token).refresh_token },
-           headers: { "Authorization" => "Bearer #{token}" },
-           as: :json
-    end
+    post "/auth/logout",
+         params: { refresh_token: "attendee-refresh-token-secure-value" },
+         headers: { "Authorization" => "Bearer #{token}" },
+         as: :json
 
     assert_response :success
+
+    # Verify token is revoked (not destroyed)
+    revoked_record = Core::RefreshToken.find_by(token_fingerprint: Digest::SHA256.hexdigest("attendee-refresh-token-secure-value"))
+    assert revoked_record.revoked?, "Token should be revoked"
   end
 end

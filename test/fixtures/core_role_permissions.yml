@@ -1,9 +1,14 @@
-core_admin_roles_index:
+core_admin_role_index:
   id: ffffffff-ffff-ffff-ffff-fffffffffff1
   role_id: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
   permission_id: dddddddd-dddd-dddd-dddd-dddddddddddd
 
-core_admin_permissions_manage:
+core_admin_permission_create:
   id: ffffffff-ffff-ffff-ffff-fffffffffff2
   role_id: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
   permission_id: eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee
+
+core_admin_user_index:
+  id: ffffffff-ffff-ffff-ffff-fffffffffff3
+  role_id: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
+  permission_id: aaaaaaaa-dddd-dddd-dddd-dddddddddddd

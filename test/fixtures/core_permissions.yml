@@ -1,17 +1,26 @@
-roles_index:
+role_index:
   id: dddddddd-dddd-dddd-dddd-dddddddddddd
-  code: roles.index
-  resource: roles
+  code: role.index
+  resource: role
   action: index
   namespace: core
   description: List core roles
   active: true
 
-permissions_manage:
+permission_create:
   id: eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee
-  code: permissions.manage
-  resource: permissions
-  action: manage
+  code: permission.create
+  resource: permission
+  action: create
   namespace: core
-  description: Manage permissions
+  description: Create permissions
+  active: true
+
+user_index:
+  id: aaaaaaaa-dddd-dddd-dddd-dddddddddddd
+  code: user.index
+  resource: user
+  action: index
+  namespace: core
+  description: List core users
   active: true
