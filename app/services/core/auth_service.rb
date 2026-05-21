@@ -41,26 +41,25 @@ module Core
 
         {
           access_token: access_token,
-          refresh_token: refresh_token,
+          refresh_token: refresh_token.raw_token,
           user: user
         }
       end
 
       def refresh_access_token(refresh_token_value, request)
-        refresh_token = Core::RefreshToken.active.find_by(refresh_token: refresh_token_value)
+        refresh_token = Core::RefreshToken.find_valid(refresh_token_value)
         raise Core::AuthenticationError.new("Invalid token", code: "invalid_token") unless refresh_token
 
         validate_device!(refresh_token, request)
 
         ActiveRecord::Base.transaction do
-          # Create new token first, then destroy the old one
           old_device_id = refresh_token.device_id
           user = refresh_token.user
 
           new_refresh = create_refresh_token(user, request)
-          new_refresh.update!(device_id: old_device_id)  # preserve device binding
+          new_refresh.update!(device_id: old_device_id)
 
-          refresh_token.destroy
+          refresh_token.revoke!
 
           access_token = Core::TokenService.issue(
             Core::TokenService.access_token_payload(user)
@@ -68,18 +67,18 @@ module Core
 
           {
             access_token: access_token,
-            refresh_token: new_refresh.refresh_token,
+            refresh_token: new_refresh.raw_token,
             user: user
           }
         end
       end
 
       def revoke_refresh_token(token_value)
-        Core::RefreshToken.find_by(refresh_token: token_value)&.destroy
+        Core::RefreshToken.find_valid(token_value)&.revoke!
       end
 
       def revoke_all_user_tokens(user)
-        user.refresh_tokens.destroy_all
+        user.refresh_tokens.active.find_each(&:revoke!)
       end
 
       private

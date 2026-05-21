@@ -51,9 +51,9 @@ module Core
 
       def resource_name
         if scope.respond_to?(:model_name)
-            scope.model_name.param_key.pluralize
+          scope.model_name.element
         else
-          scope.name.demodulize.underscore.pluralize
+          scope.name.demodulize.underscore.split("/").last
         end
       end
     end
@@ -73,7 +73,7 @@ module Core
 
     def resource_name
       target = record.is_a?(Class) ? record : record.class
-      target.model_name.param_key.pluralize
+      target.model_name.element
     end
   end
 end

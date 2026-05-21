@@ -19,7 +19,7 @@ module Core
           data: {
             user: user,
             access_token: tokens[:access_token],
-            refresh_token: tokens[:refresh_token].refresh_token
+            refresh_token: tokens[:refresh_token]
           },
           serializer_options: {
             user: { serializer: Core::UserAuthSerializer }
