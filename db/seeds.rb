@@ -1,9 +1,218 @@
-# This file should ensure the existence of records required to run the application in every environment (production,
-# development, test). The code here should be idempotent so that it can be executed at any point in every environment.
-# The data can then be loaded with the bin/rails db:seed command (or created alongside the database with db:setup).
+# This file should ensure the existence of records required to run the application in every environment.
+# The code here is idempotent — safe to run multiple times without duplicating data.
 #
-# Example:
-#
-#   ["Action", "Comedy", "Drama", "Horror"].each do |genre_name|
-#     MovieGenre.find_or_create_by!(name: genre_name)
-#   end
+# Load with: bin/rails db:seed
+
+puts "=" * 60
+puts "🌱 Digis Backend — Seeding Database"
+puts "=" * 60
+
+# ─────────────────────────────────────────────
+# 1. Core Users
+# ─────────────────────────────────────────────
+puts "\n👤 Seeding users..."
+
+admin_user = Core::User.find_or_create_by!(phone: "+251911000001") do |u|
+  u.email = "admin@digis.et"
+  u.password = "password123"
+  u.verified_at = Time.current
+end
+
+organizer_user = Core::User.find_or_create_by!(phone: "+251911000002") do |u|
+  u.email = "organizer@digis.et"
+  u.password = "password123"
+  u.verified_at = Time.current
+end
+
+attendee_user = Core::User.find_or_create_by!(phone: "+251911000003") do |u|
+  u.email = "attendee@example.com"
+  u.password = "password123"
+  u.verified_at = Time.current
+end
+
+puts "✓ #{Core::User.count} users seeded"
+
+# ─────────────────────────────────────────────
+# 2. Roles
+# ─────────────────────────────────────────────
+puts "\n🎭 Seeding roles..."
+
+super_admin_role = Core::Role.find_or_create_by!(code: "SUPER_ADMIN") do |r|
+  r.name = "Super Admin"
+  r.description = "Full platform access — manages all organizations, users, and settings"
+  r.active = true
+end
+
+admin_role = Core::Role.find_or_create_by!(code: "ADMIN") do |r|
+  r.name = "Admin"
+  r.description = "Organization admin — manages events, tickets, and team members"
+  r.active = true
+end
+
+organizer_role = Core::Role.find_or_create_by!(code: "ORGANIZER") do |r|
+  r.name = "Organizer"
+  r.description = "Event organizer — creates and manages events"
+  r.active = true
+end
+
+user_role = Core::Role.find_or_create_by!(code: "USER") do |r|
+  r.name = "User"
+  r.description = "Default end-user role — can browse and purchase tickets"
+  r.active = true
+end
+
+puts "✓ #{Core::Role.count} roles seeded"
+
+# ─────────────────────────────────────────────
+# 3. Permissions
+# ─────────────────────────────────────────────
+puts "\n🔐 Seeding permissions..."
+
+permissions = [
+  # User management
+  { resource: "user", action: "index", namespace: "core", description: "List all users" },
+  { resource: "user", action: "show", namespace: "core", description: "View user details" },
+  { resource: "user", action: "create", namespace: "core", description: "Create new users" },
+  { resource: "user", action: "update", namespace: "core", description: "Update user information" },
+  { resource: "user", action: "destroy", namespace: "core", description: "Delete users" },
+
+  # Role management
+  { resource: "role", action: "index", namespace: "core", description: "List all roles" },
+  { resource: "role", action: "show", namespace: "core", description: "View role details" },
+  { resource: "role", action: "create", namespace: "core", description: "Create new roles" },
+  { resource: "role", action: "update", namespace: "core", description: "Update roles" },
+  { resource: "role", action: "destroy", namespace: "core", description: "Delete roles" },
+
+  # Permission management
+  { resource: "permission", action: "index", namespace: "core", description: "List all permissions" },
+  { resource: "permission", action: "create", namespace: "core", description: "Create new permissions" },
+  { resource: "permission", action: "update", namespace: "core", description: "Update permissions" },
+  { resource: "permission", action: "destroy", namespace: "core", description: "Delete permissions" },
+
+  # Event management
+  { resource: "event", action: "index", namespace: "platform", description: "List all events" },
+  { resource: "event", action: "show", namespace: "platform", description: "View event details" },
+  { resource: "event", action: "create", namespace: "platform", description: "Create new events" },
+  { resource: "event", action: "update", namespace: "platform", description: "Update events" },
+  { resource: "event", action: "destroy", namespace: "platform", description: "Delete events" },
+  { resource: "event", action: "publish", namespace: "platform", description: "Publish events" },
+
+  # Ticket management
+  { resource: "ticket", action: "index", namespace: "platform", description: "List all tickets" },
+  { resource: "ticket", action: "show", namespace: "platform", description: "View ticket details" },
+  { resource: "ticket", action: "create", namespace: "platform", description: "Create tickets" },
+  { resource: "ticket", action: "update", namespace: "platform", description: "Update tickets" },
+  { resource: "ticket", action: "destroy", namespace: "platform", description: "Delete tickets" },
+  { resource: "ticket", action: "scan", namespace: "platform", description: "Scan ticket QR codes" },
+
+  # Order management
+  { resource: "order", action: "index", namespace: "platform", description: "List all orders" },
+  { resource: "order", action: "show", namespace: "platform", description: "View order details" },
+  { resource: "order", action: "create", namespace: "platform", description: "Create orders" },
+  { resource: "order", action: "update", namespace: "platform", description: "Update orders" },
+  { resource: "order", action: "refund", namespace: "platform", description: "Process refunds" },
+
+  # Organization management
+  { resource: "organization", action: "index", namespace: "platform", description: "List all organizations" },
+  { resource: "organization", action: "show", namespace: "platform", description: "View organization details" },
+  { resource: "organization", action: "create", namespace: "platform", description: "Create organizations" },
+  { resource: "organization", action: "update", namespace: "platform", description: "Update organizations" },
+  { resource: "organization", action: "destroy", namespace: "platform", description: "Delete organizations" },
+
+  # Audit logs
+  { resource: "audit_log", action: "index", namespace: "platform", description: "View audit logs" },
+  { resource: "audit_log", action: "show", namespace: "platform", description: "View audit log details" },
+
+  # Reviews
+  { resource: "review", action: "index", namespace: "platform", description: "List all reviews" },
+  { resource: "review", action: "show", namespace: "platform", description: "View review details" },
+  { resource: "review", action: "approve", namespace: "platform", description: "Approve reviews" },
+  { resource: "review", action: "reject", namespace: "platform", description: "Reject reviews" }
+]
+
+permissions.each do |perm|
+  Core::Permission.find_or_create_by!(resource: perm[:resource], action: perm[:action], namespace: perm[:namespace]) do |p|
+    p.description = perm[:description]
+    p.active = true
+  end
+end
+
+puts "✓ #{Core::Permission.count} permissions seeded"
+
+# ─────────────────────────────────────────────
+# 4. User Roles (Assign roles to users)
+# ─────────────────────────────────────────────
+puts "\n🔗 Seeding user roles..."
+
+Core::UserRole.find_or_create_by!(user: admin_user, role: super_admin_role) do |ur|
+  ur.assigned_by = admin_user
+end
+
+Core::UserRole.find_or_create_by!(user: organizer_user, role: admin_role) do |ur|
+  ur.assigned_by = admin_user
+end
+
+Core::UserRole.find_or_create_by!(user: organizer_user, role: organizer_role) do |ur|
+  ur.assigned_by = admin_user
+end
+
+Core::UserRole.find_or_create_by!(user: attendee_user, role: user_role) do |ur|
+  ur.assigned_by = admin_user
+end
+
+puts "✓ #{Core::UserRole.count} user roles seeded"
+
+# ─────────────────────────────────────────────
+# 5. Role Permissions (Assign permissions to roles)
+# ─────────────────────────────────────────────
+puts "\n🔑 Seeding role permissions..."
+
+# SUPER_ADMIN gets ALL permissions
+Core::Permission.active.find_each do |perm|
+  Core::RolePermission.find_or_create_by!(role: super_admin_role, permission: perm)
+end
+
+# ADMIN gets most permissions (except super admin-only)
+admin_permissions = Core::Permission.where.not(resource: "permission", action: "destroy")
+admin_permissions.find_each do |perm|
+  Core::RolePermission.find_or_create_by!(role: admin_role, permission: perm)
+end
+
+# ORGANIZER gets event, ticket, order, and organization permissions
+organizer_permissions = Core::Permission.where(
+  resource: %w[event ticket order organization review],
+  namespace: "platform"
+)
+organizer_permissions.find_each do |perm|
+  Core::RolePermission.find_or_create_by!(role: organizer_role, permission: perm)
+end
+
+# USER gets basic event and ticket viewing permissions
+user_permissions = Core::Permission.where(
+  resource: %w[event ticket],
+  action: %w[index show],
+  namespace: "platform"
+)
+user_permissions.find_each do |perm|
+  Core::RolePermission.find_or_create_by!(role: user_role, permission: perm)
+end
+
+puts "✓ #{Core::RolePermission.count} role permissions seeded"
+
+# ─────────────────────────────────────────────
+# Summary
+# ─────────────────────────────────────────────
+puts "\n" + "=" * 60
+puts "🌱 Seeding Complete!"
+puts "=" * 60
+puts "  Users:              #{Core::User.count}"
+puts "  Roles:              #{Core::Role.count}"
+puts "  Permissions:        #{Core::Permission.count}"
+puts "  User Roles:         #{Core::UserRole.count}"
+puts "  Role Permissions:   #{Core::RolePermission.count}"
+puts "=" * 60
+puts "\n🔑 Default credentials:"
+puts "  Admin:     +251911000001 / password123"
+puts "  Organizer: +251911000002 / password123"
+puts "  Attendee:  +251911000003 / password123"
+puts "=" * 60
