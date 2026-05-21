@@ -3,7 +3,6 @@ super_admin:
   email: superadmin@example.com
   phone: "251911000001"
   verified_at: <%= Time.current %>
-  temp_password: false
   password_digest: <%= BCrypt::Password.create("password123") %>
 
 core_admin:
@@ -11,7 +10,6 @@ core_admin:
   email: admin@example.com
   phone: "251911000002"
   verified_at: <%= Time.current %>
-  temp_password: false
   password_digest: <%= BCrypt::Password.create("password123") %>
 
 attendee:
@@ -19,5 +17,4 @@ attendee:
   email: attendee@example.com
   phone: "251911000003"
   verified_at: <%= Time.current %>
-  temp_password: false
   password_digest: <%= BCrypt::Password.create("password123") %>
