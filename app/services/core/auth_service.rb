@@ -36,8 +36,10 @@ module Core
       end
 
       def generate_auth_tokens(user, request)
-        access_token = Core::TokenService.issue(Core::TokenService.access_token_payload(user))
         refresh_token = create_refresh_token(user, request)
+        access_token = Core::TokenService.issue(
+          Core::TokenService.access_token_payload(user, jti: refresh_token.jti)
+        )
 
         {
           access_token: access_token,
@@ -62,7 +64,7 @@ module Core
           refresh_token.revoke!
 
           access_token = Core::TokenService.issue(
-            Core::TokenService.access_token_payload(user)
+            Core::TokenService.access_token_payload(user, jti: new_refresh.jti)
           )
 
           {

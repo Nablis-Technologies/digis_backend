@@ -39,6 +39,7 @@ module Core
     def self.generate(user, request)
       create!(
         user: user,
+        jti: SecureRandom.uuid,
         device_id: request.params[:device_id].presence,
         ip_address: request.remote_ip,
         user_agent: request.user_agent

@@ -52,7 +52,7 @@ module Core
       access_token = extract_access_token_from_header
       return nil if access_token.blank?
 
-      payload = Core::TokenService.decode(access_token)
+      payload = Core::TokenService.decode(access_token, verify_revocation: true)
       return nil unless payload && payload["type"] == "access"
 
       Core::User.find_by(id: payload["user_id"])

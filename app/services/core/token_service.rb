@@ -19,13 +19,35 @@ module Core
         raise Core::AuthenticationError.new("Invalid token", code: "invalid_token")
       end
 
-      def access_token_payload(user)
+      def access_token_payload(user, jti: nil)
         {
           user_id: user.id,
+          jti: jti || SecureRandom.uuid,
           identifier: user.email || user.phone,
           type: "access",
           roles: user.active_role_codes
         }
+      end
+
+      def decode(token, verify_revocation: true)
+        return nil if token.blank?
+
+        decoded = ::JWT.decode(token, key, true, algorithm: "HS256")
+        payload = decoded.first
+
+        if verify_revocation && payload["jti"]
+          raise Core::AuthenticationError.new("Token has been revoked", code: "token_revoked") if jti_revoked?(payload["jti"])
+        end
+
+        payload
+      rescue ::JWT::ExpiredSignature
+        raise Core::AuthenticationError.new("Token has expired", code: "token_expired")
+      rescue ::JWT::DecodeError
+        raise Core::AuthenticationError.new("Invalid token", code: "invalid_token")
+      end
+
+      def jti_revoked?(jti)
+        Core::RefreshToken.exists?(jti: jti, revoked: true)
       end
 
       def access_token_expires_in
