@@ -42,7 +42,11 @@ module Core
 
       def persist!
         @permissions.each do |attributes|
-          permission = Core::Permission.find_or_initialize_by(code: attributes[:code])
+          permission = Core::Permission.find_or_initialize_by(
+            resource: attributes[:resource],
+            action: attributes[:action],
+            namespace: attributes[:namespace]
+          )
           permission.assign_attributes(attributes.merge(active: true))
           permission.save! if permission.new_record? || permission.changed?
         end
