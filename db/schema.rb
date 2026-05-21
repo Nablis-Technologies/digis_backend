@@ -56,13 +56,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_000900) do
     t.string "device_id"
     t.datetime "expires_at", null: false
     t.string "ip_address"
-    t.string "refresh_token", null: false
+    t.boolean "revoked", default: false, null: false
+    t.datetime "revoked_at"
+    t.string "token_fingerprint", null: false
+    t.string "token_hash", null: false
     t.datetime "updated_at", null: false
     t.string "user_agent"
     t.uuid "user_id", null: false
     t.index ["device_id"], name: "index_core_refresh_tokens_on_device_id"
     t.index ["expires_at"], name: "index_core_refresh_tokens_on_expires_at"
-    t.index ["refresh_token"], name: "index_core_refresh_tokens_on_refresh_token", unique: true
+    t.index ["revoked"], name: "index_core_refresh_tokens_on_revoked"
+    t.index ["token_fingerprint"], name: "index_core_refresh_tokens_on_token_fingerprint", unique: true
     t.index ["user_id"], name: "index_core_refresh_tokens_on_user_id"
   end
 

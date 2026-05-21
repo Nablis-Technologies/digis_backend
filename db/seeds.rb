@@ -90,44 +90,44 @@ permissions = [
   { resource: "permission", action: "destroy", namespace: "core", description: "Delete permissions" },
 
   # Event management
-  { resource: "event", action: "index", namespace: "platform", description: "List all events" },
-  { resource: "event", action: "show", namespace: "platform", description: "View event details" },
-  { resource: "event", action: "create", namespace: "platform", description: "Create new events" },
-  { resource: "event", action: "update", namespace: "platform", description: "Update events" },
-  { resource: "event", action: "destroy", namespace: "platform", description: "Delete events" },
-  { resource: "event", action: "publish", namespace: "platform", description: "Publish events" },
+  { resource: "event", action: "index", namespace: "core", description: "List all events" },
+  { resource: "event", action: "show", namespace: "core", description: "View event details" },
+  { resource: "event", action: "create", namespace: "core", description: "Create new events" },
+  { resource: "event", action: "update", namespace: "core", description: "Update events" },
+  { resource: "event", action: "destroy", namespace: "core", description: "Delete events" },
+  { resource: "event", action: "publish", namespace: "core", description: "Publish events" },
 
   # Ticket management
-  { resource: "ticket", action: "index", namespace: "platform", description: "List all tickets" },
-  { resource: "ticket", action: "show", namespace: "platform", description: "View ticket details" },
-  { resource: "ticket", action: "create", namespace: "platform", description: "Create tickets" },
-  { resource: "ticket", action: "update", namespace: "platform", description: "Update tickets" },
-  { resource: "ticket", action: "destroy", namespace: "platform", description: "Delete tickets" },
-  { resource: "ticket", action: "scan", namespace: "platform", description: "Scan ticket QR codes" },
+  { resource: "ticket", action: "index", namespace: "core", description: "List all tickets" },
+  { resource: "ticket", action: "show", namespace: "core", description: "View ticket details" },
+  { resource: "ticket", action: "create", namespace: "core", description: "Create tickets" },
+  { resource: "ticket", action: "update", namespace: "core", description: "Update tickets" },
+  { resource: "ticket", action: "destroy", namespace: "core", description: "Delete tickets" },
+  { resource: "ticket", action: "scan", namespace: "core", description: "Scan ticket QR codes" },
 
   # Order management
-  { resource: "order", action: "index", namespace: "platform", description: "List all orders" },
-  { resource: "order", action: "show", namespace: "platform", description: "View order details" },
-  { resource: "order", action: "create", namespace: "platform", description: "Create orders" },
-  { resource: "order", action: "update", namespace: "platform", description: "Update orders" },
-  { resource: "order", action: "refund", namespace: "platform", description: "Process refunds" },
+  { resource: "order", action: "index", namespace: "core", description: "List all orders" },
+  { resource: "order", action: "show", namespace: "core", description: "View order details" },
+  { resource: "order", action: "create", namespace: "core", description: "Create orders" },
+  { resource: "order", action: "update", namespace: "core", description: "Update orders" },
+  { resource: "order", action: "refund", namespace: "core", description: "Process refunds" },
 
   # Organization management
-  { resource: "organization", action: "index", namespace: "platform", description: "List all organizations" },
-  { resource: "organization", action: "show", namespace: "platform", description: "View organization details" },
-  { resource: "organization", action: "create", namespace: "platform", description: "Create organizations" },
-  { resource: "organization", action: "update", namespace: "platform", description: "Update organizations" },
-  { resource: "organization", action: "destroy", namespace: "platform", description: "Delete organizations" },
+  { resource: "organization", action: "index", namespace: "core", description: "List all organizations" },
+  { resource: "organization", action: "show", namespace: "core", description: "View organization details" },
+  { resource: "organization", action: "create", namespace: "core", description: "Create organizations" },
+  { resource: "organization", action: "update", namespace: "core", description: "Update organizations" },
+  { resource: "organization", action: "destroy", namespace: "core", description: "Delete organizations" },
 
   # Audit logs
-  { resource: "audit_log", action: "index", namespace: "platform", description: "View audit logs" },
-  { resource: "audit_log", action: "show", namespace: "platform", description: "View audit log details" },
+  { resource: "audit_log", action: "index", namespace: "core", description: "View audit logs" },
+  { resource: "audit_log", action: "show", namespace: "core", description: "View audit log details" },
 
   # Reviews
-  { resource: "review", action: "index", namespace: "platform", description: "List all reviews" },
-  { resource: "review", action: "show", namespace: "platform", description: "View review details" },
-  { resource: "review", action: "approve", namespace: "platform", description: "Approve reviews" },
-  { resource: "review", action: "reject", namespace: "platform", description: "Reject reviews" }
+  { resource: "review", action: "index", namespace: "core", description: "List all reviews" },
+  { resource: "review", action: "show", namespace: "core", description: "View review details" },
+  { resource: "review", action: "approve", namespace: "core", description: "Approve reviews" },
+  { resource: "review", action: "reject", namespace: "core", description: "Reject reviews" }
 ]
 
 permissions.each do |perm|
@@ -181,7 +181,7 @@ end
 # ORGANIZER gets event, ticket, order, and organization permissions
 organizer_permissions = Core::Permission.where(
   resource: %w[event ticket order organization review],
-  namespace: "platform"
+  namespace: "core"
 )
 organizer_permissions.find_each do |perm|
   Core::RolePermission.find_or_create_by!(role: organizer_role, permission: perm)
@@ -191,7 +191,7 @@ end
 user_permissions = Core::Permission.where(
   resource: %w[event ticket],
   action: %w[index show],
-  namespace: "platform"
+  namespace: "core"
 )
 user_permissions.find_each do |perm|
   Core::RolePermission.find_or_create_by!(role: user_role, permission: perm)
