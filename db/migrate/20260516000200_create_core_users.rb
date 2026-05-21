@@ -4,8 +4,7 @@ class CreateCoreUsers < ActiveRecord::Migration[8.1]
       t.string :email, limit: 150
       t.string :phone, limit: 30
       t.datetime :verified_at
-      t.boolean :temp_password, null: false, default: false
-      t.string :password_digest, null: false
+      t.string :password_digest
 
       t.timestamps
     end

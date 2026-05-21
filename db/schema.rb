@@ -120,9 +120,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_16_000900) do
   create_table "core_users", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "email", limit: 150
-    t.string "password_digest", null: false
+    t.string "password_digest"
     t.string "phone", limit: 30
-    t.boolean "temp_password", default: false, null: false
     t.datetime "updated_at", null: false
     t.datetime "verified_at"
     t.index ["email"], name: "index_core_users_on_email", unique: true
