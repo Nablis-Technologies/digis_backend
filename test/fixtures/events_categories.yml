@@ -1,0 +1,45 @@
+music:
+  id: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+  name: Music
+  description: Concerts, festivals, and live performances
+  slug: music
+  metadata:
+    icon: "music-note"
+    color: "#FF5733"
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+sports:
+  id: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
+  name: Sports
+  description: Sporting events and competitions
+  slug: sports
+  metadata:
+    icon: "trophy"
+    color: "#33FF57"
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+conference:
+  id: cccccccc-cccc-cccc-cccc-cccccccccccc
+  name: Conference
+  description: Business and tech conferences
+  slug: conference
+  metadata:
+    icon: "briefcase"
+    color: "#3357FF"
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+inactive_category:
+  id: dddddddd-dddd-dddd-dddd-dddddddddddd
+  name: Inactive Event
+  description: This category is no longer active
+  slug: inactive-event
+  metadata: {}
+  active: false
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
