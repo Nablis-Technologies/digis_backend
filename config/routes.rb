@@ -13,6 +13,10 @@ Rails.application.routes.draw do
     get "auth/me", to: "auth#me"
   end
 
+  namespace :events do
+    resources :categories, except: %i[new edit]
+  end
+
   # Defines the root path route ("/")
   # root "posts#index"
 end
