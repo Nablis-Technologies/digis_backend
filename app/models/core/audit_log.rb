@@ -1,6 +1,6 @@
 module Core
   class AuditLog < Core::ApplicationRecord
-    belongs_to :auditable, polymorphic: true
+    belongs_to :auditable, polymorphic: true, optional: true
     belongs_to :actor, polymorphic: true, optional: true
 
     validates :action, presence: true
