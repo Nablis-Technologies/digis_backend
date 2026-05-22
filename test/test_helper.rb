@@ -2,6 +2,8 @@ ENV["RAILS_ENV"] ||= "test"
 require_relative "../config/environment"
 require "rails/test_help"
 
+Dir[Rails.root.join("test/support/**/*.rb")].each { |f| require f }
+
 module ActiveSupport
   class TestCase
     # Run tests in parallel with specified workers
@@ -18,7 +20,8 @@ module ActiveSupport
       core_user_roles: Core::UserRole,
       core_refresh_tokens: Core::RefreshToken,
       core_audit_logs: Core::AuditLog,
-      core_reviews: Core::Review
+      core_reviews: Core::Review,
+      events_categories: Events::Category
     )
 
     # Add more helper methods to be used by all tests here...
