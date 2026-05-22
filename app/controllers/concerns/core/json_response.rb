@@ -15,11 +15,40 @@ module Core
       end
     end
 
+    def serializer_fields
+      nil
+    end
+
+    def resolved_visible_attributes(data)
+      controller_fields = serializer_fields&.dig(action_name.to_sym)
+      policy_fields = policy_visible_attributes_for(data)
+
+      return nil if controller_fields.nil? && policy_fields.nil?
+      return controller_fields.map(&:to_sym) if policy_fields.nil?
+      return policy_fields.map(&:to_sym) if controller_fields.nil?
+
+      controller_fields.map(&:to_sym) & policy_fields.map(&:to_sym)
+    end
+
+    def policy_visible_attributes_for(data)
+      return nil unless data.is_a?(ActiveRecord::Base) || data.is_a?(ActiveRecord::Relation)
+
+      target = data.is_a?(ActiveRecord::Relation) ? @clazz&.new : data
+      return nil unless target
+
+      pol = policy(target)
+      return nil unless pol&.respond_to?(:visible_attributes_for)
+
+      pol.visible_attributes_for(record: target, action: action_name)
+    end
+
     def render_success(message = nil, data: nil, status: :ok, serializer_options: {}, pagination: nil, meta: nil, **options)
       response = { success: true }
       resolved_message = resolve_message(message, type: :success)
       response[:message] = resolved_message if resolved_message.present?
-      response[:data] = serialize(data, serializer_options.except(:pagination)) unless data.nil?
+      response[:data] = serialize(data, serializer_options.except(:pagination).merge(
+        visible_attributes: resolved_visible_attributes(data)
+      )) unless data.nil?
       response[:pagination] = pagination || serializer_options[:pagination] if pagination.present? || serializer_options[:pagination].present?
       response[:meta] = meta if meta.present?
       response.merge!(options) if options.present?
