@@ -31,7 +31,6 @@ module Core
 
       # Advanced mode: resolve record and calculate changes
       record = record_type.constantize.find_by(id: record_id)
-      return unless record
 
       actor = actor_id && actor_type ? actor_type.constantize.find_by(id: actor_id) : nil
 
@@ -51,19 +50,33 @@ module Core
 
       action_label = resolve_action_label(action_name, configs)
 
-      record.record_audit!(
-        action_label,
-        audited_changes: all_changes,
-        metadata: {
-          controller: controller_name,
-          action: action_name,
-          request_uuid: request_uuid
-        },
-        actor: actor,
-        request_uuid: request_uuid,
-        ip_address: ip_address,
-        user_agent: user_agent
-      )
+      if record
+        record.record_audit!(
+          action_label,
+          audited_changes: all_changes,
+          metadata: {
+            controller: controller_name,
+            action: action_name,
+            request_uuid: request_uuid
+          },
+          actor: actor,
+          request_uuid: request_uuid,
+          ip_address: ip_address,
+          user_agent: user_agent
+        )
+      else
+        Core::AuditLog.create!(
+          action: action_label,
+          auditable_type: record_type,
+          auditable_id: record_id,
+          audited_changes: all_changes,
+          metadata: { controller: controller_name, action: action_name, request_uuid: request_uuid },
+          actor: actor,
+          request_uuid: request_uuid,
+          ip_address: ip_address,
+          user_agent: user_agent
+        )
+      end
     rescue StandardError => e
       Rails.logger.error "AuditLoggerJob failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
       raise
@@ -165,6 +178,19 @@ module Core
 
     # Diff two record states (before/after)
     def diff_records(before, after)
+      # Destroy: before present, after blank
+      if before.present? && after.blank?
+        changes = {}
+        before_attrs = before[:attributes] || {}
+        before_attrs.each do |key, old_val|
+          next if %w[id created_at updated_at].include?(key.to_s)
+          next if old_val.nil?
+
+          changes[key] = { old: old_val, new: nil }
+        end
+        return changes
+      end
+
       return {} if after.blank?
 
       if before.blank?

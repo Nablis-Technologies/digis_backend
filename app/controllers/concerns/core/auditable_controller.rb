@@ -214,6 +214,19 @@ module Core
       record = resolve_auditable_record
 
       unless record
+        if action_name.to_sym == :destroy && @audit_snapshot[:record_id].present?
+          Rails.logger.debug "Audit: Record destroyed, using snapshot data for destroy audit"
+          enqueue_audit_job(
+            record_id: @audit_snapshot[:record_id],
+            record_type: @audit_snapshot[:record_type],
+            before_main: @audit_snapshot[:before_main],
+            after_main: nil,
+            before_associated: @audit_snapshot[:before_associated] || {},
+            after_associated: {}
+          )
+          return
+        end
+
         log_resolution_failure(detect_model_class, action_name.to_sym)
         return
       end
@@ -239,16 +252,26 @@ module Core
         end
       end
 
-      Rails.logger.debug "Audit: Enqueuing job with #{active_configs.count} configs"
-
-      requires_transaction = active_configs.any? { |c| c[:transactional] != false }
-
-      job_args = {
+      enqueue_audit_job(
         record_id: @audit_snapshot[:record_id],
         record_type: @audit_snapshot[:record_type],
         before_main: @audit_snapshot[:before_main],
         after_main: after_main,
         before_associated: @audit_snapshot[:before_associated] || {},
+        after_associated: after_associated
+      )
+    end
+
+    # Enqueue the audit job with the given data
+    def enqueue_audit_job(record_id:, record_type:, before_main:, after_main:, before_associated:, after_associated:)
+      requires_transaction = active_configs.any? { |c| c[:transactional] != false }
+
+      job_args = {
+        record_id: record_id,
+        record_type: record_type,
+        before_main: before_main,
+        after_main: after_main,
+        before_associated: before_associated,
         after_associated: after_associated,
         actor_id: current_actor&.id,
         actor_type: current_actor&.class&.name,
