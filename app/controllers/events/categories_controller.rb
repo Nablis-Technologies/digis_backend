@@ -21,6 +21,15 @@ module Events
       %w[id name slug active created_at updated_at]
     end
 
+    def serializer_fields
+      {
+        index:  %i[id name slug],
+        show:   %i[id name description slug metadata active created_at updated_at],
+        create: %i[id name slug],
+        update: %i[id name slug]
+      }
+    end
+
     def default_serializer_includes
       {
         index: [],
