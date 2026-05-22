@@ -18,6 +18,7 @@ module Core
         meta.actions.each { |action| generate_tests(action, meta) }
         generate_show_extras(meta)
         generate_index_extras(meta)
+        generate_absence_tests(meta)
         generate_destroy_test(meta)
       end
 
@@ -160,6 +161,29 @@ module Core
           assert_nil meta.model_class.find_by(id: record.id)
         end
       end
+
+      def generate_absence_tests(meta)
+        meta.actions.each do |action|
+          absent = meta.check_attributes[:"#{action}_absent"]
+          next unless absent&.any?
+
+          test "#{action} excludes hidden attributes" do
+            record = resolve_record(action, meta)
+            params = resolve_params(action, meta, record)
+            path = case action
+                   when :index then meta.path
+                   when :create then meta.path
+                   else "#{meta.path}/#{record.id}"
+                   end
+
+            send(http_method_for(action), path, params: params, headers: admin_headers, as: :json)
+            assert_response :success
+
+            data = action == :index ? JSON.parse(response.body).dig("data")&.first : JSON.parse(response.body).dig("data")
+            absent.each { |attr| assert_not data.key?(attr), "Did not expect #{attr} in #{action} response" }
+          end
+        end
+      end
     end
 
     private
@@ -208,6 +232,10 @@ module Core
     def token_headers_for(user)
       token = Core::TokenService.issue(Core::TokenService.access_token_payload(user))
       { "Authorization" => "Bearer #{token}" }
+    end
+
+    def http_method_for(action)
+      { index: :get, show: :get, create: :post, update: :patch, destroy: :delete }[action]
     end
 
     class Metadata
@@ -393,9 +421,30 @@ module Core
       def resolve_default_check_attributes
         return if @options.key?(:check_attributes)
 
+        controller_fields = @controller_class&.new&.send(:serializer_fields) rescue nil
+
+        if controller_fields
+          full_set = resolve_serializer_attribute_names
+          controller_fields.each do |action, attrs|
+            attr_strings = attrs.map(&:to_s)
+            @check_attributes[action] ||= attr_strings
+            absent = full_set - attr_strings
+            @check_attributes[:"#{action}_absent"] ||= absent if absent.any?
+          end
+          return
+        end
+
         columns = @model_class.column_names - %w[id created_at updated_at] rescue []
         @check_attributes[:show] ||= columns if columns.any?
         @check_attributes[:index] ||= columns if columns.any?
+      end
+
+      def resolve_serializer_attribute_names
+        serializer_class = "#{@model_class.name}Serializer".constantize
+        attrs = serializer_class._attributes
+        attrs.respond_to?(:keys) ? attrs.keys.map(&:to_s) : attrs.map(&:to_s)
+      rescue NameError
+        @model_class.column_names
       end
 
       def resolve_default_index_config
