@@ -12,7 +12,7 @@ module Core
     end
 
     def index
-      authorize @clazz.new, :index?
+      authorize @clazz.new, :index? unless skip_authorization_for_action?
 
       data, serializer_options = resolve_block_result(default: policy_scope(@clazz))
       data = data.includes(eager_loaded_associations) if eager_loaded_associations.present?
@@ -30,7 +30,7 @@ module Core
     end
 
     def show
-      authorize @obj
+      authorize @obj unless skip_authorization_for_action?
 
       data, serializer_options = resolve_block_result(default: @obj)
       data = @clazz.includes(eager_loaded_associations).find(data.id) if data.is_a?(@clazz) && eager_loaded_associations.present?
@@ -42,7 +42,7 @@ module Core
     end
 
     def create
-      authorize @clazz.new, :create?
+      authorize @clazz.new, :create? unless skip_authorization_for_action?
 
       object, serializer_options = resolve_block_result(default: @clazz.new(model_params))
 
@@ -71,7 +71,7 @@ module Core
     end
 
     def update
-      authorize @obj
+      authorize @obj unless skip_authorization_for_action?
 
       object, serializer_options = resolve_block_result(default: @obj)
 
@@ -99,7 +99,7 @@ module Core
     end
 
     def destroy
-      authorize @obj
+      authorize @obj unless skip_authorization_for_action?
       if @obj.respond_to?(:soft_delete)
         @obj.soft_delete!
       else

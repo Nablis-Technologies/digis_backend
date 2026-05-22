@@ -7,8 +7,23 @@ module Core
     include ::Pundit::Authorization
 
     included do
+      class_attribute :_skip_authorize_actions, default: Set.new
       after_action :verify_authorized
       rescue_from ::Pundit::NotAuthorizedError, with: :handle_not_authorized
+    end
+
+    class_methods do
+      def skip_authorization(**options)
+        actions = options[:only] ? Array(options[:only]) : action_methods.to_a
+        actions -= Array(options[:except]) if options[:except]
+        _skip_authorize_actions.merge(actions.map(&:to_s))
+        skip_before_action :authorize_action!, **options
+        skip_after_action :verify_authorized, **options
+      end
+    end
+
+    def skip_authorization_for_action?
+      self.class._skip_authorize_actions.include?(action_name)
     end
 
     def authorize_action!
