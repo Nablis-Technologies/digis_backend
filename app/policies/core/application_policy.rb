@@ -27,6 +27,10 @@ module Core
       allowed?(:destroy)
     end
 
+    def visible_attributes_for(record:, action:)
+      nil
+    end
+
     class Scope
       attr_reader :user, :scope
 
