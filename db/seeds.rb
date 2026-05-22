@@ -200,6 +200,33 @@ end
 puts "✓ #{Core::RolePermission.count} role permissions seeded"
 
 # ─────────────────────────────────────────────
+# 6. Events::Categories
+# ─────────────────────────────────────────────
+puts "\n📂 Seeding event categories..."
+
+categories = [
+  { name: "Music", description: "Concerts, festivals, and live performances", metadata: { icon: "music-note", color: "#FF5733", display_order: 1 } },
+  { name: "Sports", description: "Sporting events, matches, and tournaments", metadata: { icon: "trophy", color: "#33FF57", display_order: 2 } },
+  { name: "Conference", description: "Business, tech, and academic conferences", metadata: { icon: "briefcase", color: "#3357FF", display_order: 3 } },
+  { name: "Arts & Culture", description: "Exhibitions, theater, dance, and cultural events", metadata: { icon: "palette", color: "#FF33F1", display_order: 4 } },
+  { name: "Workshop", description: "Hands-on learning sessions and training", metadata: { icon: "book-open", color: "#FFD733", display_order: 5 } },
+  { name: "Networking", description: "Meetups, mixers, and professional networking", metadata: { icon: "users", color: "#33FFF5", display_order: 6 } },
+  { name: "Family & Kids", description: "Events for families and children", metadata: { icon: "heart", color: "#FF8333", display_order: 7 } },
+  { name: "Food & Drink", description: "Food festivals, tastings, and culinary events", metadata: { icon: "coffee", color: "#8B4513", display_order: 8 } },
+  { name: "Charity", description: "Fundraisers, galas, and community service events", metadata: { icon: "gift", color: "#FF3333", display_order: 9 } }
+]
+
+categories.each do |cat|
+  Events::Category.find_or_create_by!(name: cat[:name]) do |c|
+    c.description = cat[:description]
+    c.metadata = cat[:metadata]
+    c.active = true
+  end
+end
+
+puts "✓ #{Events::Category.count} event categories seeded"
+
+# ─────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────
 puts "\n" + "=" * 60
@@ -210,6 +237,7 @@ puts "  Roles:              #{Core::Role.count}"
 puts "  Permissions:        #{Core::Permission.count}"
 puts "  User Roles:         #{Core::UserRole.count}"
 puts "  Role Permissions:   #{Core::RolePermission.count}"
+puts "  Event Categories:   #{Events::Category.count}"
 puts "=" * 60
 puts "\n🔑 Default credentials:"
 puts "  Admin:     +251911000001 / password123"
