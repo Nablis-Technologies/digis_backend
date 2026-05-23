@@ -15,12 +15,16 @@ module Core
       end
     end
 
-    def serializer_fields
-      nil
+    def serializer_profile
+      {}
     end
 
     def resolved_visible_attributes(data)
-      controller_fields = serializer_fields&.dig(action_name.to_sym)
+      profile = serializer_profile
+      action_sym = action_name.to_sym
+      action_config = profile[action_sym] || {}
+      default_conf = profile[:default] || {}
+      controller_fields = action_config.key?(:fields) ? action_config[:fields] : default_conf[:fields]
       policy_fields = policy_visible_attributes_for(data)
 
       return nil if controller_fields.nil? && policy_fields.nil?
