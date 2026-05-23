@@ -1,0 +1,11 @@
+<%= model_name.underscore %>:
+  success:
+    index: "<%= class_name.demodulize.pluralize %> retrieved successfully"
+    show: "<%= class_name.demodulize %> retrieved successfully"
+    create: "<%= class_name.demodulize %> created successfully"
+    update: "<%= class_name.demodulize %> updated successfully"
+    destroy: "<%= class_name.demodulize %> deleted successfully"
+  errors:
+    create: "Failed to create <%= class_name.demodulize.underscore.humanize.downcase %>"
+    update: "Failed to update <%= class_name.demodulize.underscore.humanize.downcase %>"
+    destroy: "Failed to delete <%= class_name.demodulize.underscore.humanize.downcase %>"

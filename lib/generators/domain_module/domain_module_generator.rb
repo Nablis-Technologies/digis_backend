@@ -34,7 +34,7 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
   end
 
   VALID_COMPONENTS = %w[
-    migration model controller serializer policy
+    migration model controller serializer policy locale
     fixture model_test integration_test route
   ].freeze
 
@@ -122,6 +122,11 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
     return unless component_enabled?(:route)
     return if options[:skip_routes]
     route "resources :#{plural_name}, except: %i[new edit]", namespace: namespace_path
+  end
+
+  def create_locale_file
+    return unless component_enabled?(:locale)
+    template "locale.en.yml.tt", "config/locales/#{file_name}.en.yml"
   end
 
   def add_fixture_class_mapping

@@ -1,6 +1,6 @@
 # Domain Module Generator
 
-A Rails generator that scaffolds a complete domain module — model, migration, controller, serializer, policy, tests, fixtures, and route — following the platform's modular monolith conventions.
+A Rails generator that scaffolds a complete domain module — model, migration, controller, serializer, policy, locale, tests, fixtures, and route — following the platform's modular monolith conventions.
 
 ## Quick Start
 
@@ -52,6 +52,7 @@ For `Events::Event`, the generator creates:
 | `test/integration/events/events_test.rb` | Integration tests using `resource_test` DSL — authorization, audit, CRUD, pagination, attribute visibility |
 | `config/routes.rb` | Namespaced RESTful route (except new/edit) |
 | `test/test_helper.rb` | `set_fixture_class` mapping inserted |
+| `config/locales/MODEL.en.yml` | I18n locale file with success/error messages per action |
 
 If the namespace is new, also creates:
 
@@ -102,7 +103,7 @@ When a `name:string` column is present:
 | `--skip-routes` | `false` | Don't add route to `config/routes.rb` |
 | `--skip-tests` | `false` | Don't create test/fixture files |
 | `--interactive` / `--no-interactive` | `true` | Prompt for auditable, slug, slug_source when not explicitly provided. Use `--no-interactive` for scripting |
-| `--only=COMPONENTS` | (none) | Only generate the listed components (comma-separated). Valid values: `migration`, `model`, `controller`, `serializer`, `policy`, `fixture`, `model_test`, `integration_test`, `route`. Errors on invalid entries. |
+| `--only=COMPONENTS` | (none) | Only generate the listed components (comma-separated). Valid values: `migration`, `model`, `controller`, `serializer`, `policy`, `locale`, `fixture`, `model_test`, `integration_test`, `route`. Errors on invalid entries. |
 | `--skip=COMPONENTS` | (none) | Skip the listed components. Same valid values as `--only`. Cannot be combined with `--only`. |
 
 ### Component Selection
@@ -187,6 +188,26 @@ A column named `token_digest`, `api_key`, or `password_hash` would be filtered o
 A column named `ticket_number` or `author_name` would NOT be filtered (no substring match).
 
 The filter applies only to `ransackable_attributes`. Serialized attributes, migrations, and controllers include all columns normally.
+
+### Locale generation
+
+Each generated model gets a locale file at `config/locales/<model_name>.en.yml` with success and error message keys used by `Core::JsonResponse#inferred_message_key`:
+
+```yaml
+venue:
+  success:
+    index: "Venues retrieved successfully"
+    show: "Venue retrieved successfully"
+    create: "Venue created successfully"
+    update: "Venue updated successfully"
+    destroy: "Venue deleted successfully"
+  errors:
+    create: "Failed to create venue"
+    update: "Failed to update venue"
+    destroy: "Failed to delete venue"
+```
+
+The key is derived from `model_name.demodulize.underscore` (e.g., `Events::Venue` → `venue`). This matches how `Core::Common` infers the I18n key for response messages. Namespace prefixes are stripped, so two models with the same name in different namespaces share the same locale key.
 
 ### `Core::SlugableTest` (`test/support/core/slugable_test.rb`)
 
