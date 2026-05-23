@@ -421,19 +421,30 @@ module Core
       def resolve_default_check_attributes
         return if @options.key?(:check_attributes)
 
-        controller_fields = @controller_class&.new&.send(:serializer_fields) rescue nil
+        profile = @controller_class&.new&.send(:serializer_profile) rescue nil
+        return resolve_default_check_attributes_from_columns if profile.blank?
 
-        if controller_fields
-          full_set = resolve_serializer_attribute_names
-          controller_fields.each do |action, attrs|
-            attr_strings = attrs.map(&:to_s)
-            @check_attributes[action] ||= attr_strings
-            absent = full_set - attr_strings
-            @check_attributes[:"#{action}_absent"] ||= absent if absent.any?
+        default_fields = profile[:default]&.dig(:fields)
+        full_set = resolve_serializer_attribute_names
+        action_fields = @actions.each_with_object({}) do |action, hash|
+          action_config = profile[action]
+          if action_config&.key?(:fields)
+            hash[action] = action_config[:fields]
+          elsif default_fields
+            hash[action] = default_fields
           end
-          return
         end
 
+        action_fields.each do |action, attrs|
+          next if attrs.nil?
+          attr_strings = attrs.map(&:to_s)
+          @check_attributes[action] ||= attr_strings
+          absent = full_set - attr_strings
+          @check_attributes[:"#{action}_absent"] ||= absent if absent.any?
+        end
+      end
+
+      def resolve_default_check_attributes_from_columns
         columns = @model_class.column_names - %w[id created_at updated_at] rescue []
         @check_attributes[:show] ||= columns if columns.any?
         @check_attributes[:index] ||= columns if columns.any?
