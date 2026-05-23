@@ -1,0 +1,35 @@
+module <%= namespace_path.camelize %>
+  class <%= plural_name.camelize %>Controller < <%= namespace_path.camelize %>::ApplicationController
+    include Core::Common
+<% if auditable? %>
+    include Core::AuditableController
+<% end %>
+
+    self.model_class = <%= class_name %>
+
+<% if auditable? %>
+    auditable on: %i[create update destroy]
+<% end %>
+
+    private
+
+    def model_params
+      params.require(:<%= model_name.underscore %>).permit(
+        <%= param_columns.join(", ") %>
+      )
+    end
+
+    def allowed_order_columns
+      %w[<%= ransackable_attributes_list.join(" ") %>]
+    end
+
+    def serializer_profile
+      {
+        index: {},
+        show: {},
+        create: {},
+        update: {}
+      }
+    end
+  end
+end
