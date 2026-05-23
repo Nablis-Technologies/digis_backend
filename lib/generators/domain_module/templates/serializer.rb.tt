@@ -1,0 +1,14 @@
+module <%= namespace_path.camelize %>
+  class <%= model_name %>Serializer < ActiveModel::Serializer
+    include Core::AttributeVisibilitySerializer
+
+    attributes <%= serialized_attributes_list.join(", ") %>
+<% belongs_to_columns.each do |col| %>
+<%   if col.class_name %>
+    belongs_to :<%= col.name %>, class_name: "<%= col.class_name %>"
+<%   else %>
+    belongs_to :<%= col.name %>
+<%   end %>
+<% end %>
+  end
+end
