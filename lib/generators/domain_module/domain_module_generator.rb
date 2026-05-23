@@ -110,7 +110,7 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
     return if fixture_class_already_mapped?
 
     sentinel = /events_categories:\s+Events::Category/
-    mapping = ",\n      #{fixture_file_name}: #{class_name},"
+    mapping = "\n      #{fixture_file_name}: #{class_name},"
     insert_into_file "test/test_helper.rb", mapping, after: sentinel, verbose: true
   end
 
@@ -205,7 +205,7 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
   def belongs_to_setup_erb
     belongs_to_columns.map { |c|
       klass = resolve_class_name(c)
-      %(result = #{klass}.connection.execute("INSERT INTO \#{#{klass}.table_name} (name, slug, created_at, updated_at) VALUES ('Setup #{c.name.humanize}', 'setup-#{c.name}-' || gen_random_uuid()\\:\\:text, NOW(), NOW()) RETURNING id"); @#{c.name} = #{klass}.find(result.first["id"]))
+      %(@#{c.name} = #{klass}.create!(name: "Setup #{c.name.humanize}"))
     }.join("\n    ")
   end
 
