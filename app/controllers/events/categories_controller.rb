@@ -13,29 +13,24 @@ module Events
       params.require(:category).permit(:name, :description, :slug, :active, metadata: {})
     end
 
-    def eager_loaded_associations
-      []
-    end
-
     def allowed_order_columns
       %w[id name slug active created_at updated_at]
     end
 
-    def serializer_fields
+    def serializer_profile
       {
-        index:  %i[id name slug],
-        show:   %i[id name description slug metadata active created_at updated_at],
-        create: %i[id name slug],
-        update: %i[id name slug]
-      }
-    end
-
-    def default_serializer_includes
-      {
-        index: [],
-        show: [],
-        create: [],
-        update: []
+        index: {
+          fields: %i[id name slug]
+        },
+        show: {
+          fields: %i[id name description slug metadata active created_at updated_at]
+        },
+        create: {
+          fields: %i[id name slug]
+        },
+        update: {
+          fields: %i[id name slug]
+        }
       }
     end
   end
