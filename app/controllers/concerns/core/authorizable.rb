@@ -65,7 +65,7 @@ module Core
     end
 
     def handle_not_authorized(_exception)
-      render_error("You are not authorized to perform this action", status: :forbidden, code: "not_authorized")
+      render_error(:"authorization.errors.unauthorized", status: :forbidden, code: "not_authorized")
     end
   end
 end
