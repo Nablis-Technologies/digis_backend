@@ -28,7 +28,7 @@ module ActiveSupport
       core_refresh_tokens: Core::RefreshToken,
       core_audit_logs: Core::AuditLog,
       core_reviews: Core::Review,
-      events_categories: Events::Category
+      events_categories: Events::Category,
     )
 
     # Add more helper methods to be used by all tests here...

@@ -33,6 +33,11 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
     end
   end
 
+  VALID_COMPONENTS = %w[
+    migration model controller serializer policy
+    fixture model_test integration_test route
+  ].freeze
+
   class_option :auditable, type: :boolean, default: true
   class_option :slug, type: :boolean, default: false
   class_option :slug_source, type: :string, default: nil
@@ -40,6 +45,10 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
   class_option :skip_routes, type: :boolean, default: false
   class_option :skip_tests, type: :boolean, default: false
   class_option :interactive, type: :boolean, default: true
+  class_option :only, type: :array, default: nil,
+    desc: "Only generate these components (#{VALID_COMPONENTS.join(', ')})"
+  class_option :skip, type: :array, default: nil,
+    desc: "Skip these components (#{VALID_COMPONENTS.join(', ')})"
 
   COLUMN_RE = /\A
     (\w+)                     # name
@@ -51,10 +60,12 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
   def initialize(*)
     super
     return unless behavior == :invoke
+    validate_options!
     resolve_interactive_options if interactive?
   end
 
   def create_migration_file
+    return unless component_enabled?(:migration)
     return if options[:skip_migration]
     template "migration.rb.tt", "db/migrate/#{timestamp}_create_#{table_name}.rb"
   end
@@ -65,6 +76,7 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
   end
 
   def create_model_file
+    return unless component_enabled?(:model)
     template "model.rb.tt", "app/models/#{model_file_path}.rb"
   end
 
@@ -74,33 +86,40 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
   end
 
   def create_controller_file
+    return unless component_enabled?(:controller)
     template "controller.rb.tt", "app/controllers/#{controller_file_path}.rb"
   end
 
   def create_serializer_file
+    return unless component_enabled?(:serializer)
     template "serializer.rb.tt", "app/serializers/#{serializer_file_path}.rb"
   end
 
   def create_policy_file
+    return unless component_enabled?(:policy)
     template "policy.rb.tt", "app/policies/#{policy_file_path}.rb"
   end
 
   def create_fixture_file
+    return unless component_enabled?(:fixture)
     return if options[:skip_tests]
     template "fixture.yml.tt", "test/fixtures/#{fixture_file_name}.yml"
   end
 
   def create_model_test_file
+    return unless component_enabled?(:model_test)
     return if options[:skip_tests]
     template "model_test.rb.tt", "test/models/#{model_test_file_path}.rb"
   end
 
   def create_integration_test_file
+    return unless component_enabled?(:integration_test)
     return if options[:skip_tests]
     template "integration_test.rb.tt", "test/integration/#{integration_test_file_path}.rb"
   end
 
   def add_route
+    return unless component_enabled?(:route)
     return if options[:skip_routes]
     route "resources :#{plural_name}, except: %i[new edit]", namespace: namespace_path
   end
@@ -109,12 +128,38 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
     return if options[:skip_tests]
     return if fixture_class_already_mapped?
 
-    sentinel = /events_categories:\s+Events::Category/
-    mapping = "\n      #{fixture_file_name}: #{class_name},"
-    insert_into_file "test/test_helper.rb", mapping, after: sentinel, verbose: true
+    gsub_file "test/test_helper.rb",
+      /(\s+\w+:\s+[^,\n]+)(\n(?:\s+\w+|\s+\)))/,
+      '\\1,\\2'
+
+    insert_into_file "test/test_helper.rb",
+      "      #{fixture_file_name}: #{class_name},\n",
+      before: /^\s+\)$/
   end
 
   private
+
+  def validate_options!
+    if options[:only]
+      invalid = options[:only] - VALID_COMPONENTS
+      if invalid.any?
+        raise Thor::Error, "Invalid components for --only: #{invalid.join(', ')}. Valid: #{VALID_COMPONENTS.join(', ')}"
+      end
+    end
+
+    if options[:skip]
+      invalid = options[:skip] - VALID_COMPONENTS
+      if invalid.any?
+        raise Thor::Error, "Invalid components for --skip: #{invalid.join(', ')}. Valid: #{VALID_COMPONENTS.join(', ')}"
+      end
+    end
+  end
+
+  def component_enabled?(name)
+    return false if options[:only] && !options[:only].include?(name.to_s)
+    return false if options[:skip]&.include?(name.to_s)
+    true
+  end
 
   def interactive?
     options[:interactive]
@@ -296,10 +341,19 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
     scalar_cols + hash_cols
   end
 
+  SENSITIVE_ATTRIBUTES = %w[
+    password token secret key salt crypt otp auth
+    credential ssn sin credit card cvv cvc pin
+  ].freeze
+
+  def sensitive_column?(name)
+    SENSITIVE_ATTRIBUTES.any? { |pattern| name.downcase.include?(pattern) }
+  end
+
   def ransackable_attributes_list
     %w[id] +
-      data_columns.reject { |c| c.type == :jsonb }.map(&:name) +
-      belongs_to_columns.map { |c| "#{c.name}_id" } +
+      data_columns.reject { |c| c.type == :jsonb || sensitive_column?(c.name) }.map(&:name) +
+      belongs_to_columns.reject { |c| sensitive_column?(c.name) }.map { |c| "#{c.name}_id" } +
       %w[slug created_at updated_at].tap { |list|
         list.delete("slug") unless slugable?
       }

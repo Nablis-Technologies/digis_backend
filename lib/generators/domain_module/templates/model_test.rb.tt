@@ -1,24 +1,25 @@
 require "test_helper"
 
 class <%= class_name %>Test < ActiveSupport::TestCase
-<% if data_columns.any? { |c| c.name == "name" } %>
-  test "requires name" do
-    record = <%= class_name %>.new(name: nil)
-    assert_not record.valid?
-    assert_includes record.errors[:name], "can't be blank"
-  end
-<% end %>
-
-<% if slugable? && data_columns.any? { |c| c.name == "name" } %>
+<% if slugable? && data_columns.any? { |c| c.name == slug_source_column } %>
   include Core::SlugableTest
 
-<% unless belongs_to_columns.empty? %>
+<% if belongs_to_columns.any? %>
   setup do
     <%= belongs_to_setup_erb %>
   end
 
-<% end %>
   test_slugable create_params: -> { { <%= sample_all_create_params_erb %> } }
+<% else %>
+  test_slugable
+<% end %>
+<% end %>
+<% if data_columns.any? { |c| c.name == "name" } %>
+  should validate_presence_of(:name)
+
+<% end %>
+<% belongs_to_columns.each do |col| %>
+  should belong_to(:<%= col.name %>)
 <% end %>
 
   test "ransackable_attributes returns safe attributes" do
