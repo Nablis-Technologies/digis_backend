@@ -293,22 +293,20 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
         ":#{col.name}"
       end
     end.compact
-    scalar_cols << ":active" unless data_columns.any? { |c| c.name == "active" }
-    scalar_cols + hash_cols + [ "metadata: {}" ]
+    scalar_cols + hash_cols
   end
 
   def ransackable_attributes_list
     %w[id] +
       data_columns.reject { |c| c.type == :jsonb }.map(&:name) +
       belongs_to_columns.map { |c| "#{c.name}_id" } +
-      %w[slug active created_at updated_at].tap { |list|
-        list.delete("active") if data_columns.any? { |c| c.name == "active" }
+      %w[slug created_at updated_at].tap { |list|
         list.delete("slug") unless slugable?
       }
   end
 
   def serialized_attributes_list
-    base = %i[id metadata active created_at updated_at]
+    base = %i[id created_at updated_at]
     base << :slug if slugable?
     (data_columns.map { |c| ":#{c.name}" } + base.map { |c| ":#{c}" }).uniq
   end

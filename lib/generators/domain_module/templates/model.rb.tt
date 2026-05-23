@@ -22,10 +22,6 @@ module <%= namespace_path.camelize %>
 <% if slugable? %>
     validates :slug, presence: true, uniqueness: true
 <% end %>
-<% unless data_columns.any? { |c| c.name == "active" } %>
-    scope :active, -> { where(active: true) }
-    scope :inactive, -> { where(active: false) }
-<% end %>
 <% if data_columns.any? { |c| c.name == "name" } %>
     scope :alphabetical, -> { order(:name) }
 <% end %>

@@ -17,7 +17,7 @@ class <%= class_name %>Test < ActiveSupport::TestCase
 
 <% end %>
   test "generates slug from name automatically" do
-    record = <%= class_name %>.create!(name: "Test <%= model_name.humanize %>", metadata: {}<%= ", #{belongs_to_fk_refs_erb}" unless belongs_to_columns.empty? %>)
+    record = <%= class_name %>.create!(name: "Test <%= model_name.humanize %>"<%= ", #{belongs_to_fk_refs_erb}" unless belongs_to_columns.empty? %>)
     assert_equal "test-<%= model_name.underscore %>", record.slug
   end
 <% end %>
