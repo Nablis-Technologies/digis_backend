@@ -20,10 +20,29 @@ module Events
       user.has_role?("SUPER_ADMIN")
     end
 
+    VISIBILITY = {
+      show: {
+        default: %i[id name description slug metadata active],
+        admin: nil
+      }
+    }.freeze
+
     def visible_attributes_for(record:, action:)
-      return nil unless action.to_sym == :show
-      return nil if user.has_role?("SUPER_ADMIN") || user.has_role?("ADMIN")
-      %i[id name description slug metadata active]
+      config = VISIBILITY[action.to_sym]
+      return nil unless config
+
+      if config.key?(user_role_key)
+        config[user_role_key]
+      else
+        config[:default]
+      end
+    end
+
+    private
+
+    def user_role_key
+      return :admin if user.has_role?("SUPER_ADMIN") || user.has_role?("ADMIN")
+      :default
     end
 
     class Scope < Core::ApplicationPolicy::Scope
