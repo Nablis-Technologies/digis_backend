@@ -4,8 +4,10 @@ module Core
 
     def serialize(data, options = {})
       case data
-      when ActiveRecord::Base, ActiveRecord::Relation
-        ActiveModelSerializers::SerializableResource.new(data, options).as_json
+      when ActiveRecord::Base
+        serialize_record(data, options)
+      when ActiveRecord::Relation
+        serialize_relation(data, options)
       when Hash
         serialize_hash(data, options)
       when Array
@@ -35,15 +37,20 @@ module Core
     end
 
     def policy_visible_attributes_for(data)
-      return nil unless data.is_a?(ActiveRecord::Base) || data.is_a?(ActiveRecord::Relation)
+      pol = policy_for_data(data)
+      return nil unless pol&.respond_to?(:visible_attributes_for)
 
       target = data.is_a?(ActiveRecord::Relation) ? @clazz&.new : data
       return nil unless target
 
-      pol = policy(target)
-      return nil unless pol&.respond_to?(:visible_attributes_for)
-
       pol.visible_attributes_for(record: target, action: action_name)
+    end
+
+    def resolved_association_fields(data, action)
+      pol = policy_for_data(data)
+      return {} unless pol&.respond_to?(:association_fields_for)
+
+      pol.association_fields_for(action:)
     end
 
     def render_success(message = nil, data: nil, status: :ok, serializer_options: {}, pagination: nil, meta: nil, **options)
@@ -51,7 +58,8 @@ module Core
       resolved_message = resolve_message(message, type: :success)
       response[:message] = resolved_message if resolved_message.present?
       response[:data] = serialize(data, serializer_options.except(:pagination).merge(
-        visible_attributes: resolved_visible_attributes(data)
+        visible_attributes: resolved_visible_attributes(data),
+        association_fields: build_association_options(resolved_association_fields(data, action_name))
       )) unless data.nil?
       response[:pagination] = pagination || serializer_options[:pagination] if pagination.present? || serializer_options[:pagination].present?
       response[:meta] = meta if meta.present?
@@ -73,6 +81,59 @@ module Core
     end
 
     private
+
+    def policy_for_data(data)
+      return nil unless data.is_a?(ActiveRecord::Base) || data.is_a?(ActiveRecord::Relation)
+
+      target = if data.is_a?(ActiveRecord::Relation)
+        return nil unless @clazz
+        @clazz.new
+      else
+        data
+      end
+
+      policy(target)
+    end
+
+    def serialize_record(data, options = {})
+      assoc_fields = options.delete(:association_fields)
+      serializer_class = options[:serializer] || ActiveModelSerializers::SerializableResource.new(data).serializer
+      result = ActiveModelSerializers::SerializableResource.new(data, options).as_json
+
+      if assoc_fields.present? && serializer_class
+        Core::AssociationFieldFilter.apply!(result, assoc_fields, serializer_class)
+      end
+
+      result
+    end
+
+    def serialize_relation(data, options = {})
+      assoc_fields = options.delete(:association_fields)
+      result = ActiveModelSerializers::SerializableResource.new(data, options).as_json
+
+      if assoc_fields.present? && result.is_a?(Array) && result.first.is_a?(Hash)
+        serializer_class = options[:serializer] || \
+          (data.respond_to?(:klass) && ActiveModelSerializers::SerializableResource.new(data.klass.new).serializer)
+        result.each { |item| Core::AssociationFieldFilter.apply!(item, assoc_fields, serializer_class) } if serializer_class
+      end
+
+      result
+    end
+
+    def build_association_options(fields)
+      return {} if fields.blank?
+
+      fields.each_with_object({}) do |(key, value), opts|
+        next if value.nil?
+
+        entry = {}
+        entry[:fields] = value[:fields].map(&:to_sym) if value[:fields].present?
+        if value[:association_fields].present?
+          entry[:association_fields] = build_association_options(value[:association_fields])
+        end
+        opts[key.to_sym] = entry.presence
+      end.compact
+    end
 
     def serialize_hash(data, options)
       data.each_with_object({}) do |(key, value), serialized|
