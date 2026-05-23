@@ -1,0 +1,53 @@
+one:
+  id: <%= SecureRandom.uuid %>
+<% data_columns.each do |col| %>
+<%   if col.type == :string %>
+  <%= col.name %>: Sample <%= col.name.humanize %>
+<%   elsif col.type == :text %>
+  <%= col.name %>: Sample text for <%= col.name.humanize %>
+<%   elsif col.type == :integer %>
+  <%= col.name %>: 1
+<%   elsif col.type == :decimal || col.type == :float %>
+  <%= col.name %>: 1.0
+<%   elsif col.type == :boolean %>
+  <%= col.name %>: true
+<%   elsif col.type == :date %>
+  <%= col.name %>: <%= Date.current %>
+<%   elsif col.type == :datetime %>
+  <%= col.name %>: <%= Time.current %>
+<%   end %>
+<% end %>
+  metadata: {}
+<% if slugable? %>
+  slug: sample-<%= model_name.underscore %>-one
+<% end %>
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+two:
+  id: <%= SecureRandom.uuid %>
+<% data_columns.each do |col| %>
+<%   if col.type == :string %>
+  <%= col.name %>: Another <%= col.name.humanize %>
+<%   elsif col.type == :text %>
+  <%= col.name %>: Another text for <%= col.name.humanize %>
+<%   elsif col.type == :integer %>
+  <%= col.name %>: 2
+<%   elsif col.type == :decimal || col.type == :float %>
+  <%= col.name %>: 2.0
+<%   elsif col.type == :boolean %>
+  <%= col.name %>: false
+<%   elsif col.type == :date %>
+  <%= col.name %>: <%= Date.current %>
+<%   elsif col.type == :datetime %>
+  <%= col.name %>: <%= Time.current %>
+<%   end %>
+<% end %>
+  metadata: {}
+<% if slugable? %>
+  slug: another-<%= model_name.underscore %>-two
+<% end %>
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
