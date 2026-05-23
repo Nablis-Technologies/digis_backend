@@ -1,0 +1,33 @@
+require "test_helper"
+
+class <%= class_name %>Test < ActiveSupport::TestCase
+<% if data_columns.any? { |c| c.name == "name" } %>
+  test "requires name" do
+    record = <%= class_name %>.new(name: nil)
+    assert_not record.valid?
+    assert_includes record.errors[:name], "can't be blank"
+  end
+<% end %>
+
+<% if slugable? && data_columns.any? { |c| c.name == "name" } %>
+<% unless belongs_to_columns.empty? %>
+  setup do
+    <%= belongs_to_setup_erb %>
+  end
+
+<% end %>
+  test "generates slug from name automatically" do
+    record = <%= class_name %>.create!(name: "Test <%= model_name.humanize %>", metadata: {}<%= ", #{belongs_to_fk_refs_erb}" unless belongs_to_columns.empty? %>)
+    assert_equal "test-<%= model_name.underscore %>", record.slug
+  end
+<% end %>
+
+  test "ransackable_attributes returns safe attributes" do
+    expected = %w[<%= ransackable_attributes_list.join(" ") %>]
+    assert_equal expected, <%= class_name %>.ransackable_attributes
+  end
+
+  test "ransackable_associations returns safe associations" do
+    assert_equal <%= belongs_to_columns.any? ? "%w[#{belongs_to_columns.map(&:name).join(' ')}]" : '[]' %>, <%= class_name %>.ransackable_associations
+  end
+end
