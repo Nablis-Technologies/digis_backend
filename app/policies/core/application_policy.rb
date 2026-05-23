@@ -28,7 +28,45 @@ module Core
     end
 
     def visible_attributes_for(record:, action:)
-      nil
+      entry = resolve_visibility_entry(action)
+      return nil if entry.nil?
+      return entry.map(&:to_sym) if entry.is_a?(Array)
+
+      entry[:fields]&.map(&:to_sym)
+    end
+
+    def included_associations_for(action:, default_includes:)
+      entry = resolve_visibility_entry(action)
+      return nil unless entry.is_a?(Hash)
+
+      entry[:include]&.map(&:to_sym)
+    end
+
+    def association_fields_for(action:)
+      config = resolve_visibility_entry(action)
+      return {} unless config.is_a?(Hash)
+
+      config[:association_fields] || {}
+    end
+
+    def user_role_key
+      return :admin if user&.has_role?("SUPER_ADMIN") || user&.has_role?("ADMIN")
+      :default
+    end
+
+    private
+
+    def resolve_visibility_entry(action)
+      return nil unless self.class.const_defined?(:VISIBILITY, false)
+
+      config = self.class::VISIBILITY[action.to_sym]
+      return nil unless config
+
+      if config.key?(user_role_key)
+        config[user_role_key]
+      else
+        config[:default]
+      end
     end
 
     class Scope
