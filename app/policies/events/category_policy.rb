@@ -24,10 +24,7 @@ module Events
       show: {
         default: { fields: %i[id name description slug metadata active], include: [] },
         admin: {
-          include: [:audit_logs],
-          association_fields: {
-            audit_logs: { fields: %i[id action created_at] }
-          }
+          include: [ :audit_logs ]
         }
       }
     }.freeze
