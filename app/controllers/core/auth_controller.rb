@@ -15,7 +15,7 @@ module Core
       if auth_result.success? && user&.valid_for_authentication?
         tokens = sign_in(user, request)
         render_success(
-          "Login successful",
+          :"auth.success.login",
           data: {
             user: user,
             access_token: tokens[:access_token],
@@ -26,7 +26,7 @@ module Core
           }
         )
       else
-        render_error("Invalid credentials", status: :unauthorized, code: "invalid_credentials")
+        render_error(:"auth.errors.invalid_credentials", status: :unauthorized, code: "invalid_credentials")
       end
     end
 
@@ -40,7 +40,7 @@ module Core
         end
 
         render_success(
-          "Signup successful",
+          :"auth.success.signup",
           data: {
             user: user.reload
           },
@@ -51,7 +51,7 @@ module Core
         )
       rescue ActiveRecord::RecordInvalid => e
         render_error(
-          "Signup failed",
+          :"auth.errors.signup",
           errors: e.record.errors.full_messages,
           status: :unprocessable_entity,
           code: "signup_failed"
@@ -59,7 +59,7 @@ module Core
       rescue StandardError => e
         Rails.logger.error "Signup error: #{e.class} #{e.message}\n#{e.backtrace.first(8).join("\n")}" if defined?(Rails)
         render_error(
-          "Signup failed",
+          :"auth.errors.signup",
           errors: [ e.message.to_s ],
           status: :internal_server_error,
           code: "signup_failed"
@@ -69,13 +69,13 @@ module Core
 
     def logout
       sign_out
-      render_success("Logout successful")
+      render_success(:"auth.success.logout")
     end
 
     def me
       skip_authorization
       render_success(
-        "Current user fetched successfully",
+        :"auth.success.me",
         data: {
           user: current_user
         },
@@ -91,7 +91,7 @@ module Core
 
       if new_tokens
         render_success(
-          "Token refreshed successfully",
+          :"auth.success.refresh",
           data: {
             access_token: new_tokens[:access_token],
             refresh_token: new_tokens[:refresh_token],
@@ -102,7 +102,7 @@ module Core
           }
         )
       else
-        render_error("Invalid token", status: :unauthorized, code: "invalid_token")
+        render_error(:"auth.errors.invalid_token", status: :unauthorized, code: "invalid_token")
       end
     end
 
