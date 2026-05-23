@@ -1,33 +1,11 @@
 require "test_helper"
 
-class EventsCategoryTest < ActiveSupport::TestCase
-  test "requires name" do
-    category = Events::Category.new(name: nil)
+class Events::CategoryTest < ActiveSupport::TestCase
+  include Core::SlugableTest
+  test_slugable
 
-    assert_not category.valid?
-    assert_includes category.errors[:name], "can't be blank"
-  end
-
-  test "requires unique name (case-insensitive)" do
-    existing = events_categories(:music)
-    category = Events::Category.new(name: "MUSIC")
-
-    assert_not category.valid?
-    assert_includes category.errors[:name], "has already been taken"
-  end
-
-  test "generates slug from name automatically" do
-    category = Events::Category.create!(name: "Art Exhibition", metadata: {})
-
-    assert_equal "art-exhibition", category.slug
-  end
-
-  test "handles duplicate slugs with counter" do
-    Events::Category.create!(name: "Test Event", metadata: {})
-    category = Events::Category.create!(name: "Test-Event", metadata: {})
-
-    assert_equal "test-event-1", category.slug
-  end
+  should validate_presence_of(:name)
+  should validate_uniqueness_of(:name).case_insensitive
 
   test "metadata defaults to empty hash" do
     category = Events::Category.new(name: "Test")
