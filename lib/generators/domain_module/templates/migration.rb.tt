@@ -1,0 +1,27 @@
+class Create<%= table_name.camelize %> < ActiveRecord::Migration[8.1]
+  def change
+    create_table :<%= table_name %>, id: :uuid, default: -> { "uuidv7()" } do |t|
+<% data_columns.each do |col| %>
+      t.<%= col.type %> :<%= col.name %>
+<% end %>
+<% belongs_to_columns.each do |col| %>
+      t.uuid :<%= col.name %>_id
+<% end %>
+      t.jsonb :metadata, default: {}, null: false
+<% if slugable? %>
+      t.string :slug
+<% end %>
+<% unless data_columns.any? { |c| c.name == "active" } %>
+      t.boolean :active, default: true, null: false
+<% end %>
+      t.timestamps
+    end
+
+<% if slugable? %>
+    add_index :<%= table_name %>, :slug, unique: true
+<% end %>
+<% unless data_columns.any? { |c| c.name == "active" } %>
+    add_index :<%= table_name %>, :active
+<% end %>
+  end
+end
