@@ -1,0 +1,4 @@
+module <%= namespace_path.camelize %>
+  class ApplicationController < Core::ApplicationController
+  end
+end
