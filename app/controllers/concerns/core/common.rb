@@ -15,15 +15,14 @@ module Core
       authorize @clazz.new, :index? unless skip_authorization_for_action?
 
       data, serializer_options = resolve_block_result(default: policy_scope(@clazz))
-      data = data.includes(eager_loaded_associations) if eager_loaded_associations.present?
+      data = data.includes(eager_loaded_associations) if data.respond_to?(:includes)
       data = filter_records(data)
       data = apply_ordering(data)
 
       total_count = data.count if paginated_request?
       data = apply_pagination(data) if paginated_request?
 
-      includes = serializer_includes_for_action(:index)
-      serializer_options[:include] = includes if includes.present?
+      serializer_options[:include] ||= serializer_includes_for_action(:index)
 
       pagination = paginated_request? ? pagination_metadata(total_count) : nil
       render_success(data: data, serializer_options: serializer_options, pagination: pagination)
@@ -33,10 +32,9 @@ module Core
       authorize @obj unless skip_authorization_for_action?
 
       data, serializer_options = resolve_block_result(default: @obj)
-      data = @clazz.includes(eager_loaded_associations).find(data.id) if data.is_a?(@clazz) && eager_loaded_associations.present?
+      data = @clazz.includes(eager_loaded_associations).find(data.id) if data.is_a?(@clazz)
 
-      includes = serializer_includes_for_action(:show)
-      serializer_options[:include] = includes if includes.present?
+      serializer_options[:include] ||= serializer_includes_for_action(:show)
 
       render_success(data: data, serializer_options: serializer_options)
     end
@@ -51,11 +49,10 @@ module Core
           @obj = object
           after_save_hook(object) if respond_to?(:after_save_hook, true)
 
-          object = @clazz.includes(eager_loaded_associations).find(object.id) if eager_loaded_associations.present?
+          object = @clazz.includes(eager_loaded_associations).find(object.id)
           @obj = object
 
-          includes = serializer_includes_for_action(:create)
-          serializer_options[:include] = includes if includes.present?
+          serializer_options[:include] ||= serializer_includes_for_action(:create)
 
           render_success(data: object, serializer_options: serializer_options, status: :created)
         else
@@ -79,11 +76,10 @@ module Core
         if object.update(model_params)
           after_save_hook(object) if respond_to?(:after_save_hook, true)
 
-          object = @clazz.includes(eager_loaded_associations).find(object.id) if eager_loaded_associations.present?
+          object = @clazz.includes(eager_loaded_associations).find(object.id)
           @obj = object
 
-          includes = serializer_includes_for_action(:update)
-          serializer_options[:include] = includes if includes.present?
+          serializer_options[:include] ||= serializer_includes_for_action(:update)
 
           render_success(data: object, serializer_options: serializer_options)
         else
@@ -118,11 +114,7 @@ module Core
     end
 
     def set_object
-      @obj = if eager_loaded_associations.present?
-               @clazz.includes(eager_loaded_associations).find(params[:id])
-      else
-               @clazz.find(params[:id])
-      end
+      @obj = @clazz.includes(eager_loaded_associations).find(params[:id])
     end
 
     def resolve_block_result(default:)
@@ -140,23 +132,19 @@ module Core
     end
 
     def eager_loaded_associations
-      []
+      serializer_includes_for_action(action_name)
     end
 
     def allowed_order_columns
       %w[id created_at updated_at]
     end
 
-    def default_serializer_includes
-      {}
-    end
-
     def serializer_includes_for_action(action)
-      includes = default_serializer_includes
-      return includes if includes.is_a?(Array)
-      return [] unless includes.is_a?(Hash)
-
-      includes[action] || includes[:default] || []
+      profile = serializer_profile
+      action_sym = action.to_sym
+      action_config = profile[action_sym] || {}
+      default_conf = profile[:default] || {}
+      action_config.key?(:include) ? action_config[:include] : default_conf[:include] || []
     end
 
     def model_params
