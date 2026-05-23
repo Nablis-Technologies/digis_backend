@@ -1,0 +1,32 @@
+Description:
+  Scaffolds a complete domain module — model, migration, controller, serializer, policy, tests, fixtures, and route.
+
+Usage:
+  rails generate domain_module NAMESPACE::NAME [columns] [options]
+
+Examples:
+  rails generate domain_module Events::Event name:string description:text --auditable --slug-source=name
+  rails generate domain_module Ticketing::Ticket event:belongs_to[Events::Event] price_cents:integer --no-auditable
+
+Arguments:
+  NAME        Namespaced model name (required), e.g. Events::Event
+
+  COLUMNS     Standard Rails attribute types, e.g. name:string description:text
+              Use 'belongs_to' for foreign keys: event:belongs_to[Events::Event]
+              Bracket syntax specifies the target class for cross-namespace references.
+              Without brackets, the class is inferred as Namespace::Name.
+
+Column types:
+  string, text, integer, decimal, float, boolean, date, datetime, jsonb, belongs_to
+
+Options:
+  [--auditable]           Include Core::AuditableModel + AuditableController (default: true)
+  [--no-auditable]        Skip audit logging support
+  [--slug]                Enable slugable (source defaults to 'name') (default: false)
+  [--no-slug]             Disable slugable
+  [--slug-source=COL]     Override slug source column (implies --slug)
+  [--skip-migration]      Skip creating the migration file
+  [--skip-routes]         Skip adding route to config/routes.rb
+  [--skip-tests]          Skip test/fixture files
+  [--interactive]         Prompt for missing flags (default: true)
+  [--no-interactive]      Use defaults for all flags (suitable for scripting)
