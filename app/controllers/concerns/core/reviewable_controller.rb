@@ -55,7 +55,7 @@ module Core
       def define_review_action_method(action_name)
         define_method(action_name) do
           action_config = context_config[:actions][action_name.to_sym]
-          return render_error("Action '#{action_name}' is not defined for context '#{current_review_context}'", status: :bad_request) unless action_config
+          return render_error(I18n.t("review.errors.undefined_action", action: action_name, context: current_review_context), status: :bad_request) unless action_config
 
           perform_review_action(**action_config.slice(:status, :require_feedback, :require_submission_ready, :after, :update_model, :from))
         end
@@ -133,11 +133,11 @@ module Core
       current_status = current_review&.status || context_config[:initial_status]
 
       return render_error(transition_from_error(from, current_status), status: :unprocessable_entity) unless allowed_from_status?(from, current_status)
-      return render_error("Resource must be complete before submission", status: :unprocessable_entity) if require_submission_ready && !submission_ready?(reviewable_resource)
+      return render_error(:"review.errors.submission_not_ready", status: :unprocessable_entity) if require_submission_ready && !submission_ready?(reviewable_resource)
 
       feedback = extract_feedback(require_feedback, status)
       return if performed?
-      return render_error("Cannot transition from '#{current_status}' to '#{status}'", status: :unprocessable_entity) unless valid_transition?(current_status, status)
+      return render_error(I18n.t("review.errors.invalid_transition", from_status: current_status, to_status: status), status: :unprocessable_entity) unless valid_transition?(current_status, status)
 
       ActiveRecord::Base.transaction do
         apply_model_updates! if update_model
@@ -171,7 +171,7 @@ module Core
 
       feedback_data = params[:review_feedback]
       feedback_data = feedback_data.to_unsafe_h if feedback_data.respond_to?(:to_unsafe_h)
-      return render_error("Feedback is required for #{status}", status: :unprocessable_entity) if feedback_data.blank?
+      return render_error(I18n.t("review.errors.feedback_required", status: status), status: :unprocessable_entity) if feedback_data.blank?
 
       feedback_data
     end
@@ -233,22 +233,21 @@ module Core
     end
 
     def transition_from_error(from, current_status)
-      allowed = Array(from).join(", ")
-      "Action '#{action_name}' can only be performed from: #{allowed}. Current status is '#{current_status}'"
+      I18n.t("review.errors.from_status_mismatch", action: action_name, allowed: Array(from).join(", "), current_status: current_status)
     end
 
     def authorize_review_action!
       permission_code = "#{controller_name}.#{action_name}"
       authorized = current_user&.has_permission?(permission_code)
 
-      return render_error("You are not authorized to perform this action", status: :forbidden, code: "not_authorized") unless authorized
+      return render_error(:"review.errors.not_authorized", status: :forbidden, code: "not_authorized") unless authorized
 
       if %w[submit resubmit].include?(action_name) && owner_enforcement_failed?
-        return render_error("You are not authorized to perform this action", status: :forbidden, code: "not_authorized")
+        return render_error(:"review.errors.not_authorized", status: :forbidden, code: "not_authorized")
       end
 
       if %w[approve reject request_modification].include?(action_name) && self_review_attempt?
-        return render_error("You are not authorized to perform this action", status: :forbidden, code: "not_authorized")
+        return render_error(:"review.errors.not_authorized", status: :forbidden, code: "not_authorized")
       end
 
       skip_authorization
@@ -306,7 +305,7 @@ module Core
     rescue ActiveRecord::RecordNotFound => error
       render_error(error.message, status: :not_found)
     rescue NameError => error
-      render_error("Reviewable configuration error: #{error.message}", status: :internal_server_error)
+      render_error(I18n.t("review.errors.config_error", message: error.message), status: :internal_server_error)
     end
 
     def reviewable_resource
