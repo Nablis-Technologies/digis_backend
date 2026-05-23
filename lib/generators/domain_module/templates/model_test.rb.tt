@@ -10,16 +10,15 @@ class <%= class_name %>Test < ActiveSupport::TestCase
 <% end %>
 
 <% if slugable? && data_columns.any? { |c| c.name == "name" } %>
+  include Core::SlugableTest
+
 <% unless belongs_to_columns.empty? %>
   setup do
     <%= belongs_to_setup_erb %>
   end
 
 <% end %>
-  test "generates slug from name automatically" do
-    record = <%= class_name %>.create!(name: "Test <%= model_name.humanize %>"<%= ", #{belongs_to_fk_refs_erb}" unless belongs_to_columns.empty? %>)
-    assert_equal "test-<%= model_name.underscore %>", record.slug
-  end
+  test_slugable create_params: -> { { <%= sample_all_create_params_erb %> } }
 <% end %>
 
   test "ransackable_attributes returns safe attributes" do
