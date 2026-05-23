@@ -211,7 +211,9 @@ module Core
       case action
       when :create
         if meta.create_params_proc
-          meta.create_params_proc.call
+          result = instance_exec(&meta.create_params_proc)
+          result.transform_keys!(&:to_s) if result
+          result
         elsif meta.default_create_attrs
           attrs = meta.default_create_attrs.merge("name" => "#{meta.default_create_attrs['name']} #{SecureRandom.hex(4)}")
           { key => attrs }
@@ -220,7 +222,7 @@ module Core
         end
       when :update
         if meta.update_params_proc
-          meta.update_params_proc.call(record)
+          instance_exec(record, &meta.update_params_proc)
         else
           { key => { "name" => "Updated #{record.name}" } }
         end
