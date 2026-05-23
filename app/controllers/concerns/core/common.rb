@@ -22,7 +22,7 @@ module Core
       total_count = data.count if paginated_request?
       data = apply_pagination(data) if paginated_request?
 
-      serializer_options[:include] ||= serializer_includes_for_action(:index)
+      serializer_options[:include] ||= eager_loaded_associations
 
       pagination = paginated_request? ? pagination_metadata(total_count) : nil
       render_success(data: data, serializer_options: serializer_options, pagination: pagination)
@@ -34,7 +34,7 @@ module Core
       data, serializer_options = resolve_block_result(default: @obj)
       data = @clazz.includes(eager_loaded_associations).find(data.id) if data.is_a?(@clazz)
 
-      serializer_options[:include] ||= serializer_includes_for_action(:show)
+      serializer_options[:include] ||= eager_loaded_associations
 
       render_success(data: data, serializer_options: serializer_options)
     end
@@ -52,7 +52,7 @@ module Core
           object = @clazz.includes(eager_loaded_associations).find(object.id)
           @obj = object
 
-          serializer_options[:include] ||= serializer_includes_for_action(:create)
+          serializer_options[:include] ||= eager_loaded_associations
 
           render_success(data: object, serializer_options: serializer_options, status: :created)
         else
@@ -79,7 +79,7 @@ module Core
           object = @clazz.includes(eager_loaded_associations).find(object.id)
           @obj = object
 
-          serializer_options[:include] ||= serializer_includes_for_action(:update)
+          serializer_options[:include] ||= eager_loaded_associations
 
           render_success(data: object, serializer_options: serializer_options)
         else
@@ -132,7 +132,21 @@ module Core
     end
 
     def eager_loaded_associations
-      serializer_includes_for_action(action_name)
+      controller_includes = serializer_includes_for_action(action_name)
+      pol = policy_for_data(policy_sample)
+      return controller_includes unless pol&.respond_to?(:included_associations_for)
+
+      policy_includes = pol.included_associations_for(
+        action: action_name,
+        default_includes: controller_includes
+      )
+      return controller_includes if policy_includes.nil?
+
+      controller_includes & policy_includes
+    end
+
+    def policy_sample
+      @obj || @clazz&.new
     end
 
     def allowed_order_columns
