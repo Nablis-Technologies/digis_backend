@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_23_224302) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_21_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -145,20 +145,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_23_224302) do
     t.index ["active"], name: "index_events_categories_on_active"
     t.index ["name"], name: "index_events_categories_on_name"
     t.index ["slug"], name: "index_events_categories_on_slug", unique: true
-  end
-
-  create_table "events_secret_tokens", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.string "name"
-    t.string "token_hash"
-    t.datetime "updated_at", null: false
-  end
-
-  create_table "events_venues", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.text "description"
-    t.string "name"
-    t.datetime "updated_at", null: false
   end
 
   add_foreign_key "core_refresh_tokens", "core_users", column: "user_id"
