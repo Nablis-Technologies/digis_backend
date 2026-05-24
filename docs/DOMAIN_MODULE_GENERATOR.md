@@ -48,7 +48,6 @@ For `Events::Event`, the generator creates:
 | `app/serializers/events/event_serializer.rb` | AMS serializer with `AttributeVisibilitySerializer`, belongs_to declarations |
 | `app/policies/events/event_policy.rb` | Pundit policy with default role checks, `VISIBILITY` hash, Scope class |
 | `test/fixtures/events_events.yml` | Two fixture records with sample data, UUIDs, optional slugs |
-| `test/models/events/event_test.rb` | Model unit tests: shoulda-matchers (presence, uniqueness, belongs_to), slugable (via `Core::SlugableTest`), ransackable attributes |
 | `test/integration/events/events_test.rb` | Integration tests using `resource_test` DSL — authorization, audit, CRUD, pagination, attribute visibility |
 | `config/routes.rb` | Namespaced RESTful route (except new/edit) |
 | `test/test_helper.rb` | `set_fixture_class` mapping inserted |
@@ -87,8 +86,6 @@ The bracket notation `[ClassName]` specifies the target class for belongs_to. Wi
 
 When a `name:string` column is present:
 - Model gets `validates :name, presence: true`
-- Model gets `scope :alphabetical, -> { order(:name) }`
-- Model test gets `should validate_presence_of(:name)` (via shoulda-matchers)
 - Integration test uses bare `resource_test` (no explicit params) when there are no belongs_to columns
 - Slug source defaults to `name` when `--slug-source` is omitted
 
@@ -103,7 +100,7 @@ When a `name:string` column is present:
 | `--skip-routes` | `false` | Don't add route to `config/routes.rb` |
 | `--skip-tests` | `false` | Don't create test/fixture files |
 | `--interactive` / `--no-interactive` | `true` | Prompt for auditable, slug, slug_source when not explicitly provided. Use `--no-interactive` for scripting |
-| `--only=COMPONENTS` | (none) | Only generate the listed components (comma-separated). Valid values: `migration`, `model`, `controller`, `serializer`, `policy`, `locale`, `fixture`, `model_test`, `integration_test`, `route`. Errors on invalid entries. |
+| `--only=COMPONENTS` | (none) | Only generate the listed components (comma-separated). Valid values: `migration`, `model`, `controller`, `serializer`, `policy`, `locale`, `fixture`, `integration_test`, `route`. Errors on invalid entries. |
 | `--skip=COMPONENTS` | (none) | Skip the listed components. Same valid values as `--only`. Cannot be combined with `--only`. |
 
 ### Component Selection
@@ -160,9 +157,7 @@ After generating a model with `belongs_to` columns, check these files for manual
 
 | File | What to check | Why |
 |------|---------------|-----|
-| `test/models/..._test.rb` | The `setup` block creates parent records with `create!(name: "Setup ...")`. If the parent doesn't have a `name` column, change it to a valid column (e.g. `title`, `code`). If `name` has uniqueness validation and "Setup ..." clashes with fixture data, use a unique value (e.g. `"Setup Parent #{SecureRandom.hex(4)}"`). | The generator hardcodes `name:` in the `create!` call — it doesn't introspect the parent model's columns. |
-| `test/models/..._test.rb` | `test_slugable create_params:` captures `@parent` instance variables in its lambda. Ensure the `setup` block runs before the lambda is evaluated. Since `setup` runs before each test, this works as long as the `setup` block appears before `test_slugable` in the file. | The lambda is stored at class-definition time but executed at test runtime, when `@parent` is populated. |
-| `test/integration/..._test.rb` | Same `setup` block pattern — verify `Model.create!(name: "Setup ...")` works for each parent. If the parent model is in a different namespace or hasn't been generated yet, create it first or temporarily comment out the failing tests. | Integration tests also need real parent records. |
+| `test/integration/..._test.rb` | The `setup` block creates parent records with `create!(name: "Setup ...")`. If the parent doesn't have a `name` column, change it to a valid column (e.g. `title`, `code`). If `name` has uniqueness validation and "Setup ..." clashes with fixture data, use a unique value (e.g. `"Setup Parent #{SecureRandom.hex(4)}"`). | The generator hardcodes `name:` in the `create!` call — it doesn't introspect the parent model's columns. |
 | `test/integration/..._test.rb` | `create_params` and `update_params` lambdas reference `@parent.id`. These are correct if the `setup` block is correct. No manual fix needed unless the setup changes. | The FKs flow naturally from the setup. |
 | `test/fixtures/*.yml` | FK values are intentionally omitted. Fixture records don't have `belongs_to` associations — they're only used for read-only tests (index/show/destroy). | If you need fixture records with associations for a specific test, add FK values manually to the YAML. |
 
@@ -248,7 +243,7 @@ These must be added manually after generation:
 |-----|--------|
 | **`has_many` / `has_one` associations** | Too context-dependent. `belongs_to` FKs are declared at generation time via column syntax; reverse associations are domain-specific |
 | **Custom scopes beyond `alphabetical`** | Business logic is too varied to template |
-| **Additive/conditional validation rules** | `shoulda-matchers` covers `presence` for `name` and `belong_to` for FK columns. Custom validations (uniqueness, numericality, etc.) are manual |
+| **Additive/conditional validation rules** | The generator only produces `validates :name, presence: true`. Add uniqueness, numericality, custom validations manually |
 | **Composite indexes** | Only `slug` (unique) indexes are generated. Multi-column indexes must be added by hand |
 | **Polymorphic belongs_to** | Not supported by the column parser |
 | **Non-UUID primary keys** | Always uses UUID v7 via `uuidv7()` database function |
@@ -287,11 +282,4 @@ rails generate domain_module Events::Event name:string --no-interactive --preten
 - `resource_test` generates tests at class-load time by introspecting controller, model, policy, fixtures, and auditable config
 - Response messages use I18n keys in `config/locales/en.yml`
 
-## Test Dependencies
 
-Generated model tests use:
-
-- **`shoulda-matchers`** — one-liner matchers for common validations (`validate_presence_of`, `belong_to`)
-- **`shoulda-context`** — provides the `should` DSL in Minitest test classes
-
-Both gems must be in the `Gemfile` under `group :development, :test` for generated tests to work. Hand-written tests can use either shoulda-matchers or plain Minitest assertions.

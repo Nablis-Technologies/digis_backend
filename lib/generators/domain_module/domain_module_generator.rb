@@ -35,7 +35,7 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
 
   VALID_COMPONENTS = %w[
     migration model controller serializer policy locale
-    fixture model_test integration_test route
+    fixture integration_test route
   ].freeze
 
   class_option :auditable, type: :boolean, default: false
@@ -104,12 +104,6 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
     return unless component_enabled?(:fixture)
     return if options[:skip_tests]
     template "fixture.yml.tt", "test/fixtures/#{fixture_file_name}.yml"
-  end
-
-  def create_model_test_file
-    return unless component_enabled?(:model_test)
-    return if options[:skip_tests]
-    template "model_test.rb.tt", "test/models/#{model_test_file_path}.rb"
   end
 
   def create_integration_test_file
@@ -317,10 +311,6 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
 
   def policy_file_path
     File.join(*class_path, "#{file_name}_policy")
-  end
-
-  def model_test_file_path
-    File.join(*class_path, "#{file_name}_test")
   end
 
   def integration_test_file_path
