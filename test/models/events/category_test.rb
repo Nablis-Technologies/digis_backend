@@ -4,8 +4,18 @@ class Events::CategoryTest < ActiveSupport::TestCase
   include Core::SlugableTest
   test_slugable
 
-  should validate_presence_of(:name)
-  should validate_uniqueness_of(:name).case_insensitive
+  test "validates presence of name" do
+    category = Events::Category.new
+    category.valid?
+    assert_includes category.errors[:name], "can't be blank"
+  end
+
+  test "validates uniqueness of name (case insensitive)" do
+    Events::Category.create!(name: "Test")
+    category = Events::Category.new(name: "test")
+    category.valid?
+    assert category.errors.added?(:name, :taken, value: "test")
+  end
 
   test "metadata defaults to empty hash" do
     category = Events::Category.new(name: "Test")

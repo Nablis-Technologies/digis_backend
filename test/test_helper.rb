@@ -2,13 +2,6 @@ ENV["RAILS_ENV"] ||= "test"
 require_relative "../config/environment"
 require "rails/test_help"
 
-Shoulda::Matchers.configure do |config|
-  config.integrate do |with|
-    with.test_framework :minitest
-    with.library :rails
-  end
-end
-
 Dir[Rails.root.join("test/support/**/*.rb")].each { |f| require f }
 
 module ActiveSupport
@@ -29,6 +22,7 @@ module ActiveSupport
       core_audit_logs: Core::AuditLog,
       core_reviews: Core::Review,
       events_categories: Events::Category,
+      events_events: Events::Event,
     )
 
     # Add more helper methods to be used by all tests here...
