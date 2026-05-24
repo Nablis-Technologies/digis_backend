@@ -2,17 +2,17 @@ require "test_helper"
 
 class <%= class_path.map(&:camelize).join + plural_name.camelize %>Test < ActionDispatch::IntegrationTest
   include Core::ResourceTest
+<% unless belongs_to_columns.empty? -%>
 
-<% unless belongs_to_columns.empty? %>
   setup do
     <%= belongs_to_setup_erb %>
   end
+<% end -%>
 
-<% end %>
-<% if has_name? && belongs_to_columns.empty? %>
+<% if has_name? && belongs_to_columns.empty? -%>
   resource_test
-<% else %>
+<% else -%>
   resource_test create_params: -> { { <%= model_name.underscore %>: { <%= sample_all_create_params_erb %> } } },
                update_params: ->(record) { { <%= model_name.underscore %>: { <%= sample_all_update_params_erb %> } } }
-<% end %>
+<% end -%>
 end
