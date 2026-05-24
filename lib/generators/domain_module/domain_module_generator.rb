@@ -38,7 +38,7 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
     fixture model_test integration_test route
   ].freeze
 
-  class_option :auditable, type: :boolean, default: true
+  class_option :auditable, type: :boolean, default: false
   class_option :slug, type: :boolean, default: false
   class_option :slug_source, type: :string, default: nil
   class_option :skip_migration, type: :boolean, default: false

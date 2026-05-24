@@ -20,7 +20,10 @@ module <%= namespace_path.camelize %>
       user.has_role?("SUPER_ADMIN")
     end
 
-    VISIBILITY = {}.freeze
+    VISIBILITY = {
+      # admin:   { fields: %i[id name secret_token], include: %i[user] },
+      # default: { fields: %i[id name] }
+    }.freeze
 
     class Scope < Core::ApplicationPolicy::Scope
       def resolve

@@ -1,15 +1,13 @@
 module <%= namespace_path.camelize %>
   class <%= plural_name.camelize %>Controller < <%= namespace_path.camelize %>::ApplicationController
     include Core::Common
-<% if auditable? %>
+<% if auditable? -%>
     include Core::AuditableController
-<% end %>
-
+<% end -%>
     self.model_class = <%= class_name %>
-
-<% if auditable? %>
+<% if auditable? -%>
     auditable on: %i[create update destroy]
-<% end %>
+<% end -%>
 
     private
 
@@ -25,10 +23,10 @@ module <%= namespace_path.camelize %>
 
     def serializer_profile
       {
-        index: {},
-        show: {},
-        create: {},
-        update: {}
+        # index: { fields: %i[id name], include: %i[user] },
+        # show:  { fields: %i[id name], include: %i[user] },
+        # create: {},
+        # update: {}
       }
     end
   end

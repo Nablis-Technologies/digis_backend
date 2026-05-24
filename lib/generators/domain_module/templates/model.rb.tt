@@ -1,30 +1,22 @@
 module <%= namespace_path.camelize %>
   class <%= model_name %> < <%= namespace_path.camelize %>::ApplicationRecord
     self.table_name = "<%= table_name %>"
-
-<% if auditable? %>
+<% if auditable? -%>
     include Core::AuditableModel
-<% end %>
-<% if slugable? %>
+<% end -%>
+<% if slugable? -%>
     include Core::Slugable
     slugable source: :<%= slug_source_column %>, target: :slug
-<% end %>
-<% belongs_to_columns.each do |col| %>
-<%   if col.class_name %>
-    belongs_to :<%= col.name %>, class_name: "<%= col.class_name %>"
-<%   else %>
-    belongs_to :<%= col.name %>
-<%   end %>
-<% end %>
-<% if data_columns.any? { |c| c.name == "name" } %>
+<% end -%>
+<% if belongs_to_columns.any? -%><% belongs_to_columns.each do |col| -%>
+    belongs_to :<%= col.name %><% if col.class_name %>, class_name: "<%= col.class_name %>"<% end %>
+<% end -%><% end -%>
+<% if data_columns.any? { |c| c.name == "name" } -%>
     validates :name, presence: true
-<% end %>
-<% if slugable? %>
+<% end -%>
+<% if slugable? -%>
     validates :slug, presence: true, uniqueness: true
-<% end %>
-<% if data_columns.any? { |c| c.name == "name" } %>
-    scope :alphabetical, -> { order(:name) }
-<% end %>
+<% end -%>
 
     def self.ransackable_attributes(_auth_object = nil)
       %w[<%= ransackable_attributes_list.join(" ") %>]
