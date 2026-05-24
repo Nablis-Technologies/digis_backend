@@ -53,4 +53,8 @@ group :development, :test do
   gem "rubocop-rails-omakase", require: false
 
   gem "shoulda-matchers"
+
+  gem "simplecov", require: false
+  gem "minitest-reporters", require: false
+  gem "mocha", require: false
 end
