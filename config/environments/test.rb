@@ -48,9 +48,12 @@ Rails.application.configure do
   # Raise on missing translations.
   # config.i18n.raise_on_missing_translations = true
 
-  # Catch N+1 queries by raising on strict_loading violations.
-  config.active_record.strict_loading_by_default = true
-  config.active_record.action_on_strict_loading_violation = :raise
+  # Catch N+1 queries via Prosopite.
+  config.after_initialize do
+    require "prosopite"
+    Prosopite.rails_logger = true
+    Prosopite.raise = true
+  end
 
   # Annotate rendered view with file names.
   # config.action_view.annotate_rendered_view_with_filenames = true
