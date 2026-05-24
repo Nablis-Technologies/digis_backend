@@ -13,11 +13,11 @@ module Core
       user = auth_result.value
 
       if auth_result.success? && user&.valid_for_authentication?
-        tokens = sign_in(user, request)
+        tokens = sign_in(preloaded_auth_user(user), request)
         render_success(
           :"auth.success.login",
           data: {
-            user: user,
+            user: preloaded_auth_user(user),
             access_token: tokens[:access_token],
             refresh_token: tokens[:refresh_token]
           },
@@ -42,7 +42,7 @@ module Core
         render_success(
           :"auth.success.signup",
           data: {
-            user: user.reload
+            user: preloaded_auth_user(user.reload)
           },
           status: :created,
           serializer_options: {
@@ -77,7 +77,7 @@ module Core
       render_success(
         :"auth.success.me",
         data: {
-          user: current_user
+          user: preloaded_auth_user(current_user)
         },
         serializer_options: {
           user: { serializer: Core::UserAuthSerializer }
@@ -95,7 +95,7 @@ module Core
           data: {
             access_token: new_tokens[:access_token],
             refresh_token: new_tokens[:refresh_token],
-            user: new_tokens[:user]
+            user: preloaded_auth_user(new_tokens[:user])
           },
           serializer_options: {
             user: { serializer: Core::UserAuthSerializer }
@@ -119,6 +119,12 @@ module Core
 
     def identifier_param
       params[:identifier].presence || params[:email_or_phone]
+    end
+
+    def preloaded_auth_user(user)
+      return user unless user.is_a?(Core::User)
+
+      Core::User.includes(roles: :permissions).find(user.id)
     end
 
     def assign_default_role(user)
