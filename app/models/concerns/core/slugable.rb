@@ -84,19 +84,22 @@ module Core
     end
 
     def _unique_slug(base_slug)
-      slug = base_slug
+      scope = self.class.unscoped
+      scope = scope.where.not(id: id) if persisted?
+
+      prefix = "#{Regexp.escape(base_slug)}"
+      existing = scope
+        .where("#{self.class._slug_target} ~ ?", "^(#{prefix})(-[0-9]+)?$")
+        .pluck(self.class._slug_target)
+        .to_set
+
+      return base_slug unless existing.include?(base_slug)
+
       counter = 1
+      counter += 1 while existing.include?("#{base_slug}-#{counter}")
+      raise "Could not generate unique slug for #{base_slug}" if counter > 1000
 
-      loop do
-        scope = self.class.where(self.class._slug_target => slug)
-        scope = scope.where.not(id: id) if persisted?
-
-        return slug unless scope.exists?
-
-        slug = "#{base_slug}-#{counter}"
-        counter += 1
-        raise "Could not generate unique slug for #{base_slug}" if counter > 1000
-      end
+      "#{base_slug}-#{counter}"
     end
   end
 end
