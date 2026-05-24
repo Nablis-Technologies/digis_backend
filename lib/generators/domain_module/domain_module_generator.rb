@@ -253,6 +253,10 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
     }.join("\n    ")
   end
 
+  def self_referential?(col)
+    resolve_class_name(col) == class_name
+  end
+
   def belongs_to_fk_refs_erb
     belongs_to_columns.map { |c| "#{c.name}_id: @#{c.name}.id" }.join(", ")
   end
@@ -357,6 +361,8 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
   def serialized_attributes_list
     base = %i[id created_at updated_at]
     base << :slug if slugable?
-    (data_columns.map { |c| ":#{c.name}" } + base.map { |c| ":#{c}" }).uniq
+    (data_columns.map { |c| ":#{c.name}" } +
+     belongs_to_columns.map { |c| ":#{c.name}_id" } +
+     base.map { |c| ":#{c}" }).uniq
   end
 end

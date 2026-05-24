@@ -9,7 +9,7 @@ module <%= namespace_path.camelize %>
     slugable source: :<%= slug_source_column %>, target: :slug
 <% end -%>
 <% if belongs_to_columns.any? -%><% belongs_to_columns.each do |col| -%>
-    belongs_to :<%= col.name %><% if col.class_name %>, class_name: "<%= col.class_name %>"<% end %>
+    belongs_to :<%= col.name %><% if col.class_name %>, class_name: "<%= col.class_name %>"<% end %><% if self_referential?(col) %>, optional: true<% end %>
 <% end -%><% end -%>
 <% if data_columns.any? { |c| c.name == "name" } -%>
     validates :name, presence: true

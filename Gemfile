@@ -53,5 +53,4 @@ group :development, :test do
   gem "rubocop-rails-omakase", require: false
 
   gem "shoulda-matchers"
-  gem "shoulda-context"
 end
