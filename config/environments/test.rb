@@ -45,8 +45,12 @@ Rails.application.configure do
   # Use test adapter for ActiveJob so perform_enqueued_jobs works.
   config.active_job.queue_adapter = :test
 
-  # Raises error for missing translations.
+  # Raise on missing translations.
   # config.i18n.raise_on_missing_translations = true
+
+  # Catch N+1 queries by raising on strict_loading violations.
+  config.active_record.strict_loading_by_default = true
+  config.active_record.action_on_strict_loading_violation = :raise
 
   # Annotate rendered view with file names.
   # config.action_view.annotate_rendered_view_with_filenames = true
