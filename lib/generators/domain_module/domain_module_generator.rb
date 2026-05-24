@@ -120,7 +120,8 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
 
   def create_locale_file
     return unless component_enabled?(:locale)
-    template "locale.en.yml.tt", "config/locales/#{file_name}.en.yml"
+    template "locale.en.yml.tt",
+      "config/locales/#{namespace_path}/#{file_name}.en.yml"
   end
 
   def add_fixture_class_mapping
