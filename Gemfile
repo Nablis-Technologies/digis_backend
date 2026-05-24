@@ -57,4 +57,7 @@ group :development, :test do
   gem "simplecov", require: false
   gem "minitest-reporters", require: false
   gem "mocha", require: false
+
+  gem "prosopite", require: false
+  gem "pg_query", require: false
 end
