@@ -48,7 +48,7 @@ module Core
 
     def self.find_valid(token)
       fingerprint = fingerprint_token(token)
-      record = active.find_by(token_fingerprint: fingerprint)
+      record = active.includes(:user).find_by(token_fingerprint: fingerprint)
       return nil unless record&.valid_token?(token)
 
       record
