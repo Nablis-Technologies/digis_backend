@@ -37,7 +37,15 @@ module ActiveSupport
       core_refresh_tokens: Core::RefreshToken,
       core_audit_logs: Core::AuditLog,
       core_reviews: Core::Review,
-      events_categories: Events::Category
+      events_categories: Events::Category,
     )
+
+    setup do
+      Prosopite.scan
+    end
+
+    teardown do
+      Prosopite.finish
+    end
   end
 end
