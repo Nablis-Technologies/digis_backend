@@ -1,5 +1,5 @@
 music:
-  id: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+  id: 019e5f69-d9fe-7687-8fcc-78653f30c0f9
   name: Music
   description: Concerts, festivals, and live performances
   slug: music
@@ -11,9 +11,9 @@ music:
   updated_at: <%= Time.current %>
 
 sports:
-  id: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
+  id: 019e5f69-db28-709f-8512-4dd8260b87ac
   name: Sports
-  description: Sporting events and competitions
+  description: Sporting events, matches, and tournaments
   slug: sports
   metadata:
     icon: "trophy"
@@ -23,9 +23,9 @@ sports:
   updated_at: <%= Time.current %>
 
 conference:
-  id: cccccccc-cccc-cccc-cccc-cccccccccccc
+  id: 019e5f69-d949-7381-8e7c-82ed9cbb71f3
   name: Conference
-  description: Business and tech conferences
+  description: Business, tech, and academic conferences
   slug: conference
   metadata:
     icon: "briefcase"
@@ -35,10 +35,10 @@ conference:
   updated_at: <%= Time.current %>
 
 inactive_category:
-  id: dddddddd-dddd-dddd-dddd-dddddddddddd
-  name: Inactive Event
-  description: This category is no longer active
-  slug: inactive-event
+  id: 019e5f69-da3d-7c84-a427-93585e15535b
+  name: Legacy Events
+  description: Deprecated category — no longer accepting new listings
+  slug: legacy-events
   metadata: {}
   active: false
   created_at: <%= Time.current %>
