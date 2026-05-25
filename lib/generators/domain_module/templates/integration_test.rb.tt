@@ -2,17 +2,19 @@ require "test_helper"
 
 class <%= class_path.map(&:camelize).join + plural_name.camelize %>Test < ActionDispatch::IntegrationTest
   include Core::ResourceTest
-<% unless belongs_to_columns.empty? -%>
+<% unless non_parent_belongs_to_columns.empty? -%>
 
   setup do
     <%= belongs_to_setup_erb %>
   end
 <% end -%>
 
-<% if has_name? && belongs_to_columns.empty? -%>
+<% if has_name? && non_parent_belongs_to_columns.empty? && !parent_option -%>
   resource_test
 <% else -%>
-  resource_test create_params: -> { { <%= model_name.underscore %>: { <%= sample_all_create_params_erb %> } } },
+  resource_test<% if parent_option -%>
+               path: -> { "/<%= namespace_path %>/<%= parent_resource_name %>/#{<%= parent_class_name %>.first.id}/<%= plural_name %>" },<% end %>
+               create_params: -> { { <%= model_name.underscore %>: { <%= sample_all_create_params_erb %> } } },
                update_params: ->(record) { { <%= model_name.underscore %>: { <%= sample_all_update_params_erb %> } } }
 <% end -%>
 end
