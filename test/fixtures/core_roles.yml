@@ -1,20 +1,26 @@
 super_admin:
-  id: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+  id: 019e5f69-d843-7def-8cf6-53197a1972e5
   code: SUPER_ADMIN
   name: Super Administrator
-  description: Full access to all resources
+  description: Full platform access — manages all organizations, users, and settings
   active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
 
 core_admin:
-  id: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
+  id: 019e5f69-db11-7a51-b1d9-785571600a31
   code: CORE_ADMIN
   name: Core Administrator
-  description: Core-level operational access
+  description: Core-level operational access — manages platform resources
   active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
 
 user:
-  id: cccccccc-cccc-cccc-cccc-cccccccccccc
+  id: 019e5f69-d9bd-7933-ad1b-6ffdaf864b99
   code: USER
   name: User
-  description: Default end-user role
+  description: Default end-user role — can browse and purchase tickets
   active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>

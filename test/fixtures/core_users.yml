@@ -1,20 +1,26 @@
 super_admin:
-  id: 11111111-1111-1111-1111-111111111111
-  email: superadmin@example.com
+  id: 019e5f69-db1c-77b6-be88-3afbf8b65410
+  email: superadmin@digis.et
   phone: "251911000001"
   verified_at: <%= Time.current %>
   password_digest: <%= BCrypt::Password.create("password123") %>
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
 
 core_admin:
-  id: 22222222-2222-2222-2222-222222222222
-  email: admin@example.com
+  id: 019e5f69-da01-72fb-bef2-17eddb579932
+  email: admin@digis.et
   phone: "251911000002"
   verified_at: <%= Time.current %>
   password_digest: <%= BCrypt::Password.create("password123") %>
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
 
 attendee:
-  id: 33333333-3333-3333-3333-333333333333
+  id: 019e5f69-dbb6-7e14-b126-c01c0c580984
   email: attendee@example.com
   phone: "251911000003"
   verified_at: <%= Time.current %>
   password_digest: <%= BCrypt::Password.create("password123") %>
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
