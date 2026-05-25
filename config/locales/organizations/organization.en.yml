@@ -1,0 +1,12 @@
+en:
+  organization:
+    success:
+      index: "Organizations retrieved successfully"
+      show: "Organization retrieved successfully"
+      create: "Organization created successfully"
+      update: "Organization updated successfully"
+      destroy: "Organization deleted successfully"
+    errors:
+      create: "Failed to create organization"
+      update: "Failed to update organization"
+      destroy: "Failed to delete organization"
