@@ -40,6 +40,8 @@ module ActiveSupport
       core_audit_logs: Core::AuditLog,
       core_reviews: Core::Review,
       events_categories: Events::Category,
+      organizations_organizations: Organizations::Organization,
+      organizations_memberships: Organizations::Membership,
     )
 
     setup do
