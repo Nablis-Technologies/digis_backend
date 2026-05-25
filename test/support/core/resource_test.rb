@@ -1,3 +1,5 @@
+require "erb"
+
 module Core
   module ResourceTest
     extend ActiveSupport::Concern
@@ -7,6 +9,7 @@ module Core
       include Core::AuditTestHelpers
       include Core::CrudTestHelpers
       include Core::PaginationTestHelpers
+      include Core::PolicyMatrixTest
       include ActiveJob::TestHelper
     end
 
@@ -20,6 +23,17 @@ module Core
         generate_index_extras(meta)
         generate_absence_tests(meta)
         generate_destroy_test(meta)
+
+        policy_contract = options.key?(:policy_contract) ? options[:policy_contract] : true
+        if policy_contract
+          controller_class_value = meta.send(:controller_class)
+          singleton_class.define_method(:controller_class) { controller_class_value }
+          exclude_actions = Array(options[:except])
+          contract_actions = (%i[index show create update destroy] - exclude_actions) & meta.actions
+          policy_matrix_test meta.send(:resolve_policy_class),
+            parent_fixture: meta.parent_fixture_key || (meta.send(:parent_class_present?) ? :one : nil),
+            actions: contract_actions
+        end
       end
 
       private
@@ -27,7 +41,7 @@ module Core
       def generate_tests(action, meta)
         unless meta.skip_authorization
           test "#{action} fails for unauthenticated user" do
-            perform_request(action, meta.path, record: nil, params: nil, headers: {})
+            perform_request(action, resolve_path_for(meta), record: nil, params: nil, headers: {})
             assert_response :unauthorized
           end
         end
@@ -41,7 +55,7 @@ module Core
             record = resolve_record(action, meta)
             params = resolve_params(action, meta, record)
 
-            perform_request(action, meta.path, record: record, params: params, headers: headers)
+            perform_request(action, resolve_path_for(meta), record: record, params: params, headers: headers)
             assert_response expected ? :success : :forbidden
           end
         end
@@ -62,7 +76,7 @@ module Core
             params = resolve_params(action, meta, record)
 
             perform_enqueued_jobs do
-              perform_request(action, meta.path, record: record, params: params, headers: headers)
+              perform_request(action, resolve_path_for(meta), record: record, params: params, headers: headers)
             end
 
             auditable = if action == :create
@@ -83,7 +97,7 @@ module Core
             record = resolve_record(action, meta)
             params = resolve_params(action, meta, record)
 
-            perform_request(action, meta.path, record: record, params: params, headers: headers)
+            perform_request(action, resolve_path_for(meta), record: record, params: params, headers: headers)
             perform_enqueued_jobs
             assert_audit_not_logged(action: action.to_s)
           end
@@ -97,7 +111,7 @@ module Core
 
         test "show returns expected attributes" do
           record = resolve_record(:show, meta)
-          get "#{meta.path}/#{record.id}", headers: admin_headers, as: :json
+          get "#{resolve_path_for(meta)}/#{record.id}", headers: admin_headers, as: :json
           assert_response :success
           data = JSON.parse(response.body).dig("data")
 
@@ -111,7 +125,7 @@ module Core
         index_attrs = meta.check_attributes[:index]
         if index_attrs&.any?
           test "index returns expected attributes" do
-            get meta.path, headers: admin_headers, as: :json
+            get resolve_path_for(meta), headers: admin_headers, as: :json
             assert_response :success
             data = JSON.parse(response.body).dig("data") || []
             data.each_with_index do |item, i|
@@ -123,13 +137,13 @@ module Core
         if meta.index_config[:pagination]
           per_page = meta.index_config[:pagination][:per_page] || 2
           test "index pagination works" do
-            assert_pagination_works(meta.path, per_page: per_page)
+            assert_pagination_works(resolve_path_for(meta), per_page: per_page)
           end
         end
 
         if meta.index_config[:ordering]
           test "index ordering works" do
-            assert_ordering_works(meta.path,
+            assert_ordering_works(resolve_path_for(meta),
               order_by: meta.index_config[:ordering][:order_by] || :created_at,
               direction: meta.index_config[:ordering][:direction] || "desc")
           end
@@ -137,7 +151,7 @@ module Core
 
         if meta.index_config[:filtering]
           test "index filtering works" do
-            assert_filtering_works(meta.path,
+            assert_filtering_works(resolve_path_for(meta),
               filter_params: meta.index_config[:filtering][:param],
               check: meta.index_config[:filtering][:check])
           end
@@ -151,12 +165,16 @@ module Core
         return unless permitted_key
 
         test "destroy removes the record" do
-          key = meta.param_key
-          params = resolve_params(:create, meta, nil)
-          record = meta.model_class.create!(params[key])
+          record = if @child_record
+            @child_record
+          else
+            key = meta.param_key
+            params = resolve_params(:create, meta, nil)
+            meta.model_class.create!(params[key])
+          end
 
           headers = token_headers_for(core_users(permitted_key))
-          delete "#{meta.path}/#{record.id}", headers: headers, as: :json
+          delete "#{resolve_path_for(meta)}/#{record.id}", headers: headers, as: :json
           assert_response :success
           assert_nil meta.model_class.find_by(id: record.id)
         end
@@ -171,9 +189,9 @@ module Core
             record = resolve_record(action, meta)
             params = resolve_params(action, meta, record)
             path = case action
-                   when :index then meta.path
-                   when :create then meta.path
-                   else "#{meta.path}/#{record.id}"
+                   when :index then resolve_path_for(meta)
+                   when :create then resolve_path_for(meta)
+                   else "#{resolve_path_for(meta)}/#{record.id}"
                    end
 
             send(http_method_for(action), path, params: params, headers: admin_headers, as: :json)
@@ -201,6 +219,7 @@ module Core
 
     def resolve_record(action, meta)
       return meta.record_proc.call if meta.record_proc
+      return @child_record if @child_record && %i[show update destroy].include?(action)
       return meta.model_class.first if %i[show update destroy].include?(action)
 
       nil
@@ -215,7 +234,11 @@ module Core
           result.transform_keys!(&:to_s) if result
           result
         elsif meta.default_create_attrs
-          attrs = meta.default_create_attrs.merge("name" => "#{meta.default_create_attrs['name']} #{SecureRandom.hex(4)}")
+          if meta.default_create_attrs.key?("name")
+            attrs = meta.default_create_attrs.merge("name" => "#{meta.default_create_attrs['name']} #{SecureRandom.hex(4)}")
+          else
+            attrs = meta.default_create_attrs
+          end
           { key => attrs }
         else
           { key => { "name" => "Test #{SecureRandom.hex(4)}" } }
@@ -223,12 +246,19 @@ module Core
       when :update
         if meta.update_params_proc
           instance_exec(record, &meta.update_params_proc)
-        else
+        elsif meta.default_update_attrs
+          build_update_params(record, meta)
+        elsif record.respond_to?(:name)
           { key => { "name" => "Updated #{record.name}" } }
         end
       else
         nil
       end
+    end
+
+    def resolve_path_for(meta)
+      source = meta.path_source
+      source.respond_to?(:call) ? instance_exec(&source) : source
     end
 
     def token_headers_for(user)
@@ -240,38 +270,79 @@ module Core
       { index: :get, show: :get, create: :post, update: :patch, destroy: :delete }[action]
     end
 
+    def minimal_saved_attrs(model_class, parent_param)
+      attrs = {}
+
+      model_class.defined_enums.each do |col, mapping|
+        attrs[col] = mapping.keys.find { |k| k != "owner" } || mapping.keys.first
+      end
+
+      model_class.reflect_on_all_associations(:belongs_to).each do |ref|
+        next if ref.polymorphic?
+        next if ref.foreign_key.to_s == parent_param.to_s
+        next unless ref.klass == Core::User
+        attrs[ref.foreign_key] = non_owner_user.id
+      end
+
+      attrs
+    end
+
+    def non_owner_user
+      core_users(:attendee)
+    end
+
+    def build_update_params(record, meta)
+      key = meta.param_key
+      params = {}
+
+      meta.default_update_attrs.each do |column, new_value|
+        current = record.public_send(column)
+        params[column] = new_value if new_value != current
+      end
+
+      return { key => params } if params.any?
+
+      if record.respond_to?(:name)
+        { key => { "name" => "Updated #{record.name}" } }
+      end
+    end
+
     class Metadata
-      attr_reader :path, :model_class, :param_key, :fixture_keys, :auditable_actions,
+      attr_reader :path_source, :model_class, :param_key, :fixture_keys, :auditable_actions,
                   :actions, :policy_results, :record_proc,
                   :create_params_proc, :update_params_proc,
                   :skip_authorization, :check_attributes, :index_config,
-                  :default_create_attrs
+                  :default_create_attrs, :parent_fixture_key,
+                  :default_update_attrs, :controller_class
 
       def initialize(test_class, options)
         @test_class = test_class
         @options = options
-        @path = options[:path]
+        @path_source = options[:path]
         @model_class = options[:model]
         @record_proc = options[:record]
         @create_params_proc = options[:create_params]
         @update_params_proc = options[:update_params]
         @skip_authorization = options.key?(:skip_authorization) ? options[:skip_authorization] : options[:skip_unauthorized] || false
+        @parent_fixture_key = options[:parent_fixture]
         @check_attributes = options[:check_attributes] || {}
         @index_config = options[:index] || {}
       end
 
       def build
         resolve_controller
-        resolve_path
         resolve_model
+        resolve_path
         resolve_param_key
         resolve_fixture_keys
         resolve_auditable_actions
         resolve_actions
         resolve_policy_results
         resolve_default_create_attrs
+        resolve_default_update_attrs
         resolve_default_check_attributes
         resolve_default_index_config
+        register_setup_block if parent_class_present?
       end
 
       private
@@ -286,10 +357,53 @@ module Core
       end
 
       def resolve_path
-        return if @path
+        return if @path_source
 
-        name = @controller_class.name.sub(/Controller$/, "")
-        @path = "/" + name.underscore.gsub("::", "/")
+        if parent_class_present?
+          @path_source = build_nested_path
+        else
+          name = @controller_class.name.sub(/Controller$/, "")
+          @path_source = "/" + name.underscore.gsub("::", "/")
+        end
+      end
+
+      def parent_class_present?
+        @controller_class.respond_to?(:parent_class) && @controller_class.parent_class.present?
+      end
+
+      def child_association
+        @controller_class.respond_to?(:parent_association) &&
+          @controller_class.parent_association ||
+          @model_class.model_name.plural.to_sym
+      end
+
+      def controller_namespace
+        parts = @controller_class.name.underscore.split("/")
+        parts.length > 1 ? "/#{parts[0..-2].join("/")}" : ""
+      end
+
+      def build_nested_path
+        namespace = controller_namespace
+        parent_segment = @controller_class.parent_class.model_name.route_key
+          .sub(/^#{@controller_class.parent_class.module_parent.name.underscore}_/, "")
+        child_segment = @model_class.model_name.route_key
+          .sub(/^#{@model_class.module_parent.name.underscore}_/, "")
+
+        -> { "#{namespace}/#{parent_segment}/#{@parent.id}/#{child_segment}" }
+      end
+
+      def register_setup_block
+        parent_fixture_key = @parent_fixture_key || :one
+        child_assoc = child_association
+        parent_route_key = @controller_class.parent_class.model_name.route_key
+        mc = @model_class
+        pp = @controller_class.parent_param
+
+        @test_class.setup do
+          @parent = public_send(parent_route_key, parent_fixture_key)
+          @child_record = @parent.public_send(child_assoc).first
+          @child_record ||= @parent.public_send(child_assoc).create!(minimal_saved_attrs(mc, pp))
+        end
       end
 
       def resolve_model
@@ -314,10 +428,11 @@ module Core
         fixture_file = Rails.root.join("test/fixtures/core_users.yml")
         raise "Missing test/fixtures/core_users.yml" unless fixture_file.exist?
 
-        @fixture_keys = YAML.safe_load_file(fixture_file)
-          .select { |_, v| v.is_a?(Hash) }
-          .keys
-          .map(&:to_sym)
+        raw = File.read(fixture_file)
+        yaml = raw.include?("<%") ? ERB.new(raw, trim_mode: "-").result(binding) : raw
+        parsed = YAML.safe_load(yaml)
+        @core_users_by_key = parsed.select { |_, v| v.is_a?(Hash) }
+        @fixture_keys = @core_users_by_key.keys.map(&:to_sym)
       end
 
       def resolve_auditable_actions
@@ -342,7 +457,9 @@ module Core
         @policy_results = {}
         fixture_data = load_fixture_data
         policy_class = resolve_policy_class
-        record = @model_class.new
+
+        parent = parent_class_present? ? load_parent_fixture_for_policy : nil
+
         skip_actions = @controller_class._skip_authorize_actions rescue Set.new
 
         fixture_data.each do |fixture_key, data|
@@ -353,6 +470,7 @@ module Core
             if skip_actions.include?(action.to_s)
               @policy_results[fixture_key][action] = true
             else
+              record = parent_class_present? ? policy_record_for(action, parent) : @model_class.new
               @policy_results[fixture_key][action] =
                 policy_class.new(user_mock, record).public_send("#{action}?") rescue false
             end
@@ -371,20 +489,20 @@ module Core
       def load_fixture_data
         base = Rails.root.join("test/fixtures")
 
-        users = YAML.safe_load_file(base.join("core_users.yml"))
+        users = load_yaml_with_erb(base.join("core_users.yml"))
           .select { |_, v| v.is_a?(Hash) }
 
-        roles = YAML.safe_load_file(base.join("core_roles.yml"))
+        roles = load_yaml_with_erb(base.join("core_roles.yml"))
           .select { |_, v| v.is_a?(Hash) }
           .to_h { |_, v| [ v["id"], v["code"] ] }
 
-        user_roles = YAML.safe_load_file(base.join("core_user_roles.yml"))
+        user_roles = load_yaml_with_erb(base.join("core_user_roles.yml"))
           .select { |_, v| v.is_a?(Hash) }
 
-        role_permissions = YAML.safe_load_file(base.join("core_role_permissions.yml"))
+        role_permissions = load_yaml_with_erb(base.join("core_role_permissions.yml"))
           .select { |_, v| v.is_a?(Hash) }
 
-        permissions = YAML.safe_load_file(base.join("core_permissions.yml"))
+        permissions = load_yaml_with_erb(base.join("core_permissions.yml"))
           .select { |_, v| v.is_a?(Hash) }
           .to_h { |_, v| [ v["id"], v["code"] ] }
 
@@ -403,21 +521,59 @@ module Core
         end
       end
 
+      def load_yaml_with_erb(path)
+        raw = File.read(path)
+        yaml = raw.include?("<%") ? ERB.new(raw, trim_mode: "-").result(binding) : raw
+        YAML.safe_load(yaml)
+      end
+
       def resolve_default_create_attrs
         return if @create_params_proc
 
         fixture_path = Rails.root.join("test/fixtures/#{@model_class.model_name.route_key}.yml")
         return unless fixture_path.exist?
 
-        fixtures = YAML.safe_load_file(fixture_path)
+        fixtures = load_yaml_with_erb(fixture_path)
           .select { |_, v| v.is_a?(Hash) }
         return if fixtures.empty?
 
         first = fixtures.values.first
         attrs = first.except("id", "slug", "created_at", "updated_at")
+
+        if @model_class.respond_to?(:defined_enums)
+          @model_class.defined_enums.each do |column, mapping|
+            next unless attrs.key?(column)
+            non_owner = mapping.keys.find { |k| k != "owner" }
+            attrs[column] = non_owner if non_owner
+          end
+        end
+
+        if parent_class_present?
+          parent_fk = @controller_class.parent_param.to_s
+          attrs.delete(parent_fk)
+          user_key = @fixture_keys.find { |k| k.to_s !~ /admin|owner|super/i } || @fixture_keys.first
+          user_id = @core_users_by_key.dig(user_key.to_s, "id")
+          attrs["user_id"] = user_id if user_id
+        end
+
         attrs.reject! { |_, v| v.is_a?(String) && v.include?("<%") }
 
         @default_create_attrs = attrs if attrs.any?
+      end
+
+      def resolve_default_update_attrs
+        return if @update_params_proc
+
+        @default_update_attrs = nil
+        return unless @model_class.respond_to?(:defined_enums)
+
+        enum_cols = {}
+        @model_class.defined_enums.each do |column, mapping|
+          non_owner = mapping.keys.find { |k| k != "owner" }
+          enum_cols[column] = non_owner if non_owner
+        end
+
+        @default_update_attrs = enum_cols if enum_cols.any?
       end
 
       def resolve_default_check_attributes
@@ -464,6 +620,36 @@ module Core
         if @index_config[:pagination].nil? && @index_config[:ordering].nil? && @index_config[:filtering].nil?
           @index_config[:pagination] = { per_page: 2 }
           @index_config[:ordering] = { order_by: "created_at", direction: "desc" }
+        end
+      end
+
+      def load_parent_fixture_for_policy
+        fixture_key = @parent_fixture_key || :one
+        fixture_path = Rails.root.join(
+          "test/fixtures/#{@controller_class.parent_class.model_name.route_key}.yml"
+        )
+        return nil unless fixture_path.exist?
+
+        raw = File.read(fixture_path)
+        yaml = raw.include?("<%") ? ERB.new(raw, trim_mode: "-").result(binding) : raw
+        attrs = YAML.safe_load(yaml)
+                  .select { |k, v| v.is_a?(Hash) && k.to_s == fixture_key.to_s }
+                  .values
+                  .first
+        return nil unless attrs
+
+        @controller_class.parent_class.new(attrs)
+      end
+
+      def policy_record_for(action, parent)
+        return @model_class.new if parent.nil?
+
+        case action
+        when :index, :create
+          parent.public_send(child_association).new
+        when :show, :update, :destroy
+          parent.public_send(child_association).first ||
+            parent.public_send(child_association).new
         end
       end
 
