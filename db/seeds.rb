@@ -227,6 +227,57 @@ end
 puts "✓ #{Events::Category.count} event categories seeded"
 
 # ─────────────────────────────────────────────
+# 7. Organizations
+# ─────────────────────────────────────────────
+puts "\n🏢 Seeding organizations..."
+
+org_digis = Organizations::Organization.find_or_create_by!(name: "Digis HQ") do |o|
+  o.description = "The official Digis platform organization — manages core platform operations and infrastructure"
+end
+
+org_music = Organizations::Organization.find_or_create_by!(name: "Addis Music Fest") do |o|
+  o.description = "Ethiopia's premier music festival organization — hosts annual concerts and live performances across Addis Ababa"
+end
+
+org_tech = Organizations::Organization.find_or_create_by!(name: "Ethiopian Tech Summit") do |o|
+  o.description = "Leading tech conference organizer — brings together innovators, developers, and entrepreneurs from across Africa"
+end
+
+puts "✓ #{Organizations::Organization.count} organizations seeded"
+
+# ─────────────────────────────────────────────
+# 8. Memberships
+# ─────────────────────────────────────────────
+puts "\n👥 Seeding memberships..."
+
+# admin_user owns Digis HQ
+Organizations::Membership.find_or_create_by!(user: admin_user, organization: org_digis) do |m|
+  m.role = :owner
+end
+
+# admin_user is also admin on Music Fest
+Organizations::Membership.find_or_create_by!(user: admin_user, organization: org_music) do |m|
+  m.role = :admin
+end
+
+# organizer_user owns Music Fest
+Organizations::Membership.find_or_create_by!(user: organizer_user, organization: org_music) do |m|
+  m.role = :owner
+end
+
+# organizer_user is member on Tech Summit
+Organizations::Membership.find_or_create_by!(user: organizer_user, organization: org_tech) do |m|
+  m.role = :member
+end
+
+# attendee_user is member on Digis HQ
+Organizations::Membership.find_or_create_by!(user: attendee_user, organization: org_digis) do |m|
+  m.role = :member
+end
+
+puts "✓ #{Organizations::Membership.count} memberships seeded"
+
+# ─────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────
 puts "\n" + "=" * 60
@@ -238,6 +289,8 @@ puts "  Permissions:        #{Core::Permission.count}"
 puts "  User Roles:         #{Core::UserRole.count}"
 puts "  Role Permissions:   #{Core::RolePermission.count}"
 puts "  Event Categories:   #{Events::Category.count}"
+puts "  Organizations:      #{Organizations::Organization.count}"
+puts "  Memberships:        #{Organizations::Membership.count}"
 puts "=" * 60
 puts "\n🔑 Default credentials:"
 puts "  Admin:     +251911000001 / password123"
