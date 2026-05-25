@@ -45,6 +45,8 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
   class_option :skip_routes, type: :boolean, default: false
   class_option :skip_tests, type: :boolean, default: false
   class_option :interactive, type: :boolean, default: true
+  class_option :parent, type: :string, default: nil,
+    desc: "Parent class for nested resource (e.g. Events::Event)"
   class_option :only, type: :array, default: nil,
     desc: "Only generate these components (#{VALID_COMPONENTS.join(', ')})"
   class_option :skip, type: :array, default: nil,
@@ -115,7 +117,11 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
   def add_route
     return unless component_enabled?(:route)
     return if options[:skip_routes]
-    route "resources :#{plural_name}, except: %i[new edit]", namespace: namespace_path
+    if parent_option
+      route %(resources :#{parent_resource_name} do\n    resources :#{plural_name}, except: %i[new edit]\n  end), namespace: namespace_path
+    else
+      route "resources :#{plural_name}, except: %i[new edit]", namespace: namespace_path
+    end
   end
 
   def create_locale_file
@@ -247,35 +253,8 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
     data_columns.any? { |c| c.name == "name" }
   end
 
-  def belongs_to_setup_erb
-    belongs_to_columns.map { |c|
-      klass = resolve_class_name(c)
-      %(@#{c.name} = #{klass}.create!(name: "Setup #{c.name.humanize}"))
-    }.join("\n    ")
-  end
-
   def self_referential?(col)
     resolve_class_name(col) == class_name
-  end
-
-  def belongs_to_fk_refs_erb
-    belongs_to_columns.map { |c| "#{c.name}_id: @#{c.name}.id" }.join(", ")
-  end
-
-  def sample_all_create_params_erb
-    parts = data_columns.map { |c| "#{c.name}: #{c.sample_value}" }
-    parts += belongs_to_columns.map { |c| "#{c.name}_id: @#{c.name}.id" }
-    parts.join(", ")
-  end
-
-  def sample_all_update_params_erb
-    parts = []
-    unless data_columns.empty?
-      col = data_columns.first
-      parts << "#{col.name}: #{col.sample_update_value}"
-    end
-    parts += belongs_to_columns.map { |c| "#{c.name}_id: @#{c.name}.id" }
-    parts.join(", ")
   end
 
   def auditable?
@@ -348,6 +327,92 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
 
   def sensitive_column?(name)
     SENSITIVE_ATTRIBUTES.any? { |pattern| name.downcase.include?(pattern) }
+  end
+
+  def parent_option
+    options[:parent]
+  end
+
+  def parent_class_name
+    parent_option
+  end
+
+  def parent_name
+    parent_option&.demodulize
+  end
+
+  def parent_param_name
+    :"#{parent_name.underscore}_id"
+  end
+
+  def parent_association_name
+    plural_name
+  end
+
+  def parent_resource_name
+    parent_option&.underscore&.split("/")&.last&.pluralize
+  end
+
+  def parent_belongs_to_column
+    parsed_columns.find { |c| c.belongs_to? && resolve_class_name(c) == parent_option }
+  end
+
+  def non_parent_belongs_to_columns
+    cols = belongs_to_columns
+    cols = cols.reject { |c| c == parent_belongs_to_column } if parent_option
+    cols
+  end
+
+  def controller_param_columns
+    cols = if parent_option
+      parsed_columns.reject { |c| c == parent_belongs_to_column }
+    else
+      parsed_columns
+    end
+    hash_cols = []
+    scalar_cols = cols.map do |col|
+      if col.belongs_to?
+        ":#{col.name}_id"
+      elsif col.type == :jsonb
+        hash_cols << "#{col.name}: {}"
+        nil
+      else
+        ":#{col.name}"
+      end
+    end.compact
+    scalar_cols + hash_cols
+  end
+
+  def sample_all_create_params_erb
+    parts = data_columns.map { |c| "#{c.name}: #{c.sample_value}" }
+    parts += non_parent_belongs_to_columns.map { |c| "#{c.name}_id: @#{c.name}.id" }
+    parts += belongs_to_columns.select { |c| parent_option && c == parent_belongs_to_column }
+             .map { |c| "#{c.name}_id: #{parent_class_name}.first.id" }
+    parts.join(", ")
+  end
+
+  def sample_all_update_params_erb
+    parts = []
+    unless data_columns.empty?
+      col = data_columns.first
+      parts << "#{col.name}: #{col.sample_update_value}"
+    end
+    parts += non_parent_belongs_to_columns.map { |c| "#{c.name}_id: @#{c.name}.id" }
+    parts += belongs_to_columns.select { |c| parent_option && c == parent_belongs_to_column }
+             .map { |c| "#{c.name}_id: #{parent_class_name}.first.id" }
+    parts.join(", ")
+  end
+
+  def belongs_to_setup_erb
+    cols = non_parent_belongs_to_columns
+    cols.map { |c|
+      klass = resolve_class_name(c)
+      %(@#{c.name} = #{klass}.create!(name: "Setup #{c.name.humanize}"))
+    }.join("\n    ")
+  end
+
+  def belongs_to_fk_refs_erb
+    non_parent_belongs_to_columns.map { |c| "#{c.name}_id: @#{c.name}.id" }.join(", ")
   end
 
   def ransackable_attributes_list
