@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_21_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_25_200001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -147,10 +147,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_21_000000) do
     t.index ["slug"], name: "index_events_categories_on_slug", unique: true
   end
 
+  create_table "organizations_memberships", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.uuid "organization_id", null: false
+    t.integer "role", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "user_id", null: false
+    t.index ["organization_id"], name: "idx_one_owner_per_org", unique: true, where: "(role = 0)"
+    t.index ["organization_id"], name: "index_organizations_memberships_on_organization_id"
+    t.index ["user_id", "organization_id"], name: "idx_org_memberships_on_user_and_org", unique: true
+    t.index ["user_id"], name: "index_organizations_memberships_on_user_id"
+  end
+
+  create_table "organizations_organizations", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.string "name", null: false
+    t.string "slug", null: false
+    t.datetime "updated_at", null: false
+    t.index ["slug"], name: "index_organizations_organizations_on_slug", unique: true
+  end
+
   add_foreign_key "core_refresh_tokens", "core_users", column: "user_id"
   add_foreign_key "core_role_permissions", "core_permissions", column: "permission_id"
   add_foreign_key "core_role_permissions", "core_roles", column: "role_id"
   add_foreign_key "core_user_roles", "core_roles", column: "role_id"
   add_foreign_key "core_user_roles", "core_users", column: "assigned_by_id"
   add_foreign_key "core_user_roles", "core_users", column: "user_id"
+  add_foreign_key "organizations_memberships", "core_users", column: "user_id"
+  add_foreign_key "organizations_memberships", "organizations_organizations", column: "organization_id"
 end
