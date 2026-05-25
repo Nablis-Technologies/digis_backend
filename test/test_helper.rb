@@ -9,6 +9,8 @@ end
 ENV["RAILS_ENV"] ||= "test"
 require_relative "../config/environment"
 require "rails/test_help"
+
+BCrypt::Engine.cost = BCrypt::Engine::MIN_COST
 require "minitest/reporters"
 require "mocha/minitest"
 
