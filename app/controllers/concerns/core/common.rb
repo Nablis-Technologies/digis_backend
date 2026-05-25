@@ -7,14 +7,23 @@ module Core
 
     included do
       class_attribute :model_class, default: nil
+      class_attribute :parent_class, default: nil
+      class_attribute :parent_param, default: nil
+      class_attribute :parent_association, default: nil
       before_action :set_clazz
+      before_action :set_parent
       before_action :set_object, only: %i[show update destroy]
     end
 
     def index
-      authorize @clazz.new, :index? unless skip_authorization_for_action?
+      if self.class.parent_class
+        authorize @parent.public_send(child_association).new, :index? unless skip_authorization_for_action?
+        data, serializer_options = resolve_block_result(default: policy_scope(@parent.public_send(child_association)))
+      else
+        authorize @clazz.new, :index? unless skip_authorization_for_action?
+        data, serializer_options = resolve_block_result(default: policy_scope(@clazz))
+      end
 
-      data, serializer_options = resolve_block_result(default: policy_scope(@clazz))
       data = data.includes(eager_loaded_associations) if data.respond_to?(:includes)
       data = filter_records(data)
       data = apply_ordering(data)
@@ -40,14 +49,20 @@ module Core
     end
 
     def create
-      authorize @clazz.new, :create? unless skip_authorization_for_action?
+      object = if self.class.parent_class
+        @parent.public_send(child_association).new(model_params)
+      else
+        @clazz.new(model_params)
+      end
 
-      object, serializer_options = resolve_block_result(default: @clazz.new(model_params))
+      authorize object unless skip_authorization_for_action?
+
+      serializer_options = {}
 
       ActiveRecord::Base.transaction do
         if object.save
           @obj = object
-          after_save_hook(object) if respond_to?(:after_save_hook, true)
+          after_create_hook(object) if respond_to?(:after_create_hook, true)
 
           object = @clazz.includes(eager_loaded_associations).find(object.id)
           @obj = object
@@ -74,7 +89,7 @@ module Core
 
       ActiveRecord::Base.transaction do
         if object.update(model_params)
-          after_save_hook(object) if respond_to?(:after_save_hook, true)
+          after_update_hook(object) if respond_to?(:after_update_hook, true)
 
           object = @clazz.includes(eager_loaded_associations).find(object.id)
           @obj = object
@@ -113,8 +128,25 @@ module Core
       raise ArgumentError, "#{self.class.name} must declare self.model_class"
     end
 
+    def set_parent
+      return unless self.class.parent_class
+
+      param_name = self.class.parent_param || :"#{self.class.parent_class.model_name.singular}_id"
+      @parent = self.class.parent_class.find(params[param_name])
+    end
+
+    def child_association
+      self.class.parent_association || @clazz.model_name.plural.to_sym
+    end
+
     def set_object
-      @obj = @clazz.includes(eager_loaded_associations).find(params[:id])
+      if self.class.parent_class
+        @obj = @parent.public_send(child_association)
+                .includes(eager_loaded_associations)
+                .find(params[:id])
+      else
+        @obj = @clazz.includes(eager_loaded_associations).find(params[:id])
+      end
     end
 
     def resolve_block_result(default:)
