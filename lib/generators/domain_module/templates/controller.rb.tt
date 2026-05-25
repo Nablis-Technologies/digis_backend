@@ -5,6 +5,11 @@ module <%= namespace_path.camelize %>
     include Core::AuditableController
 <% end -%>
     self.model_class = <%= class_name %>
+<% if parent_option -%>
+    self.parent_class = <%= parent_class_name %>
+    self.parent_param = :<%= parent_param_name %>
+    self.parent_association = :<%= parent_association_name %>
+<% end -%>
 <% if auditable? -%>
     auditable on: %i[create update destroy]
 <% end -%>
@@ -13,7 +18,7 @@ module <%= namespace_path.camelize %>
 
     def model_params
       params.require(:<%= model_name.underscore %>).permit(
-        <%= param_columns.join(", ") %>
+        <%= controller_param_columns.join(", ") %>
       )
     end
 
