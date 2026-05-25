@@ -25,14 +25,3 @@ en:
       config_error: "Reviewable configuration error: %{message}"
       from_status_mismatch: "Action '%{action}' can only be performed from: %{allowed}. Current status is '%{current_status}'"
 
-  category:
-    success:
-      index: "Categories retrieved successfully"
-      show: "Category retrieved successfully"
-      create: "Category created successfully"
-      update: "Category updated successfully"
-      destroy: "Category deleted successfully"
-    errors:
-      create: "Failed to create category"
-      update: "Failed to update category"
-      destroy: "Failed to delete category"

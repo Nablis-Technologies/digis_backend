@@ -1,0 +1,12 @@
+en:
+  category:
+    success:
+      index: "Categories retrieved successfully"
+      show: "Category retrieved successfully"
+      create: "Category created successfully"
+      update: "Category updated successfully"
+      destroy: "Category deleted successfully"
+    errors:
+      create: "Failed to create category"
+      update: "Failed to update category"
+      destroy: "Failed to delete category"
