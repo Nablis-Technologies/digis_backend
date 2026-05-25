@@ -17,6 +17,12 @@ Rails.application.routes.draw do
     resources :categories, except: %i[new edit]
   end
 
+  namespace :organizations do
+    resources :organizations, except: %i[new edit] do
+      resources :memberships, except: %i[new edit], controller: "memberships"
+    end
+  end
+
   # Defines the root path route ("/")
   # root "posts#index"
 end
