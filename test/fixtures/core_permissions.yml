@@ -1,26 +1,32 @@
 role_index:
-  id: dddddddd-dddd-dddd-dddd-dddddddddddd
+  id: 019e5f69-db59-70aa-860a-7307fa2248a5
   code: role.index
   resource: role
   action: index
   namespace: core
   description: List core roles
   active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
 
 permission_create:
-  id: eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee
+  id: 019e5f69-d8d8-794d-ad91-d9949d13eb9e
   code: permission.create
   resource: permission
   action: create
   namespace: core
   description: Create permissions
   active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
 
 user_index:
-  id: aaaaaaaa-dddd-dddd-dddd-dddddddddddd
+  id: 019e5f69-d926-719f-b4f2-d06274c0a93d
   code: user.index
   resource: user
   action: index
   namespace: core
   description: List core users
   active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
