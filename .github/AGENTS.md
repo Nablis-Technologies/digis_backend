@@ -172,7 +172,7 @@ cat test/integration/events/venues_test.rb
 
 1. **Model** (`app/models/...`): Add `has_many`/`has_one` associations, custom scopes, extra validations (uniqueness, numericality), business logic methods, callbacks
 2. **Controller** (`app/controllers/...`): Add custom actions beyond CRUD, update `serializer_profile` with fields + includes, update `allowed_order_columns`
-3. **Policy** (`app/policies/...`): Populate `VISIBILITY` hash with role-based field visibility, customize `Scope` class for data scoping
+3. **Policy** (`app/policies/...`): Add `VISIBILITY` hash (required on all policies — even if just `{ show: { default: nil, admin: nil } }`), customize `Scope` class for data scoping
 4. **Serializer** (`app/serializers/...`): Remove unnecessary `belongs_to` associations (they cause deep nesting), add custom attribute methods
 5. **Test** (`test/integration/...`): If `belongs_to` parent lacks a `name` column, edit the `setup` block — change `create!(name: "Setup ...")` to match the parent's actual column
 6. **Migration**: Add composite indexes, FK constraints, or column defaults if needed
