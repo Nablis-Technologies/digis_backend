@@ -31,6 +31,7 @@ module Core
       def authenticate_user(identifier, password)
         user = find_user_by_identifier(identifier)
         return nil unless user&.authenticate(password)
+        return nil if user.deactivated?
 
         user
       end
@@ -52,11 +53,13 @@ module Core
         refresh_token = Core::RefreshToken.find_valid(refresh_token_value)
         raise Core::AuthenticationError.new("Invalid token", code: "invalid_token") unless refresh_token
 
+        user = refresh_token.user
+        raise Core::AuthenticationError.new("Account deactivated", code: "account_deactivated") if user.deactivated?
+
         validate_device!(refresh_token, request)
 
         ActiveRecord::Base.transaction do
           old_device_id = refresh_token.device_id
-          user = refresh_token.user
 
           new_refresh = create_refresh_token(user, request)
           new_refresh.update!(device_id: old_device_id)
