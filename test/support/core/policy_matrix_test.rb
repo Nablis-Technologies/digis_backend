@@ -159,8 +159,8 @@ module Core
 
     def resolve_record_for(action, model_class, child_assoc)
       case action
-      when :index, :create then @parent&.public_send(child_assoc)&.new || model_class.new
-      when :show, :update, :destroy then @saved_child || model_class.first || model_class.new
+      when :index, :create then model_class.new
+      when :show, :update, :destroy then model_class.new
       end
     end
 
