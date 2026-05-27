@@ -48,7 +48,7 @@ module Core
 
     def refresh_token!
       refresh_token_value = extract_refresh_token_from_params
-      return nil if refresh_token_value.blank?
+      raise Core::AuthenticationError.new("Refresh token missing", code: "invalid_token") if refresh_token_value.blank?
 
       result = Core::AuthService.call(
         operation: :refresh_access_token,

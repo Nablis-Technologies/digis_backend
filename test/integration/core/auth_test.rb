@@ -78,6 +78,18 @@ class CoreAuthTest < ActionDispatch::IntegrationTest
     assert old_record.revoked?, "Old token should be revoked"
   end
 
+  test "refresh returns auth error when refresh token is missing" do
+    post "/auth/refresh",
+         params: { device_id: "web-browser" },
+         as: :json
+
+    assert_response :unauthorized
+
+    payload = JSON.parse(response.body)
+    assert_equal false, payload["success"]
+    assert payload["error"].present?
+  end
+
   test "logout revokes the supplied refresh token" do
     user = core_users(:attendee)
     jti = core_refresh_tokens(:attendee_web_token).jti
