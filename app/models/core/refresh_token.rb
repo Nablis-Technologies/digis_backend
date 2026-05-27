@@ -18,6 +18,10 @@ module Core
 
     attr_accessor :raw_token
 
+    def active?
+      !revoked? && !expired?
+    end
+
     def expired?
       expires_at.present? && expires_at <= Time.current
     end
