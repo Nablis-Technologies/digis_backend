@@ -1,0 +1,8 @@
+en:
+  permission:
+    success:
+      index: "Permissions retrieved successfully"
+      show: "Permission retrieved successfully"
+      create: "Permission created successfully"
+      update: "Permission updated successfully"
+      destroy: "Permission deleted successfully"
