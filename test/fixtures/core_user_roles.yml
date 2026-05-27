@@ -15,3 +15,9 @@ attendee_assignment:
   user_id: 019e5f69-dbb6-7e14-b126-c01c0c580984
   role_id: 019e5f69-d9bd-7933-ad1b-6ffdaf864b99
   assigned_by_id: 019e5f69-db1c-77b6-be88-3afbf8b65410
+
+support_role_assignment:
+  id: 019e5f6b-0004-7aaa-bbbb-ccccccccccc1
+  user_id: 019e5f6b-0003-7aaa-bbbb-ccccccccccc1
+  role_id: 019e5f6b-0001-7aaa-bbbb-ccccccccccc1
+  assigned_by_id: 019e5f69-db1c-77b6-be88-3afbf8b65410
