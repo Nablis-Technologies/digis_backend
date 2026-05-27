@@ -24,3 +24,12 @@ attendee:
   password_digest: <%= BCrypt::Password.create("password123") %>
   created_at: <%= Time.current %>
   updated_at: <%= Time.current %>
+
+support:
+  id: 019e5f6b-0003-7aaa-bbbb-ccccccccccc1
+  email: support@digis.et
+  phone: "251911000004"
+  verified_at: <%= Time.current %>
+  password_digest: <%= BCrypt::Password.create("password123") %>
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>

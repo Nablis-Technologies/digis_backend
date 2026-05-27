@@ -1,6 +1,7 @@
 module Core
   class User < Core::ApplicationRecord
     include Core::UserAuthenticatable
+    include Core::AuditableModel
 
     has_many :user_roles,
              class_name: "Core::UserRole",
@@ -21,8 +22,19 @@ module Core
              as: :reviewed_by,
              dependent: :nullify
 
+    scope :active, -> { where(deactivated_at: nil) }
+    scope :deactivated, -> { where.not(deactivated_at: nil) }
+
+    def deactivated?
+      deactivated_at.present?
+    end
+
+    def deactivation_fraud?
+      deactivated_reason == "fraud"
+    end
+
     def self.ransackable_attributes(_auth_object = nil)
-      %w[id email phone verified_at created_at updated_at]
+      %w[id email phone verified_at deactivated_at deactivated_reason created_at updated_at]
     end
 
     def self.ransackable_associations(_auth_object = nil)
