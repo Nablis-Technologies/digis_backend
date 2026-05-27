@@ -31,6 +31,7 @@ module Core
           exclude_actions = Array(options[:except])
           contract_actions = (%i[index show create update destroy] - exclude_actions) & meta.actions
           policy_matrix_test meta.send(:resolve_policy_class),
+            model_class: meta.model_class,
             parent_fixture: meta.parent_fixture_key || (meta.send(:parent_class_present?) ? :one : nil),
             actions: contract_actions
         end
@@ -41,7 +42,7 @@ module Core
       def generate_tests(action, meta)
         unless meta.skip_authorization
           test "#{action} fails for unauthenticated user" do
-            perform_request(action, resolve_path_for(meta), record: nil, params: nil, headers: {})
+            perform_request(action, resolve_path_for(meta), record: nil, params: nil, headers: {}, meta: meta)
             assert_response :unauthorized
           end
         end
@@ -55,7 +56,7 @@ module Core
             record = resolve_record(action, meta)
             params = resolve_params(action, meta, record)
 
-            perform_request(action, resolve_path_for(meta), record: record, params: params, headers: headers)
+            perform_request(action, resolve_path_for(meta), record: record, params: params, headers: headers, meta: meta)
             assert_response expected ? :success : :forbidden
           end
         end
@@ -76,7 +77,7 @@ module Core
             params = resolve_params(action, meta, record)
 
             perform_enqueued_jobs do
-              perform_request(action, resolve_path_for(meta), record: record, params: params, headers: headers)
+              perform_request(action, resolve_path_for(meta), record: record, params: params, headers: headers, meta: meta)
             end
 
             auditable = if action == :create
@@ -97,7 +98,7 @@ module Core
             record = resolve_record(action, meta)
             params = resolve_params(action, meta, record)
 
-            perform_request(action, resolve_path_for(meta), record: record, params: params, headers: headers)
+            perform_request(action, resolve_path_for(meta), record: record, params: params, headers: headers, meta: meta)
             perform_enqueued_jobs
             assert_audit_not_logged(action: action.to_s)
           end
@@ -111,7 +112,8 @@ module Core
 
         test "show returns expected attributes" do
           record = resolve_record(:show, meta)
-          get "#{resolve_path_for(meta)}/#{record.id}", headers: admin_headers, as: :json
+          record_id = meta.resource_param ? record.public_send(meta.resource_param) : record.id
+          get "#{resolve_path_for(meta)}/#{record_id}", headers: admin_headers, as: :json
           assert_response :success
           data = JSON.parse(response.body).dig("data")
 
@@ -174,7 +176,8 @@ module Core
           end
 
           headers = token_headers_for(core_users(permitted_key))
-          delete "#{resolve_path_for(meta)}/#{record.id}", headers: headers, as: :json
+          record_id = meta.resource_param ? record.public_send(meta.resource_param) : record.id
+          delete "#{resolve_path_for(meta)}/#{record_id}", headers: headers, as: :json
           assert_response :success
           assert_nil meta.model_class.find_by(id: record.id)
         end
@@ -191,7 +194,9 @@ module Core
             path = case action
                    when :index then resolve_path_for(meta)
                    when :create then resolve_path_for(meta)
-                   else "#{resolve_path_for(meta)}/#{record.id}"
+                   else
+                     record_id = meta.resource_param ? record.public_send(meta.resource_param) : record.id
+                     "#{resolve_path_for(meta)}/#{record_id}"
                    end
 
             send(http_method_for(action), path, params: params, headers: admin_headers, as: :json)
@@ -206,14 +211,23 @@ module Core
 
     private
 
-    def perform_request(action, path, record:, params:, headers:)
-      id = record.respond_to?(:id) ? record.id : "nonexistent"
+    def perform_request(action, path, record:, params:, headers:, meta: nil)
       case action
       when :index then get path, headers: headers, as: :json
-      when :show then get "#{path}/#{id}", headers: headers, as: :json
       when :create then post path, params: params, headers: headers, as: :json
-      when :update then patch "#{path}/#{id}", params: params, headers: headers, as: :json
-      when :destroy then delete "#{path}/#{id}", headers: headers, as: :json
+      else
+        id = if meta&.resource_param && record
+          record.public_send(meta.resource_param)
+        elsif record.respond_to?(:id)
+          record.id
+        else
+          "nonexistent"
+        end
+        case action
+        when :show then get "#{path}/#{id}", headers: headers, as: :json
+        when :update then patch "#{path}/#{id}", params: params, headers: headers, as: :json
+        when :destroy then delete "#{path}/#{id}", headers: headers, as: :json
+        end
       end
     end
 
@@ -313,7 +327,7 @@ module Core
                   :create_params_proc, :update_params_proc,
                   :skip_authorization, :check_attributes, :index_config,
                   :default_create_attrs, :parent_fixture_key,
-                  :default_update_attrs, :controller_class
+                  :default_update_attrs, :controller_class, :resource_param
 
       def initialize(test_class, options)
         @test_class = test_class
@@ -327,6 +341,7 @@ module Core
         @parent_fixture_key = options[:parent_fixture]
         @check_attributes = options[:check_attributes] || {}
         @index_config = options[:index] || {}
+        @resource_param = options[:resource_param]
       end
 
       def build
@@ -348,6 +363,11 @@ module Core
       private
 
       def resolve_controller
+        if @options[:controller]
+          @controller_class = @options[:controller]
+          return
+        end
+
         name = @test_class.name.sub(/Test$/, "")
         parts = name.split(/(?<=[a-z])(?=[A-Z])/)
         @controller_class = "#{parts.join('::')}Controller".constantize
@@ -432,7 +452,7 @@ module Core
         yaml = raw.include?("<%") ? ERB.new(raw, trim_mode: "-").result(binding) : raw
         parsed = YAML.safe_load(yaml)
         @core_users_by_key = parsed.select { |_, v| v.is_a?(Hash) }
-        @fixture_keys = @core_users_by_key.keys.map(&:to_sym)
+        @fixture_keys = @options[:fixture_keys]&.map(&:to_sym) || @core_users_by_key.keys.map(&:to_sym)
       end
 
       def resolve_auditable_actions
@@ -479,11 +499,10 @@ module Core
       end
 
       def resolve_policy_class
-        if @model_class.respond_to?(:policy_name)
-          @model_class.policy_name.constantize
-        else
-          "#{@model_class.name}Policy".constantize
-        end
+        return @options[:policy_class] if @options[:policy_class]
+        return @model_class.policy_name.constantize if @model_class.respond_to?(:policy_name)
+
+        "#{@model_class.name}Policy".constantize
       end
 
       def load_fixture_data
