@@ -386,7 +386,8 @@ module Core
 
       # Priority 3: Check ALL instance variables for objects of the model class
       instance_variables.each do |ivar|
-        next if ivar.to_s.start_with?("@__")
+        next if ivar.to_s.start_with?("@__", "@audit")
+        next if ivar == :@current_user
 
         obj = instance_variable_get(ivar)
         if obj.is_a?(model_klass)
@@ -489,20 +490,25 @@ module Core
     def find_created_record_quietly(model_klass)
       return nil unless model_klass.respond_to?(:ancestors) && model_klass.ancestors.include?(ActiveRecord::Base)
 
+      candidates = []
+
       instance_variables.each do |ivar|
         next if ivar.to_s.start_with?("@__", "@audit")
 
         obj = instance_variable_get(ivar)
-        return obj if obj.is_a?(model_klass)
+        candidates << obj if obj.is_a?(model_klass)
       end
 
       ivar_name = "@#{model_klass.name.demodulize.underscore}"
       if instance_variable_defined?(ivar_name)
         obj = instance_variable_get(ivar_name)
-        return obj if obj.is_a?(model_klass)
+        candidates << obj if obj.is_a?(model_klass)
       end
 
-      nil
+      return candidates.first if candidates.one?
+
+      actor = current_actor rescue nil
+      candidates.find { |c| actor.nil? || c != actor } || candidates.first
     rescue StandardError => e
       Rails.logger.debug "Audit: Could not quietly find created record: #{e.message}"
       nil
