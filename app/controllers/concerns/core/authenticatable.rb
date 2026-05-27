@@ -46,6 +46,20 @@ module Core
       nil
     end
 
+    def refresh_token!
+      refresh_token_value = extract_refresh_token_from_params
+      return nil if refresh_token_value.blank?
+
+      result = Core::AuthService.call(
+        operation: :refresh_access_token,
+        refresh_token_value: refresh_token_value,
+        request: request
+      )
+      raise result.error if result.failure?
+
+      result.value
+    end
+
     private
 
     def authenticate_from_token
