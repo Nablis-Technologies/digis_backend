@@ -61,6 +61,18 @@ user_role = Core::Role.find_or_create_by!(code: "USER") do |r|
   r.active = true
 end
 
+core_admin_role = Core::Role.find_or_create_by!(code: "CORE_ADMIN") do |r|
+  r.name = "Core Admin"
+  r.description = "Core-level operational access — manages platform users, roles, and permissions"
+  r.active = true
+end
+
+support_role = Core::Role.find_or_create_by!(code: "SUPPORT") do |r|
+  r.name = "Support"
+  r.description = "Support-level access — can view users, deactivate accounts, and view audit logs"
+  r.active = true
+end
+
 puts "✓ #{Core::Role.count} roles seeded"
 
 # ─────────────────────────────────────────────
@@ -119,6 +131,18 @@ permissions = [
   { resource: "organization", action: "update", namespace: "core", description: "Update organizations" },
   { resource: "organization", action: "destroy", namespace: "core", description: "Delete organizations" },
 
+  # Permission management (show — for viewing permission details)
+  { resource: "permission", action: "show", namespace: "core", description: "View permission details" },
+
+  # User deactivation/reactivation
+  { resource: "user", action: "deactivate", namespace: "core", description: "Deactivate users" },
+  { resource: "user", action: "reactivate", namespace: "core", description: "Reactivate users" },
+
+  # Role assignment
+  { resource: "user_role", action: "index", namespace: "core", description: "List role assignments" },
+  { resource: "user_role", action: "create", namespace: "core", description: "Assign roles to users" },
+  { resource: "user_role", action: "destroy", namespace: "core", description: "Remove role assignments" },
+
   # Audit logs
   { resource: "audit_log", action: "index", namespace: "core", description: "View audit logs" },
   { resource: "audit_log", action: "show", namespace: "core", description: "View audit log details" },
@@ -160,6 +184,10 @@ Core::UserRole.find_or_create_by!(user: attendee_user, role: user_role) do |ur|
   ur.assigned_by = admin_user
 end
 
+Core::UserRole.find_or_create_by!(user: organizer_user, role: core_admin_role) do |ur|
+  ur.assigned_by = admin_user
+end
+
 puts "✓ #{Core::UserRole.count} user roles seeded"
 
 # ─────────────────────────────────────────────
@@ -195,6 +223,31 @@ user_permissions = Core::Permission.where(
 )
 user_permissions.find_each do |perm|
   Core::RolePermission.find_or_create_by!(role: user_role, permission: perm)
+end
+
+# CORE_ADMIN gets all user/role/permission/user_role CRUD (except user.destroy and permission.destroy)
+core_admin_permissions = Core::Permission.where(
+  resource: %w[user role permission user_role audit_log],
+  namespace: "core"
+).where.not(
+  resource: "permission", action: "destroy"
+).where.not(
+  resource: "user", action: "destroy"
+)
+core_admin_permissions.find_each do |perm|
+  Core::RolePermission.find_or_create_by!(role: core_admin_role, permission: perm)
+end
+
+# SUPPORT gets user index/show/deactivate, role index, audit_log index/show
+support_permissions = Core::Permission.where(
+  resource: %w[user role audit_log],
+  action: %w[index show],
+  namespace: "core"
+).or(
+  Core::Permission.where(resource: "user", action: "deactivate", namespace: "core")
+)
+support_permissions.find_each do |perm|
+  Core::RolePermission.find_or_create_by!(role: support_role, permission: perm)
 end
 
 puts "✓ #{Core::RolePermission.count} role permissions seeded"
@@ -293,7 +346,10 @@ puts "  Organizations:      #{Organizations::Organization.count}"
 puts "  Memberships:        #{Organizations::Membership.count}"
 puts "=" * 60
 puts "\n🔑 Default credentials:"
-puts "  Admin:     +251911000001 / password123"
-puts "  Organizer: +251911000002 / password123"
-puts "  Attendee:  +251911000003 / password123"
-puts "=" * 60
+  puts "  Admin:     +251911000001 / password123"
+  puts "  Organizer: +251911000002 / password123"
+  puts "  Attendee:  +251911000003 / password123"
+puts "\n🎭 Admin roles:"
+  puts "  SUPER_ADMIN: admin@digis.et"
+  puts "  CORE_ADMIN:  organizer@digis.et"
+  puts "=" * 60
