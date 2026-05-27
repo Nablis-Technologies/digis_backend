@@ -10,6 +10,8 @@ module Core
       class_attribute :parent_class, default: nil
       class_attribute :parent_param, default: nil
       class_attribute :parent_association, default: nil
+      class_attribute :resource_param, default: :id
+      class_attribute :default_serializer, default: nil
       before_action :set_clazz
       before_action :set_parent
       before_action :set_object, only: %i[show update destroy]
@@ -24,6 +26,7 @@ module Core
         data, serializer_options = resolve_block_result(default: policy_scope(@clazz))
       end
 
+      data = apply_index_scope(data)
       data = data.includes(eager_loaded_associations) if data.respond_to?(:includes)
       data = filter_records(data)
       data = apply_ordering(data)
@@ -140,12 +143,14 @@ module Core
     end
 
     def set_object
+      lookup = params[self.class.resource_param]
       if self.class.parent_class
         @obj = @parent.public_send(child_association)
                 .includes(eager_loaded_associations)
-                .find(params[:id])
+                .find_by!(self.class.resource_param => lookup)
       else
-        @obj = @clazz.includes(eager_loaded_associations).find(params[:id])
+        @obj = @clazz.includes(eager_loaded_associations)
+                .find_by!(self.class.resource_param => lookup)
       end
     end
 
@@ -179,6 +184,10 @@ module Core
 
     def policy_sample
       @obj || @clazz&.new
+    end
+
+    def apply_index_scope(scope)
+      scope
     end
 
     def allowed_order_columns
