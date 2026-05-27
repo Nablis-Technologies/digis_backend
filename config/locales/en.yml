@@ -4,11 +4,14 @@ en:
       login: "Login successful"
       signup: "Signup successful"
       logout: "Logout successful"
-      me: "Current user fetched successfully"
+      me: "Current user retrieved successfully"
       refresh: "Token refreshed successfully"
     errors:
       invalid_credentials: "Invalid credentials"
       invalid_token: "Invalid token"
+      account_deactivated: "Account has been deactivated"
+      self_deactivation: "Cannot deactivate yourself"
+      invalid_device: "Refresh token is not valid for this device"
       signup: "Signup failed"
 
   authorization:
