@@ -54,6 +54,9 @@ module Core
     end
 
     def render_success(message = nil, data: nil, status: :ok, serializer_options: {}, pagination: nil, meta: nil, **options)
+      if self.class.respond_to?(:default_serializer) && self.class.default_serializer && !serializer_options.key?(:serializer)
+        serializer_options[:serializer] = self.class.default_serializer
+      end
       response = { success: true }
       resolved_message = resolve_message(message, type: :success)
       response[:message] = resolved_message if resolved_message.present?
@@ -109,10 +112,16 @@ module Core
 
     def serialize_relation(data, options = {})
       assoc_fields = options.delete(:association_fields)
-      result = ActiveModelSerializers::SerializableResource.new(data, options).as_json
+      explicit_serializer = options.delete(:serializer)
+
+      if explicit_serializer
+        result = data.map { |record| ActiveModelSerializers::SerializableResource.new(record, options.merge(serializer: explicit_serializer)).as_json }
+      else
+        result = ActiveModelSerializers::SerializableResource.new(data, options).as_json
+      end
 
       if assoc_fields.present? && result.is_a?(Array) && result.first.is_a?(Hash)
-        serializer_class = options[:serializer] || \
+        serializer_class = explicit_serializer || \
           (data.respond_to?(:klass) && ActiveModelSerializers::SerializableResource.new(data.klass.new).serializer)
         result.each { |item| Core::AssociationFieldFilter.apply!(item, assoc_fields, serializer_class) } if serializer_class
       end
