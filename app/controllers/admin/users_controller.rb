@@ -5,26 +5,13 @@ module Admin
 
     self.model_class = Core::User
     self.resource_param = :id
+    self.default_serializer = Admin::UserSerializer
 
     auditable_model Core::User
     auditable on: %i[create update destroy deactivate reactivate],
               action: { deactivate: "update", reactivate: "update" }
 
     before_action :set_user, only: %i[deactivate reactivate]
-
-    def index
-      authorize Core::User.new, :index?
-      users = policy_scope(Core::User)
-      users = Core::User.active unless ActiveModel::Type::Boolean.new.cast(params[:include_deactivated])
-      users = users.includes(eager_loaded_associations)
-      users = filter_records(users)
-      users = apply_ordering(users)
-
-      total_count = users.count if paginated_request?
-      users = apply_pagination(users) if paginated_request?
-
-      render_success(data: users, serializer_options: { serializer: Admin::UserSerializer, include: [ :roles ] }, pagination: paginated_request? ? pagination_metadata(total_count) : nil)
-    end
 
     def show
       authorize @obj
@@ -86,6 +73,14 @@ module Admin
 
     def model_params
       params.require(:user).permit(:email, :phone, :password, :verified_at)
+    end
+
+    def apply_index_scope(scope)
+      case params[:status]
+      when "all"  then scope
+      when "deactivated" then scope.deactivated
+      else scope.active
+      end
     end
 
     def allowed_order_columns
