@@ -1,5 +1,7 @@
 module Core
   class Permission < Core::ApplicationRecord
+    include Core::AuditableModel
+
     has_many :role_permissions,
              class_name: "Core::RolePermission",
              foreign_key: :permission_id,
