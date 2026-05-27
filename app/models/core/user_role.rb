@@ -1,5 +1,7 @@
 module Core
   class UserRole < Core::ApplicationRecord
+    include Core::AuditableModel
+
     belongs_to :user,
                class_name: "Core::User",
                inverse_of: :user_roles
