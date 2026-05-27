@@ -82,17 +82,17 @@ class AdminUsersTest < ActionDispatch::IntegrationTest
     assert_not user.reload.deactivated?
   end
 
-  test "index with include_deactivated returns all users" do
+  test "index with status=all returns all users" do
     core_users(:support).update!(deactivated_at: Time.current, deactivated_reason: "policy")
     headers = token_headers_for(core_users(:super_admin))
-    get "/admin/users?include_deactivated=true", headers: headers, as: :json
+    get "/admin/users?status=all", headers: headers, as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
     user_ids = data.map { |u| u["id"] }
     assert_includes user_ids, core_users(:support).id
   end
 
-  test "index without include_deactivated excludes deactivated users" do
+  test "index defaults to active users" do
     deactivated = core_users(:support)
     deactivated.update!(deactivated_at: Time.current, deactivated_reason: "policy")
     headers = token_headers_for(core_users(:super_admin))
@@ -101,6 +101,37 @@ class AdminUsersTest < ActionDispatch::IntegrationTest
     data = JSON.parse(response.body).dig("data")
     user_ids = data.map { |u| u["id"] }
     assert_not_includes user_ids, deactivated.id
+  end
+
+  test "index with status=deactivated returns only deactivated users" do
+    deactivated = core_users(:support)
+    deactivated.update!(deactivated_at: Time.current, deactivated_reason: "test")
+
+    headers = token_headers_for(core_users(:super_admin))
+    get "/admin/users?status=deactivated", headers: headers, as: :json
+    assert_response :success
+
+    data = JSON.parse(response.body).dig("data")
+    user_ids = data.map { |u| u["id"] }
+
+    assert_includes user_ids, deactivated.id
+    assert_not_includes user_ids, core_users(:super_admin).id
+  end
+
+  test "index composes active filter with policy scope" do
+    excluded_user = core_users(:support)
+
+    narrow_scope = Core::User.where(id: core_users(:super_admin).id)
+    Admin::UsersController.any_instance.stubs(:policy_scope).returns(narrow_scope)
+
+    headers = token_headers_for(core_users(:super_admin))
+    get "/admin/users", headers: headers, as: :json
+    assert_response :success
+
+    data = JSON.parse(response.body).dig("data")
+    user_ids = data.map { |u| u["id"] }
+
+    assert_equal [ core_users(:super_admin).id ], user_ids
   end
 
   test "deactivate revokes all tokens" do
