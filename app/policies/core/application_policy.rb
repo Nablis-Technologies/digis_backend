@@ -50,7 +50,7 @@ module Core
     end
 
     def user_role_key
-      return :admin if user&.has_role?("SUPER_ADMIN") || user&.has_role?("ADMIN")
+      return :admin if user&.has_role?("SUPER_ADMIN") || user&.has_role?("ADMIN") || user&.has_role?("CORE_ADMIN")
       :default
     end
 
