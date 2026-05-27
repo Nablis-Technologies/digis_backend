@@ -87,23 +87,21 @@ module Core
 
     def refresh
       skip_authorization
-      new_tokens = refresh_token
+      new_tokens = refresh_token!
 
-      if new_tokens
-        render_success(
-          :"auth.success.refresh",
-          data: {
-            access_token: new_tokens[:access_token],
-            refresh_token: new_tokens[:refresh_token],
-            user: preloaded_auth_user(new_tokens[:user])
-          },
-          serializer_options: {
-            user: { serializer: Core::UserAuthSerializer }
-          }
-        )
-      else
-        render_error(:"auth.errors.invalid_token", status: :unauthorized, code: "invalid_token")
-      end
+      render_success(
+        :"auth.success.refresh",
+        data: {
+          access_token: new_tokens[:access_token],
+          refresh_token: new_tokens[:refresh_token],
+          user: preloaded_auth_user(new_tokens[:user])
+        },
+        serializer_options: {
+          user: { serializer: Core::UserAuthSerializer }
+        }
+      )
+    rescue Core::AuthenticationError => e
+      render_error(:"auth.errors.#{e.code}", status: :unauthorized, code: e.code)
     end
 
     private
