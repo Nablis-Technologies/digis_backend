@@ -23,6 +23,18 @@ Rails.application.routes.draw do
     end
   end
 
+  namespace :admin do
+    resources :users, except: %i[new edit] do
+      member do
+        post :deactivate
+        post :reactivate
+      end
+      resources :roles, only: %i[index create destroy], controller: "user_roles", param: :role_id
+    end
+    resources :roles, except: %i[new edit]
+    resources :permissions, except: %i[new edit]
+  end
+
   # Defines the root path route ("/")
   # root "posts#index"
 end
