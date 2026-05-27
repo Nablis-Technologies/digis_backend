@@ -13,37 +13,6 @@ module Admin
 
     before_action :set_user, only: %i[deactivate reactivate]
 
-    def show
-      authorize @obj
-
-      render_success(data: @obj, serializer_options: { serializer: Admin::UserSerializer, include: [ :roles ] })
-    end
-
-    def create
-      object = Core::User.new(model_params)
-      authorize object
-
-      ActiveRecord::Base.transaction do
-        object.save!
-        @obj = object
-
-        render_success(data: @obj, serializer_options: { serializer: Admin::UserSerializer, include: [ :roles ] }, status: :created)
-      end
-    rescue ActiveRecord::RecordInvalid => error
-      render_error(error.record.errors.full_messages.first, status: :unprocessable_entity)
-    end
-
-    def update
-      authorize @obj
-
-      ActiveRecord::Base.transaction do
-        @obj.update!(model_params)
-        render_success(data: @obj, serializer_options: { serializer: Admin::UserSerializer, include: [ :roles ] })
-      end
-    rescue ActiveRecord::RecordInvalid => error
-      render_error(error.record.errors.full_messages.first, status: :unprocessable_entity)
-    end
-
     def deactivate
       authorize @obj
 
