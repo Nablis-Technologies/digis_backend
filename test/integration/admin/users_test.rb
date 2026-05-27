@@ -166,4 +166,14 @@ class AdminUsersTest < ActionDispatch::IntegrationTest
     assert_nil user.deactivated_reason
     assert_audit_logged(action: "update", auditable: user, actor: core_users(:super_admin))
   end
+
+  test "show returns 404 with clean message for non-existent record" do
+    headers = token_headers_for(core_users(:super_admin))
+    get "/admin/users/nonexistent-id", headers: headers, as: :json
+    assert_response :not_found
+
+    body = JSON.parse(response.body)
+    assert_equal false, body["success"]
+    assert_match /user.*not found/i, body["error"]
+  end
 end
