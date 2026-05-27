@@ -24,3 +24,12 @@ user:
   active: true
   created_at: <%= Time.current %>
   updated_at: <%= Time.current %>
+
+support:
+  id: 019e5f6b-0001-7aaa-bbbb-ccccccccccc1
+  code: SUPPORT
+  name: Support
+  description: Support-level access — can view users, deactivate accounts, and view audit logs
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>

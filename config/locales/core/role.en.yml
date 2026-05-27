@@ -1,0 +1,8 @@
+en:
+  role:
+    success:
+      index: "Roles retrieved successfully"
+      show: "Role retrieved successfully"
+      create: "Role created successfully"
+      update: "Role updated successfully"
+      destroy: "Role deleted successfully"
