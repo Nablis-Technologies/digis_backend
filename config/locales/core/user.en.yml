@@ -1,0 +1,10 @@
+en:
+  user:
+    success:
+      index: "Users retrieved successfully"
+      show: "User retrieved successfully"
+      create: "User created successfully"
+      update: "User updated successfully"
+      destroy: "User deleted successfully"
+      deactivate: "User deactivated successfully"
+      reactivate: "User reactivated successfully"
