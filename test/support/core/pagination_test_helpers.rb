@@ -29,7 +29,8 @@ module Core
       assert_response :success
       payload = JSON.parse(response.body)
       values = payload["data"].map { |item| item[order_by.to_s] }
-      sorted = values.sort_by { |v| v.to_s.downcase }.reverse
+      sorted = values.sort_by { |v| v.to_s.downcase }
+      sorted = sorted.reverse if direction.to_s == "desc"
       assert_equal sorted, values, "Expected #{order_by} to be ordered #{direction}"
       payload["data"]
     end
