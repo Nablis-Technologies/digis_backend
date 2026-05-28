@@ -7,8 +7,8 @@ class AdminUserRolesTest < ActionDispatch::IntegrationTest
                 model: Core::UserRole,
                 policy_class: Admin::UserRolePolicy,
                 fixture_keys: %i[super_admin core_admin support attendee],
-                parent_fixture: :super_admin,
-                path: -> { "/admin/users/#{core_users(:super_admin).id}/roles" },
+                parent_fixture: :support,
+                path: -> { "/admin/users/#{core_users(:support).id}/roles" },
                 resource_param: :role_id,
                 except: %i[show update],
                 create_params: -> {
