@@ -14,10 +14,6 @@ module Core
       raise Core::AuthenticationError.new("Authentication required", code: "authentication_required") unless current_user
     end
 
-    def authenticate_user!
-      authenticate_user
-    end
-
     def sign_in(user, request)
       tokens = user.generate_auth_tokens(request)
       @current_user = user
