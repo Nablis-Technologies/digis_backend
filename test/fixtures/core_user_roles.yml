@@ -1,0 +1,23 @@
+super_admin_assignment:
+  id: 019e5f6a-0eff-7686-bf20-08f55514e6cb
+  user_id: 019e5f69-db1c-77b6-be88-3afbf8b65410
+  role_id: 019e5f69-d843-7def-8cf6-53197a1972e5
+  assigned_by_id: 019e5f69-db1c-77b6-be88-3afbf8b65410
+
+core_admin_assignment:
+  id: 019e5f6a-1259-7f0a-aa41-71c1aacafdc3
+  user_id: 019e5f69-da01-72fb-bef2-17eddb579932
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  assigned_by_id: 019e5f69-db1c-77b6-be88-3afbf8b65410
+
+attendee_assignment:
+  id: 019e5f6a-0ef6-7fe1-b928-432b05c88a48
+  user_id: 019e5f69-dbb6-7e14-b126-c01c0c580984
+  role_id: 019e5f69-d9bd-7933-ad1b-6ffdaf864b99
+  assigned_by_id: 019e5f69-db1c-77b6-be88-3afbf8b65410
+
+support_role_assignment:
+  id: 019e5f6b-0004-7aaa-bbbb-ccccccccccc1
+  user_id: 019e5f6b-0003-7aaa-bbbb-ccccccccccc1
+  role_id: 019e5f6b-0001-7aaa-bbbb-ccccccccccc1
+  assigned_by_id: 019e5f69-db1c-77b6-be88-3afbf8b65410

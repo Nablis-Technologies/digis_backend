@@ -1,0 +1,45 @@
+music:
+  id: 019e5f69-d9fe-7687-8fcc-78653f30c0f9
+  name: Music
+  description: Concerts, festivals, and live performances
+  slug: music
+  metadata:
+    icon: "music-note"
+    color: "#FF5733"
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+sports:
+  id: 019e5f69-db28-709f-8512-4dd8260b87ac
+  name: Sports
+  description: Sporting events, matches, and tournaments
+  slug: sports
+  metadata:
+    icon: "trophy"
+    color: "#33FF57"
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+conference:
+  id: 019e5f69-d949-7381-8e7c-82ed9cbb71f3
+  name: Conference
+  description: Business, tech, and academic conferences
+  slug: conference
+  metadata:
+    icon: "briefcase"
+    color: "#3357FF"
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+inactive_category:
+  id: 019e5f69-da3d-7c84-a427-93585e15535b
+  name: Legacy Events
+  description: Deprecated category — no longer accepting new listings
+  slug: legacy-events
+  metadata: {}
+  active: false
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>

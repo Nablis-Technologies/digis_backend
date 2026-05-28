@@ -42,8 +42,18 @@ Rails.application.configure do
   # Print deprecation notices to the stderr.
   config.active_support.deprecation = :stderr
 
-  # Raises error for missing translations.
+  # Use test adapter for ActiveJob so perform_enqueued_jobs works.
+  config.active_job.queue_adapter = :test
+
+  # Raise on missing translations.
   # config.i18n.raise_on_missing_translations = true
+
+  # Catch N+1 queries via Prosopite.
+  config.after_initialize do
+    require "prosopite"
+    Prosopite.rails_logger = true
+    Prosopite.raise = true
+  end
 
   # Annotate rendered view with file names.
   # config.action_view.annotate_rendered_view_with_filenames = true

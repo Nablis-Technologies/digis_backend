@@ -1,0 +1,11 @@
+owner_one:
+  id: 019e5f69-db22-7463-81fa-047c03470db2
+  user_id: 019e5f69-db1c-77b6-be88-3afbf8b65410
+  organization_id: 019e5f69-d922-75a3-b880-be8f75b18ad0
+  role: 0
+
+owner_two:
+  id: 019e5f69-d88b-7a3f-9cbe-04ea84b750bc
+  user_id: 019e5f69-da01-72fb-bef2-17eddb579932
+  organization_id: 019e5f69-db0a-709f-b748-fd8afb65216f
+  role: 0

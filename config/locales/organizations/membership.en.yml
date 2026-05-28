@@ -1,0 +1,12 @@
+en:
+  membership:
+    success:
+      index: "Memberships retrieved successfully"
+      show: "Membership retrieved successfully"
+      create: "Membership created successfully"
+      update: "Membership updated successfully"
+      destroy: "Membership deleted successfully"
+    errors:
+      create: "Failed to create membership"
+      update: "Failed to update membership"
+      destroy: "Failed to delete membership"

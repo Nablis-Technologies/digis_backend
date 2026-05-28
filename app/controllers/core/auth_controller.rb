@@ -1,0 +1,138 @@
+module Core
+  class AuthController < Core::ApplicationController
+    skip_before_action :authenticate_user, only: %i[login signup refresh]
+    skip_before_action :authorize_action!, only: %i[login signup refresh]
+
+    def login
+      skip_authorization
+      auth_result = Core::AuthService.call(
+        operation: :authenticate_user,
+        identifier: identifier_param,
+        password: params[:password]
+      )
+      user = auth_result.value
+
+      if auth_result.success? && user&.valid_for_authentication?
+        tokens = sign_in(preloaded_auth_user(user), request)
+        render_success(
+          :"auth.success.login",
+          data: {
+            user: preloaded_auth_user(user),
+            access_token: tokens[:access_token],
+            refresh_token: tokens[:refresh_token]
+          },
+          serializer_options: {
+            user: { serializer: Core::UserAuthSerializer }
+          }
+        )
+      else
+        render_error(:"auth.errors.invalid_credentials", status: :unauthorized, code: "invalid_credentials")
+      end
+    end
+
+    def signup
+      skip_authorization
+      user = Core::User.new(user_params)
+      begin
+        ActiveRecord::Base.transaction do
+          user.save!
+          assign_default_role(user)
+        end
+
+        render_success(
+          :"auth.success.signup",
+          data: {
+            user: preloaded_auth_user(user.reload)
+          },
+          status: :created,
+          serializer_options: {
+            user: { serializer: Core::UserAuthSerializer }
+          }
+        )
+      rescue ActiveRecord::RecordInvalid => e
+        render_error(
+          :"auth.errors.signup",
+          errors: e.record.errors.full_messages,
+          status: :unprocessable_entity,
+          code: "signup_failed"
+        )
+      rescue StandardError => e
+        Rails.logger.error "Signup error: #{e.class} #{e.message}\n#{e.backtrace.first(8).join("\n")}" if defined?(Rails)
+        render_error(
+          :"auth.errors.signup",
+          errors: [ e.message.to_s ],
+          status: :internal_server_error,
+          code: "signup_failed"
+        )
+      end
+    end
+
+    def logout
+      sign_out
+      render_success(:"auth.success.logout")
+    end
+
+    def me
+      skip_authorization
+      render_success(
+        :"auth.success.me",
+        data: {
+          user: preloaded_auth_user(current_user)
+        },
+        serializer_options: {
+          user: { serializer: Core::UserAuthSerializer }
+        }
+      )
+    end
+
+    def refresh
+      skip_authorization
+      new_tokens = refresh_token!
+
+      render_success(
+        :"auth.success.refresh",
+        data: {
+          access_token: new_tokens[:access_token],
+          refresh_token: new_tokens[:refresh_token],
+          user: preloaded_auth_user(new_tokens[:user])
+        },
+        serializer_options: {
+          user: { serializer: Core::UserAuthSerializer }
+        }
+      )
+    rescue Core::AuthenticationError => e
+      render_error(:"auth.errors.#{e.code}", status: :unauthorized, code: e.code)
+    end
+
+    private
+
+    def user_params
+      params.require(:user).permit(
+        :email,
+        :phone,
+        :password,
+        :password_confirmation
+      )
+    end
+
+    def identifier_param
+      params[:identifier]
+    end
+
+    def preloaded_auth_user(user)
+      return user unless user.is_a?(Core::User)
+
+      Core::User.includes(roles: :permissions).find(user.id)
+    end
+
+    def assign_default_role(user)
+      role = Core::Role.find_or_create_by!(code: "USER") do |record|
+        record.name = "User"
+        record.description = "Default end-user role"
+        record.active = true
+      end
+
+      Core::UserRole.find_or_create_by!(user: user, role: role)
+    end
+  end
+end

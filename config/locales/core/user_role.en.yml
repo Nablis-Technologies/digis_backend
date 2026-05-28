@@ -1,0 +1,6 @@
+en:
+  user_role:
+    success:
+      index: "User roles retrieved successfully"
+      create: "Role assigned successfully"
+      destroy: "Role removed successfully"

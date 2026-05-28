@@ -1,31 +1,33 @@
-# Files in the config/locales directory are used for internationalization and
-# are automatically loaded by Rails. If you want to use locales other than
-# English, add the necessary files in this directory.
-#
-# To use the locales, use `I18n.t`:
-#
-#     I18n.t "hello"
-#
-# In views, this is aliased to just `t`:
-#
-#     <%= t("hello") %>
-#
-# To use a different locale, set it with `I18n.locale`:
-#
-#     I18n.locale = :es
-#
-# This would use the information in config/locales/es.yml.
-#
-# To learn more about the API, please read the Rails Internationalization guide
-# at https://guides.rubyonrails.org/i18n.html.
-#
-# Be aware that YAML interprets the following case-insensitive strings as
-# booleans: `true`, `false`, `on`, `off`, `yes`, `no`. Therefore, these strings
-# must be quoted to be interpreted as strings. For example:
-#
-#     en:
-#       "yes": yup
-#       enabled: "ON"
-
 en:
-  hello: "Hello world"
+  auth:
+    success:
+      login: "Login successful"
+      signup: "Signup successful"
+      logout: "Logout successful"
+      me: "Current user retrieved successfully"
+      refresh: "Token refreshed successfully"
+    errors:
+      invalid_credentials: "Invalid credentials"
+      invalid_token: "Invalid token"
+      account_deactivated: "Account has been deactivated"
+      self_deactivation: "Cannot deactivate yourself"
+      invalid_device: "Refresh token is not valid for this device"
+      signup: "Signup failed"
+
+  authorization:
+    errors:
+      unauthorized: "You are not authorized to perform this action"
+
+  errors:
+    not_found: "The requested %{model} was not found"
+
+  review:
+    errors:
+      undefined_action: "Action '%{action}' is not defined for context '%{context}'"
+      invalid_transition: "Cannot transition from '%{from_status}' to '%{to_status}'"
+      feedback_required: "Feedback is required for %{status}"
+      submission_not_ready: "Resource must be complete before submission"
+      not_authorized: "You are not authorized to perform this action"
+      config_error: "Reviewable configuration error: %{message}"
+      from_status_mismatch: "Action '%{action}' can only be performed from: %{allowed}. Current status is '%{current_status}'"
+

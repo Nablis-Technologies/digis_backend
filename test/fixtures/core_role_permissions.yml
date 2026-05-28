@@ -1,0 +1,114 @@
+core_admin_role_index:
+  id: 019e5f6a-0fbf-7dd3-b77c-5f058fb820cb
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  permission_id: 019e5f69-db59-70aa-860a-7307fa2248a5
+
+core_admin_permission_create:
+  id: 019e5f6a-0f4a-79bb-b293-313c9263ca5b
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  permission_id: 019e5f69-d8d8-794d-ad91-d9949d13eb9e
+
+core_admin_user_index:
+  id: 019e5f6a-0fa9-7c11-bc76-d8bbeb6c83c1
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  permission_id: 019e5f69-d926-719f-b4f2-d06274c0a93d
+
+core_admin_user_show:
+  id: 019e5f6b-0005-7aaa-bbbb-ccccccccccc1
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  permission_id: 019e5f6b-0002-7aaa-bbbb-ccccccccccc2
+
+core_admin_user_create:
+  id: 019e5f6b-0005-7aaa-bbbb-ccccccccccc2
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  permission_id: 019e5f6b-0002-7aaa-bbbb-ccccccccccc3
+
+core_admin_user_update:
+  id: 019e5f6b-0005-7aaa-bbbb-ccccccccccc3
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  permission_id: 019e5f6b-0002-7aaa-bbbb-ccccccccccc4
+
+core_admin_user_deactivate:
+  id: 019e5f6b-0005-7aaa-bbbb-ccccccccccc4
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  permission_id: 019e5f6b-0002-7aaa-bbbb-ccccccccccc6
+
+core_admin_user_reactivate:
+  id: 019e5f6b-0005-7aaa-bbbb-ccccccccccc5
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  permission_id: 019e5f6b-0002-7aaa-bbbb-ccccccccccc7
+
+core_admin_role_show:
+  id: 019e5f6b-0005-7aaa-bbbb-ccccccccccc6
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  permission_id: 019e5f6b-0002-7aaa-bbbb-ccccccccccc8
+
+core_admin_role_create:
+  id: 019e5f6b-0005-7aaa-bbbb-ccccccccccc7
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  permission_id: 019e5f6b-0002-7aaa-bbbb-ccccccccccc9
+
+core_admin_role_update:
+  id: 019e5f6b-0005-7aaa-bbbb-ccccccccccc8
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  permission_id: 019e5f6b-0002-7aaa-bbbb-ccccccccccd0
+
+core_admin_permission_show:
+  id: 019e5f6b-0005-7aaa-bbbb-ccccccccccc9
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  permission_id: 019e5f6b-0002-7aaa-bbbb-ccccccccccd2
+
+core_admin_user_role_index:
+  id: 019e5f6b-0005-7aaa-bbbb-ccccccccccd0
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  permission_id: 019e5f6b-0002-7aaa-bbbb-ccccccccccd5
+
+core_admin_user_role_create:
+  id: 019e5f6b-0005-7aaa-bbbb-ccccccccccd1
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  permission_id: 019e5f6b-0002-7aaa-bbbb-ccccccccccd6
+
+core_admin_user_role_destroy:
+  id: 019e5f6b-0005-7aaa-bbbb-ccccccccccd2
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  permission_id: 019e5f6b-0002-7aaa-bbbb-ccccccccccd7
+
+core_admin_audit_log_index:
+  id: 019e5f6b-0005-7aaa-bbbb-ccccccccccd3
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  permission_id: 019e5f6b-0002-7aaa-bbbb-ccccccccccd8
+
+core_admin_audit_log_show:
+  id: 019e5f6b-0005-7aaa-bbbb-ccccccccccd4
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  permission_id: 019e5f6b-0002-7aaa-bbbb-ccccccccccd9
+
+support_user_index:
+  id: 019e5f6b-0006-7aaa-bbbb-ccccccccccc1
+  role_id: 019e5f6b-0001-7aaa-bbbb-ccccccccccc1
+  permission_id: 019e5f69-d926-719f-b4f2-d06274c0a93d
+
+support_user_show:
+  id: 019e5f6b-0006-7aaa-bbbb-ccccccccccc2
+  role_id: 019e5f6b-0001-7aaa-bbbb-ccccccccccc1
+  permission_id: 019e5f6b-0002-7aaa-bbbb-ccccccccccc2
+
+support_user_deactivate:
+  id: 019e5f6b-0006-7aaa-bbbb-ccccccccccc3
+  role_id: 019e5f6b-0001-7aaa-bbbb-ccccccccccc1
+  permission_id: 019e5f6b-0002-7aaa-bbbb-ccccccccccc6
+
+support_role_index:
+  id: 019e5f6b-0006-7aaa-bbbb-ccccccccccc4
+  role_id: 019e5f6b-0001-7aaa-bbbb-ccccccccccc1
+  permission_id: 019e5f69-db59-70aa-860a-7307fa2248a5
+
+support_audit_log_index:
+  id: 019e5f6b-0006-7aaa-bbbb-ccccccccccc5
+  role_id: 019e5f6b-0001-7aaa-bbbb-ccccccccccc1
+  permission_id: 019e5f6b-0002-7aaa-bbbb-ccccccccccd8
+
+support_audit_log_show:
+  id: 019e5f6b-0006-7aaa-bbbb-ccccccccccc6
+  role_id: 019e5f6b-0001-7aaa-bbbb-ccccccccccc1
+  permission_id: 019e5f6b-0002-7aaa-bbbb-ccccccccccd9

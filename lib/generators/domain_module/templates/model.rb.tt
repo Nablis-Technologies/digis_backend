@@ -1,0 +1,32 @@
+module <%= namespace_path.camelize %>
+  class <%= model_name %> < <%= namespace_path.camelize %>::ApplicationRecord
+    self.table_name = "<%= table_name %>"
+
+<% if auditable? -%>
+    include Core::AuditableModel
+<% end -%>
+<% if slugable? -%>
+    include Core::Slugable
+    slugable source: :<%= slug_source_column %>, target: :slug
+<% end -%>
+
+<% if belongs_to_columns.any? -%><% belongs_to_columns.each do |col| -%>
+    belongs_to :<%= col.name %><% if col.class_name %>, class_name: "<%= col.class_name %>"<% end %><% if self_referential?(col) %>, optional: true<% end %>
+<% end -%><% end -%>
+
+<% if data_columns.any? { |c| c.name == "name" } -%>
+    validates :name, presence: true
+<% end -%>
+<% if slugable? -%>
+    validates :slug, presence: true, uniqueness: true
+<% end -%>
+
+    def self.ransackable_attributes(_auth_object = nil)
+      %w[<%= ransackable_attributes_list.join(" ") %>]
+    end
+
+    def self.ransackable_associations(_auth_object = nil)
+      %w[<%= belongs_to_columns.map(&:name).join(" ") %>]
+    end
+  end
+end

@@ -1,0 +1,12 @@
+role_bootstrap_audit:
+  id: 019e5f69-da18-7a72-a4dc-415fd6d142c5
+  auditable_type: Core::Role
+  auditable_id: 019e5f69-d843-7def-8cf6-53197a1972e5
+  actor_type: Core::User
+  actor_id: 019e5f69-db1c-77b6-be88-3afbf8b65410
+  action: role.seeded
+  audited_changes: {"active":{"old":null,"new":true}}
+  metadata: {"source":"fixtures"}
+  request_uuid: fixture-request-001
+  ip_address: 127.0.0.1
+  user_agent: Digis Fixtures/1.0

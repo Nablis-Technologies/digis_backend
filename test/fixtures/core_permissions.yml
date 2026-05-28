@@ -1,0 +1,230 @@
+role_index:
+  id: 019e5f69-db59-70aa-860a-7307fa2248a5
+  code: role.index
+  resource: role
+  action: index
+  namespace: core
+  description: List core roles
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+permission_create:
+  id: 019e5f69-d8d8-794d-ad91-d9949d13eb9e
+  code: permission.create
+  resource: permission
+  action: create
+  namespace: core
+  description: Create permissions
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+user_index:
+  id: 019e5f69-d926-719f-b4f2-d06274c0a93d
+  code: user.index
+  resource: user
+  action: index
+  namespace: core
+  description: List core users
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+user_show:
+  id: 019e5f6b-0002-7aaa-bbbb-ccccccccccc2
+  code: user.show
+  resource: user
+  action: show
+  namespace: core
+  description: View user details
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+user_create:
+  id: 019e5f6b-0002-7aaa-bbbb-ccccccccccc3
+  code: user.create
+  resource: user
+  action: create
+  namespace: core
+  description: Create new users
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+user_update:
+  id: 019e5f6b-0002-7aaa-bbbb-ccccccccccc4
+  code: user.update
+  resource: user
+  action: update
+  namespace: core
+  description: Update user information
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+user_destroy:
+  id: 019e5f6b-0002-7aaa-bbbb-ccccccccccc5
+  code: user.destroy
+  resource: user
+  action: destroy
+  namespace: core
+  description: Delete users
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+user_deactivate:
+  id: 019e5f6b-0002-7aaa-bbbb-ccccccccccc6
+  code: user.deactivate
+  resource: user
+  action: deactivate
+  namespace: core
+  description: Deactivate users
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+user_reactivate:
+  id: 019e5f6b-0002-7aaa-bbbb-ccccccccccc7
+  code: user.reactivate
+  resource: user
+  action: reactivate
+  namespace: core
+  description: Reactivate users
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+role_show:
+  id: 019e5f6b-0002-7aaa-bbbb-ccccccccccc8
+  code: role.show
+  resource: role
+  action: show
+  namespace: core
+  description: View role details
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+role_create:
+  id: 019e5f6b-0002-7aaa-bbbb-ccccccccccc9
+  code: role.create
+  resource: role
+  action: create
+  namespace: core
+  description: Create new roles
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+role_update:
+  id: 019e5f6b-0002-7aaa-bbbb-ccccccccccd0
+  code: role.update
+  resource: role
+  action: update
+  namespace: core
+  description: Update roles
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+role_destroy:
+  id: 019e5f6b-0002-7aaa-bbbb-ccccccccccd1
+  code: role.destroy
+  resource: role
+  action: destroy
+  namespace: core
+  description: Delete roles
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+permission_show:
+  id: 019e5f6b-0002-7aaa-bbbb-ccccccccccd2
+  code: permission.show
+  resource: permission
+  action: show
+  namespace: core
+  description: View permission details
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+permission_update:
+  id: 019e5f6b-0002-7aaa-bbbb-ccccccccccd3
+  code: permission.update
+  resource: permission
+  action: update
+  namespace: core
+  description: Update permissions
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+permission_destroy:
+  id: 019e5f6b-0002-7aaa-bbbb-ccccccccccd4
+  code: permission.destroy
+  resource: permission
+  action: destroy
+  namespace: core
+  description: Delete permissions
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+user_role_index:
+  id: 019e5f6b-0002-7aaa-bbbb-ccccccccccd5
+  code: user_role.index
+  resource: user_role
+  action: index
+  namespace: core
+  description: List role assignments
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+user_role_create:
+  id: 019e5f6b-0002-7aaa-bbbb-ccccccccccd6
+  code: user_role.create
+  resource: user_role
+  action: create
+  namespace: core
+  description: Assign roles to users
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+user_role_destroy:
+  id: 019e5f6b-0002-7aaa-bbbb-ccccccccccd7
+  code: user_role.destroy
+  resource: user_role
+  action: destroy
+  namespace: core
+  description: Remove role assignments
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+audit_log_index:
+  id: 019e5f6b-0002-7aaa-bbbb-ccccccccccd8
+  code: audit_log.index
+  resource: audit_log
+  action: index
+  namespace: core
+  description: View audit logs
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+audit_log_show:
+  id: 019e5f6b-0002-7aaa-bbbb-ccccccccccd9
+  code: audit_log.show
+  resource: audit_log
+  action: show
+  namespace: core
+  description: View audit log details
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>

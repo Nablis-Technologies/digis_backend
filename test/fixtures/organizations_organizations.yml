@@ -1,0 +1,11 @@
+one:
+  id: 019e5f69-d922-75a3-b880-be8f75b18ad0
+  name: Digis HQ
+  slug: digis-hq
+  description: The official Digis platform organization — manages core platform operations and infrastructure
+
+two:
+  id: 019e5f69-db0a-709f-b748-fd8afb65216f
+  name: Addis Events Pro
+  slug: addis-events-pro
+  description: Premier event management company based in Addis Ababa — specializes in concerts and cultural festivals

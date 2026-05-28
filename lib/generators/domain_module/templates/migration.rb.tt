@@ -1,0 +1,19 @@
+class Create<%= table_name.camelize %> < ActiveRecord::Migration[8.1]
+  def change
+    create_table :<%= table_name %>, id: :uuid, default: -> { "uuidv7()" } do |t|
+<% data_columns.each do |col| -%>
+      t.<%= col.type %> :<%= col.name %>
+<% end -%>
+<% belongs_to_columns.each do |col| -%>
+      t.references :<%= col.name %>, type: :uuid
+<% end -%>
+<% if slugable? -%>
+      t.string :slug
+<% end -%>
+      t.timestamps
+    end
+<% if slugable? -%>
+    add_index :<%= table_name %>, :slug, unique: true
+<% end -%>
+  end
+end
