@@ -51,8 +51,6 @@ module Core
       active_permissions.include?(permission_code.to_s)
     end
 
-    alias can? has_permission?
-
     def has_all_permissions?(*permission_codes)
       permission_codes.flatten.all? { |code| has_permission?(code) }
     end
