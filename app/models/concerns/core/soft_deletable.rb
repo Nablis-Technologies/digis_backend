@@ -8,16 +8,8 @@ module Core
       scope :with_deleted, -> { all }
     end
 
-    def soft_delete
-      update(deleted_at: Time.current)
-    end
-
     def soft_delete!
       update!(deleted_at: Time.current)
-    end
-
-    def restore
-      update(deleted_at: nil)
     end
 
     def restore!
