@@ -192,12 +192,12 @@ module Core
             record = resolve_record(action, meta)
             params = resolve_params(action, meta, record)
             path = case action
-                   when :index then resolve_path_for(meta)
-                   when :create then resolve_path_for(meta)
-                   else
-                     record_id = meta.resource_param ? record.public_send(meta.resource_param) : record.id
-                     "#{resolve_path_for(meta)}/#{record_id}"
-                   end
+            when :index then resolve_path_for(meta)
+            when :create then resolve_path_for(meta)
+            else
+                      record_id = meta.resource_param ? record.public_send(meta.resource_param) : record.id
+                      "#{resolve_path_for(meta)}/#{record_id}"
+            end
 
             send(http_method_for(action), path, params: params, headers: admin_headers, as: :json)
             assert_response :success
