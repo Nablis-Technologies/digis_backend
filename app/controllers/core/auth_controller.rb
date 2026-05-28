@@ -116,7 +116,7 @@ module Core
     end
 
     def identifier_param
-      params[:identifier].presence || params[:email_or_phone]
+      params[:identifier]
     end
 
     def preloaded_auth_user(user)
