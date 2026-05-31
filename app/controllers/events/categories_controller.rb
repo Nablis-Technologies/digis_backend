@@ -1,37 +1,16 @@
 module Events
-  class CategoriesController < Events::ApplicationController
-    include Core::Common
-    include Core::AuditableController
-
-    self.model_class = Events::Category
-
-    auditable on: %i[create update destroy]
-
-    private
-
-    def model_params
-      params.require(:category).permit(:name, :description, :slug, :active, metadata: {})
+  class CategoriesController < ::Public::ApplicationController
+    def index
+      categories = Events::Category.active
+      total_count = categories.count if paginated_request?
+      categories = paginated_request? ? apply_pagination(categories) : categories.limit(25)
+      pagination = paginated_request? ? pagination_metadata(total_count) : nil
+      render_success(data: categories, serializer_options: { serializer: Events::Public::CategoryListSerializer }, pagination: pagination)
     end
 
-    def allowed_order_columns
-      %w[id name slug active created_at updated_at]
-    end
-
-    def serializer_profile
-      {
-        index: {
-          fields: %i[id name slug]
-        },
-        show: {
-          fields: %i[id name description slug metadata active created_at updated_at]
-        },
-        create: {
-          fields: %i[id name slug]
-        },
-        update: {
-          fields: %i[id name slug]
-        }
-      }
+    def show
+      category = Events::Category.find(params[:id])
+      render_success(data: category, serializer_options: { serializer: Events::Public::CategoryDetailSerializer })
     end
   end
 end
