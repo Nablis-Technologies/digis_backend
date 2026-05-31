@@ -1,0 +1,46 @@
+grand_palace:
+  id: 019e5f70-0001-7000-8000-000000000001
+  name: Grand Palace
+  slug: grand-palace
+  description: A premier concert venue in the heart of Addis Ababa
+  address: 123 Main St
+  city: Addis Ababa
+  country: Ethiopia
+  latitude: 9.03
+  longitude: 38.74
+  capacity: 5000
+  amenities:
+    - parking
+    - vip_lounge
+  verified: true
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+red_hall:
+  id: 019e5f70-0001-7000-8000-000000000002
+  name: Red Hall
+  slug: red-hall
+  description: An intimate performance space
+  address: 456 Oak Ave
+  city: Addis Ababa
+  country: Ethiopia
+  capacity: 200
+  verified: false
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+inactive_venue:
+  id: 019e5f70-0001-7000-8000-000000000003
+  name: Old Theater
+  slug: old-theater
+  description: Permanently closed venue
+  address: 789 Pine Rd
+  city: Dire Dawa
+  country: Ethiopia
+  capacity: 0
+  verified: false
+  active: false
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
