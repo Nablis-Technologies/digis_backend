@@ -12,6 +12,11 @@ module Core
              through: :user_roles,
              class_name: "Core::Role"
 
+    has_many :active_follows,
+             class_name: "Core::Follow",
+             foreign_key: :follower_id,
+             dependent: :destroy
+
     has_many :assigned_user_roles,
              class_name: "Core::UserRole",
              foreign_key: :assigned_by_id,
