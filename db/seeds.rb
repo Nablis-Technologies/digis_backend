@@ -151,7 +151,21 @@ permissions = [
   { resource: "review", action: "index", namespace: "core", description: "List all reviews" },
   { resource: "review", action: "show", namespace: "core", description: "View review details" },
   { resource: "review", action: "approve", namespace: "core", description: "Approve reviews" },
-  { resource: "review", action: "reject", namespace: "core", description: "Reject reviews" }
+  { resource: "review", action: "reject", namespace: "core", description: "Reject reviews" },
+
+  # Venue management
+  { resource: "venue", action: "index", namespace: "core", description: "List all venues" },
+  { resource: "venue", action: "show", namespace: "core", description: "View venue details" },
+  { resource: "venue", action: "create", namespace: "core", description: "Create venues" },
+  { resource: "venue", action: "update", namespace: "core", description: "Update venues" },
+  { resource: "venue", action: "destroy", namespace: "core", description: "Delete venues" },
+
+  # Artist management
+  { resource: "artist", action: "index", namespace: "core", description: "List all artists" },
+  { resource: "artist", action: "show", namespace: "core", description: "View artist details" },
+  { resource: "artist", action: "create", namespace: "core", description: "Create artists" },
+  { resource: "artist", action: "update", namespace: "core", description: "Update artists" },
+  { resource: "artist", action: "destroy", namespace: "core", description: "Delete artists" }
 ]
 
 permissions.each do |perm|
@@ -331,6 +345,72 @@ end
 puts "✓ #{Organizations::Membership.count} memberships seeded"
 
 # ─────────────────────────────────────────────
+# 9. Events::Venues
+# ─────────────────────────────────────────────
+puts "\n🏟️  Seeding venues..."
+
+venues = [
+  { name: "Millennium Hall", description: "One of Addis Ababa's largest indoor venues, hosting major concerts, conferences, and cultural events with a capacity of over 5,000.", address: "Bole Road", city: "Addis Ababa", country: "Ethiopia", latitude: 9.0227, longitude: 38.7468, capacity: 5000, contact_phone: "+251911100001", contact_email: "info@millenniumhall.et", website_url: "https://millenniumhall.et", verified: true, active: true, amenities: ["parking", "air_conditioning", "sound_system", "catering"] },
+  { name: "Sheraton Addis", description: "Luxury hotel and event venue featuring multiple ballrooms and conference facilities in the heart of Addis Ababa.", address: "Yohanis Street", city: "Addis Ababa", country: "Ethiopia", latitude: 9.0247, longitude: 38.7469, capacity: 1500, contact_phone: "+251911100002", contact_email: "events@sheratonaddis.et", website_url: "https://sheratonaddis.et", verified: true, active: true, amenities: ["parking", "air_conditioning", "wifi", "catering", "stage"] },
+  { name: "Skylight Hotel", description: "Modern convention center and hotel with state-of-the-art facilities for conferences and exhibitions.", address: "Bole International Airport Area", city: "Addis Ababa", country: "Ethiopia", latitude: 8.9806, longitude: 38.7993, capacity: 3000, contact_phone: "+251911100003", contact_email: "info@skylighthotel.et", verified: false, active: true, amenities: ["parking", "wifi", "catering", "projector"] },
+]
+
+venues.each do |v|
+  Events::Venue.find_or_create_by!(name: v[:name]) do |venue|
+    venue.assign_attributes(v)
+  end
+end
+
+puts "✓ #{Events::Venue.count} venues seeded"
+
+# ─────────────────────────────────────────────
+# 10. Events::Artists
+# ─────────────────────────────────────────────
+puts "\n🎤 Seeding artists..."
+
+artists = [
+  { name: "Teddy Afro", description: "Ethiopia's biggest musical icon — known for reggae and pop fusion with powerful social commentary", genres: ["reggae", "pop", "Ethio-jazz"], image_url: "https://example.com/teddyafro.jpg", verified: true, active: true },
+  { name: "Haleluya", description: "Award-winning Ethiopian gospel and contemporary music artist", genres: ["gospel", "contemporary"], image_url: "https://example.com/haleluya.jpg", verified: true, active: true },
+  { name: "Jano Band", description: "Up-and-coming Ethio-jazz fusion band blending traditional instruments with modern sounds", genres: ["Ethio-jazz", "fusion", "jazz"], image_url: "https://example.com/janoband.jpg", verified: false, active: true },
+]
+
+artists.each do |a|
+  Events::Artist.find_or_create_by!(name: a[:name]) do |artist|
+    artist.assign_attributes(a)
+  end
+end
+
+puts "✓ #{Events::Artist.count} artists seeded"
+
+# ─────────────────────────────────────────────
+# 11. Core::Follows (sample follows)
+# ─────────────────────────────────────────────
+puts "\n❤️  Seeding sample follows..."
+
+attendee = Core::User.find_by(phone: "+251911000003")
+organizer = Core::User.find_by(phone: "+251911000002")
+
+if attendee
+  followables = [
+    Events::Venue.find_by(name: "Millennium Hall"),
+    Events::Artist.find_by(name: "Teddy Afro"),
+    Organizations::Organization.find_by(name: "Addis Music Fest"),
+  ].compact
+
+  followables.each do |f|
+    Core::Follow.find_or_create_by!(follower: attendee, followable: f)
+  end
+  puts "✓ #{Core::Follow.count} follows seeded"
+else
+  puts "  Skipping follows (attendee user not found)"
+end
+
+if organizer
+  followable = Events::Artist.find_by(name: "Haleluya")
+  Core::Follow.find_or_create_by!(follower: organizer, followable: followable) if followable
+end
+
+# ─────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────
 puts "\n" + "=" * 60
@@ -344,6 +424,9 @@ puts "  Role Permissions:   #{Core::RolePermission.count}"
 puts "  Event Categories:   #{Events::Category.count}"
 puts "  Organizations:      #{Organizations::Organization.count}"
 puts "  Memberships:        #{Organizations::Membership.count}"
+puts "  Venues:             #{Events::Venue.count}"
+puts "  Artists:            #{Events::Artist.count}"
+puts "  Follows:            #{Core::Follow.count}"
 puts "=" * 60
 puts "\n🔑 Default credentials:"
   puts "  Admin:     +251911000001 / password123"
