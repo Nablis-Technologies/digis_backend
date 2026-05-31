@@ -516,6 +516,10 @@ module Core
 
     # Auto-detect model class from controller name
     def detect_model_class
+      if self.class.respond_to?(:model_class) && self.class.model_class.present?
+        return self.class.model_class
+      end
+
       model_name = controller_name.classify
       namespace = self.class.name.deconstantize
 
