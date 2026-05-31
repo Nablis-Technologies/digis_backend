@@ -9,30 +9,31 @@ module Events
     end
 
     def create?
-      user.has_role?("SUPER_ADMIN") || user.has_role?("ADMIN")
+      allowed?(:create)
     end
 
     def update?
-      user.has_role?("SUPER_ADMIN") || user.has_role?("ADMIN")
+      allowed?(:update)
     end
 
     def destroy?
-      user.has_role?("SUPER_ADMIN")
+      allowed?(:destroy)
     end
 
     VISIBILITY = {
+      index: {
+        default: { fields: %i[id name slug], include: [] },
+        admin: { include: [] }
+      },
       show: {
         default: { fields: %i[id name description slug metadata active], include: [] },
-        admin: {
-          include: [ :audit_logs ]
-        }
+        admin: { include: [ :audit_logs ] }
       }
-    }.freeze
+    }
 
     class Scope < Core::ApplicationPolicy::Scope
       def resolve
         return scope.all if user&.has_role?("SUPER_ADMIN") || user&.has_role?("ADMIN")
-
         scope.active
       end
     end
