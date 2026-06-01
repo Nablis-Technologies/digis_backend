@@ -130,6 +130,8 @@ permissions = [
   { resource: "organization", action: "create", namespace: "core", description: "Create organizations" },
   { resource: "organization", action: "update", namespace: "core", description: "Update organizations" },
   { resource: "organization", action: "destroy", namespace: "core", description: "Delete organizations" },
+  { resource: "organization", action: "manage_memberships", namespace: "core", description: "Manage organization memberships from admin" },
+  { resource: "organization", action: "transfer_ownership", namespace: "core", description: "Transfer organization ownership" },
 
   # Permission management (show — for viewing permission details)
   { resource: "permission", action: "show", namespace: "core", description: "View permission details" },
@@ -239,9 +241,10 @@ user_permissions.find_each do |perm|
   Core::RolePermission.find_or_create_by!(role: user_role, permission: perm)
 end
 
-# CORE_ADMIN gets all user/role/permission/user_role CRUD (except user.destroy and permission.destroy)
+# CORE_ADMIN gets user/role/permission/user_role/audit_log CRUD (except user.destroy and permission.destroy),
+# organization create/update/manage_memberships, and venue/artist CRUD
 core_admin_permissions = Core::Permission.where(
-  resource: %w[user role permission user_role audit_log],
+  resource: %w[user role permission user_role audit_log venue artist],
   namespace: "core"
 ).where.not(
   resource: "permission", action: "destroy"
@@ -252,13 +255,26 @@ core_admin_permissions.find_each do |perm|
   Core::RolePermission.find_or_create_by!(role: core_admin_role, permission: perm)
 end
 
-# SUPPORT gets user index/show/deactivate, role index, audit_log index/show
+# Also grant CORE_ADMIN organization index/show/create/update/manage_memberships (but not destroy/transfer_ownership)
+core_admin_org_permissions = Core::Permission.where(
+  resource: "organization",
+  action: %w[index show create update manage_memberships],
+  namespace: "core"
+)
+core_admin_org_permissions.find_each do |perm|
+  Core::RolePermission.find_or_create_by!(role: core_admin_role, permission: perm)
+end
+
+# SUPPORT gets user index/show/deactivate, role index/show, audit_log index/show,
+# and organization index/show
 support_permissions = Core::Permission.where(
   resource: %w[user role audit_log],
   action: %w[index show],
   namespace: "core"
 ).or(
   Core::Permission.where(resource: "user", action: "deactivate", namespace: "core")
+).or(
+  Core::Permission.where(resource: "organization", action: %w[index show], namespace: "core")
 )
 support_permissions.find_each do |perm|
   Core::RolePermission.find_or_create_by!(role: support_role, permission: perm)
