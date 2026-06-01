@@ -5,7 +5,7 @@ module Organizations
     end
 
     def show?
-      record.owner == user || user.super_admin?
+      true
     end
 
     def create?
@@ -13,25 +13,39 @@ module Organizations
     end
 
     def update?
-      record.owner == user || user.super_admin?
+      record.owner == user || user&.super_admin?
     end
 
     def destroy?
-      record.owner == user || user.super_admin?
+      record.owner == user || user&.super_admin?
+    end
+
+    def follow?
+      true
+    end
+
+    def unfollow?
+      true
+    end
+
+    def followers?
+      true
     end
 
     VISIBILITY = {
+      index: {
+        default: { fields: %i[id name slug description created_at], include: [] },
+        admin: { include: [] }
+      },
       show: {
-        default: nil,
-        admin: nil
+        default: { fields: %i[id name slug description profile_url social_links followers_count created_at], include: [] },
+        admin: { include: [] }
       }
-    }.freeze
+    }
 
     class Scope < Core::ApplicationPolicy::Scope
       def resolve
-        return scope.all if user.super_admin?
-        scope.joins(:memberships)
-             .where(organizations_memberships: { user_id: user.id, role: 0 })
+        scope.all
       end
     end
   end
