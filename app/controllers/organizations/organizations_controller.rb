@@ -1,31 +1,24 @@
 module Organizations
-  class OrganizationsController < Organizations::ApplicationController
-    include Core::Common
-    include Core::AuditableController
-    self.model_class = Organizations::Organization
-    auditable on: %i[create update destroy]
+  class OrganizationsController < ::Public::ApplicationController
+  include Core::FollowableActions
+
+    def index
+      organizations = Organizations::Organization.all.with_attached_profile
+      total_count = organizations.count if paginated_request?
+      organizations = paginated_request? ? apply_pagination(organizations) : organizations.limit(25)
+      pagination = paginated_request? ? pagination_metadata(total_count) : nil
+      render_success(data: organizations, serializer_options: { serializer: Organizations::Public::OrganizationListSerializer }, pagination: pagination)
+    end
+
+    def show
+      organization = Organizations::Organization.with_attached_profile.find(params[:id])
+      render_success(data: organization, serializer_options: { serializer: Organizations::Public::OrganizationDetailSerializer })
+    end
 
     private
 
-    def model_params
-      params.require(:organization).permit(:name, :description)
-    end
-
-    def allowed_order_columns
-      %w[id name slug created_at updated_at]
-    end
-
-    def after_create_hook(organization)
-      organization.memberships.create!(user: current_user, role: :owner)
-    end
-
-    def serializer_profile
-      {
-        index:  { fields: %i[id name slug description created_at] },
-        show:   { fields: %i[id name slug description created_at] },
-        create: { fields: %i[id name slug description created_at] },
-        update: { fields: %i[id name slug description created_at] }
-      }
+    def followable_class
+      Organizations::Organization
     end
   end
 end
