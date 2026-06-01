@@ -112,3 +112,38 @@ support_audit_log_show:
   id: 019e5f6b-0006-7aaa-bbbb-ccccccccccc6
   role_id: 019e5f6b-0001-7aaa-bbbb-ccccccccccc1
   permission_id: 019e5f6b-0002-7aaa-bbbb-ccccccccccd9
+
+core_admin_org_index:
+  id: 019e5f6c-0003-7aaa-bbbb-ccccccccccc1
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  permission_id: 019e5f6c-0001-7aaa-bbbb-ccccccccccc1
+
+core_admin_org_show:
+  id: 019e5f6c-0003-7aaa-bbbb-ccccccccccc2
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  permission_id: 019e5f6c-0001-7aaa-bbbb-ccccccccccc2
+
+core_admin_org_create:
+  id: 019e5f6c-0002-7aaa-bbbb-ccccccccccc1
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  permission_id: 019e5f6c-0001-7aaa-bbbb-ccccccccccc3
+
+core_admin_org_update:
+  id: 019e5f6c-0003-7aaa-bbbb-ccccccccccc3
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  permission_id: 019e5f6c-0001-7aaa-bbbb-ccccccccccc4
+
+core_admin_org_manage_memberships:
+  id: 019e5f6c-0003-7aaa-bbbb-ccccccccccc4
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  permission_id: 019e5f6c-0001-7aaa-bbbb-ccccccccccc6
+
+support_org_index:
+  id: 019e5f6c-0002-7aaa-bbbb-ccccccccccc4
+  role_id: 019e5f6b-0001-7aaa-bbbb-ccccccccccc1
+  permission_id: 019e5f6c-0001-7aaa-bbbb-ccccccccccc1
+
+support_org_show:
+  id: 019e5f6c-0002-7aaa-bbbb-ccccccccccc5
+  role_id: 019e5f6b-0001-7aaa-bbbb-ccccccccccc1
+  permission_id: 019e5f6c-0001-7aaa-bbbb-ccccccccccc2
