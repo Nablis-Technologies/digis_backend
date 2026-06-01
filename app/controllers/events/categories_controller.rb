@@ -1,16 +1,19 @@
 module Events
   class CategoriesController < ::Public::ApplicationController
-    def index
-      categories = Events::Category.active
-      total_count = categories.count if paginated_request?
-      categories = paginated_request? ? apply_pagination(categories) : categories.limit(25)
-      pagination = paginated_request? ? pagination_metadata(total_count) : nil
-      render_success(data: categories, serializer_options: { serializer: Events::Public::CategoryListSerializer }, pagination: pagination)
+    include Core::PublicCommon
+
+    self.model_class = Events::Category
+    self.list_serializer = Events::Public::CategoryListSerializer
+    self.detail_serializer = Events::Public::CategoryDetailSerializer
+
+    private
+
+    def base_scope
+      Events::Category.active
     end
 
-    def show
-      category = Events::Category.find(params[:id])
-      render_success(data: category, serializer_options: { serializer: Events::Public::CategoryDetailSerializer })
+    def allowed_order_columns
+      %w[id name created_at]
     end
   end
 end

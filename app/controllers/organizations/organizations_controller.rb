@@ -1,21 +1,25 @@
 module Organizations
   class OrganizationsController < ::Public::ApplicationController
-  include Core::FollowableActions
+    include Core::PublicCommon
+    include Core::FollowableActions
 
-    def index
-      organizations = Organizations::Organization.all.with_attached_profile
-      total_count = organizations.count if paginated_request?
-      organizations = paginated_request? ? apply_pagination(organizations) : organizations.limit(25)
-      pagination = paginated_request? ? pagination_metadata(total_count) : nil
-      render_success(data: organizations, serializer_options: { serializer: Organizations::Public::OrganizationListSerializer }, pagination: pagination)
-    end
-
-    def show
-      organization = Organizations::Organization.with_attached_profile.find(params[:id])
-      render_success(data: organization, serializer_options: { serializer: Organizations::Public::OrganizationDetailSerializer })
-    end
+    self.model_class = Organizations::Organization
+    self.list_serializer = Organizations::Public::OrganizationListSerializer
+    self.detail_serializer = Organizations::Public::OrganizationDetailSerializer
 
     private
+
+    def base_scope
+      Organizations::Organization.all.with_attached_profile
+    end
+
+    def detail_scope
+      Organizations::Organization.with_attached_profile
+    end
+
+    def allowed_order_columns
+      %w[id name slug created_at]
+    end
 
     def followable_class
       Organizations::Organization

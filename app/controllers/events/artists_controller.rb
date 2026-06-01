@@ -1,21 +1,31 @@
 module Events
   class ArtistsController < ::Public::ApplicationController
-  include Core::FollowableActions
+    include Core::PublicCommon
+    include Core::FollowableActions
 
-    def index
-      artists = Events::Artist.active.with_attached_profile
-      total_count = artists.count if paginated_request?
-      artists = paginated_request? ? apply_pagination(artists) : artists.limit(25)
-      pagination = paginated_request? ? pagination_metadata(total_count) : nil
-      render_success(data: artists, serializer_options: { serializer: Events::Public::ArtistListSerializer }, pagination: pagination)
-    end
-
-    def show
-      artist = Events::Artist.with_attached_profile.find(params[:id])
-      render_success(data: artist, serializer_options: { serializer: Events::Public::ArtistDetailSerializer })
-    end
+    self.model_class = Events::Artist
+    self.list_serializer = Events::Public::ArtistListSerializer
+    self.detail_serializer = Events::Public::ArtistDetailSerializer
 
     private
+
+    def base_scope
+      Events::Artist.active.with_attached_profile
+    end
+
+    def detail_scope
+      Events::Artist.with_attached_profile
+    end
+
+    def apply_catalog_filters(scope)
+      scope = scope.by_genre(params[:genre]) if params[:genre].present?
+      scope = scope.verified if params[:verified] == "true"
+      scope
+    end
+
+    def allowed_order_columns
+      %w[id name created_at]
+    end
 
     def followable_class
       Events::Artist

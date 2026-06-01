@@ -1,21 +1,32 @@
 module Events
   class VenuesController < ::Public::ApplicationController
-  include Core::FollowableActions
+    include Core::PublicCommon
+    include Core::FollowableActions
 
-    def index
-      venues = Events::Venue.active.with_attached_profile.with_attached_photos
-      total_count = venues.count if paginated_request?
-      venues = paginated_request? ? apply_pagination(venues) : venues.limit(25)
-      pagination = paginated_request? ? pagination_metadata(total_count) : nil
-      render_success(data: venues, serializer_options: { serializer: Events::Public::VenueListSerializer }, pagination: pagination)
-    end
-
-    def show
-      venue = Events::Venue.with_attached_profile.with_attached_photos.find(params[:id])
-      render_success(data: venue, serializer_options: { serializer: Events::Public::VenueDetailSerializer })
-    end
+    self.model_class = Events::Venue
+    self.list_serializer = Events::Public::VenueListSerializer
+    self.detail_serializer = Events::Public::VenueDetailSerializer
 
     private
+
+    def base_scope
+      Events::Venue.active.with_attached_profile.with_attached_photos
+    end
+
+    def detail_scope
+      Events::Venue.with_attached_profile.with_attached_photos
+    end
+
+    def apply_catalog_filters(scope)
+      scope = scope.by_city(params[:city]) if params[:city].present?
+      scope = scope.by_country(params[:country]) if params[:country].present?
+      scope = scope.verified if params[:verified] == "true"
+      scope
+    end
+
+    def allowed_order_columns
+      %w[id name city country created_at]
+    end
 
     def followable_class
       Events::Venue
