@@ -1,8 +1,4 @@
 Rails.application.routes.draw do
-  # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
-
-  # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
-  # Can be used by load balancers and uptime monitors to verify that the app is live.
   get "up" => "rails/health#show", as: :rails_health_check
 
   scope module: :core do
@@ -14,12 +10,20 @@ Rails.application.routes.draw do
   end
 
   namespace :events do
-    resources :categories, except: %i[new edit]
-  end
-
-  namespace :organizations do
-    resources :organizations, except: %i[new edit] do
-      resources :memberships, except: %i[new edit], controller: "memberships"
+    resources :categories, only: %i[index show]
+    resources :venues, only: %i[index show] do
+      member do
+        post :follow
+        post :unfollow
+        get :followers
+      end
+    end
+    resources :artists, only: %i[index show] do
+      member do
+        post :follow
+        post :unfollow
+        get :followers
+      end
     end
   end
 
@@ -33,8 +37,42 @@ Rails.application.routes.draw do
     end
     resources :roles, except: %i[new edit]
     resources :permissions, except: %i[new edit]
+    resources :categories, except: %i[new edit]
+    resources :venues, except: %i[new edit]
+    resources :artists, except: %i[new edit]
+    resources :organizations, except: %i[new edit] do
+      member do
+        post :transfer_ownership
+      end
+
+      resources :memberships, only: %i[index show create update destroy],
+                controller: "organization_memberships"
+    end
   end
 
-  # Defines the root path route ("/")
-  # root "posts#index"
+  namespace :organizations do
+    resources :organizations, only: %i[index show] do
+      member do
+        post :follow
+        post :unfollow
+        get :followers
+      end
+    end
+
+    get    "owner",               to: "owner_organizations#index"
+    post   "owner",               to: "owner_organizations#create",   as: :owner_organizations
+    get    "owner/:id",           to: "owner_organizations#show"
+    patch  "owner/:id",           to: "owner_organizations#update",   as: :owner_organization
+    put    "owner/:id",           to: "owner_organizations#update"
+    delete "owner/:id",           to: "owner_organizations#destroy"
+
+    resources :memberships, except: %i[new edit], controller: "memberships",
+              path: "organizations/:organization_id/memberships",
+              as: :organization_memberships
+  end
+
+  scope module: :core do
+    get "users/:user_id/following", to: "follows#following"
+    get "feed", to: "feed#index"
+  end
 end
