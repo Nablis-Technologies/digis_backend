@@ -35,7 +35,7 @@ class Organizations::OrganizationTest < ActiveSupport::TestCase
   end
 
   test "ransackable_attributes returns safe attributes" do
-    expected = %w[id name slug description created_at updated_at]
+    expected = %w[name slug description created_at]
     assert_equal expected, Organizations::Organization.ransackable_attributes
   end
 

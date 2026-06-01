@@ -1,0 +1,143 @@
+require "test_helper"
+
+class OrganizationsOwnerOrganizationsTest < ActionDispatch::IntegrationTest
+  include Core::AuthTestHelpers
+  include Core::AuditTestHelpers
+  include ActiveJob::TestHelper
+
+  test "create requires authentication" do
+    post "/organizations/owner", params: { organization: { name: "New Org" } }, as: :json
+    assert_response :unauthorized
+  end
+
+  test "create creates an organization with owner membership" do
+    user = core_users(:attendee)
+    assert_difference("Organizations::Organization.count", 1) do
+      post "/organizations/owner",
+           params: { organization: { name: "My New Org #{SecureRandom.hex(4)}" } },
+           headers: user_headers, as: :json
+    end
+    assert_response :created
+    data = JSON.parse(response.body).dig("data")
+    assert data.key?("id")
+    assert data.key?("name")
+    assert data.key?("slug")
+    org = Organizations::Organization.find(data["id"])
+    assert_equal user.id, org.owner.id
+  end
+
+  test "create returns created attributes" do
+    post "/organizations/owner",
+         params: { organization: { name: "Attr Check Org" } },
+         headers: user_headers, as: :json
+    assert_response :created
+    data = JSON.parse(response.body).dig("data")
+    assert data.key?("id")
+    assert data.key?("name")
+    assert data.key?("slug")
+    assert data.key?("description")
+    assert data.key?("created_at")
+  end
+
+  test "update requires authentication" do
+    org = organizations_organizations(:one)
+    patch "/organizations/owner/#{org.id}",
+          params: { organization: { name: "Updated" } }, as: :json
+    assert_response :unauthorized
+  end
+
+  test "update is not found for non-member" do
+    other_user = core_users(:super_admin)
+    org = Organizations::Organization.create!(name: "Others Org #{SecureRandom.hex(4)}")
+    org.memberships.create!(user: other_user, role: :owner)
+    patch "/organizations/owner/#{org.id}",
+          params: { organization: { name: "Hacked" } },
+          headers: user_headers, as: :json
+    assert_response :not_found
+  end
+
+  test "update succeeds for owner" do
+    user = core_users(:attendee)
+    org = Organizations::Organization.create!(name: "My Org")
+    org.memberships.create!(user: user, role: :owner)
+    token = Core::TokenService.issue(Core::TokenService.access_token_payload(user))
+    headers = { "Authorization" => "Bearer #{token}" }
+    patch "/organizations/owner/#{org.id}",
+          params: { organization: { name: "Updated Org" } },
+          headers: headers, as: :json
+    assert_response :success
+    assert_equal "Updated Org", org.reload.name
+  end
+
+  test "destroy requires authentication" do
+    org = organizations_organizations(:one)
+    delete "/organizations/owner/#{org.id}", as: :json
+    assert_response :unauthorized
+  end
+
+  test "destroy succeeds for owner" do
+    user = core_users(:attendee)
+    org = Organizations::Organization.create!(name: "My Org")
+    org.memberships.create!(user: user, role: :owner)
+    token = Core::TokenService.issue(Core::TokenService.access_token_payload(user))
+    headers = { "Authorization" => "Bearer #{token}" }
+    assert_difference("Organizations::Organization.count", -1) do
+      delete "/organizations/owner/#{org.id}", headers: headers, as: :json
+    end
+    assert_response :success
+  end
+
+  test "index requires authentication" do
+    get "/organizations/owner", as: :json
+    assert_response :unauthorized
+  end
+
+  test "index returns organizations where current user is a member" do
+    user = core_users(:attendee)
+    org = Organizations::Organization.create!(name: "My Owner Index Org #{SecureRandom.hex(4)}")
+    org.memberships.create!(user: user, role: :owner)
+
+    get "/organizations/owner", headers: user_headers, as: :json
+    assert_response :success
+    data = JSON.parse(response.body).dig("data")
+    assert data.is_a?(Array)
+    assert data.any? { |o| o["id"] == org.id }
+  end
+
+  test "show requires authentication" do
+    org = organizations_organizations(:one)
+    get "/organizations/owner/#{org.id}", as: :json
+    assert_response :unauthorized
+  end
+
+  test "show returns 404 for orgs where current user is not a member" do
+    other_user = core_users(:super_admin)
+    org = Organizations::Organization.create!(name: "Others Org #{SecureRandom.hex(4)}")
+    org.memberships.create!(user: other_user, role: :owner)
+
+    get "/organizations/owner/#{org.id}", headers: user_headers, as: :json
+    assert_response :not_found
+  end
+
+  test "show succeeds for owned organization" do
+    user = core_users(:attendee)
+    org = Organizations::Organization.create!(name: "My Show Org #{SecureRandom.hex(4)}")
+    org.memberships.create!(user: user, role: :owner)
+
+    get "/organizations/owner/#{org.id}", headers: user_headers, as: :json
+    assert_response :success
+    data = JSON.parse(response.body).dig("data")
+    assert_equal org.id, data["id"]
+  end
+
+  test "create logs an audit" do
+    perform_enqueued_jobs do
+      post "/organizations/owner",
+           params: { organization: { name: "Audit Org #{SecureRandom.hex(4)}" } },
+           headers: user_headers, as: :json
+    end
+    assert_response :created
+    org = Organizations::Organization.find(JSON.parse(response.body).dig("data", "id"))
+    assert_audit_logged(action: "create", auditable: org, actor: core_users(:attendee))
+  end
+end
