@@ -120,6 +120,48 @@ class EventsVenuesTest < ActionDispatch::IntegrationTest
     assert_includes follower_ids, user.id
   end
 
+  test "index filters by city" do
+    get "/events/venues?city=Addis%20Ababa", as: :json
+    assert_response :success
+    data = JSON.parse(response.body).dig("data")
+    assert data.all? { |v| v["city"] == "Addis Ababa" }
+    assert data.any?
+    assert_includes data.map { |v| v["name"] }, @venue.name
+  end
+
+  test "index filters by country" do
+    get "/events/venues?country=Ethiopia", as: :json
+    assert_response :success
+    data = JSON.parse(response.body).dig("data")
+    assert data.all? { |v| v["country"] == "Ethiopia" }
+    assert data.any?
+    assert_includes data.map { |v| v["name"] }, @venue.name
+  end
+
+  test "index filters by verified" do
+    get "/events/venues?verified=true", as: :json
+    assert_response :success
+    data = JSON.parse(response.body).dig("data")
+    assert data.all? { |v| v["verified"] == true }
+    assert data.any?
+    assert_includes data.map { |v| v["name"] }, @venue.name
+  end
+
+  test "index orders by name ascending" do
+    get "/events/venues?order_by=name&order_direction=asc", as: :json
+    assert_response :success
+    data = JSON.parse(response.body).dig("data")
+    names = data.map { |v| v["name"] }
+    assert_equal names.sort, names
+  end
+
+  test "index ignores q when searchable? is false" do
+    get "/events/venues?q[name_cont]=Grand", as: :json
+    assert_response :success
+    data = JSON.parse(response.body).dig("data")
+    assert_equal @active_venues_count, data.length
+  end
+
   test "followers returns empty for unfollowed venue" do
     get "/events/venues/#{@venue.id}/followers", as: :json
     assert_response :success
