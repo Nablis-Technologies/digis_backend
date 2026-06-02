@@ -112,6 +112,39 @@ class EventsArtistsTest < ActionDispatch::IntegrationTest
     assert_includes follower_ids, user.id
   end
 
+  test "index filters by genre" do
+    get "/events/artists?genre=ethio-jazz", as: :json
+    assert_response :success
+    data = JSON.parse(response.body).dig("data")
+    assert data.all? { |a| a["genres"].include?("ethio-jazz") }
+    assert data.any?
+    assert_includes data.map { |a| a["name"] }, @artist.name
+  end
+
+  test "index filters by verified" do
+    get "/events/artists?verified=true", as: :json
+    assert_response :success
+    data = JSON.parse(response.body).dig("data")
+    assert data.all? { |a| a["verified"] == true }
+    assert data.any?
+    assert_includes data.map { |a| a["name"] }, @artist.name
+  end
+
+  test "index orders by name ascending" do
+    get "/events/artists?order_by=name&order_direction=asc", as: :json
+    assert_response :success
+    data = JSON.parse(response.body).dig("data")
+    names = data.map { |a| a["name"] }
+    assert_equal names.sort, names
+  end
+
+  test "index ignores q when searchable? is false" do
+    get "/events/artists?q[name_cont]=Teddy", as: :json
+    assert_response :success
+    data = JSON.parse(response.body).dig("data")
+    assert_equal @active_artists_count, data.length
+  end
+
   test "followers returns empty for unfollowed artist" do
     get "/events/artists/#{@artist.id}/followers", as: :json
     assert_response :success
