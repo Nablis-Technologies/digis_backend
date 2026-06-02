@@ -18,4 +18,19 @@ class OrganizationsOrganizationsTest < ActionDispatch::IntegrationTest
     scope = Organizations::OrganizationPolicy::Scope.new(core_users(:attendee), Organizations::Organization)
     assert_includes scope.resolve, organizations_organizations(:one)
   end
+
+  test "index supports search by name" do
+    get "/organizations/organizations?q[name_cont]=Digis", as: :json
+    assert_response :success
+    data = JSON.parse(response.body).dig("data")
+    assert data.all? { |o| o["name"].include?("Digis") }
+  end
+
+  test "index orders by name ascending" do
+    get "/organizations/organizations?order_by=name&order_direction=asc", as: :json
+    assert_response :success
+    data = JSON.parse(response.body).dig("data")
+    names = data.map { |o| o["name"] }
+    assert_equal names.sort, names
+  end
 end
