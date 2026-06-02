@@ -17,6 +17,10 @@ module Organizations
       Organizations::Organization.with_attached_profile
     end
 
+    def searchable?
+      true
+    end
+
     def allowed_order_columns
       %w[id name slug created_at]
     end
