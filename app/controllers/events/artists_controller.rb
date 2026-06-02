@@ -19,7 +19,7 @@ module Events
 
     def apply_catalog_filters(scope)
       scope = scope.by_genre(params[:genre]) if params[:genre].present?
-      scope = scope.verified if params[:verified] == "true"
+      scope = scope.verified if ActiveModel::Type::Boolean.new.cast(params[:verified])
       scope
     end
 

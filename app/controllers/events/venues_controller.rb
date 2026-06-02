@@ -20,7 +20,7 @@ module Events
     def apply_catalog_filters(scope)
       scope = scope.by_city(params[:city]) if params[:city].present?
       scope = scope.by_country(params[:country]) if params[:country].present?
-      scope = scope.verified if params[:verified] == "true"
+      scope = scope.verified if ActiveModel::Type::Boolean.new.cast(params[:verified])
       scope
     end
 
