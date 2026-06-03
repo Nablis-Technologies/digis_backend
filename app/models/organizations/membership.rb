@@ -2,6 +2,8 @@ module Organizations
   class Membership < Organizations::ApplicationRecord
     self.table_name = "organizations_memberships"
 
+    include Core::AuditableModel
+
     belongs_to :user, class_name: "Core::User"
     belongs_to :organization, class_name: "Organizations::Organization"
 

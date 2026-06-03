@@ -1,0 +1,36 @@
+teddy:
+  id: 019e5f70-0002-7000-8000-000000000001
+  name: Teddy Afro
+  slug: teddy-afro
+  description: Legendary Ethiopian singer and songwriter
+  genres:
+    - ethio-jazz
+    - reggae
+  verified: true
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+haleluya:
+  id: 019e5f70-0002-7000-8000-000000000002
+  name: Haleluya
+  slug: haleluya
+  description: Rising Ethiopian pop star
+  genres:
+    - pop
+    - ethio-pop
+  verified: false
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+inactive_artist:
+  id: 019e5f70-0002-7000-8000-000000000003
+  name: Retired Legend
+  slug: retired-legend
+  description: Artist no longer performing
+  genres: []
+  verified: false
+  active: false
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>

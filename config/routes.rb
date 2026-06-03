@@ -1,8 +1,4 @@
 Rails.application.routes.draw do
-  # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
-
-  # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
-  # Can be used by load balancers and uptime monitors to verify that the app is live.
   get "up" => "rails/health#show", as: :rails_health_check
 
   scope module: :core do
@@ -13,14 +9,18 @@ Rails.application.routes.draw do
     get "auth/me", to: "auth#me"
   end
 
-  namespace :events do
-    resources :categories, except: %i[new edit]
+  scope ":followable_type", constraints: { followable_type: %r{venues|artists|organizations} } do
+    scope ":followable_id" do
+      post   "follow",    to: "core/follows#create",    as: :follow
+      delete "follow",    to: "core/follows#destroy"
+      get    "followers", to: "core/followers#index",   as: :followers
+    end
   end
 
-  namespace :organizations do
-    resources :organizations, except: %i[new edit] do
-      resources :memberships, except: %i[new edit], controller: "memberships"
-    end
+  scope module: :events do
+    resources :categories, only: %i[index show]
+    resources :venues, only: %i[index show]
+    resources :artists, only: %i[index show]
   end
 
   namespace :admin do
@@ -33,8 +33,29 @@ Rails.application.routes.draw do
     end
     resources :roles, except: %i[new edit]
     resources :permissions, except: %i[new edit]
+    resources :categories, except: %i[new edit]
+    resources :venues, except: %i[new edit]
+    resources :artists, except: %i[new edit]
+    resources :organizations, except: %i[new edit] do
+      member do
+        post :transfer_ownership
+      end
+      resources :memberships, only: %i[index show create update destroy]
+    end
   end
 
-  # Defines the root path route ("/")
-  # root "posts#index"
+  scope module: :organizations do
+    resources :owner_organizations, only: %i[index show create update destroy],
+              path: "organizations/owner" do
+      resources :memberships, only: %i[index show create update destroy],
+                controller: "owner_memberships"
+    end
+
+    resources :organizations, only: %i[index show], path: "organizations"
+  end
+
+  scope module: :core do
+    get "users/:user_id/following", to: "follows#following"
+    get "feed", to: "feed#index"
+  end
 end

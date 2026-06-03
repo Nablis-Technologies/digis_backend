@@ -27,9 +27,19 @@ module Admin
     private
 
     def resolve_admin_policy(record)
-      klass = record.is_a?(Class) ? record : record.class
+      klass = policy_target_class(record)
       simple_name = klass.name.demodulize
       "Admin::#{simple_name}Policy".constantize.new(pundit_user, record)
+    end
+
+    def policy_target_class(record)
+      return record if record.is_a?(Class)
+
+      if record.respond_to?(:model) && record.model.is_a?(Class)
+        record.model
+      else
+        record.class
+      end
     end
   end
 end

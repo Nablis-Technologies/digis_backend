@@ -10,10 +10,38 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_25_200001) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_30_095119) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
+
+  create_table "active_storage_attachments", force: :cascade do |t|
+    t.bigint "blob_id", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.bigint "record_id", null: false
+    t.string "record_type", null: false
+    t.index ["blob_id"], name: "index_active_storage_attachments_on_blob_id"
+    t.index ["record_type", "record_id", "name", "blob_id"], name: "index_active_storage_attachments_uniqueness", unique: true
+  end
+
+  create_table "active_storage_blobs", force: :cascade do |t|
+    t.bigint "byte_size", null: false
+    t.string "checksum"
+    t.string "content_type"
+    t.datetime "created_at", null: false
+    t.string "filename", null: false
+    t.string "key", null: false
+    t.text "metadata"
+    t.string "service_name", null: false
+    t.index ["key"], name: "index_active_storage_blobs_on_key", unique: true
+  end
+
+  create_table "active_storage_variant_records", force: :cascade do |t|
+    t.bigint "blob_id", null: false
+    t.string "variation_digest", null: false
+    t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
 
   create_table "core_audit_logs", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.string "action", null: false
@@ -33,6 +61,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_25_200001) do
     t.index ["auditable_type", "auditable_id"], name: "index_core_audit_logs_on_auditable"
     t.index ["created_at"], name: "index_core_audit_logs_on_created_at"
     t.index ["request_uuid"], name: "index_core_audit_logs_on_request_uuid"
+  end
+
+  create_table "core_follows", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.uuid "followable_id", null: false
+    t.string "followable_type", null: false
+    t.datetime "followed_at", null: false
+    t.uuid "follower_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["followable_id", "followable_type"], name: "index_follows_followable"
+    t.index ["follower_id", "followable_id", "followable_type"], name: "index_follows_uniqueness", unique: true
+    t.index ["follower_id"], name: "index_core_follows_on_follower_id"
   end
 
   create_table "core_permissions", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
@@ -137,6 +177,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_25_200001) do
     t.index ["phone"], name: "index_core_users_on_phone", unique: true
   end
 
+  create_table "events_artists", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.boolean "active", default: true
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.integer "followers_count", default: 0, null: false
+    t.jsonb "genres", default: []
+    t.string "image_url"
+    t.jsonb "metadata", default: {}
+    t.string "name", null: false
+    t.string "slug", null: false
+    t.jsonb "social_links", default: {}
+    t.datetime "updated_at", null: false
+    t.boolean "verified", default: false
+    t.index ["active"], name: "index_events_artists_on_active"
+    t.index ["genres"], name: "index_events_artists_on_genres", using: :gin
+    t.index ["slug"], name: "index_events_artists_on_slug", unique: true
+    t.index ["verified"], name: "index_events_artists_on_verified"
+  end
+
   create_table "events_categories", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
@@ -148,6 +207,34 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_25_200001) do
     t.index ["active"], name: "index_events_categories_on_active"
     t.index ["name"], name: "index_events_categories_on_name"
     t.index ["slug"], name: "index_events_categories_on_slug", unique: true
+  end
+
+  create_table "events_venues", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.boolean "active", default: true
+    t.string "address"
+    t.jsonb "amenities", default: []
+    t.integer "capacity"
+    t.string "city"
+    t.string "contact_email"
+    t.string "contact_phone"
+    t.string "country"
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.integer "followers_count", default: 0, null: false
+    t.decimal "latitude", precision: 10, scale: 6
+    t.decimal "longitude", precision: 10, scale: 6
+    t.jsonb "metadata", default: {}
+    t.string "name", null: false
+    t.string "slug", null: false
+    t.jsonb "social_links", default: {}
+    t.datetime "updated_at", null: false
+    t.boolean "verified", default: false
+    t.string "website_url"
+    t.index ["active"], name: "index_events_venues_on_active"
+    t.index ["city"], name: "index_events_venues_on_city"
+    t.index ["country"], name: "index_events_venues_on_country"
+    t.index ["slug"], name: "index_events_venues_on_slug", unique: true
+    t.index ["verified"], name: "index_events_venues_on_verified"
   end
 
   create_table "organizations_memberships", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
@@ -165,12 +252,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_25_200001) do
   create_table "organizations_organizations", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "description"
+    t.integer "followers_count", default: 0, null: false
     t.string "name", null: false
     t.string "slug", null: false
+    t.jsonb "social_links", default: {}
     t.datetime "updated_at", null: false
     t.index ["slug"], name: "index_organizations_organizations_on_slug", unique: true
   end
 
+  add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "core_follows", "core_users", column: "follower_id"
   add_foreign_key "core_refresh_tokens", "core_users", column: "user_id"
   add_foreign_key "core_role_permissions", "core_permissions", column: "permission_id"
   add_foreign_key "core_role_permissions", "core_roles", column: "role_id"

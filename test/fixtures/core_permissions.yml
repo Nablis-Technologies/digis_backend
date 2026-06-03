@@ -218,6 +218,83 @@ audit_log_index:
   created_at: <%= Time.current %>
   updated_at: <%= Time.current %>
 
+organization_index:
+  id: 019e5f6c-0001-7aaa-bbbb-ccccccccccc1
+  code: organization.index
+  resource: organization
+  action: index
+  namespace: core
+  description: List all organizations in admin
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+organization_show:
+  id: 019e5f6c-0001-7aaa-bbbb-ccccccccccc2
+  code: organization.show
+  resource: organization
+  action: show
+  namespace: core
+  description: View organization details in admin
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+organization_create:
+  id: 019e5f6c-0001-7aaa-bbbb-ccccccccccc3
+  code: organization.create
+  resource: organization
+  action: create
+  namespace: core
+  description: Create organizations from admin
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+organization_update:
+  id: 019e5f6c-0001-7aaa-bbbb-ccccccccccc4
+  code: organization.update
+  resource: organization
+  action: update
+  namespace: core
+  description: Update organizations from admin
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+organization_destroy:
+  id: 019e5f6c-0001-7aaa-bbbb-ccccccccccc5
+  code: organization.destroy
+  resource: organization
+  action: destroy
+  namespace: core
+  description: Delete organizations from admin
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+organization_manage_memberships:
+  id: 019e5f6c-0001-7aaa-bbbb-ccccccccccc6
+  code: organization.manage_memberships
+  resource: organization
+  action: manage_memberships
+  namespace: core
+  description: Manage organization memberships
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+organization_transfer_ownership:
+  id: 019e5f6c-0001-7aaa-bbbb-ccccccccccc7
+  code: organization.transfer_ownership
+  resource: organization
+  action: transfer_ownership
+  namespace: core
+  description: Transfer organization ownership
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
 audit_log_show:
   id: 019e5f6b-0002-7aaa-bbbb-ccccccccccd9
   code: audit_log.show
