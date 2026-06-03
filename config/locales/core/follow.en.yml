@@ -1,0 +1,6 @@
+en:
+  follow:
+    success:
+      create: "Now following"
+      destroy: "Unfollowed"
+      following: "Following list retrieved"
