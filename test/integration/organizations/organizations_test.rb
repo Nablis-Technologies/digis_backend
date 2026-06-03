@@ -4,6 +4,7 @@ class OrganizationsOrganizationsTest < ActionDispatch::IntegrationTest
   include Core::ResourceTest
 
   resource_test skip_authorization: true,
+                path: "/organizations",
                 check_attributes: {
                   index: %w[id name slug description created_at profile_url],
                   show: %w[id name slug description social_links created_at profile_url follower_count]
@@ -20,14 +21,14 @@ class OrganizationsOrganizationsTest < ActionDispatch::IntegrationTest
   end
 
   test "index supports search by name" do
-    get "/organizations/organizations?q[name_cont]=Digis", as: :json
+    get "/organizations?q[name_cont]=Digis", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
     assert data.all? { |o| o["name"].include?("Digis") }
   end
 
   test "index orders by name ascending" do
-    get "/organizations/organizations?order_by=name&order_direction=asc", as: :json
+    get "/organizations?order_by=name&order_direction=asc", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
     names = data.map { |o| o["name"] }

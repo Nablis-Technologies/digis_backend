@@ -3,7 +3,7 @@ require "test_helper"
 class OrganizationsMembershipsTest < ActionDispatch::IntegrationTest
   include Core::ResourceTest
 
-  resource_test
+  resource_test path: -> { "/organizations/#{organizations_organizations(:one).id}/memberships" }
 
   test "scope returns all for super_admin" do
     scope = Organizations::MembershipPolicy::Scope.new(core_users(:super_admin), Organizations::Membership)
