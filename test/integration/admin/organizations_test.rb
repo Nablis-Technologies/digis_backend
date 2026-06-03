@@ -60,8 +60,10 @@ class AdminOrganizationsTest < ActionDispatch::IntegrationTest
          params: { organization: { new_owner_id: target.id } },
          headers: admin_headers, as: :json
     assert_response :success
+    body = JSON.parse(response.body)
+    assert_equal I18n.t("organization.success.transfer_ownership"), body["message"]
 
-    data = JSON.parse(response.body).fetch("data")
+    data = body.fetch("data")
     assert_equal target.id, data.dig("owner", "id")
 
     org.reload
@@ -96,12 +98,79 @@ class AdminOrganizationsTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
+  test "transfer_ownership returns i18n error when organization has no current owner" do
+    org = Organizations::Organization.create!(name: "Orphaned Org #{SecureRandom.hex(4)}")
+    # No memberships created — org has no owner_membership (data corruption case)
+
+    post "/admin/organizations/#{org.id}/transfer_ownership",
+         params: { organization: { new_owner_id: core_users(:core_admin).id } },
+         headers: admin_headers, as: :json
+    assert_response :unprocessable_entity
+    body = JSON.parse(response.body)
+    assert_equal I18n.t("admin.organizations.errors.no_current_owner"), body["error"]
+  end
+
+  test "transfer_ownership promotes existing member to owner" do
+    org = organizations_organizations(:one)
+    new_owner = core_users(:support)
+    existing = org.memberships.create!(user: new_owner, role: :member)
+
+    post "/admin/organizations/#{org.id}/transfer_ownership",
+         params: { organization: { new_owner_id: new_owner.id } },
+         headers: admin_headers, as: :json
+    assert_response :success
+    existing.reload
+    assert_equal "owner", existing.role
+  end
+
+  test "transfer_ownership recovers from RecordNotUnique when membership creation races" do
+    org = organizations_organizations(:one)
+    new_owner = core_users(:support)
+    # Pre-create a member — this is what the race resolves to (another process created it
+    # concurrently, so our create! hits the uniqueness constraint)
+    existing = org.memberships.create!(user: new_owner, role: :member)
+
+    # Force the create! path: stub the proxy to raise RecordNotUnique.
+    # Rails generates a subclass proxy per association; we stub it via the org instance
+    # using the association's own target.
+    target_proxy = Organizations::Membership.where(organization_id: org.id)
+    target_proxy.stubs(:find_by).returns(nil, existing)
+    target_proxy.stubs(:create!).raises(ActiveRecord::RecordNotUnique)
+    Organizations::Organization.any_instance.stubs(:memberships).returns(target_proxy)
+
+    post "/admin/organizations/#{org.id}/transfer_ownership",
+         params: { organization: { new_owner_id: new_owner.id } },
+         headers: admin_headers, as: :json
+    assert_response :success
+    existing.reload
+    assert_equal "owner", existing.role
+  end
+
   # ── Owner creation ───────────────────────────────
   test "create without owner_id returns 422" do
     post "/admin/organizations",
          params: { organization: { name: "Orphan Org" } },
          headers: admin_headers, as: :json
     assert_response :unprocessable_entity
+  end
+
+  test "create without owner_id returns i18n-translated error" do
+    post "/admin/organizations",
+         params: { organization: { name: "Orphan Org" } },
+         headers: admin_headers, as: :json
+    assert_response :unprocessable_entity
+    body = JSON.parse(response.body)
+    assert_equal I18n.t("admin.organizations.errors.owner_id_required"), body["error"]
+  end
+
+  test "transfer_ownership with nonexistent user returns i18n-translated error" do
+    org = organizations_organizations(:one)
+    post "/admin/organizations/#{org.id}/transfer_ownership",
+         params: { organization: { new_owner_id: "00000000-0000-0000-0000-000000000000" } },
+         headers: admin_headers, as: :json
+    assert_response :unprocessable_entity
+    body = JSON.parse(response.body)
+    assert_equal I18n.t("admin.organizations.errors.new_owner_id_invalid"), body["error"]
   end
 
   # ── Destroy (manual since auto-generation fails with owner_id) ──
