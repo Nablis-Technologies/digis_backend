@@ -9,7 +9,7 @@ class EventsArtistsTest < ActionDispatch::IntegrationTest
   end
 
   test "index returns active artists" do
-    get "/events/artists", as: :json
+    get "/artists", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
     assert data.present?
@@ -20,7 +20,7 @@ class EventsArtistsTest < ActionDispatch::IntegrationTest
   end
 
   test "index returns list serializer attributes" do
-    get "/events/artists", as: :json
+    get "/artists", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data").first
     assert data.key?("id")
@@ -33,7 +33,7 @@ class EventsArtistsTest < ActionDispatch::IntegrationTest
   end
 
   test "index supports pagination" do
-    get "/events/artists?page=1&per_page=1", as: :json
+    get "/artists?page=1&per_page=1", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
     assert_equal 1, data.length
@@ -42,7 +42,7 @@ class EventsArtistsTest < ActionDispatch::IntegrationTest
   end
 
   test "show returns artist details" do
-    get "/events/artists/#{@artist.id}", as: :json
+    get "/artists/#{@artist.id}", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
     assert_equal @artist.id, data["id"]
@@ -55,24 +55,24 @@ class EventsArtistsTest < ActionDispatch::IntegrationTest
   end
 
   test "show returns 404 for non-existent artist" do
-    get "/events/artists/nonexistent-id", as: :json
+    get "/artists/nonexistent-id", as: :json
     assert_response :not_found
   end
 
   test "follow requires authentication" do
-    post "/events/artists/#{@artist.id}/follow", as: :json
+    post "/artists/#{@artist.id}/follow", as: :json
     assert_response :unauthorized
   end
 
   test "unfollow requires authentication" do
-    post "/events/artists/#{@artist.id}/unfollow", as: :json
+    delete "/artists/#{@artist.id}/follow", as: :json
     assert_response :unauthorized
   end
 
   test "follow creates a follow" do
     user = core_users(:attendee)
     assert_difference("Core::Follow.count", 1) do
-      post "/events/artists/#{@artist.id}/follow", headers: user_headers, as: :json
+      post "/artists/#{@artist.id}/follow", headers: user_headers, as: :json
     end
     assert_response :success
     data = JSON.parse(response.body).dig("data")
@@ -84,7 +84,7 @@ class EventsArtistsTest < ActionDispatch::IntegrationTest
     user = core_users(:attendee)
     Core::Follow.create!(follower: user, followable: @artist)
     assert_difference("Core::Follow.count", -1) do
-      post "/events/artists/#{@artist.id}/unfollow", headers: user_headers, as: :json
+      delete "/artists/#{@artist.id}/follow", headers: user_headers, as: :json
     end
     assert_response :success
     data = JSON.parse(response.body).dig("data")
@@ -95,7 +95,7 @@ class EventsArtistsTest < ActionDispatch::IntegrationTest
   test "follow is idempotent" do
     Core::Follow.create!(follower: core_users(:attendee), followable: @artist)
     assert_no_difference("Core::Follow.count") do
-      post "/events/artists/#{@artist.id}/follow", headers: user_headers, as: :json
+      post "/artists/#{@artist.id}/follow", headers: user_headers, as: :json
     end
     assert_response :success
     data = JSON.parse(response.body).dig("data")
@@ -105,7 +105,7 @@ class EventsArtistsTest < ActionDispatch::IntegrationTest
   test "followers returns public user list" do
     user = core_users(:attendee)
     Core::Follow.create!(follower: user, followable: @artist)
-    get "/events/artists/#{@artist.id}/followers", as: :json
+    get "/artists/#{@artist.id}/followers", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
     follower_ids = data.map { |f| f["id"] }
@@ -113,7 +113,7 @@ class EventsArtistsTest < ActionDispatch::IntegrationTest
   end
 
   test "index filters by genre" do
-    get "/events/artists?genre=ethio-jazz", as: :json
+    get "/artists?genre=ethio-jazz", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
     assert data.all? { |a| a["genres"].include?("ethio-jazz") }
@@ -122,7 +122,7 @@ class EventsArtistsTest < ActionDispatch::IntegrationTest
   end
 
   test "index filters by verified" do
-    get "/events/artists?verified=true", as: :json
+    get "/artists?verified=true", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
     assert data.all? { |a| a["verified"] == true }
@@ -131,7 +131,7 @@ class EventsArtistsTest < ActionDispatch::IntegrationTest
   end
 
   test "index orders by name ascending" do
-    get "/events/artists?order_by=name&order_direction=asc", as: :json
+    get "/artists?order_by=name&order_direction=asc", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
     names = data.map { |a| a["name"] }
@@ -139,14 +139,14 @@ class EventsArtistsTest < ActionDispatch::IntegrationTest
   end
 
   test "index ignores q when searchable? is false" do
-    get "/events/artists?q[name_cont]=Teddy", as: :json
+    get "/artists?q[name_cont]=Teddy", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
     assert_equal @active_artists_count, data.length
   end
 
   test "followers returns empty for unfollowed artist" do
-    get "/events/artists/#{@artist.id}/followers", as: :json
+    get "/artists/#{@artist.id}/followers", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
     assert_equal [], data

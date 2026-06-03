@@ -9,7 +9,7 @@ class EventsVenuesTest < ActionDispatch::IntegrationTest
   end
 
   test "index returns active venues" do
-    get "/events/venues", as: :json
+    get "/venues", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
     assert data.present?
@@ -20,7 +20,7 @@ class EventsVenuesTest < ActionDispatch::IntegrationTest
   end
 
   test "index returns list serializer attributes" do
-    get "/events/venues", as: :json
+    get "/venues", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data").first
     assert data.key?("id")
@@ -36,7 +36,7 @@ class EventsVenuesTest < ActionDispatch::IntegrationTest
   end
 
   test "index supports pagination" do
-    get "/events/venues?page=1&per_page=1", as: :json
+    get "/venues?page=1&per_page=1", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
     assert_equal 1, data.length
@@ -47,7 +47,7 @@ class EventsVenuesTest < ActionDispatch::IntegrationTest
   end
 
   test "show returns venue details" do
-    get "/events/venues/#{@venue.id}", as: :json
+    get "/venues/#{@venue.id}", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
     assert_equal @venue.id, data["id"]
@@ -62,24 +62,24 @@ class EventsVenuesTest < ActionDispatch::IntegrationTest
   end
 
   test "show returns 404 for non-existent venue" do
-    get "/events/venues/nonexistent-id", as: :json
+    get "/venues/nonexistent-id", as: :json
     assert_response :not_found
   end
 
   test "follow requires authentication" do
-    post "/events/venues/#{@venue.id}/follow", as: :json
+    post "/venues/#{@venue.id}/follow", as: :json
     assert_response :unauthorized
   end
 
   test "unfollow requires authentication" do
-    post "/events/venues/#{@venue.id}/unfollow", as: :json
+    delete "/venues/#{@venue.id}/follow", as: :json
     assert_response :unauthorized
   end
 
   test "follow creates a follow" do
     user = core_users(:attendee)
     assert_difference("Core::Follow.count", 1) do
-      post "/events/venues/#{@venue.id}/follow", headers: user_headers, as: :json
+      post "/venues/#{@venue.id}/follow", headers: user_headers, as: :json
     end
     assert_response :success
     data = JSON.parse(response.body).dig("data")
@@ -91,7 +91,7 @@ class EventsVenuesTest < ActionDispatch::IntegrationTest
     user = core_users(:attendee)
     Core::Follow.create!(follower: user, followable: @venue)
     assert_difference("Core::Follow.count", -1) do
-      post "/events/venues/#{@venue.id}/unfollow", headers: user_headers, as: :json
+      delete "/venues/#{@venue.id}/follow", headers: user_headers, as: :json
     end
     assert_response :success
     data = JSON.parse(response.body).dig("data")
@@ -103,7 +103,7 @@ class EventsVenuesTest < ActionDispatch::IntegrationTest
     user = core_users(:attendee)
     Core::Follow.create!(follower: user, followable: @venue)
     assert_no_difference("Core::Follow.count") do
-      post "/events/venues/#{@venue.id}/follow", headers: user_headers, as: :json
+      post "/venues/#{@venue.id}/follow", headers: user_headers, as: :json
     end
     assert_response :success
     data = JSON.parse(response.body).dig("data")
@@ -113,7 +113,7 @@ class EventsVenuesTest < ActionDispatch::IntegrationTest
   test "followers returns public user list" do
     user = core_users(:attendee)
     Core::Follow.create!(follower: user, followable: @venue)
-    get "/events/venues/#{@venue.id}/followers", as: :json
+    get "/venues/#{@venue.id}/followers", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
     follower_ids = data.map { |f| f["id"] }
@@ -121,7 +121,7 @@ class EventsVenuesTest < ActionDispatch::IntegrationTest
   end
 
   test "index filters by city" do
-    get "/events/venues?city=Addis%20Ababa", as: :json
+    get "/venues?city=Addis%20Ababa", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
     assert data.all? { |v| v["city"] == "Addis Ababa" }
@@ -130,7 +130,7 @@ class EventsVenuesTest < ActionDispatch::IntegrationTest
   end
 
   test "index filters by country" do
-    get "/events/venues?country=Ethiopia", as: :json
+    get "/venues?country=Ethiopia", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
     assert data.all? { |v| v["country"] == "Ethiopia" }
@@ -139,7 +139,7 @@ class EventsVenuesTest < ActionDispatch::IntegrationTest
   end
 
   test "index filters by verified" do
-    get "/events/venues?verified=true", as: :json
+    get "/venues?verified=true", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
     assert data.all? { |v| v["verified"] == true }
@@ -148,7 +148,7 @@ class EventsVenuesTest < ActionDispatch::IntegrationTest
   end
 
   test "index orders by name ascending" do
-    get "/events/venues?order_by=name&order_direction=asc", as: :json
+    get "/venues?order_by=name&order_direction=asc", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
     names = data.map { |v| v["name"] }
@@ -156,14 +156,14 @@ class EventsVenuesTest < ActionDispatch::IntegrationTest
   end
 
   test "index ignores q when searchable? is false" do
-    get "/events/venues?q[name_cont]=Grand", as: :json
+    get "/venues?q[name_cont]=Grand", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
     assert_equal @active_venues_count, data.length
   end
 
   test "followers returns empty for unfollowed venue" do
-    get "/events/venues/#{@venue.id}/followers", as: :json
+    get "/venues/#{@venue.id}/followers", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
     assert_equal [], data
