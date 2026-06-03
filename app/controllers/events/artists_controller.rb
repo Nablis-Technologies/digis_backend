@@ -1,7 +1,6 @@
 module Events
   class ArtistsController < ::Public::ApplicationController
     include Core::PublicCommon
-    include Core::FollowableActions
 
     self.model_class = Events::Artist
     self.list_serializer = Events::Public::ArtistListSerializer
@@ -25,10 +24,6 @@ module Events
 
     def allowed_order_columns
       %w[id name created_at]
-    end
-
-    def followable_class
-      Events::Artist
     end
   end
 end

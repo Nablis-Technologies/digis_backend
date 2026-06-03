@@ -28,10 +28,6 @@ module Events
       true
     end
 
-    def followers?
-      true
-    end
-
     VISIBILITY = {
       index: {
         default: { fields: %i[id name slug description genres verified active], include: [] },

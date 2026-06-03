@@ -1,7 +1,6 @@
 module Events
   class VenuesController < ::Public::ApplicationController
     include Core::PublicCommon
-    include Core::FollowableActions
 
     self.model_class = Events::Venue
     self.list_serializer = Events::Public::VenueListSerializer
@@ -26,10 +25,6 @@ module Events
 
     def allowed_order_columns
       %w[id name city country created_at]
-    end
-
-    def followable_class
-      Events::Venue
     end
   end
 end

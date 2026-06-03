@@ -1,7 +1,6 @@
 module Organizations
   class OrganizationsController < ::Public::ApplicationController
     include Core::PublicCommon
-    include Core::FollowableActions
 
     self.model_class = Organizations::Organization
     self.list_serializer = Organizations::Public::OrganizationListSerializer
@@ -23,10 +22,6 @@ module Organizations
 
     def allowed_order_columns
       %w[id name slug created_at]
-    end
-
-    def followable_class
-      Organizations::Organization
     end
   end
 end
