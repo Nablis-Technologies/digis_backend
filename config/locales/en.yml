@@ -21,6 +21,13 @@ en:
   errors:
     not_found: "The requested %{model} was not found"
 
+  admin:
+    organizations:
+      errors:
+        owner_id_required: "owner_id is required when creating an organization from admin"
+        new_owner_id_invalid: "new_owner_id must reference an existing user"
+        no_current_owner: "Organization has no current owner to transfer from"
+
   review:
     errors:
       undefined_action: "Action '%{action}' is not defined for context '%{context}'"
