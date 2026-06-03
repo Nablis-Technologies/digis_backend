@@ -5,7 +5,7 @@ class AdminOrganizationMembershipsTest < ActionDispatch::IntegrationTest
 
   resource_test model: Organizations::Membership,
                 policy_class: Admin::MembershipPolicy,
-                controller: Admin::OrganizationMembershipsController,
+                controller: Admin::MembershipsController,
                 parent_fixture: :one,
                 fixture_keys: %i[super_admin core_admin support attendee],
                 path: -> { "/admin/organizations/#{organizations_organizations(:one).id}/memberships" },
