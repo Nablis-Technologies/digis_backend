@@ -9,22 +9,18 @@ Rails.application.routes.draw do
     get "auth/me", to: "auth#me"
   end
 
-  namespace :events do
+  scope ":followable_type", constraints: { followable_type: %r{venues|artists|organizations} } do
+    scope ":followable_id" do
+      post   "follow",    to: "core/follows#create",    as: :follow
+      delete "follow",    to: "core/follows#destroy"
+      get    "followers", to: "core/followers#index",   as: :followers
+    end
+  end
+
+  scope module: :events do
     resources :categories, only: %i[index show]
-    resources :venues, only: %i[index show] do
-      member do
-        post :follow
-        post :unfollow
-        get :followers
-      end
-    end
-    resources :artists, only: %i[index show] do
-      member do
-        post :follow
-        post :unfollow
-        get :followers
-      end
-    end
+    resources :venues, only: %i[index show]
+    resources :artists, only: %i[index show]
   end
 
   namespace :admin do
@@ -44,31 +40,18 @@ Rails.application.routes.draw do
       member do
         post :transfer_ownership
       end
-
-      resources :memberships, only: %i[index show create update destroy],
-                controller: "organization_memberships"
+      resources :memberships, only: %i[index show create update destroy]
     end
   end
 
-  namespace :organizations do
-    resources :organizations, only: %i[index show] do
-      member do
-        post :follow
-        post :unfollow
-        get :followers
-      end
+  scope module: :organizations do
+    resources :owner_organizations, only: %i[index show create update destroy],
+              path: "organizations/owner" do
+      resources :memberships, only: %i[index show create update destroy],
+                controller: "owner_memberships"
     end
 
-    get    "owner",               to: "owner_organizations#index"
-    post   "owner",               to: "owner_organizations#create",   as: :owner_organizations
-    get    "owner/:id",           to: "owner_organizations#show"
-    patch  "owner/:id",           to: "owner_organizations#update",   as: :owner_organization
-    put    "owner/:id",           to: "owner_organizations#update"
-    delete "owner/:id",           to: "owner_organizations#destroy"
-
-    resources :memberships, except: %i[new edit], controller: "memberships",
-              path: "organizations/:organization_id/memberships",
-              as: :organization_memberships
+    resources :organizations, only: %i[index show], path: "organizations"
   end
 
   scope module: :core do
