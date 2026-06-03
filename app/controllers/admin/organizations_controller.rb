@@ -10,7 +10,7 @@ module Admin
 
     def create
       unless params.dig(:organization, :owner_id)
-        return render_error(errors: [ "owner_id is required when creating an organization from admin" ],
+        return render_error(:"admin.organizations.errors.owner_id_required",
                             status: :unprocessable_entity)
       end
       super
@@ -23,14 +23,15 @@ module Admin
 
       new_owner = Core::User.find_by(id: params.dig(:organization, :new_owner_id))
       unless new_owner
-        return render_error(errors: [ "new_owner_id must reference an existing user" ],
+        return render_error(:"admin.organizations.errors.new_owner_id_invalid",
                             status: :unprocessable_entity)
       end
 
       ActiveRecord::Base.transaction do
         @obj.with_lock do
           current_owner_membership = @obj.owner_membership
-          raise ActiveRecord::RecordInvalid, @obj unless current_owner_membership
+          return render_error(:"admin.organizations.errors.no_current_owner",
+                              status: :unprocessable_entity) unless current_owner_membership
 
           current_owner_membership.update!(role: :admin)
 
@@ -38,7 +39,14 @@ module Admin
           if target_membership
             target_membership.update!(role: :owner)
           else
-            @obj.memberships.create!(user: new_owner, role: :owner)
+            begin
+              @obj.memberships.create!(user: new_owner, role: :owner)
+            rescue ActiveRecord::RecordNotUnique
+              # Race: another process created the membership. Re-find and update.
+              target_membership = @obj.memberships.lock.find_by(user: new_owner)
+              raise unless target_membership
+              target_membership.update!(role: :owner)
+            end
           end
         end
       end

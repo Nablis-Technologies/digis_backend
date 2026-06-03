@@ -6,6 +6,7 @@ en:
       create: "Organization created successfully"
       update: "Organization updated successfully"
       destroy: "Organization deleted successfully"
+      transfer_ownership: "Organization ownership transferred successfully"
     errors:
       create: "Failed to create organization"
       update: "Failed to update organization"
