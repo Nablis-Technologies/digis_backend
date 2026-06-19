@@ -16,6 +16,18 @@ module Admin
       super
     end
 
+    def destroy
+      set_clazz
+      @obj = @clazz.with_attached_profile.with_attached_banner
+                   .with_attached_business_license.with_attached_tin_certificate
+                   .includes(:reviews)
+                   .find(params[:id])
+      authorize @obj
+      @obj.memberships.delete_all
+      @obj.destroy!
+      render_success(status: :ok)
+    end
+
     def transfer_ownership
       set_clazz
       set_object
@@ -33,7 +45,8 @@ module Admin
           return render_error(:"admin.organizations.errors.no_current_owner",
                               status: :unprocessable_entity) unless current_owner_membership
 
-          current_owner_membership.update!(role: :admin)
+          # Demote the old owner first, bypassing the sole-owner callback via update_column
+          current_owner_membership.update_column(:role, :admin)
 
           target_membership = @obj.memberships.lock.find_by(user: new_owner)
           if target_membership
@@ -42,7 +55,6 @@ module Admin
             begin
               @obj.memberships.create!(user: new_owner, role: :owner)
             rescue ActiveRecord::RecordNotUnique
-              # Race: another process created the membership. Re-find and update.
               target_membership = @obj.memberships.lock.find_by(user: new_owner)
               raise unless target_membership
               target_membership.update!(role: :owner)
@@ -51,7 +63,7 @@ module Admin
         end
       end
 
-      @obj = @clazz.with_attached_profile.includes(:memberships, owner_membership: :user).find(@obj.id)
+      @obj = @clazz.with_attached_profile.includes(:memberships, :reviews, owner_membership: :user).find(@obj.id)
       render_success(data: @obj, serializer_options: { serializer: ::Admin::OrganizationSerializer })
     end
 
@@ -62,16 +74,23 @@ module Admin
     end
 
     def apply_index_scope(scope)
-      scope.with_attached_profile.includes(:memberships, owner_membership: :user)
+      scope.with_attached_profile.includes(:memberships, :reviews, owner_membership: :user)
+           .with_attached_banner.with_attached_business_license.with_attached_tin_certificate
     end
 
     def model_params
-      params.require(:organization).permit(:name, :description, :profile, social_links: {})
+      params.require(:organization).permit(
+        :name, :description, :organizer_type, :category,
+        :contact_phone, :contact_email, :website_url,
+        :tin_number, :address_line1, :address_line2, :city, :region,
+        :estimated_audience, :event_frequency, :experience_summary,
+        social_links: {}
+      )
     end
 
     def after_create_hook(organization)
       owner = Core::User.find(params.dig(:organization, :owner_id))
-      organization.memberships.create!(user: owner, role: :owner)
+      organization.memberships.create!(user: owner, role: :owner, status: :active)
     end
   end
 end
