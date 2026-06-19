@@ -57,6 +57,7 @@ module Core
       if self.class.respond_to?(:default_serializer) && self.class.default_serializer && !serializer_options.key?(:serializer)
         serializer_options[:serializer] = self.class.default_serializer
       end
+      serializer_options[:current_user] = current_user if respond_to?(:current_user) && !serializer_options.key?(:current_user)
       response = { success: true }
       resolved_message = resolve_message(message, type: :success)
       response[:message] = resolved_message if resolved_message.present?
