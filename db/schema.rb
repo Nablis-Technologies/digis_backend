@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_30_095119) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_18_092246) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -240,23 +240,41 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_30_095119) do
   create_table "organizations_memberships", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.uuid "organization_id", null: false
-    t.integer "role", null: false
+    t.string "role", default: "staff", null: false
+    t.string "status", default: "active", null: false
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
-    t.index ["organization_id"], name: "idx_one_owner_per_org", unique: true, where: "(role = 0)"
+    t.index ["organization_id"], name: "idx_one_owner_per_org", unique: true, where: "((role)::text = 'owner'::text)"
     t.index ["organization_id"], name: "index_organizations_memberships_on_organization_id"
+    t.index ["status"], name: "index_organizations_memberships_on_status"
     t.index ["user_id", "organization_id"], name: "idx_org_memberships_on_user_and_org", unique: true
     t.index ["user_id"], name: "index_organizations_memberships_on_user_id"
   end
 
   create_table "organizations_organizations", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
+    t.string "address_line1"
+    t.string "address_line2"
+    t.string "category", null: false
+    t.string "city"
+    t.string "contact_email"
+    t.string "contact_phone"
     t.datetime "created_at", null: false
     t.text "description"
+    t.string "estimated_audience"
+    t.string "event_frequency"
+    t.integer "events_count", default: 0, null: false
+    t.text "experience_summary"
     t.integer "followers_count", default: 0, null: false
+    t.text "last_rejection_feedback"
     t.string "name", null: false
+    t.string "organizer_type", null: false
+    t.string "region"
     t.string "slug", null: false
     t.jsonb "social_links", default: {}
+    t.string "tin_number"
     t.datetime "updated_at", null: false
+    t.datetime "verified_at"
+    t.string "website_url"
     t.index ["slug"], name: "index_organizations_organizations_on_slug", unique: true
   end
 
