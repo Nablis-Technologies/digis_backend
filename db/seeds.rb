@@ -155,6 +155,11 @@ permissions = [
   { resource: "review", action: "approve", namespace: "core", description: "Approve reviews" },
   { resource: "review", action: "reject", namespace: "core", description: "Reject reviews" },
 
+  # Verifications
+  { resource: "verifications", action: "approve", namespace: "admin", description: "Approve organization verifications" },
+  { resource: "verifications", action: "reject", namespace: "admin", description: "Reject organization verifications" },
+  { resource: "verifications", action: "request_modification", namespace: "admin", description: "Request modification for organization verification" },
+
   # Venue management
   { resource: "venue", action: "index", namespace: "core", description: "List all venues" },
   { resource: "venue", action: "show", namespace: "core", description: "View venue details" },
@@ -316,14 +321,20 @@ puts "\n🏢 Seeding organizations..."
 
 org_digis = Organizations::Organization.find_or_create_by!(name: "Digis HQ") do |o|
   o.description = "The official Digis platform organization — manages core platform operations and infrastructure"
+  o.organizer_type = "company"
+  o.category = "conference"
 end
 
 org_music = Organizations::Organization.find_or_create_by!(name: "Addis Music Fest") do |o|
   o.description = "Ethiopia's premier music festival organization — hosts annual concerts and live performances across Addis Ababa"
+  o.organizer_type = "company"
+  o.category = "music"
 end
 
 org_tech = Organizations::Organization.find_or_create_by!(name: "Ethiopian Tech Summit") do |o|
   o.description = "Leading tech conference organizer — brings together innovators, developers, and entrepreneurs from across Africa"
+  o.organizer_type = "company"
+  o.category = "conference"
 end
 
 puts "✓ #{Organizations::Organization.count} organizations seeded"
@@ -350,12 +361,12 @@ end
 
 # organizer_user is member on Tech Summit
 Organizations::Membership.find_or_create_by!(user: organizer_user, organization: org_tech) do |m|
-  m.role = :member
+  m.role = :staff
 end
 
 # attendee_user is member on Digis HQ
 Organizations::Membership.find_or_create_by!(user: attendee_user, organization: org_digis) do |m|
-  m.role = :member
+  m.role = :staff
 end
 
 puts "✓ #{Organizations::Membership.count} memberships seeded"
