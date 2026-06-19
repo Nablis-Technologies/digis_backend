@@ -12,6 +12,14 @@ module Core
              through: :user_roles,
              class_name: "Core::Role"
 
+    has_many :memberships,
+             class_name: "Organizations::Membership",
+             dependent: :destroy
+    has_many :organizations,
+             through: :memberships,
+             class_name: "Organizations::Organization",
+             source: :organization
+
     has_many :active_follows,
              class_name: "Core::Follow",
              foreign_key: :follower_id,
@@ -29,6 +37,27 @@ module Core
 
     scope :active, -> { where(deactivated_at: nil) }
     scope :deactivated, -> { where.not(deactivated_at: nil) }
+
+    ROLE_WEIGHT = { "owner" => 3, "admin" => 2, "staff" => 1 }.freeze
+
+    def organizer?
+      memberships.active.exists?
+    end
+
+    def member_of?(organization)
+      memberships.active.where(organization: organization).exists?
+    end
+
+    def has_role_in?(organization, *roles)
+      memberships.active.where(organization: organization, role: roles).exists?
+    end
+
+    def most_privileged_role_in(organization)
+      roles = memberships.active.where(organization: organization).pluck(:role)
+      return nil if roles.empty?
+
+      roles.max_by { |r| ROLE_WEIGHT[r] || 0 }
+    end
 
     def deactivated?
       deactivated_at.present?
