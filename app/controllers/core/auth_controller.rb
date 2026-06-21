@@ -13,11 +13,12 @@ module Core
       user = auth_result.value
 
       if auth_result.success? && user&.valid_for_authentication?
-        tokens = sign_in(preloaded_auth_user(user), request)
+        auth_user = preloaded_auth_user(user)
+        tokens = sign_in(auth_user, request)
         render_success(
           :"auth.success.login",
           data: {
-            user: preloaded_auth_user(user),
+            user: auth_user,
             access_token: tokens[:access_token],
             refresh_token: tokens[:refresh_token]
           },
@@ -122,7 +123,7 @@ module Core
     def preloaded_auth_user(user)
       return user unless user.is_a?(Core::User)
 
-      Core::User.includes(roles: :permissions).find(user.id)
+      user.association(:roles).loaded? ? user : Core::User.includes(roles: :permissions).find(user.id)
     end
 
     def assign_default_role(user)
