@@ -15,6 +15,10 @@ module Admin
       params.require(:role).permit(:code, :name, :description, :active, permission_ids: [])
     end
 
+    def eager_load_config
+      { default: [ :permissions ] }
+    end
+
     def allowed_order_columns
       %w[id code name active created_at updated_at]
     end
