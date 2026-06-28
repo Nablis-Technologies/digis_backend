@@ -92,7 +92,11 @@ module Admin
 
     def set_organization
       @clazz = Organizations::Organization
-      @organization = Organizations::Organization.find(params[:id])
+      @organization = Organizations::Organization.includes(
+        :memberships, :reviews, :follows,
+        { profile_attachment: :blob, banner_attachment: :blob,
+          business_license_attachment: :blob, tin_certificate_attachment: :blob }
+      ).find(params[:id])
     rescue ActiveRecord::RecordNotFound
       render_error("Organization not found", status: :not_found)
     end
