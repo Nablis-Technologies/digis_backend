@@ -12,12 +12,12 @@ class AdminOrganizationsTest < ActionDispatch::IntegrationTest
                 except: [ :destroy ],
                 create_params: -> {
                   owner = core_users(:super_admin)
-                  { organization: { name: "New Org #{SecureRandom.hex(4)}", owner_id: owner.id } }
+                  { organization: { name: "New Org #{SecureRandom.hex(4)}", organizer_type: "individual", category: "conference", owner_id: owner.id } }
                 },
                 update_params: ->(record) { { organization: { name: "Updated #{record.name}" } } },
                 check_attributes: {
-                  show: %w[id name slug description social_links followers_count created_at updated_at],
-                  index: %w[id name slug description created_at]
+                  show: %w[id name slug description social_links follower_count verified created_at updated_at],
+                  index: %w[id name slug description created_at verified]
                 },
                 index: {
                   pagination: { per_page: 2 },
@@ -99,7 +99,7 @@ class AdminOrganizationsTest < ActionDispatch::IntegrationTest
   end
 
   test "transfer_ownership returns i18n error when organization has no current owner" do
-    org = Organizations::Organization.create!(name: "Orphaned Org #{SecureRandom.hex(4)}")
+    org = Organizations::Organization.create!(name: "Orphaned Org #{SecureRandom.hex(4)}", organizer_type: "individual", category: "conference")
     # No memberships created — org has no owner_membership (data corruption case)
 
     post "/admin/organizations/#{org.id}/transfer_ownership",
@@ -113,7 +113,7 @@ class AdminOrganizationsTest < ActionDispatch::IntegrationTest
   test "transfer_ownership promotes existing member to owner" do
     org = organizations_organizations(:one)
     new_owner = core_users(:support)
-    existing = org.memberships.create!(user: new_owner, role: :member)
+    existing = org.memberships.create!(user: new_owner, role: :staff)
 
     post "/admin/organizations/#{org.id}/transfer_ownership",
          params: { organization: { new_owner_id: new_owner.id } },
@@ -128,7 +128,7 @@ class AdminOrganizationsTest < ActionDispatch::IntegrationTest
     new_owner = core_users(:support)
     # Pre-create a member — this is what the race resolves to (another process created it
     # concurrently, so our create! hits the uniqueness constraint)
-    existing = org.memberships.create!(user: new_owner, role: :member)
+    existing = org.memberships.create!(user: new_owner, role: :staff)
 
     # Force the create! path: stub the proxy to raise RecordNotUnique.
     # Rails generates a subclass proxy per association; we stub it via the org instance
@@ -149,14 +149,14 @@ class AdminOrganizationsTest < ActionDispatch::IntegrationTest
   # ── Owner creation ───────────────────────────────
   test "create without owner_id returns 422" do
     post "/admin/organizations",
-         params: { organization: { name: "Orphan Org" } },
+         params: { organization: { name: "Orphan Org", organizer_type: "individual", category: "conference" } },
          headers: admin_headers, as: :json
     assert_response :unprocessable_entity
   end
 
   test "create without owner_id returns i18n-translated error" do
     post "/admin/organizations",
-         params: { organization: { name: "Orphan Org" } },
+         params: { organization: { name: "Orphan Org", organizer_type: "individual", category: "conference" } },
          headers: admin_headers, as: :json
     assert_response :unprocessable_entity
     body = JSON.parse(response.body)
@@ -175,7 +175,7 @@ class AdminOrganizationsTest < ActionDispatch::IntegrationTest
 
   # ── Destroy (manual since auto-generation fails with owner_id) ──
   test "destroy is permitted for super_admin" do
-    org = Organizations::Organization.create!(name: "Temp Org #{SecureRandom.hex(4)}")
+    org = Organizations::Organization.create!(name: "Temp Org #{SecureRandom.hex(4)}", organizer_type: "individual", category: "conference")
     org.memberships.create!(user: core_users(:super_admin), role: :owner)
 
     delete "/admin/organizations/#{org.id}",
