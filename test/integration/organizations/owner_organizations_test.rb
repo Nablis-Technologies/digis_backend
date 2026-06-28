@@ -6,7 +6,7 @@ class OrganizationsOwnerOrganizationsTest < ActionDispatch::IntegrationTest
   include ActiveJob::TestHelper
 
   test "create requires authentication" do
-    post "/organizations/owner", params: { organization: { name: "New Org" } }, as: :json
+    post "/organizations/owner", params: { organization: { name: "New Org", organizer_type: "individual", category: "conference" } }, as: :json
     assert_response :unauthorized
   end
 
@@ -14,7 +14,7 @@ class OrganizationsOwnerOrganizationsTest < ActionDispatch::IntegrationTest
     user = core_users(:attendee)
     assert_difference("Organizations::Organization.count", 1) do
       post "/organizations/owner",
-           params: { organization: { name: "My New Org #{SecureRandom.hex(4)}" } },
+           params: { organization: { name: "My New Org #{SecureRandom.hex(4)}", organizer_type: "individual", category: "conference" } },
            headers: user_headers, as: :json
     end
     assert_response :created
@@ -28,7 +28,7 @@ class OrganizationsOwnerOrganizationsTest < ActionDispatch::IntegrationTest
 
   test "create returns created attributes" do
     post "/organizations/owner",
-         params: { organization: { name: "Attr Check Org" } },
+         params: { organization: { name: "Attr Check Org", organizer_type: "individual", category: "conference" } },
          headers: user_headers, as: :json
     assert_response :created
     data = JSON.parse(response.body).dig("data")
@@ -48,7 +48,7 @@ class OrganizationsOwnerOrganizationsTest < ActionDispatch::IntegrationTest
 
   test "update is not found for non-member" do
     other_user = core_users(:super_admin)
-    org = Organizations::Organization.create!(name: "Others Org #{SecureRandom.hex(4)}")
+    org = Organizations::Organization.create!(name: "Others Org #{SecureRandom.hex(4)}", organizer_type: "individual", category: "conference")
     org.memberships.create!(user: other_user, role: :owner)
     patch "/organizations/owner/#{org.id}",
           params: { organization: { name: "Hacked" } },
@@ -58,7 +58,7 @@ class OrganizationsOwnerOrganizationsTest < ActionDispatch::IntegrationTest
 
   test "update succeeds for owner" do
     user = core_users(:attendee)
-    org = Organizations::Organization.create!(name: "My Org")
+    org = Organizations::Organization.create!(name: "My Org", organizer_type: "individual", category: "conference")
     org.memberships.create!(user: user, role: :owner)
     token = Core::TokenService.issue(Core::TokenService.access_token_payload(user))
     headers = { "Authorization" => "Bearer #{token}" }
@@ -77,7 +77,7 @@ class OrganizationsOwnerOrganizationsTest < ActionDispatch::IntegrationTest
 
   test "destroy succeeds for owner" do
     user = core_users(:attendee)
-    org = Organizations::Organization.create!(name: "My Org")
+    org = Organizations::Organization.create!(name: "My Org", organizer_type: "individual", category: "conference")
     org.memberships.create!(user: user, role: :owner)
     token = Core::TokenService.issue(Core::TokenService.access_token_payload(user))
     headers = { "Authorization" => "Bearer #{token}" }
@@ -94,7 +94,7 @@ class OrganizationsOwnerOrganizationsTest < ActionDispatch::IntegrationTest
 
   test "index returns organizations where current user is a member" do
     user = core_users(:attendee)
-    org = Organizations::Organization.create!(name: "My Owner Index Org #{SecureRandom.hex(4)}")
+    org = Organizations::Organization.create!(name: "My Owner Index Org #{SecureRandom.hex(4)}", organizer_type: "individual", category: "conference")
     org.memberships.create!(user: user, role: :owner)
 
     get "/organizations/owner", headers: user_headers, as: :json
@@ -112,7 +112,7 @@ class OrganizationsOwnerOrganizationsTest < ActionDispatch::IntegrationTest
 
   test "show returns 404 for orgs where current user is not a member" do
     other_user = core_users(:super_admin)
-    org = Organizations::Organization.create!(name: "Others Org #{SecureRandom.hex(4)}")
+    org = Organizations::Organization.create!(name: "Others Org #{SecureRandom.hex(4)}", organizer_type: "individual", category: "conference")
     org.memberships.create!(user: other_user, role: :owner)
 
     get "/organizations/owner/#{org.id}", headers: user_headers, as: :json
@@ -121,7 +121,7 @@ class OrganizationsOwnerOrganizationsTest < ActionDispatch::IntegrationTest
 
   test "show succeeds for owned organization" do
     user = core_users(:attendee)
-    org = Organizations::Organization.create!(name: "My Show Org #{SecureRandom.hex(4)}")
+    org = Organizations::Organization.create!(name: "My Show Org #{SecureRandom.hex(4)}", organizer_type: "individual", category: "conference")
     org.memberships.create!(user: user, role: :owner)
 
     get "/organizations/owner/#{org.id}", headers: user_headers, as: :json
@@ -133,7 +133,7 @@ class OrganizationsOwnerOrganizationsTest < ActionDispatch::IntegrationTest
   test "create logs an audit" do
     perform_enqueued_jobs do
       post "/organizations/owner",
-           params: { organization: { name: "Audit Org #{SecureRandom.hex(4)}" } },
+           params: { organization: { name: "Audit Org #{SecureRandom.hex(4)}", organizer_type: "individual", category: "conference" } },
            headers: user_headers, as: :json
     end
     assert_response :created
