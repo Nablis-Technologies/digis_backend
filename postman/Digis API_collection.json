@@ -1,0 +1,4241 @@
+{
+  "info": {
+    "name": "Digis API",
+    "description": "Complete API collection for Digis Backend event ticketing platform",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Signup",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": {\n    \"email\": \"user@example.com\",\n    \"phone\": \"+251911234567\",\n    \"password\": \"securepassword123\",\n    \"password_confirmation\": \"securepassword123\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/signup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "signup"
+              ]
+            },
+            "description": "Create a new user account. Either email or phone is required."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property(\"success\", true);",
+                  "  pm.expect(json).to.have.property(\"message\");",
+                  "  pm.expect(json).to.have.property(\"data\");",
+                  "  pm.expect(json.data).to.have.property(\"user\");",
+                  "  pm.expect(json.data.user).to.have.property(\"id\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"user@example.com\",\n  \"password\": \"securepassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Authenticate with email/phone and password. Returns access token and refresh token."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property(\"success\", true);",
+                  "  pm.expect(json).to.have.property(\"data\");",
+                  "  pm.expect(json.data).to.have.property(\"access_token\");",
+                  "  pm.expect(json.data).to.have.property(\"refresh_token\");",
+                  "  pm.expect(json.data).to.have.property(\"user\");",
+                  "});",
+                  "",
+                  "// Save tokens for subsequent requests",
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  const accessToken = json?.data?.access_token ?? json?.data?.accessToken ?? json?.access_token ?? json?.accessToken;",
+                  "  const refreshToken = json?.data?.refresh_token ?? json?.data?.refreshToken ?? json?.refresh_token ?? json?.refreshToken;",
+                  "",
+                  "  if (accessToken) {",
+                  "    pm.collectionVariables.set(\"accessToken\", accessToken);",
+                  "  }",
+                  "",
+                  "  if (refreshToken) {",
+                  "    pm.collectionVariables.set(\"refreshToken\", refreshToken);",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ]
+            },
+            "description": "Exchange an expired access token for a new one using a valid refresh token."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property(\"success\", true);",
+                  "  pm.expect(json.data).to.have.property(\"access_token\");",
+                  "  pm.expect(json.data).to.have.property(\"refresh_token\");",
+                  "  pm.expect(json.data).to.have.property(\"user\");",
+                  "});",
+                  "",
+                  "// Update tokens for subsequent requests",
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  const accessToken = json?.data?.access_token ?? json?.data?.accessToken ?? json?.access_token ?? json?.accessToken;",
+                  "  const refreshToken = json?.data?.refresh_token ?? json?.data?.refreshToken ?? json?.refresh_token ?? json?.refreshToken;",
+                  "",
+                  "  if (accessToken) {",
+                  "    pm.collectionVariables.set(\"accessToken\", accessToken);",
+                  "  }",
+                  "",
+                  "  if (refreshToken) {",
+                  "    pm.collectionVariables.set(\"refreshToken\", refreshToken);",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Logout and invalidate the current refresh token. Requires valid access token."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property(\"success\", true);",
+                  "  pm.expect(json).to.have.property(\"message\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Current User (Me)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Get the currently authenticated user's profile. Requires valid access token."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property(\"success\", true);",
+                  "  pm.expect(json).to.have.property(\"data\");",
+                  "  pm.expect(json.data).to.have.property(\"user\");",
+                  "  pm.expect(json.data.user).to.have.property(\"id\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Public",
+      "item": [
+        {
+          "name": "Events",
+          "item": [
+            {
+              "name": "Categories",
+              "item": [
+                {
+                  "name": "List Categories",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/categories?page=1&per_page=10&order_by=name&order_direction=asc",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "categories"
+                      ],
+                      "query": [
+                        {
+                          "key": "page",
+                          "value": "1"
+                        },
+                        {
+                          "key": "per_page",
+                          "value": "10"
+                        },
+                        {
+                          "key": "order_by",
+                          "value": "name"
+                        },
+                        {
+                          "key": "order_direction",
+                          "value": "asc"
+                        }
+                      ]
+                    },
+                    "description": "List all event categories with pagination, ordering, and filtering support."
+                  },
+                  "response": [],
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "exec": [
+                          "pm.test(\"Status code is 200\", function () {",
+                          "  pm.response.to.have.status(200);",
+                          "});",
+                          "pm.test(\"Response has correct structure\", function () {",
+                          "  const json = pm.response.json();",
+                          "  pm.expect(json).to.have.property(\"success\", true);",
+                          "  pm.expect(json).to.have.property(\"data\");",
+                          "  pm.expect(json).to.have.property(\"pagination\");",
+                          "});"
+                        ],
+                        "type": "text/javascript"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "Get Category",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/categories/:id",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "categories",
+                        ":id"
+                      ],
+                      "variable": [
+                        {
+                          "key": "id",
+                          "value": ""
+                        }
+                      ]
+                    },
+                    "description": "Get a single event category by ID."
+                  },
+                  "response": [],
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "exec": [
+                          "pm.test(\"Status code is 200\", function () {",
+                          "  pm.response.to.have.status(200);",
+                          "});",
+                          "pm.test(\"Response has correct structure\", function () {",
+                          "  const json = pm.response.json();",
+                          "  pm.expect(json).to.have.property(\"success\", true);",
+                          "  pm.expect(json.data).to.have.property(\"id\");",
+                          "  pm.expect(json.data).to.have.property(\"name\");",
+                          "  pm.expect(json.data).to.have.property(\"slug\");",
+                          "});"
+                        ],
+                        "type": "text/javascript"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Venues",
+              "item": [
+                {
+                  "name": "List Venues",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/venues?page=1&per_page=10&order_by=name&order_direction=asc&city&country&verified",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "venues"
+                      ],
+                      "query": [
+                        {
+                          "key": "page",
+                          "value": "1",
+                          "disabled": false
+                        },
+                        {
+                          "key": "per_page",
+                          "value": "10",
+                          "disabled": false
+                        },
+                        {
+                          "key": "order_by",
+                          "value": "name",
+                          "disabled": false
+                        },
+                        {
+                          "key": "order_direction",
+                          "value": "asc",
+                          "disabled": false
+                        },
+                        {
+                          "key": "city",
+                          "value": "",
+                          "description": "Filter by city"
+                        },
+                        {
+                          "key": "country",
+                          "value": "",
+                          "description": "Filter by country"
+                        },
+                        {
+                          "key": "verified",
+                          "value": "",
+                          "description": "Filter by verified status (true/false)"
+                        }
+                      ]
+                    }
+                  },
+                  "description": "List all venues.",
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "exec": [
+                          "pm.test(\"Status code is 2XX\", function () {",
+                          "  pm.response.to.have.status(200);",
+                          "});",
+                          "pm.test(\"Response has success flag\", function () {",
+                          "  const json = pm.response.json();",
+                          "  pm.expect(json).to.have.property(\"success\", true);",
+                          "});"
+                        ],
+                        "type": "text/javascript"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "Get Venue",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/venues/:id",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "venues",
+                        ":id"
+                      ],
+                      "variable": [
+                        {
+                          "key": "id",
+                          "value": ""
+                        }
+                      ]
+                    }
+                  },
+                  "description": "Get a single venue by ID.",
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "exec": [
+                          "pm.test(\"Status code is 2XX\", function () {",
+                          "  pm.response.to.have.status(200);",
+                          "});",
+                          "pm.test(\"Response has success flag\", function () {",
+                          "  const json = pm.response.json();",
+                          "  pm.expect(json).to.have.property(\"success\", true);",
+                          "});"
+                        ],
+                        "type": "text/javascript"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Artists",
+              "item": [
+                {
+                  "name": "List Artists",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/artists?page=1&per_page=10&order_by=name&order_direction=asc&genre&verified",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "artists"
+                      ],
+                      "query": [
+                        {
+                          "key": "page",
+                          "value": "1",
+                          "disabled": false
+                        },
+                        {
+                          "key": "per_page",
+                          "value": "10",
+                          "disabled": false
+                        },
+                        {
+                          "key": "order_by",
+                          "value": "name",
+                          "disabled": false
+                        },
+                        {
+                          "key": "order_direction",
+                          "value": "asc",
+                          "disabled": false
+                        },
+                        {
+                          "key": "genre",
+                          "value": "",
+                          "description": "Filter by genre"
+                        },
+                        {
+                          "key": "verified",
+                          "value": "",
+                          "description": "Filter by verified status (true/false)"
+                        }
+                      ]
+                    }
+                  },
+                  "description": "List all artists.",
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "exec": [
+                          "pm.test(\"Status code is 2XX\", function () {",
+                          "  pm.response.to.have.status(200);",
+                          "});",
+                          "pm.test(\"Response has success flag\", function () {",
+                          "  const json = pm.response.json();",
+                          "  pm.expect(json).to.have.property(\"success\", true);",
+                          "});"
+                        ],
+                        "type": "text/javascript"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "Get Artist",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/artists/:id",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "artists",
+                        ":id"
+                      ],
+                      "variable": [
+                        {
+                          "key": "id",
+                          "value": ""
+                        }
+                      ]
+                    }
+                  },
+                  "description": "Get a single artist by ID.",
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "exec": [
+                          "pm.test(\"Status code is 2XX\", function () {",
+                          "  pm.response.to.have.status(200);",
+                          "});",
+                          "pm.test(\"Response has success flag\", function () {",
+                          "  const json = pm.response.json();",
+                          "  pm.expect(json).to.have.property(\"success\", true);",
+                          "});"
+                        ],
+                        "type": "text/javascript"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Organizations",
+          "item": [
+            {
+              "name": "List Organizations",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations?page=1&per_page=10&order_by=name&order_direction=asc&q[name_cont]",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "10"
+                    },
+                    {
+                      "key": "order_by",
+                      "value": "name",
+                      "description": "Column to order by (name, slug, created_at)"
+                    },
+                    {
+                      "key": "order_direction",
+                      "value": "asc",
+                      "description": "Order direction (asc, desc)"
+                    },
+                    {
+                      "key": "q[name_cont]",
+                      "value": "",
+                      "description": "Search by name"
+                    }
+                  ]
+                }
+              },
+              "description": "List all organizations.",
+              "response": []
+            },
+            {
+              "name": "Get Organization",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "description": "Get a single organization by ID.",
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "My Account",
+      "item": [
+        {
+          "name": "Social",
+          "item": [
+            {
+              "name": "Venues",
+              "item": [
+                {
+                  "name": "Follow Venue",
+                  "request": {
+                    "method": "POST",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/venues/:id/follow",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "venues",
+                        ":id",
+                        "follow"
+                      ],
+                      "variable": [
+                        {
+                          "key": "id",
+                          "value": ""
+                        }
+                      ]
+                    }
+                  },
+                  "description": "Follow a venue.",
+                  "response": []
+                },
+                {
+                  "name": "Unfollow Venue",
+                  "request": {
+                    "method": "DELETE",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/venues/:id/follow",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "venues",
+                        ":id",
+                        "follow"
+                      ],
+                      "variable": [
+                        {
+                          "key": "id",
+                          "value": ""
+                        }
+                      ]
+                    }
+                  },
+                  "description": "Unfollow a venue (DELETE on /follow).",
+                  "response": []
+                },
+                {
+                  "name": "Venue Followers",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/venues/:id/followers",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "venues",
+                        ":id",
+                        "followers"
+                      ],
+                      "variable": [
+                        {
+                          "key": "id",
+                          "value": ""
+                        }
+                      ]
+                    }
+                  },
+                  "description": "Get venue followers.",
+                  "response": []
+                }
+              ]
+            },
+            {
+              "name": "Artists",
+              "item": [
+                {
+                  "name": "Follow Artist",
+                  "request": {
+                    "method": "POST",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/artists/:id/follow",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "artists",
+                        ":id",
+                        "follow"
+                      ],
+                      "variable": [
+                        {
+                          "key": "id",
+                          "value": ""
+                        }
+                      ]
+                    }
+                  },
+                  "description": "Follow an artist.",
+                  "response": []
+                },
+                {
+                  "name": "Unfollow Artist",
+                  "request": {
+                    "method": "DELETE",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/artists/:id/follow",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "artists",
+                        ":id",
+                        "follow"
+                      ],
+                      "variable": [
+                        {
+                          "key": "id",
+                          "value": ""
+                        }
+                      ]
+                    }
+                  },
+                  "description": "Unfollow an artist (DELETE on /follow).",
+                  "response": []
+                },
+                {
+                  "name": "Artist Followers",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/artists/:id/followers",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "artists",
+                        ":id",
+                        "followers"
+                      ],
+                      "variable": [
+                        {
+                          "key": "id",
+                          "value": ""
+                        }
+                      ]
+                    }
+                  },
+                  "description": "Get artist followers.",
+                  "response": []
+                }
+              ]
+            },
+            {
+              "name": "Organizations",
+              "item": [
+                {
+                  "name": "Follow Organization",
+                  "request": {
+                    "method": "POST",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/organizations/:id/follow",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "organizations",
+                        ":id",
+                        "follow"
+                      ],
+                      "variable": [
+                        {
+                          "key": "id",
+                          "value": ""
+                        }
+                      ]
+                    }
+                  },
+                  "description": "Follow an organization.",
+                  "response": []
+                },
+                {
+                  "name": "Unfollow Organization",
+                  "request": {
+                    "method": "DELETE",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/organizations/:id/follow",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "organizations",
+                        ":id",
+                        "follow"
+                      ],
+                      "variable": [
+                        {
+                          "key": "id",
+                          "value": ""
+                        }
+                      ]
+                    }
+                  },
+                  "description": "Unfollow an organization (DELETE on /follow).",
+                  "response": []
+                },
+                {
+                  "name": "Organization Followers",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/organizations/:id/followers",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "organizations",
+                        ":id",
+                        "followers"
+                      ],
+                      "variable": [
+                        {
+                          "key": "id",
+                          "value": ""
+                        }
+                      ]
+                    }
+                  },
+                  "description": "Get organization followers.",
+                  "response": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "My Organizations",
+          "item": [
+            {
+              "name": "List My Organizations",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/owner",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "owner"
+                  ]
+                }
+              },
+              "description": "List your organizations.",
+              "response": []
+            },
+            {
+              "name": "Get My Organization",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/owner/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "owner",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "description": "Get one of your organizations.",
+              "response": []
+            },
+            {
+              "name": "Create Organization (Owner)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/owner",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "owner"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"organization\": {\n    \"name\": \"My Organization\",\n    \"description\": \"Description of the organization\",\n    \"organizer_type\": \"individual\",\n    \"category\": \"conference\",\n    \"contact_phone\": \"+1234567890\",\n    \"contact_email\": \"org@example.com\",\n    \"website_url\": \"https://example.com\",\n    \"tin_number\": \"12-3456789\",\n    \"address_line1\": \"123 Main St\",\n    \"city\": \"New York\",\n    \"region\": \"NY\",\n    \"estimated_audience\": \"100_500\",\n    \"event_frequency\": \"monthly\",\n    \"experience_summary\": \"Experienced event organizer\",\n    \"social_links\": {\n      \"twitter\": \"https://twitter.com/myorg\"\n    }\n  }\n}"
+                }
+              },
+              "description": "Create your own organization.",
+              "response": []
+            },
+            {
+              "name": "Update Organization (Owner)",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/owner/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "owner",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"organization\": {\n    \"name\": \"Updated Organization\",\n    \"description\": \"Updated description\",\n    \"organizer_type\": \"company\",\n    \"category\": \"music\",\n    \"contact_phone\": \"+1987654321\",\n    \"city\": \"Los Angeles\",\n    \"region\": \"CA\",\n    \"estimated_audience\": \"500_1000\",\n    \"event_frequency\": \"quarterly\",\n    \"experience_summary\": \"Updated experience summary\",\n    \"social_links\": {\n      \"twitter\": \"https://twitter.com/updatedorg\"\n    }\n  }\n}"
+                }
+              },
+              "description": "Update your organization.",
+              "response": []
+            },
+            {
+              "name": "Delete Organization (Owner)",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/owner/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "owner",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "description": "Delete your organization.",
+              "response": []
+            },
+            {
+              "name": "Upload Documents",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/owner/:id/documents",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "owner",
+                    ":id",
+                    "documents"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "<org_uuid>"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "profile",
+                      "type": "file",
+                      "src": "",
+                      "description": "Profile image"
+                    },
+                    {
+                      "key": "banner",
+                      "type": "file",
+                      "src": "",
+                      "description": "Banner image"
+                    },
+                    {
+                      "key": "business_license",
+                      "type": "file",
+                      "src": "",
+                      "description": "Business license document"
+                    },
+                    {
+                      "key": "tin_certificate",
+                      "type": "file",
+                      "src": "",
+                      "description": "TIN certificate document"
+                    }
+                  ]
+                },
+                "description": "Upload organization documents (multipart/form-data)."
+              }
+            },
+            {
+              "name": "Download Document",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/owner/:id/download/:document_type",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "owner",
+                    ":id",
+                    "download",
+                    ":document_type"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "<org_uuid>"
+                    },
+                    {
+                      "key": "document_type",
+                      "value": "banner"
+                    }
+                  ]
+                },
+                "description": "Download an organization document. document_type: profile, banner, business_license, tin_certificate"
+              }
+            },
+            {
+              "name": "Memberships",
+              "item": [
+                {
+                  "name": "List Owner Memberships",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/organizations/owner/:owner_organization_id/memberships?page=1&per_page=10",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "organizations",
+                        "owner",
+                        ":owner_organization_id",
+                        "memberships"
+                      ],
+                      "variable": [
+                        {
+                          "key": "owner_organization_id",
+                          "value": ""
+                        }
+                      ],
+                      "query": [
+                        {
+                          "key": "page",
+                          "value": "1"
+                        },
+                        {
+                          "key": "per_page",
+                          "value": "10"
+                        }
+                      ]
+                    },
+                    "description": "List members of an organization you own"
+                  },
+                  "response": [],
+                  "event": []
+                },
+                {
+                  "name": "Get Owner Membership",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/organizations/owner/:owner_organization_id/memberships/:id",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "organizations",
+                        "owner",
+                        ":owner_organization_id",
+                        "memberships",
+                        ":id"
+                      ],
+                      "variable": [
+                        {
+                          "key": "owner_organization_id",
+                          "value": ""
+                        },
+                        {
+                          "key": "id",
+                          "value": ""
+                        }
+                      ]
+                    },
+                    "description": "Get a specific membership in an organization you own"
+                  },
+                  "response": [],
+                  "event": []
+                },
+                {
+                  "name": "Create Owner Membership",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/organizations/owner/:owner_organization_id/memberships",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "organizations",
+                        "owner",
+                        ":owner_organization_id",
+                        "memberships"
+                      ],
+                      "variable": [
+                        {
+                          "key": "owner_organization_id",
+                          "value": ""
+                        }
+                      ]
+                    },
+                    "description": "Add a user to an organization you own",
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"membership\": {\n    \"user_id\": \"<user_uuid>\",\n    \"role\": \"staff\"\n  }\n}"
+                    }
+                  },
+                  "response": [],
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "exec": [
+                          "pm.test(\"Status code check\", function () {",
+                          "  pm.response.to.have.status(200);",
+                          "});"
+                        ],
+                        "type": "text/javascript"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "Update Owner Membership",
+                  "request": {
+                    "method": "PATCH",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/organizations/owner/:owner_organization_id/memberships/:id",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "organizations",
+                        "owner",
+                        ":owner_organization_id",
+                        "memberships",
+                        ":id"
+                      ],
+                      "variable": [
+                        {
+                          "key": "owner_organization_id",
+                          "value": ""
+                        },
+                        {
+                          "key": "id",
+                          "value": ""
+                        }
+                      ]
+                    },
+                    "description": "Update a membership role in an organization you own",
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"membership\": {\n    \"role\": \"admin\"\n  }\n}"
+                    }
+                  },
+                  "response": [],
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "exec": [
+                          "pm.test(\"Status code check\", function () {",
+                          "  pm.response.to.have.status(200);",
+                          "});"
+                        ],
+                        "type": "text/javascript"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "Delete Owner Membership",
+                  "request": {
+                    "method": "DELETE",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/organizations/owner/:owner_organization_id/memberships/:id",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "organizations",
+                        "owner",
+                        ":owner_organization_id",
+                        "memberships",
+                        ":id"
+                      ],
+                      "variable": [
+                        {
+                          "key": "owner_organization_id",
+                          "value": ""
+                        },
+                        {
+                          "key": "id",
+                          "value": ""
+                        }
+                      ]
+                    },
+                    "description": "Remove a member from an organization you own"
+                  },
+                  "response": [],
+                  "event": []
+                },
+                {
+                  "name": "Suspend Membership",
+                  "request": {
+                    "method": "PATCH",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}",
+                        "type": "text"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/organizations/owner/:owner_organization_id/memberships/:id/suspend",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "organizations",
+                        "owner",
+                        ":owner_organization_id",
+                        "memberships",
+                        ":id",
+                        "suspend"
+                      ],
+                      "variable": [
+                        {
+                          "key": "owner_organization_id",
+                          "value": "<org_uuid>"
+                        },
+                        {
+                          "key": "id",
+                          "value": "<membership_uuid>"
+                        }
+                      ]
+                    },
+                    "description": "Suspend a membership (owner/admin only)."
+                  }
+                },
+                {
+                  "name": "Activate Membership",
+                  "request": {
+                    "method": "PATCH",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}",
+                        "type": "text"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/organizations/owner/:owner_organization_id/memberships/:id/activate",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "organizations",
+                        "owner",
+                        ":owner_organization_id",
+                        "memberships",
+                        ":id",
+                        "activate"
+                      ],
+                      "variable": [
+                        {
+                          "key": "owner_organization_id",
+                          "value": "<org_uuid>"
+                        },
+                        {
+                          "key": "id",
+                          "value": "<membership_uuid>"
+                        }
+                      ]
+                    },
+                    "description": "Reactivate a suspended membership (owner/admin only)."
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Verification",
+              "item": [
+                {
+                  "name": "Submit for Verification",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}",
+                        "type": "text"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/organizations/owner/:organization_id/verification/submit",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "organizations",
+                        "owner",
+                        ":id",
+                        "verification",
+                        "submit"
+                      ],
+                      "variable": [
+                        {
+                          "key": "organization_id",
+                          "value": "<org_uuid>"
+                        }
+                      ]
+                    },
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"notes\": \"Ready for review. All documents uploaded.\"\n}"
+                    },
+                    "description": "Submit organization for verification."
+                  }
+                },
+                {
+                  "name": "Resubmit for Verification",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}",
+                        "type": "text"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/organizations/owner/:organization_id/verification/resubmit",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "organizations",
+                        "owner",
+                        ":id",
+                        "verification",
+                        "resubmit"
+                      ],
+                      "variable": [
+                        {
+                          "key": "organization_id",
+                          "value": "<org_uuid>"
+                        }
+                      ]
+                    },
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"organization\": {\n    \"name\": \"Updated Organization\",\n    \"description\": \"Fixed the issues mentioned in the rejection feedback.\",\n    \"contact_phone\": \"+1234567890\",\n    \"city\": \"New York\",\n    \"region\": \"NY\",\n    \"estimated_audience\": \"100_500\",\n    \"social_links\": {\n      \"twitter\": \"https://twitter.com/updatedorg\"\n    }\n  }\n}"
+                    },
+                    "description": "Resubmit after rejection or modification request."
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Following",
+          "item": [
+            {
+              "name": "List Following",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/users/:user_id/following",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "users",
+                    ":user_id",
+                    "following"
+                  ],
+                  "variable": [
+                    {
+                      "key": "user_id",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "description": "List the users/venues/artists a user is following. Privacy-restricted to own user.",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2XX\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Users",
+          "item": [
+            {
+              "name": "List Users",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users?page=1&per_page=10&status=active",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "users"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "10"
+                    },
+                    {
+                      "key": "status",
+                      "value": "active"
+                    },
+                    {
+                      "key": "order_by",
+                      "value": "created_at"
+                    },
+                    {
+                      "key": "order_direction",
+                      "value": "desc"
+                    },
+                    {
+                      "key": "q[email_cont]",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "q[phone_cont]",
+                      "value": "",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "List active users (default). Use the Deactivated / All variants below for other statuses."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has correct structure\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "  pm.expect(json).to.have.property(\"data\");",
+                      "  pm.expect(json.data).to.be.an(\"array\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "List Users (Deactivated)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users?page=1&per_page=10&status=deactivated",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "users"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "10"
+                    },
+                    {
+                      "key": "status",
+                      "value": "deactivated"
+                    },
+                    {
+                      "key": "order_by",
+                      "value": "created_at"
+                    },
+                    {
+                      "key": "order_direction",
+                      "value": "desc"
+                    },
+                    {
+                      "key": "q[email_cont]",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "q[phone_cont]",
+                      "value": "",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "List only deactivated users.",
+                "response": [],
+                "event": [
+                  {
+                    "listen": "test",
+                    "script": {
+                      "exec": [
+                        "pm.test(\"Status code is 200\", function () {",
+                        "  pm.response.to.have.status(200);",
+                        "});",
+                        "pm.test(\"Response has correct structure\", function () {",
+                        "  const json = pm.response.json();",
+                        "  pm.expect(json).to.have.property(\"success\", true);",
+                        "  pm.expect(json).to.have.property(\"data\");",
+                        "  pm.expect(json.data).to.be.an(\"array\");",
+                        "});"
+                      ],
+                      "type": "text/javascript"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "List Users (All)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users?page=1&per_page=10&status=all",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "users"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "10"
+                    },
+                    {
+                      "key": "status",
+                      "value": "all"
+                    },
+                    {
+                      "key": "order_by",
+                      "value": "created_at"
+                    },
+                    {
+                      "key": "order_direction",
+                      "value": "desc"
+                    },
+                    {
+                      "key": "q[email_cont]",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "q[phone_cont]",
+                      "value": "",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "List all users including deactivated.",
+                "response": [],
+                "event": [
+                  {
+                    "listen": "test",
+                    "script": {
+                      "exec": [
+                        "pm.test(\"Status code is 200\", function () {",
+                        "  pm.response.to.have.status(200);",
+                        "});",
+                        "pm.test(\"Response has correct structure\", function () {",
+                        "  const json = pm.response.json();",
+                        "  pm.expect(json).to.have.property(\"success\", true);",
+                        "  pm.expect(json).to.have.property(\"data\");",
+                        "  pm.expect(json.data).to.be.an(\"array\");",
+                        "});"
+                      ],
+                      "type": "text/javascript"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Get User",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "users",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "description": "Get a single user by ID."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has correct structure\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "  pm.expect(json.data).to.have.property(\"id\");",
+                      "  pm.expect(json.data).to.have.property(\"email\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Create User",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"user\": {\n    \"email\": \"newuser@example.com\",\n    \"phone\": \"+251911123456\",\n    \"password\": \"securepassword123\",\n    \"verified_at\": null\n  }\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "users"
+                  ]
+                },
+                "description": "Create a new user. Requires super_admin or core_admin with create permission."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 201\", function () {",
+                      "  pm.response.to.have.status(201);",
+                      "});",
+                      "pm.test(\"Response has correct structure\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "  pm.expect(json.data).to.have.property(\"id\");",
+                      "  pm.expect(json.data).to.have.property(\"email\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update User",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"user\": {\n    \"email\": \"updated@example.com\",\n    \"phone\": \"+251911999999\",\n    \"verified_at\": \"2026-05-27T12:00:00Z\"\n  }\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "users",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "description": "Update a user's email, phone, or verified status."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has correct structure\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "  pm.expect(json.data).to.have.property(\"id\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Delete User",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "users",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "description": "Delete a user. Requires super_admin permission."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has correct structure\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Deactivate User",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"deactivated_reason\": \"Account compromised\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users/:id/deactivate",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "users",
+                    ":id",
+                    "deactivate"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "description": "Deactivate a user. Their tokens are revoked and they cannot log in. Cannot deactivate yourself."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"User is deactivated\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json.data.deactivated_at).to.not.be.null;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Reactivate User",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users/:id/reactivate",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "users",
+                    ":id",
+                    "reactivate"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "description": "Reactivate a deactivated user. Restores their access."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"User is reactivated\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json.data.deactivated_at).to.be.null;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "User Roles",
+              "item": [
+                {
+                  "name": "List User Roles",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/admin/users/:user_id/roles",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "users",
+                        ":user_id",
+                        "roles"
+                      ],
+                      "variable": [
+                        {
+                          "key": "user_id",
+                          "value": ""
+                        }
+                      ]
+                    },
+                    "description": "List all roles assigned to a specific user."
+                  },
+                  "response": [],
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "exec": [
+                          "pm.test(\"Status code is 200\", function () {",
+                          "  pm.response.to.have.status(200);",
+                          "});",
+                          "pm.test(\"Response has correct structure\", function () {",
+                          "  const json = pm.response.json();",
+                          "  pm.expect(json).to.have.property(\"success\", true);",
+                          "  pm.expect(json.data).to.be.an(\"array\");",
+                          "});"
+                        ],
+                        "type": "text/javascript"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "Assign Role to User",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"user_role\": {\n    \"role_id\": \"<role_uuid>\"\n  }\n}"
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/admin/users/:user_id/roles",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "users",
+                        ":user_id",
+                        "roles"
+                      ],
+                      "variable": [
+                        {
+                          "key": "user_id",
+                          "value": ""
+                        }
+                      ]
+                    },
+                    "description": "Assign a role to a user. Core admins can only assign USER and SUPPORT roles."
+                  },
+                  "response": [],
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "exec": [
+                          "pm.test(\"Status code is 201\", function () {",
+                          "  pm.response.to.have.status(201);",
+                          "});",
+                          "pm.test(\"Response has correct structure\", function () {",
+                          "  const json = pm.response.json();",
+                          "  pm.expect(json).to.have.property(\"success\", true);",
+                          "  pm.expect(json.data).to.have.property(\"id\");",
+                          "});"
+                        ],
+                        "type": "text/javascript"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "Remove Role from User",
+                  "request": {
+                    "method": "DELETE",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/admin/users/:user_id/roles/:role_id",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "users",
+                        ":user_id",
+                        "roles",
+                        ":role_id"
+                      ],
+                      "variable": [
+                        {
+                          "key": "user_id",
+                          "value": ""
+                        },
+                        {
+                          "key": "role_id",
+                          "value": ""
+                        }
+                      ]
+                    },
+                    "description": "Remove a role assignment from a user."
+                  },
+                  "response": [],
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "exec": [
+                          "pm.test(\"Status code is 200\", function () {",
+                          "  pm.response.to.have.status(200);",
+                          "});",
+                          "pm.test(\"Response has correct structure\", function () {",
+                          "  const json = pm.response.json();",
+                          "  pm.expect(json).to.have.property(\"success\", true);",
+                          "});"
+                        ],
+                        "type": "text/javascript"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Roles",
+          "item": [
+            {
+              "name": "List Roles",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/roles?page=1&per_page=10&order_by=code&order_direction=asc",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "roles"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "10"
+                    },
+                    {
+                      "key": "order_by",
+                      "value": "code"
+                    },
+                    {
+                      "key": "order_direction",
+                      "value": "asc"
+                    },
+                    {
+                      "key": "q[code_cont]",
+                      "value": "",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "List all roles with pagination, ordering, and filtering."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has correct structure\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "  pm.expect(json.data).to.be.an(\"array\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Role",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/roles/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "roles",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "description": "Get a single role by ID with its permissions."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has correct structure\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json.data).to.have.property(\"id\");",
+                      "  pm.expect(json.data).to.have.property(\"code\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Create Role",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"role\": {\n    \"code\": \"ORGANIZER\",\n    \"name\": \"Organizer\",\n    \"description\": \"Event organizer role\",\n    \"active\": true,\n    \"permission_ids\": [\"<permission_uuid>\"]\n  }\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/roles",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "roles"
+                  ]
+                },
+                "description": "Create a new role with optional permission assignments."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 201\", function () {",
+                      "  pm.response.to.have.status(201);",
+                      "});",
+                      "pm.test(\"Response has correct structure\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json.data).to.have.property(\"id\");",
+                      "  pm.expect(json.data).to.have.property(\"code\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Role",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"role\": {\n    \"name\": \"Updated Organizer\",\n    \"description\": \"Updated description\",\n    \"active\": true,\n    \"permission_ids\": [\"<permission_uuid>\"]\n  }\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/roles/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "roles",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "description": "Update a role's name, description, active status, or permission assignments."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has correct structure\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json.data).to.have.property(\"id\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Delete Role",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/roles/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "roles",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "description": "Delete a role. Requires super_admin permission."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has correct structure\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Permissions",
+          "item": [
+            {
+              "name": "List Permissions",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/permissions?page=1&per_page=20&order_by=resource&order_direction=asc",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "permissions"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "20"
+                    },
+                    {
+                      "key": "order_by",
+                      "value": "resource"
+                    },
+                    {
+                      "key": "order_direction",
+                      "value": "asc"
+                    },
+                    {
+                      "key": "q[code_cont]",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "q[resource_eq]",
+                      "value": "",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "List all permissions with pagination, ordering, and filtering."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has correct structure\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json.data).to.be.an(\"array\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Permission",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/permissions/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "permissions",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "description": "Get a single permission by ID."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has correct structure\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json.data).to.have.property(\"id\");",
+                      "  pm.expect(json.data).to.have.property(\"code\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Create Permission",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"permission\": {\n    \"code\": \"report.view\",\n    \"resource\": \"report\",\n    \"action\": \"view\",\n    \"namespace\": \"analytics\",\n    \"description\": \"View analytics reports\",\n    \"active\": true\n  }\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/permissions",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "permissions"
+                  ]
+                },
+                "description": "Create a new permission. Code must be unique."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 201\", function () {",
+                      "  pm.response.to.have.status(201);",
+                      "});",
+                      "pm.test(\"Response has correct structure\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json.data).to.have.property(\"id\");",
+                      "  pm.expect(json.data).to.have.property(\"code\", \"report.view\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Permission",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"permission\": {\n    \"description\": \"Updated description\",\n    \"active\": false\n  }\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/permissions/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "permissions",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "description": "Update a permission's description or active status."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has correct structure\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json.data).to.have.property(\"id\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Delete Permission",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/permissions/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "permissions",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "description": "Delete a permission. Requires super_admin permission."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has correct structure\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Categories",
+          "item": [
+            {
+              "name": "List Categories",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/categories?page=1&per_page=10",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "categories"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "disabled": false
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "10",
+                      "disabled": false
+                    },
+                    {
+                      "key": "order_by",
+                      "value": "name",
+                      "disabled": false
+                    },
+                    {
+                      "key": "order_direction",
+                      "value": "asc",
+                      "disabled": false
+                    }
+                  ]
+                }
+              },
+              "description": "List all categories (admin).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2XX\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Category",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/categories/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "categories",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "description": "Get a single category by ID (admin).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2XX\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Create Category",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/categories",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "categories"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"category\": {\n    \"name\": \"Music\",\n    \"description\": \"Concerts, festivals, and live performances\",\n    \"active\": true,\n    \"metadata\": {\n      \"icon\": \"music-note\",\n      \"color\": \"#FF5733\"\n    }\n  }\n}"
+                }
+              },
+              "description": "Create a new category (admin). Requires super_admin or core_admin with create permission.",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2XX\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Category",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/categories/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "categories",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"category\": {\n    \"name\": \"Live Music\",\n    \"description\": \"Updated description\"\n  }\n}"
+                }
+              },
+              "description": "Update an existing category (admin).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2XX\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Delete Category",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/categories/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "categories",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "description": "Delete a category (admin). Requires super_admin.",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2XX\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Venues",
+          "item": [
+            {
+              "name": "List Venues",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/venues?page=1&per_page=10",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "venues"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "disabled": false
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "10",
+                      "disabled": false
+                    },
+                    {
+                      "key": "order_by",
+                      "value": "name",
+                      "disabled": false
+                    },
+                    {
+                      "key": "order_direction",
+                      "value": "asc",
+                      "disabled": false
+                    }
+                  ]
+                }
+              },
+              "description": "List all venues (admin).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2XX\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Venue",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/venues/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "venues",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "description": "Get a single venue by ID (admin).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2XX\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Create Venue",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/venues",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "venues"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"venue\": {\n    \"name\": \"Grand Arena\",\n    \"description\": \"A large indoor arena\",\n    \"address\": \"123 Main St\",\n    \"city\": \"Addis Ababa\",\n    \"country\": \"Ethiopia\",\n    \"capacity\": 5000,\n    \"contact_phone\": \"+251911123456\",\n    \"contact_email\": \"info@grandarena.com\",\n    \"verified\": true,\n    \"active\": true\n  }\n}"
+                }
+              },
+              "description": "Create a new venue (admin).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2XX\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Venue",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/venues/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "venues",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"venue\": {\n    \"name\": \"Updated Arena\",\n    \"capacity\": 8000\n  }\n}"
+                }
+              },
+              "description": "Update an existing venue (admin).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2XX\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Delete Venue",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/venues/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "venues",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "description": "Delete a venue (admin).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2XX\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Artists",
+          "item": [
+            {
+              "name": "List Artists",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/artists?page=1&per_page=10",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "artists"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "disabled": false
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "10",
+                      "disabled": false
+                    },
+                    {
+                      "key": "order_by",
+                      "value": "name",
+                      "disabled": false
+                    },
+                    {
+                      "key": "order_direction",
+                      "value": "asc",
+                      "disabled": false
+                    }
+                  ]
+                }
+              },
+              "description": "List all artists (admin).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2XX\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Artist",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/artists/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "artists",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "description": "Get a single artist by ID (admin).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2XX\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Create Artist",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/artists",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "artists"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"artist\": {\n    \"name\": \"New Artist\",\n    \"description\": \"An amazing musical artist\",\n    \"genres\": [\"pop\", \"jazz\"],\n    \"verified\": true,\n    \"active\": true\n  }\n}"
+                }
+              },
+              "description": "Create a new artist (admin).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2XX\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Artist",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/artists/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "artists",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"artist\": {\n    \"name\": \"Updated Artist\",\n    \"genres\": [\"rock\"]\n  }\n}"
+                }
+              },
+              "description": "Update an existing artist (admin).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2XX\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Delete Artist",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/artists/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "artists",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "description": "Delete an artist (admin).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2XX\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Organizations",
+          "item": [
+            {
+              "name": "List Organizations",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/organizations?page=1&per_page=10",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "organizations"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "10"
+                    },
+                    {
+                      "key": "order_by",
+                      "value": "name"
+                    },
+                    {
+                      "key": "order_direction",
+                      "value": "asc"
+                    }
+                  ]
+                }
+              },
+              "description": "List all organizations (admin).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Organization",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/organizations/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "organizations",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "description": "Get a single organization by ID (admin).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Create Organization",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/organizations",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "organizations"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"organization\": {\n    \"name\": \"New Organization\",\n    \"description\": \"An amazing organization\",\n    \"owner_id\": \"<owner_user_uuid>\",\n    \"organizer_type\": \"individual\",\n    \"category\": \"conference\",\n    \"contact_phone\": \"+1234567890\",\n    \"city\": \"New York\",\n    \"region\": \"NY\"\n  }\n}"
+                }
+              },
+              "description": "Create a new organization (admin). Requires owner_id to designate initial owner.",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 201\", function () {",
+                      "  pm.response.to.have.status(201);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Organization",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/organizations/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "organizations",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"organization\": {\n    \"name\": \"Updated Organization\",\n    \"description\": \"Updated description\",\n    \"organizer_type\": \"company\",\n    \"category\": \"music\",\n    \"contact_phone\": \"+1987654321\",\n    \"city\": \"Los Angeles\",\n    \"region\": \"CA\",\n    \"estimated_audience\": \"500_1000\"\n  }\n}"
+                }
+              },
+              "description": "Update an existing organization (admin).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Delete Organization",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/organizations/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "organizations",
+                    ":id"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "description": "Delete an organization (admin).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Transfer Ownership",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/organizations/:id/transfer_ownership",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "organizations",
+                    ":id",
+                    "transfer_ownership"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"organization\": {\n    \"new_owner_id\": \"<new_owner_user_uuid>\"\n  }\n}"
+                }
+              },
+              "description": "Transfer organization ownership to another user. The new owner must already be a member.",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Verification",
+              "item": [
+                {
+                  "name": "Approve Verification",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}",
+                        "type": "text"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/admin/organizations/:id/verification/approve",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "organizations",
+                        ":id",
+                        "verification",
+                        "approve"
+                      ],
+                      "variable": [
+                        {
+                          "key": "id",
+                          "value": "<org_uuid>"
+                        }
+                      ]
+                    },
+                    "description": "Approve organization verification. Requires verifications.approve permission."
+                  }
+                },
+                {
+                  "name": "Reject Verification",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}",
+                        "type": "text"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/admin/organizations/:id/verification/reject",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "organizations",
+                        ":id",
+                        "verification",
+                        "reject"
+                      ],
+                      "variable": [
+                        {
+                          "key": "id",
+                          "value": "<org_uuid>"
+                        }
+                      ]
+                    },
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"feedback\": {\n    \"message\": \"Documents are incomplete. Please upload a valid business license.\"\n  }\n}"
+                    },
+                    "description": "Reject organization verification. Requires verifications.reject permission."
+                  }
+                },
+                {
+                  "name": "Request Modification",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{token}}",
+                        "type": "text"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/admin/organizations/:id/verification/request_modification",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "organizations",
+                        ":id",
+                        "verification",
+                        "request_modification"
+                      ],
+                      "variable": [
+                        {
+                          "key": "id",
+                          "value": "<org_uuid>"
+                        }
+                      ]
+                    },
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"feedback\": {\n    \"message\": \"Please provide a clearer copy of your TIN certificate.\"\n  }\n}"
+                    },
+                    "description": "Request modifications before re-review. Requires verifications.request_modification permission."
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Memberships",
+              "item": [
+                {
+                  "name": "List Memberships",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/admin/organizations/:organization_id/memberships?page=1&per_page=10",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "organizations",
+                        ":organization_id",
+                        "memberships"
+                      ],
+                      "variable": [
+                        {
+                          "key": "id",
+                          "value": ""
+                        }
+                      ],
+                      "query": [
+                        {
+                          "key": "page",
+                          "value": "1"
+                        },
+                        {
+                          "key": "per_page",
+                          "value": "10"
+                        }
+                      ]
+                    }
+                  },
+                  "description": "List all memberships for an organization (admin).",
+                  "response": [],
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "exec": [
+                          "pm.test(\"Status code is 200\", function () {",
+                          "  pm.response.to.have.status(200);",
+                          "});",
+                          "pm.test(\"Response has success flag\", function () {",
+                          "  const json = pm.response.json();",
+                          "  pm.expect(json).to.have.property(\"success\", true);",
+                          "});"
+                        ],
+                        "type": "text/javascript"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "Get Membership",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/admin/organizations/:organization_id/memberships/:id",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "organizations",
+                        ":organization_id",
+                        "memberships",
+                        ":id"
+                      ],
+                      "variable": [
+                        {
+                          "key": "id",
+                          "value": ""
+                        },
+                        {
+                          "key": "id",
+                          "value": ""
+                        }
+                      ]
+                    }
+                  },
+                  "description": "Get a single membership by ID (admin).",
+                  "response": [],
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "exec": [
+                          "pm.test(\"Status code is 200\", function () {",
+                          "  pm.response.to.have.status(200);",
+                          "});",
+                          "pm.test(\"Response has success flag\", function () {",
+                          "  const json = pm.response.json();",
+                          "  pm.expect(json).to.have.property(\"success\", true);",
+                          "});"
+                        ],
+                        "type": "text/javascript"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "Create Membership",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/admin/organizations/:organization_id/memberships",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "organizations",
+                        ":organization_id",
+                        "memberships"
+                      ],
+                      "variable": [
+                        {
+                          "key": "id",
+                          "value": ""
+                        }
+                      ]
+                    },
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"membership\": {\n    \"user_id\": 3,\n    \"role\": \"admin\"\n  }\n}"
+                    }
+                  },
+                  "description": "Add a member to an organization (admin). Valid roles: admin, member. Cannot create owner role.",
+                  "response": [],
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "exec": [
+                          "pm.test(\"Status code is 201\", function () {",
+                          "  pm.response.to.have.status(201);",
+                          "});",
+                          "pm.test(\"Response has success flag\", function () {",
+                          "  const json = pm.response.json();",
+                          "  pm.expect(json).to.have.property(\"success\", true);",
+                          "});"
+                        ],
+                        "type": "text/javascript"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "Update Membership",
+                  "request": {
+                    "method": "PATCH",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/admin/organizations/:organization_id/memberships/:id",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "organizations",
+                        ":organization_id",
+                        "memberships",
+                        ":id"
+                      ],
+                      "variable": [
+                        {
+                          "key": "id",
+                          "value": ""
+                        },
+                        {
+                          "key": "id",
+                          "value": ""
+                        }
+                      ]
+                    },
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"membership\": {\n    \"role\": \"admin\"\n  }\n}"
+                    }
+                  },
+                  "description": "Update a membership role (admin). Cannot change to owner role.",
+                  "response": [],
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "exec": [
+                          "pm.test(\"Status code is 200\", function () {",
+                          "  pm.response.to.have.status(200);",
+                          "});",
+                          "pm.test(\"Response has success flag\", function () {",
+                          "  const json = pm.response.json();",
+                          "  pm.expect(json).to.have.property(\"success\", true);",
+                          "});"
+                        ],
+                        "type": "text/javascript"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "Delete Membership",
+                  "request": {
+                    "method": "DELETE",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/admin/organizations/:organization_id/memberships/:id",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "admin",
+                        "organizations",
+                        ":organization_id",
+                        "memberships",
+                        ":id"
+                      ],
+                      "variable": [
+                        {
+                          "key": "id",
+                          "value": ""
+                        },
+                        {
+                          "key": "id",
+                          "value": ""
+                        }
+                      ]
+                    }
+                  },
+                  "description": "Remove a member from an organization (admin).",
+                  "response": [],
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "exec": [
+                          "pm.test(\"Status code is 200\", function () {",
+                          "  pm.response.to.have.status(200);",
+                          "});",
+                          "pm.test(\"Response has success flag\", function () {",
+                          "  const json = pm.response.json();",
+                          "  pm.expect(json).to.have.property(\"success\", true);",
+                          "});"
+                        ],
+                        "type": "text/javascript"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
