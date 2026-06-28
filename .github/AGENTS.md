@@ -108,7 +108,12 @@ This is a **modular monolith** Rails application. Each module is a self-containe
 - **Base**: Inherit from module's `ApplicationController` (e.g., `Events::ApplicationController < Core::ApplicationController`)
 - **Core controllers**: Use `Core::Common`, `Core::Authenticatable`, `Core::Filterable`, `Core::Pagination`
 - **Domain controllers**: Use module-specific concerns that inherit from Core concerns
-- **Required methods**: Implement `model_params`, `eager_loaded_associations`, `allowed_order_columns`, `default_serializer_includes`
+- **Required methods**: Implement `model_params`, `eager_load_config`, `allowed_order_columns`, `serializer_profile`
+- **Two-layer serialization**:
+  - `eager_load_config` → SQL `.includes()` (no policy gate, per-action with `:default` fallback)
+  - `serializer_profile[:include]` → AMS rendering (policy-gated via `VISIBILITY`)
+  - `serializer_profile[:fields]` → Attribute visibility (intersected with policy `VISIBILITY[:fields]`)
+  - See `docs/SERIALIZER_PROFILE_AND_VISIBILITY.md` for full documentation
 - **JSON responses**: Use `render_success`/`render_error` from `Core::JsonResponse`
 - **Audit logging**: Include `Core::AuditableController` for change tracking
 - **Review workflows**: Include `Core::ReviewableController` for approval workflows
@@ -129,7 +134,7 @@ This is a **modular monolith** Rails application. Each module is a self-containe
 - **CRUD Operations**: `Core::Common` provides standard index/show/create/update
 - **Filtering**: `Core::Filterable` enables Ransack-based filtering
 - **Pagination**: Built-in with `page`, `per_page`, `order_by`, `order_direction` params
-- **Serialization**: ActiveModel Serializers with action-specific includes
+- **Serialization**: ActiveModel Serializers with two-layer config — `eager_load_config` (SQL preloading) and `serializer_profile` (AMS rendering, policy-gated via `VISIBILITY` — see `docs/SERIALIZER_PROFILE_AND_VISIBILITY.md`)
 - **Authorization**: Pundit policies in `app/policies/{module}/`
 
 ## Development Workflows
@@ -171,8 +176,8 @@ cat test/integration/events/venues_test.rb
 **Post-generation checklist — the 20% the generator doesn't do:**
 
 1. **Model** (`app/models/...`): Add `has_many`/`has_one` associations, custom scopes, extra validations (uniqueness, numericality), business logic methods, callbacks
-2. **Controller** (`app/controllers/...`): Add custom actions beyond CRUD, update `serializer_profile` with fields + includes, update `allowed_order_columns`
-3. **Policy** (`app/policies/...`): Add `VISIBILITY` hash (required on all policies — even if just `{ show: { default: nil, admin: nil } }`), customize `Scope` class for data scoping
+2. **Controller** (`app/controllers/...`): Add custom actions beyond CRUD, update `serializer_profile` with fields + includes, add `eager_load_config` for SQL preloading, update `allowed_order_columns`
+3. **Policy** (`app/policies/...`): Add `VISIBILITY` hash (required on all policies — use explicit `include:` and `fields:` for every action; use `:all` sentinel for pass-through, e.g. `admin: { include: :all, fields: :all }`), customize `Scope` class for data scoping. Absent keys resolve to `[]` (block), so every action must be explicit.
 4. **Serializer** (`app/serializers/...`): Remove unnecessary `belongs_to` associations (they cause deep nesting), add custom attribute methods
 5. **Test** (`test/integration/...`): If `belongs_to` parent lacks a `name` column, edit the `setup` block — change `create!(name: "Setup ...")` to match the parent's actual column
 6. **Migration**: Add composite indexes, FK constraints, or column defaults if needed
@@ -278,6 +283,7 @@ bin/rails db:seed
 - `app/models/concerns/core/reviewable_model.rb` — Review concern
 - `db/schema.rb` — Current database state
 - `docs/DOMAIN_MODULE_GENERATOR.md` — Full generator docs (read before using)
+- `docs/SERIALIZER_PROFILE_AND_VISIBILITY.md` — Two-layer serialization: SQL preloading vs AMS rendering, policy VISIBILITY integration, `:all` sentinel
 - `docs/EVENT PLATFORM ARCHITECTURE REVIEW AND REDESIGN.md` — Complete architecture spec
 - `docs/PLATFORM COMPREHENSIVE CODE REVIEW.md` — Code review findings
 - `config/routes.rb` — Routing patterns
