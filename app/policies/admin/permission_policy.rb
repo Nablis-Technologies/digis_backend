@@ -22,20 +22,20 @@ module Admin
 
     VISIBILITY = {
       index: {
-        admin: { fields: %i[id code resource action namespace description active] },
-        default: { fields: %i[id code resource action namespace] }
+        admin: { fields: %i[id code resource action namespace description active], include: :all },
+        default: { fields: %i[id code resource action namespace], include: :all }
       },
       show: {
-        admin: { fields: %i[id code resource action namespace description active created_at updated_at] },
-        default: { fields: %i[id code resource action namespace] }
+        admin: { fields: %i[id code resource action namespace description active created_at updated_at], include: :all },
+        default: { fields: %i[id code resource action namespace], include: :all }
       },
       create: {
-        admin: { fields: %i[id code resource action namespace] },
-        default: { fields: %i[id code resource action namespace] }
+        admin: { fields: %i[id code resource action namespace], include: :all },
+        default: { fields: %i[id code resource action namespace], include: :all }
       },
       update: {
-        admin: { fields: %i[id code resource action namespace] },
-        default: { fields: %i[id code resource action namespace] }
+        admin: { fields: %i[id code resource action namespace], include: :all },
+        default: { fields: %i[id code resource action namespace], include: :all }
       }
     }.freeze
 

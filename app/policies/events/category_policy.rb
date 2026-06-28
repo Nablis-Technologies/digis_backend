@@ -23,11 +23,11 @@ module Events
     VISIBILITY = {
       index: {
         default: { fields: %i[id name slug], include: [] },
-        admin: { include: [] }
+        admin: { include: [], fields: :all }
       },
       show: {
         default: { fields: %i[id name description slug metadata active], include: [] },
-        admin: { include: [ :audit_logs ] }
+        admin: { include: [:audit_logs], fields: :all }
       }
     }
 

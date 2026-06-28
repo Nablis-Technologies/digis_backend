@@ -31,11 +31,11 @@ module Events
     VISIBILITY = {
       index: {
         default: { fields: %i[id name slug description genres verified active], include: [] },
-        admin: { include: [] }
+        admin: { include: [], fields: :all }
       },
       show: {
         default: { fields: %i[id name slug description image_url genres social_links verified active followers_count], include: [] },
-        admin: { include: [] }
+        admin: { include: [], fields: :all }
       }
     }
 
