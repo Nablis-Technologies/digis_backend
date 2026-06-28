@@ -4,14 +4,42 @@ module Organizations
     include Core::AuditableController
 
     self.model_class = Organizations::Organization
+    self.resource_param = :organization_id
 
     auditable on: %i[create update destroy]
 
+    before_action :set_object, only: %i[show update destroy documents download]
+
+    def destroy
+      authorize @obj
+      @obj.memberships.delete_all
+      @obj.destroy!
+      render_success(status: :ok)
+    end
+
     def set_object
       @obj = @clazz.joins(:memberships)
-                   .where(organizations_memberships: { user_id: current_user.id })
+                   .where(organizations_memberships: { user_id: current_user.id, status: :active })
                    .includes(eager_loaded_associations)
-                   .find_by!(self.class.resource_param => params[self.class.resource_param])
+                   .find(params[:organization_id])
+    end
+
+    def documents
+      authorize @obj, :update?
+      failed = []
+      failed << :profile unless !params[:profile] || @obj.profile.attach(params[:profile])
+      failed << :banner unless !params[:banner] || @obj.banner.attach(params[:banner])
+      failed << :business_license unless !params[:business_license] || @obj.business_license.attach(params[:business_license])
+      failed << :tin_certificate unless !params[:tin_certificate] || @obj.tin_certificate.attach(params[:tin_certificate])
+      return render_error(I18n.t(:"organization.errors.documents", failed: failed.join(", ")), status: :unprocessable_entity) if failed.any?
+
+      render_success(data: @obj)
+    end
+
+    def download
+      authorize @obj, :download_documents?
+      attachment = @obj.public_send(params[:document_type])
+      redirect_to rails_blob_url(attachment, disposition: "inline", expires_in: 5.minutes)
     end
 
     private
@@ -19,11 +47,16 @@ module Organizations
     def apply_index_scope(scope)
       scope.joins(:memberships)
            .where(organizations_memberships: { user_id: current_user.id })
-           .includes(:memberships)
     end
 
     def model_params
-      params.require(:organization).permit(:name, :description, :profile, social_links: {})
+      params.require(:organization).permit(
+        :name, :description, :organizer_type, :category,
+        :contact_phone, :contact_email, :website_url,
+        :tin_number, :address_line1, :address_line2, :city, :region,
+        :estimated_audience, :event_frequency, :experience_summary,
+        social_links: {}
+      )
     end
 
     def allowed_order_columns
@@ -31,16 +64,32 @@ module Organizations
     end
 
     def after_create_hook(organization)
-      organization.memberships.create!(user: current_user, role: :owner)
+      organization.memberships.create!(user: current_user, role: :owner, status: :active)
     end
 
     def serializer_profile
       {
-        index: { fields: %i[id name slug description created_at] },
-        show: { fields: %i[id name slug description profile_url social_links followers_count created_at] },
+        index: { fields: %i[id name slug description profile_url
+                            city region events_count follower_count
+                            memberships_count verified created_at] },
+        show: { fields: %i[id name slug description profile_url banner_url
+                           business_license_url tin_certificate_url
+                           social_links follower_count memberships_count
+                           organizer_type category contact_phone contact_email website_url
+                           tin_number address_line1 address_line2 city region
+                           estimated_audience event_frequency experience_summary
+                           events_count verified is_following created_at] },
         create: { fields: %i[id name slug description created_at] },
         update: { fields: %i[id name slug description created_at] }
       }
+    end
+
+    def eager_load_config
+      { default: [ :memberships, :reviews, :follows,
+                   { profile_attachment: :blob,
+                     banner_attachment: :blob,
+                     business_license_attachment: :blob,
+                     tin_certificate_attachment: :blob } ] }
     end
   end
 end
