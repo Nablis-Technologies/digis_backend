@@ -13,26 +13,26 @@ class Organizations::MembershipTest < ActiveSupport::TestCase
     assert validate_presence_of(:role).matches?(Organizations::Membership.new)
   end
 
-  test "enforces one owner per organization" do
-    org = Organizations::Organization.create!(name: "Test Org")
+  test "enforces one owner per organization at DB level" do
+    org = Organizations::Organization.create!(name: "Test Org", organizer_type: "individual", category: "conference")
     org.memberships.create!(user: core_users(:super_admin), role: :owner)
 
-    duplicate = org.memberships.build(user: core_users(:core_admin), role: :owner)
-    assert_not duplicate.valid?
-    assert_includes duplicate.errors[:role], "already exists for this organization"
+    assert_raises ActiveRecord::RecordNotUnique do
+      org.memberships.create!(user: core_users(:core_admin), role: :owner)
+    end
   end
 
   test "allows multiple non-owner memberships" do
-    org = Organizations::Organization.create!(name: "Test Org")
+    org = Organizations::Organization.create!(name: "Test Org", organizer_type: "individual", category: "conference")
     org.memberships.create!(user: core_users(:super_admin), role: :owner)
-    org.memberships.create!(user: core_users(:core_admin), role: :member)
-    org.memberships.create!(user: core_users(:attendee), role: :member)
+    org.memberships.create!(user: core_users(:core_admin), role: :staff)
+    org.memberships.create!(user: core_users(:attendee), role: :staff)
 
     assert_equal 3, org.memberships.count
   end
 
   test "ransackable_attributes returns safe attributes" do
-    expected = %w[id user_id organization_id role created_at updated_at]
+    expected = %w[id user_id organization_id role status created_at updated_at]
     assert_equal expected, Organizations::Membership.ransackable_attributes
   end
 
