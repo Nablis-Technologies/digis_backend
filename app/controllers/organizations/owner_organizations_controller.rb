@@ -4,7 +4,6 @@ module Organizations
     include Core::AuditableController
 
     self.model_class = Organizations::Organization
-    self.resource_param = :organization_id
 
     auditable on: %i[create update destroy]
 
@@ -21,7 +20,7 @@ module Organizations
       @obj = @clazz.joins(:memberships)
                    .where(organizations_memberships: { user_id: current_user.id, status: :active })
                    .includes(eager_loaded_associations)
-                   .find(params[:organization_id])
+                   .find(params[:id])
     end
 
     def documents

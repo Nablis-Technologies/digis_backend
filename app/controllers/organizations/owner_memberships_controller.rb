@@ -5,7 +5,7 @@ module Organizations
     include Core::MembershipManagement
 
     self.parent_class = Organizations::Organization
-    self.parent_param = :owner_organization_organization_id
+    self.parent_param = :owner_organization_id
 
     before_action :set_object, only: %i[show update destroy suspend activate]
 
