@@ -27,20 +27,24 @@ module Core
     end
 
     def model_params
-      params.require(:membership).permit(:user_id, :role)
+      params.require(:membership).permit(:user_id, :role, :status)
+    end
+
+    def eager_load_config
+      { default: [ :user ] }
     end
 
     def allowed_order_columns
-      %w[id role created_at updated_at]
+      %w[id role status created_at updated_at]
     end
 
     def serializer_profile
       {
-        default: { fields: %i[id role created_at updated_at], include: %i[user] },
-        index:   { fields: %i[id role created_at updated_at], include: %i[user] },
-        show:    { fields: %i[id role created_at updated_at], include: %i[user] },
-        create:  { fields: %i[id role created_at updated_at], include: %i[user] },
-        update:  { fields: %i[id role created_at updated_at], include: %i[user] }
+        default: { fields: %i[id role status created_at updated_at], include: %i[user] },
+        index:   { fields: %i[id role status created_at updated_at], include: %i[user] },
+        show:    { fields: %i[id role status created_at updated_at], include: %i[user] },
+        create:  { fields: %i[id role status created_at updated_at], include: %i[user] },
+        update:  { fields: %i[id role status created_at updated_at], include: %i[user] }
       }
     end
   end
