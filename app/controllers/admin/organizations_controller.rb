@@ -17,19 +17,11 @@ module Admin
     end
 
     def destroy
-      set_clazz
-      @obj = @clazz.with_attached_profile.with_attached_banner
-                   .with_attached_business_license.with_attached_tin_certificate
-                   .includes(:reviews)
-                   .find(params[:id])
-      authorize @obj
       @obj.memberships.delete_all
-      @obj.destroy!
-      render_success(status: :ok)
+      super
     end
 
     def transfer_ownership
-      set_clazz
       set_object
       authorize @obj, :transfer_ownership?
 
@@ -63,19 +55,32 @@ module Admin
         end
       end
 
-      @obj = @clazz.with_attached_profile.includes(:memberships, :reviews, owner_membership: :user).find(@obj.id)
+      @obj = @clazz.includes(eager_loaded_associations).find(@obj.id)
       render_success(data: @obj, serializer_options: { serializer: ::Admin::OrganizationSerializer })
     end
 
     private
 
-    def allowed_order_columns
-      %w[id name slug created_at updated_at]
+    def serializer_profile
+      {
+        index:  { include: %i[owner] },
+        show:   { include: %i[owner] },
+        create: { include: %i[owner] },
+        update: { include: %i[owner] }
+      }
     end
 
-    def apply_index_scope(scope)
-      scope.with_attached_profile.includes(:memberships, :reviews, owner_membership: :user)
-           .with_attached_banner.with_attached_business_license.with_attached_tin_certificate
+    def eager_load_config
+      { default: [ :memberships, :reviews,
+                   { owner_membership: :user,
+                     profile_attachment: :blob,
+                     banner_attachment: :blob,
+                     business_license_attachment: :blob,
+                     tin_certificate_attachment: :blob } ] }
+    end
+
+    def allowed_order_columns
+      %w[id name slug created_at updated_at]
     end
 
     def model_params
