@@ -44,7 +44,6 @@ module Core
       authorize @obj unless skip_authorization_for_action?
 
       data, serializer_options = resolve_block_result(default: @obj)
-      data = @clazz.includes(eager_loaded_associations).find(data.id) if data.is_a?(@clazz)
 
       serializer_options[:include] ||= renderable_associations
 
@@ -94,9 +93,6 @@ module Core
         if object.update(model_params)
           after_update_hook(object) if respond_to?(:after_update_hook, true)
 
-          object = @clazz.includes(eager_loaded_associations).find(object.id)
-          @obj = object
-
           serializer_options[:include] ||= renderable_associations
 
           render_success(data: object, serializer_options: serializer_options)
@@ -111,6 +107,7 @@ module Core
     rescue Pundit::NotAuthorizedError
       raise
     end
+
 
     def destroy
       authorize @obj unless skip_authorization_for_action?
