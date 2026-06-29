@@ -43,7 +43,7 @@ module Core
         render_success(
           :"auth.success.signup",
           data: {
-            user: preloaded_auth_user(user.reload)
+            user: preloaded_auth_user(user)
           },
           status: :created,
           serializer_options: {
@@ -123,7 +123,10 @@ module Core
     def preloaded_auth_user(user)
       return user unless user.is_a?(Core::User)
 
-      user.association(:roles).loaded? ? user : Core::User.includes(roles: :permissions).find(user.id)
+      unless user.association(:roles).loaded?
+        ActiveRecord::Associations::Preloader.new(records: [ user ], associations: { roles: :permissions }).call
+      end
+      user
     end
 
     def assign_default_role(user)
