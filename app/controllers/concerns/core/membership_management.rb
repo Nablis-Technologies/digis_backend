@@ -27,7 +27,11 @@ module Core
     end
 
     def model_params
-      params.require(:membership).permit(:user_id, :role, :status)
+      if action_name == "create"
+        params.require(:membership).permit(:user_id, :role)
+      else
+        params.require(:membership).permit(:role)
+      end
     end
 
     def eager_load_config
