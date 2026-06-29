@@ -37,4 +37,6 @@ en:
       not_authorized: "You are not authorized to perform this action"
       config_error: "Reviewable configuration error: %{message}"
       from_status_mismatch: "Action '%{action}' can only be performed from: %{allowed}. Current status is '%{current_status}'"
+      already_submitted: "Already submitted; use resubmit after rejection or modification request"
+      model_updates_required: "Model updates are required for this action"
 

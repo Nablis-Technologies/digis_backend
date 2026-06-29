@@ -16,8 +16,12 @@ module Admin
       super
     end
 
+    def destroy
+      @obj.memberships.delete_all
+      super
+    end
+
     def transfer_ownership
-      set_clazz
       set_object
       authorize @obj, :transfer_ownership?
 
@@ -33,7 +37,8 @@ module Admin
           return render_error(:"admin.organizations.errors.no_current_owner",
                               status: :unprocessable_entity) unless current_owner_membership
 
-          current_owner_membership.update!(role: :admin)
+          # Demote the old owner first, bypassing the sole-owner callback via update_column
+          current_owner_membership.update_column(:role, :admin)
 
           target_membership = @obj.memberships.lock.find_by(user: new_owner)
           if target_membership
@@ -42,7 +47,6 @@ module Admin
             begin
               @obj.memberships.create!(user: new_owner, role: :owner)
             rescue ActiveRecord::RecordNotUnique
-              # Race: another process created the membership. Re-find and update.
               target_membership = @obj.memberships.lock.find_by(user: new_owner)
               raise unless target_membership
               target_membership.update!(role: :owner)
@@ -51,27 +55,47 @@ module Admin
         end
       end
 
-      @obj = @clazz.with_attached_profile.includes(:memberships, owner_membership: :user).find(@obj.id)
+      @obj = @clazz.includes(eager_loaded_associations).find(@obj.id)
       render_success(data: @obj, serializer_options: { serializer: ::Admin::OrganizationSerializer })
     end
 
     private
 
+    def serializer_profile
+      {
+        index:  { include: %i[owner] },
+        show:   { include: %i[owner] },
+        create: { include: %i[owner] },
+        update: { include: %i[owner] }
+      }
+    end
+
+    def eager_load_config
+      { default: [ :memberships, :reviews,
+                   { owner_membership: :user,
+                     profile_attachment: :blob,
+                     banner_attachment: :blob,
+                     business_license_attachment: :blob,
+                     tin_certificate_attachment: :blob } ] }
+    end
+
     def allowed_order_columns
       %w[id name slug created_at updated_at]
     end
 
-    def apply_index_scope(scope)
-      scope.with_attached_profile.includes(:memberships, owner_membership: :user)
-    end
-
     def model_params
-      params.require(:organization).permit(:name, :description, :profile, social_links: {})
+      params.require(:organization).permit(
+        :name, :description, :organizer_type, :category,
+        :contact_phone, :contact_email, :website_url,
+        :tin_number, :address_line1, :address_line2, :city, :region,
+        :estimated_audience, :event_frequency, :experience_summary,
+        social_links: {}
+      )
     end
 
     def after_create_hook(organization)
       owner = Core::User.find(params.dig(:organization, :owner_id))
-      organization.memberships.create!(user: owner, role: :owner)
+      organization.memberships.create!(user: owner, role: :owner, status: :active)
     end
   end
 end

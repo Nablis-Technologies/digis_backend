@@ -34,7 +34,7 @@ module Core
       total_count = data.count if paginated_request?
       data = apply_pagination(data) if paginated_request?
 
-      serializer_options[:include] ||= eager_loaded_associations
+      serializer_options[:include] ||= renderable_associations
 
       pagination = paginated_request? ? pagination_metadata(total_count) : nil
       render_success(data: data, serializer_options: serializer_options, pagination: pagination)
@@ -44,9 +44,8 @@ module Core
       authorize @obj unless skip_authorization_for_action?
 
       data, serializer_options = resolve_block_result(default: @obj)
-      data = @clazz.includes(eager_loaded_associations).find(data.id) if data.is_a?(@clazz)
 
-      serializer_options[:include] ||= eager_loaded_associations
+      serializer_options[:include] ||= renderable_associations
 
       render_success(data: data, serializer_options: serializer_options)
     end
@@ -70,7 +69,7 @@ module Core
           object = @clazz.includes(eager_loaded_associations).find(object.id)
           @obj = object
 
-          serializer_options[:include] ||= eager_loaded_associations
+          serializer_options[:include] ||= renderable_associations
 
           render_success(data: object, serializer_options: serializer_options, status: :created)
         else
@@ -94,10 +93,7 @@ module Core
         if object.update(model_params)
           after_update_hook(object) if respond_to?(:after_update_hook, true)
 
-          object = @clazz.includes(eager_loaded_associations).find(object.id)
-          @obj = object
-
-          serializer_options[:include] ||= eager_loaded_associations
+          serializer_options[:include] ||= renderable_associations
 
           render_success(data: object, serializer_options: serializer_options)
         else
@@ -111,6 +107,7 @@ module Core
     rescue Pundit::NotAuthorizedError
       raise
     end
+
 
     def destroy
       authorize @obj unless skip_authorization_for_action?
@@ -168,18 +165,20 @@ module Core
       end
     end
 
+    def eager_load_config
+      {}
+    end
+
     def eager_loaded_associations
-      controller_includes = serializer_includes_for_action(action_name)
-      pol = policy_for_data(policy_sample)
-      return controller_includes unless pol&.respond_to?(:included_associations_for)
-
-      policy_includes = pol.included_associations_for(
-        action: action_name,
-        default_includes: controller_includes
-      )
-      return controller_includes if policy_includes.nil?
-
-      controller_includes & policy_includes
+      config = eager_load_config
+      action_key = action_name.to_sym
+      if config.key?(action_key)
+        config[action_key]
+      elsif config.key?(:default)
+        config[:default]
+      else
+        []
+      end
     end
 
     def policy_sample
@@ -200,6 +199,20 @@ module Core
       action_config = profile[action_sym] || {}
       default_conf = profile[:default] || {}
       action_config.key?(:include) ? action_config[:include] : default_conf[:include] || []
+    end
+
+    def renderable_associations
+      controller_includes = serializer_includes_for_action(action_name)
+      pol = policy_for_data(policy_sample)
+      return controller_includes unless pol&.respond_to?(:included_associations_for)
+
+      policy_includes = pol.included_associations_for(
+        action: action_name,
+        default_includes: controller_includes
+      )
+      return controller_includes if policy_includes.nil?
+
+      controller_includes & policy_includes
     end
 
     def model_params

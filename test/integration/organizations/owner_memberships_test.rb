@@ -9,18 +9,18 @@ class OrganizationsOwnerMembershipsTest < ActionDispatch::IntegrationTest
     @owner = core_users(:core_admin)
     @non_owner = core_users(:attendee)
     @target_user = core_users(:support)
-    @org = Organizations::Organization.create!(name: "Owner Test Org #{SecureRandom.hex(4)}")
+    @org = Organizations::Organization.create!(name: "Owner Test Org #{SecureRandom.hex(4)}", organizer_type: "individual", category: "conference")
     @org.memberships.create!(user: @owner, role: :owner)
     @owner_headers = { "Authorization" => "Bearer #{Core::TokenService.issue(Core::TokenService.access_token_payload(@owner))}" }
     @non_owner_headers = { "Authorization" => "Bearer #{Core::TokenService.issue(Core::TokenService.access_token_payload(@non_owner))}" }
   end
 
-  def create_member!(role: "member")
+  def create_member!(role: "staff")
     @org.memberships.create!(user: @target_user, role: role)
   end
 
   def member_create_params
-    { membership: { user_id: @target_user.id, role: "member" } }
+    { membership: { user_id: @target_user.id, role: "staff" } }
   end
 
   # ===== Unauthenticated =====
@@ -45,7 +45,7 @@ class OrganizationsOwnerMembershipsTest < ActionDispatch::IntegrationTest
   test "update requires authentication" do
     member = create_member!
     patch "/organizations/owner/#{@org.id}/memberships/#{member.id}",
-          params: { membership: { role: "member" } }, as: :json
+          params: { membership: { role: "staff" } }, as: :json
     assert_response :unauthorized
   end
 
@@ -78,7 +78,7 @@ class OrganizationsOwnerMembershipsTest < ActionDispatch::IntegrationTest
   test "update returns 403 for non-owner" do
     member = create_member!
     patch "/organizations/owner/#{@org.id}/memberships/#{member.id}",
-          params: { membership: { role: "member" } },
+          params: { membership: { role: "staff" } },
           headers: @non_owner_headers, as: :json
     assert_response :forbidden
   end
@@ -117,7 +117,7 @@ class OrganizationsOwnerMembershipsTest < ActionDispatch::IntegrationTest
     end
     assert_response :created
     data = JSON.parse(response.body).dig("data")
-    assert_equal "member", data["role"]
+    assert_equal "staff", data["role"]
   end
 
   test "update changes membership role" do

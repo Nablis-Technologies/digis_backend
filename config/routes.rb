@@ -42,14 +42,30 @@ Rails.application.routes.draw do
       end
       resources :memberships, only: %i[index show create update destroy]
     end
+
+    post "organizations/:id/verification/approve",              to: "verifications#approve"
+    post "organizations/:id/verification/reject",               to: "verifications#reject"
+    post "organizations/:id/verification/request_modification", to: "verifications#request_modification"
   end
 
   scope module: :organizations do
     resources :owner_organizations, only: %i[index show create update destroy],
               path: "organizations/owner" do
       resources :memberships, only: %i[index show create update destroy],
-                controller: "owner_memberships"
+                controller: "owner_memberships" do
+        member do
+          patch :suspend
+          patch :activate
+        end
+      end
+      member do
+        patch :documents
+        get "documents/:document_type", to: "owner_organizations#download", as: :download_document
+      end
     end
+
+    post "organizations/owner/:organization_id/verification/submit",   to: "verifications#submit"
+    post "organizations/owner/:organization_id/verification/resubmit", to: "verifications#resubmit"
 
     resources :organizations, only: %i[index show], path: "organizations"
   end

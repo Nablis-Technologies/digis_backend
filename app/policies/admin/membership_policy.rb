@@ -22,6 +22,13 @@ module Admin
       create?
     end
 
+    VISIBILITY = {
+      index: { admin: { include: :all, fields: :all } },
+      create: { admin: { include: :all, fields: :all } },
+      update: { admin: { include: :all, fields: :all } },
+      destroy: { admin: { include: :all, fields: :all } }
+    }
+
     class Scope < Core::ApplicationPolicy::Scope
       def resolve
         return scope.none unless user

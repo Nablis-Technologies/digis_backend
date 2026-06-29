@@ -1,0 +1,16 @@
+{
+  "ignored_warnings": [
+    {
+      "fingerprint": "9b9146e36c8cb19f3bb5a259b8ccbd9127fd5ff822d113173df260e42fc4fcdf",
+      "note": "_slug_target is a class-level attribute set at class definition, not user input"
+    },
+    {
+      "fingerprint": "e662e795326863520deefccd83c0e26177cf07bb7e27e72b77cdf386f039fd9f",
+      "note": "user_id and role are intentionally permitted on create — user_id assigns the member, role is guarded against 'owner' in the controller"
+    },
+    {
+      "fingerprint": "9560dfde15edfd1630d46de5ecb9e9c72244f4e0c28f5316ea7e572db4ce19e7",
+      "note": "role is intentionally permitted on update — guarded against 'owner' in the controller, status has dedicated suspend/activate actions"
+    }
+  ]
+}

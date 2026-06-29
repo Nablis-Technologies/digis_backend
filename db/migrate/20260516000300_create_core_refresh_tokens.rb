@@ -3,7 +3,6 @@ class CreateCoreRefreshTokens < ActiveRecord::Migration[8.1]
     create_table :core_refresh_tokens, id: :uuid, default: -> { "uuidv7()" } do |t|
       t.references :user, null: false, type: :uuid, foreign_key: { to_table: :core_users }
       t.string :token_fingerprint, null: false
-      t.string :token_hash, null: false
       t.string :jti, null: false
       t.datetime :expires_at, null: false
       t.boolean :revoked, default: false, null: false

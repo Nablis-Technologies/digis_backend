@@ -9,11 +9,16 @@ class AdminOrganizationMembershipsTest < ActionDispatch::IntegrationTest
                 parent_fixture: :one,
                 fixture_keys: %i[super_admin core_admin support attendee],
                 path: -> { "/admin/organizations/#{organizations_organizations(:one).id}/memberships" },
+                record: -> {
+                  org = organizations_organizations(:one)
+                  org.memberships.where.not(role: :owner).first ||
+                    org.memberships.create!(user: core_users(:attendee), role: :admin)
+                },
                 create_params: -> {
-                  target = core_users(:attendee)
+                  target = core_users(:support)
                   { membership: { user_id: target.id, role: "admin" } }
                 },
-                update_params: ->(record) { { membership: { role: "member" } } },
+                update_params: ->(record) { { membership: { role: "staff" } } },
                 check_attributes: {
                   show: %w[id role created_at],
                   index: %w[id role created_at]
@@ -37,7 +42,7 @@ class AdminOrganizationMembershipsTest < ActionDispatch::IntegrationTest
   test "update rejects owner role" do
     org = organizations_organizations(:one)
     membership = org.memberships.where.not(role: :owner).first
-    membership ||= org.memberships.create!(user: core_users(:attendee), role: :member)
+    membership ||= org.memberships.create!(user: core_users(:attendee), role: :staff)
 
     patch "/admin/organizations/#{org.id}/memberships/#{membership.id}",
           params: { membership: { role: "owner" } },
@@ -76,10 +81,10 @@ class AdminOrganizationMembershipsTest < ActionDispatch::IntegrationTest
   test "update membership is forbidden for support" do
     org = organizations_organizations(:one)
     membership = org.memberships.where.not(role: :owner).first
-    membership ||= org.memberships.create!(user: core_users(:attendee), role: :member)
+    membership ||= org.memberships.create!(user: core_users(:attendee), role: :staff)
 
     patch "/admin/organizations/#{org.id}/memberships/#{membership.id}",
-          params: { membership: { role: "member" } },
+          params: { membership: { role: "staff" } },
           headers: token_headers_for(core_users(:support)), as: :json
     assert_response :forbidden
   end

@@ -9,7 +9,11 @@ module Core
 
     def followed_by?(user)
       return false unless user&.id
-      follows.exists?(follower_id: user.id)
+      if follows.loaded?
+        follows.any? { |f| f.follower_id == user.id }
+      else
+        follows.exists?(follower_id: user.id)
+      end
     end
   end
 end

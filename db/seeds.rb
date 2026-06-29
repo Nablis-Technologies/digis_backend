@@ -155,6 +155,11 @@ permissions = [
   { resource: "review", action: "approve", namespace: "core", description: "Approve reviews" },
   { resource: "review", action: "reject", namespace: "core", description: "Reject reviews" },
 
+  # Verifications
+  { resource: "verifications", action: "approve", namespace: "admin", description: "Approve organization verifications" },
+  { resource: "verifications", action: "reject", namespace: "admin", description: "Reject organization verifications" },
+  { resource: "verifications", action: "request_modification", namespace: "admin", description: "Request modification for organization verification" },
+
   # Venue management
   { resource: "venue", action: "index", namespace: "core", description: "List all venues" },
   { resource: "venue", action: "show", namespace: "core", description: "View venue details" },
@@ -316,14 +321,20 @@ puts "\n🏢 Seeding organizations..."
 
 org_digis = Organizations::Organization.find_or_create_by!(name: "Digis HQ") do |o|
   o.description = "The official Digis platform organization — manages core platform operations and infrastructure"
+  o.organizer_type = "company"
+  o.category = "conference"
 end
 
 org_music = Organizations::Organization.find_or_create_by!(name: "Addis Music Fest") do |o|
   o.description = "Ethiopia's premier music festival organization — hosts annual concerts and live performances across Addis Ababa"
+  o.organizer_type = "company"
+  o.category = "music"
 end
 
 org_tech = Organizations::Organization.find_or_create_by!(name: "Ethiopian Tech Summit") do |o|
   o.description = "Leading tech conference organizer — brings together innovators, developers, and entrepreneurs from across Africa"
+  o.organizer_type = "company"
+  o.category = "conference"
 end
 
 puts "✓ #{Organizations::Organization.count} organizations seeded"
@@ -350,12 +361,12 @@ end
 
 # organizer_user is member on Tech Summit
 Organizations::Membership.find_or_create_by!(user: organizer_user, organization: org_tech) do |m|
-  m.role = :member
+  m.role = :staff
 end
 
 # attendee_user is member on Digis HQ
 Organizations::Membership.find_or_create_by!(user: attendee_user, organization: org_digis) do |m|
-  m.role = :member
+  m.role = :staff
 end
 
 puts "✓ #{Organizations::Membership.count} memberships seeded"
@@ -366,9 +377,9 @@ puts "✓ #{Organizations::Membership.count} memberships seeded"
 puts "\n🏟️  Seeding venues..."
 
 venues = [
-  { name: "Millennium Hall", description: "One of Addis Ababa's largest indoor venues, hosting major concerts, conferences, and cultural events with a capacity of over 5,000.", address: "Bole Road", city: "Addis Ababa", country: "Ethiopia", latitude: 9.0227, longitude: 38.7468, capacity: 5000, contact_phone: "+251911100001", contact_email: "info@millenniumhall.et", website_url: "https://millenniumhall.et", verified: true, active: true, amenities: ["parking", "air_conditioning", "sound_system", "catering"] },
-  { name: "Sheraton Addis", description: "Luxury hotel and event venue featuring multiple ballrooms and conference facilities in the heart of Addis Ababa.", address: "Yohanis Street", city: "Addis Ababa", country: "Ethiopia", latitude: 9.0247, longitude: 38.7469, capacity: 1500, contact_phone: "+251911100002", contact_email: "events@sheratonaddis.et", website_url: "https://sheratonaddis.et", verified: true, active: true, amenities: ["parking", "air_conditioning", "wifi", "catering", "stage"] },
-  { name: "Skylight Hotel", description: "Modern convention center and hotel with state-of-the-art facilities for conferences and exhibitions.", address: "Bole International Airport Area", city: "Addis Ababa", country: "Ethiopia", latitude: 8.9806, longitude: 38.7993, capacity: 3000, contact_phone: "+251911100003", contact_email: "info@skylighthotel.et", verified: false, active: true, amenities: ["parking", "wifi", "catering", "projector"] },
+  { name: "Millennium Hall", description: "One of Addis Ababa's largest indoor venues, hosting major concerts, conferences, and cultural events with a capacity of over 5,000.", address: "Bole Road", city: "Addis Ababa", country: "Ethiopia", latitude: 9.0227, longitude: 38.7468, capacity: 5000, contact_phone: "+251911100001", contact_email: "info@millenniumhall.et", website_url: "https://millenniumhall.et", verified: true, active: true, amenities: [ "parking", "air_conditioning", "sound_system", "catering" ] },
+  { name: "Sheraton Addis", description: "Luxury hotel and event venue featuring multiple ballrooms and conference facilities in the heart of Addis Ababa.", address: "Yohanis Street", city: "Addis Ababa", country: "Ethiopia", latitude: 9.0247, longitude: 38.7469, capacity: 1500, contact_phone: "+251911100002", contact_email: "events@sheratonaddis.et", website_url: "https://sheratonaddis.et", verified: true, active: true, amenities: [ "parking", "air_conditioning", "wifi", "catering", "stage" ] },
+  { name: "Skylight Hotel", description: "Modern convention center and hotel with state-of-the-art facilities for conferences and exhibitions.", address: "Bole International Airport Area", city: "Addis Ababa", country: "Ethiopia", latitude: 8.9806, longitude: 38.7993, capacity: 3000, contact_phone: "+251911100003", contact_email: "info@skylighthotel.et", verified: false, active: true, amenities: [ "parking", "wifi", "catering", "projector" ] }
 ]
 
 venues.each do |v|
@@ -385,9 +396,9 @@ puts "✓ #{Events::Venue.count} venues seeded"
 puts "\n🎤 Seeding artists..."
 
 artists = [
-  { name: "Teddy Afro", description: "Ethiopia's biggest musical icon — known for reggae and pop fusion with powerful social commentary", genres: ["reggae", "pop", "Ethio-jazz"], image_url: "https://example.com/teddyafro.jpg", verified: true, active: true },
-  { name: "Haleluya", description: "Award-winning Ethiopian gospel and contemporary music artist", genres: ["gospel", "contemporary"], image_url: "https://example.com/haleluya.jpg", verified: true, active: true },
-  { name: "Jano Band", description: "Up-and-coming Ethio-jazz fusion band blending traditional instruments with modern sounds", genres: ["Ethio-jazz", "fusion", "jazz"], image_url: "https://example.com/janoband.jpg", verified: false, active: true },
+  { name: "Teddy Afro", description: "Ethiopia's biggest musical icon — known for reggae and pop fusion with powerful social commentary", genres: [ "reggae", "pop", "Ethio-jazz" ], image_url: "https://example.com/teddyafro.jpg", verified: true, active: true },
+  { name: "Haleluya", description: "Award-winning Ethiopian gospel and contemporary music artist", genres: [ "gospel", "contemporary" ], image_url: "https://example.com/haleluya.jpg", verified: true, active: true },
+  { name: "Jano Band", description: "Up-and-coming Ethio-jazz fusion band blending traditional instruments with modern sounds", genres: [ "Ethio-jazz", "fusion", "jazz" ], image_url: "https://example.com/janoband.jpg", verified: false, active: true }
 ]
 
 artists.each do |a|
@@ -410,7 +421,7 @@ if attendee
   followables = [
     Events::Venue.find_by(name: "Millennium Hall"),
     Events::Artist.find_by(name: "Teddy Afro"),
-    Organizations::Organization.find_by(name: "Addis Music Fest"),
+    Organizations::Organization.find_by(name: "Addis Music Fest")
   ].compact
 
   followables.each do |f|

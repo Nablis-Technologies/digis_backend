@@ -167,7 +167,9 @@ module Core
         return unless permitted_key
 
         test "destroy removes the record" do
-          record = if @child_record
+          record = if meta.record_proc
+            instance_exec(&meta.record_proc)
+          elsif @child_record
             @child_record
           else
             key = meta.param_key
@@ -232,7 +234,7 @@ module Core
     end
 
     def resolve_record(action, meta)
-      return meta.record_proc.call if meta.record_proc
+      return instance_exec(&meta.record_proc) if meta.record_proc && %i[show update destroy].include?(action)
       return @child_record if @child_record && %i[show update destroy].include?(action)
       return meta.model_class.first if %i[show update destroy].include?(action)
 

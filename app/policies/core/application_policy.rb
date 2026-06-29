@@ -31,15 +31,17 @@ module Core
       entry = resolve_visibility_entry(action)
       return nil if entry.nil?
       return entry.map(&:to_sym) if entry.is_a?(Array)
+      return nil if entry[:fields] == :all
 
-      entry[:fields]&.map(&:to_sym)
+      entry[:fields]&.map(&:to_sym) || []
     end
 
     def included_associations_for(action:, default_includes:)
       entry = resolve_visibility_entry(action)
       return nil unless entry.is_a?(Hash)
+      return nil if entry[:include] == :all
 
-      entry[:include]&.map(&:to_sym)
+      entry[:include]&.map(&:to_sym) || []
     end
 
     def association_fields_for(action:)

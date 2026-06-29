@@ -1,7 +1,7 @@
 module Admin
   class ApplicationController < Core::ApplicationController
     def authorize(record, query = nil, policy_class: nil)
-      admin_policy = resolve_admin_policy(record)
+      admin_policy = policy_class&.new(pundit_user, record) || resolve_admin_policy(record)
       effective_query = (query || "#{action_name}?").to_s
       unless admin_policy.public_send(effective_query)
         raise ::Pundit::NotAuthorizedError, policy: admin_policy, query: effective_query, record: record

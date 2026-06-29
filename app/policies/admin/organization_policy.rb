@@ -10,6 +10,13 @@ module Admin
       allowed?(:transfer_ownership)
     end
 
+    VISIBILITY = {
+      index: { admin: { include: :all, fields: :all } },
+      show: { admin: { include: :all, fields: :all } },
+      create: { admin: { include: :all, fields: :all } },
+      update: { admin: { include: :all, fields: :all } }
+    }
+
     class Scope < Core::ApplicationPolicy::Scope
       def resolve
         return scope.none unless user

@@ -52,6 +52,10 @@ module Admin
       end
     end
 
+    def eager_load_config
+      { default: [ :roles ] }
+    end
+
     def allowed_order_columns
       %w[id email phone verified_at deactivated_at created_at updated_at]
     end

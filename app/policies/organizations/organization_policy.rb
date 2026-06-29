@@ -20,6 +20,10 @@ module Organizations
       record.owner == user || user&.super_admin?
     end
 
+    def download_documents?
+      record.owner == user || user&.super_admin?
+    end
+
     def follow?
       true
     end
@@ -30,12 +34,20 @@ module Organizations
 
     VISIBILITY = {
       index: {
-        default: { fields: %i[id name slug description created_at], include: [] },
-        admin: { include: [] }
+        default: { fields: %i[id name slug description profile_url
+                              city region events_count follower_count
+                              memberships_count verified created_at] },
+        admin: { include: :all, fields: :all }
       },
       show: {
-        default: { fields: %i[id name slug description profile_url social_links followers_count created_at], include: [] },
-        admin: { include: [] }
+        default: { fields: %i[id name slug description profile_url banner_url
+                              business_license_url tin_certificate_url
+                              social_links follower_count memberships_count
+                              organizer_type category contact_phone contact_email website_url
+                              tin_number address_line1 address_line2 city region
+                               estimated_audience event_frequency experience_summary
+                              events_count verified is_following created_at] },
+        admin: { include: :all, fields: :all }
       }
     }
 

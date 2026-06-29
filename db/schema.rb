@@ -15,17 +15,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_30_095119) do
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
 
-  create_table "active_storage_attachments", force: :cascade do |t|
-    t.bigint "blob_id", null: false
+  create_table "active_storage_attachments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "blob_id", null: false
     t.datetime "created_at", null: false
     t.string "name", null: false
-    t.bigint "record_id", null: false
+    t.uuid "record_id", null: false
     t.string "record_type", null: false
     t.index ["blob_id"], name: "index_active_storage_attachments_on_blob_id"
     t.index ["record_type", "record_id", "name", "blob_id"], name: "index_active_storage_attachments_uniqueness", unique: true
   end
 
-  create_table "active_storage_blobs", force: :cascade do |t|
+  create_table "active_storage_blobs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.bigint "byte_size", null: false
     t.string "checksum"
     t.string "content_type"
@@ -37,8 +37,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_30_095119) do
     t.index ["key"], name: "index_active_storage_blobs_on_key", unique: true
   end
 
-  create_table "active_storage_variant_records", force: :cascade do |t|
-    t.bigint "blob_id", null: false
+  create_table "active_storage_variant_records", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
   end
@@ -100,7 +100,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_30_095119) do
     t.boolean "revoked", default: false, null: false
     t.datetime "revoked_at"
     t.string "token_fingerprint", null: false
-    t.string "token_hash", null: false
     t.datetime "updated_at", null: false
     t.string "user_agent"
     t.uuid "user_id", null: false
@@ -240,23 +239,39 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_30_095119) do
   create_table "organizations_memberships", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.uuid "organization_id", null: false
-    t.integer "role", null: false
+    t.string "role", default: "staff", null: false
+    t.string "status", default: "active", null: false
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
-    t.index ["organization_id"], name: "idx_one_owner_per_org", unique: true, where: "(role = 0)"
+    t.index ["organization_id"], name: "idx_one_owner_per_org", unique: true, where: "((role)::text = 'owner'::text)"
     t.index ["organization_id"], name: "index_organizations_memberships_on_organization_id"
+    t.index ["status"], name: "index_organizations_memberships_on_status"
     t.index ["user_id", "organization_id"], name: "idx_org_memberships_on_user_and_org", unique: true
     t.index ["user_id"], name: "index_organizations_memberships_on_user_id"
   end
 
   create_table "organizations_organizations", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
+    t.string "address_line1"
+    t.string "address_line2"
+    t.string "category", null: false
+    t.string "city"
+    t.string "contact_email"
+    t.string "contact_phone"
     t.datetime "created_at", null: false
     t.text "description"
+    t.string "estimated_audience"
+    t.string "event_frequency"
+    t.integer "events_count", default: 0, null: false
+    t.text "experience_summary"
     t.integer "followers_count", default: 0, null: false
     t.string "name", null: false
+    t.string "organizer_type", null: false
+    t.string "region"
     t.string "slug", null: false
     t.jsonb "social_links", default: {}
+    t.string "tin_number"
     t.datetime "updated_at", null: false
+    t.string "website_url"
     t.index ["slug"], name: "index_organizations_organizations_on_slug", unique: true
   end
 
