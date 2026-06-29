@@ -27,7 +27,7 @@ module Events
       },
       show: {
         default: { fields: %i[id name description slug metadata active], include: [] },
-        admin: { include: [:audit_logs], fields: :all }
+        admin: { include: [ :audit_logs ], fields: :all }
       }
     }
 
