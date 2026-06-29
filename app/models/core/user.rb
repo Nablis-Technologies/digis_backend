@@ -98,23 +98,38 @@ module Core
     end
 
     def active_permissions
-      @active_permissions ||= Core::Permission
-        .joins(role_permissions: { role: :user_roles })
-        .merge(Core::UserRole.active)
-        .where(core_user_roles: { user_id: id })
-        .where(core_roles: { active: true }, core_permissions: { active: true })
-        .distinct
-        .pluck(:code)
+      @active_permissions ||= if association(:user_roles).loaded?
+        user_roles.select(&:active?)
+          .filter_map { |ur| ur.role&.permissions if ur.role&.active? }
+          .flatten
+          .select(&:active?)
+          .map(&:code)
+          .uniq
+      else
+        Core::Permission
+          .joins(role_permissions: { role: :user_roles })
+          .merge(Core::UserRole.active)
+          .where(core_user_roles: { user_id: id })
+          .where(core_roles: { active: true }, core_permissions: { active: true })
+          .distinct
+          .pluck(:code)
+      end
     end
 
     def active_role_codes
-      @active_role_codes ||= roles
-        .where(active: true)
-        .joins(:user_roles)
-        .merge(Core::UserRole.active)
-        .where(core_user_roles: { user_id: id })
-        .distinct
-        .pluck(:code)
+      @active_role_codes ||= if association(:user_roles).loaded?
+        user_roles.select(&:active?)
+          .filter_map { |ur| ur.role&.code if ur.role&.active? }
+          .uniq
+      else
+        roles
+          .where(active: true)
+          .joins(:user_roles)
+          .merge(Core::UserRole.active)
+          .where(core_user_roles: { user_id: id })
+          .distinct
+          .pluck(:code)
+      end
     end
 
     def clear_permission_cache!
