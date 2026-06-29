@@ -100,7 +100,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_30_095119) do
     t.boolean "revoked", default: false, null: false
     t.datetime "revoked_at"
     t.string "token_fingerprint", null: false
-    t.string "token_hash", null: false
     t.datetime "updated_at", null: false
     t.string "user_agent"
     t.uuid "user_id", null: false
