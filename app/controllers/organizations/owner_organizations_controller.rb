@@ -37,11 +37,22 @@ module Organizations
 
     def download
       authorize @obj, :download_documents?
-      attachment = @obj.public_send(params[:document_type])
+      attachment = document_attachment
+      return render_error(status: :unprocessable_entity) unless attachment
+
       redirect_to rails_blob_url(attachment, disposition: "inline", expires_in: 5.minutes)
     end
 
     private
+
+    def document_attachment
+      case params[:document_type]
+      when "banner" then @obj.banner
+      when "business_license" then @obj.business_license
+      when "tin_certificate" then @obj.tin_certificate
+      when "profile" then @obj.profile
+      end
+    end
 
     def apply_index_scope(scope)
       scope.joins(:memberships)
