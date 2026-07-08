@@ -138,11 +138,11 @@ class EventsArtistsTest < ActionDispatch::IntegrationTest
     assert_equal names.sort, names
   end
 
-  test "index ignores q when searchable? is false" do
+  test "index filters by q[name_cont] search" do
     get "/artists?q[name_cont]=Teddy", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
-    assert_equal @active_artists_count, data.length
+    assert data.all? { |a| a["name"].match?(/Teddy/i) }
   end
 
   test "followers returns empty for unfollowed artist" do

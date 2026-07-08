@@ -12,6 +12,10 @@ module Events
       Events::Category.active
     end
 
+    def searchable?
+      true
+    end
+
     def allowed_order_columns
       %w[id name created_at]
     end

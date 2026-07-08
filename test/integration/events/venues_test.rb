@@ -155,11 +155,11 @@ class EventsVenuesTest < ActionDispatch::IntegrationTest
     assert_equal names.sort, names
   end
 
-  test "index ignores q when searchable? is false" do
+  test "index filters by q[name_cont] search" do
     get "/venues?q[name_cont]=Grand", as: :json
     assert_response :success
     data = JSON.parse(response.body).dig("data")
-    assert_equal @active_venues_count, data.length
+    assert data.all? { |v| v["name"].match?(/Grand/i) }
   end
 
   test "followers returns empty for unfollowed venue" do
