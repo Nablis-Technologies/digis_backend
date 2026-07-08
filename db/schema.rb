@@ -262,7 +262,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_30_095119) do
     t.string "estimated_audience"
     t.string "event_frequency"
     t.integer "events_count", default: 0, null: false
-    t.text "experience_summary"
     t.integer "followers_count", default: 0, null: false
     t.string "name", null: false
     t.string "organizer_type", null: false

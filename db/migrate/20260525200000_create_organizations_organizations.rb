@@ -21,8 +21,6 @@ class CreateOrganizationsOrganizations < ActiveRecord::Migration[8.1]
 
       t.string :estimated_audience
       t.string :event_frequency
-      t.text :experience_summary
-
       t.integer :events_count, default: 0, null: false
 
       t.timestamps

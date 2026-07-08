@@ -161,7 +161,7 @@ module Organizations
         :name, :description, :organizer_type, :category,
         :contact_phone, :contact_email, :website_url,
         :tin_number, :address_line1, :address_line2, :city, :region,
-        :estimated_audience, :event_frequency, :experience_summary,
+        :estimated_audience, :event_frequency,
         social_links: {}
       )
     end

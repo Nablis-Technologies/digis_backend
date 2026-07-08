@@ -8,7 +8,7 @@ module Organizations
                  :organizer_type, :category,
                  :contact_phone, :contact_email, :website_url,
                  :city, :region,
-                 :estimated_audience, :event_frequency, :experience_summary,
+                 :estimated_audience, :event_frequency,
                  :events_count, :follower_count,
                  :verified, :is_following,
                  :created_at

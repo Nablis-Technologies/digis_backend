@@ -64,7 +64,7 @@ module Organizations
         :name, :description, :organizer_type, :category,
         :contact_phone, :contact_email, :website_url,
         :tin_number, :address_line1, :address_line2, :city, :region,
-        :estimated_audience, :event_frequency, :experience_summary,
+        :estimated_audience, :event_frequency,
         social_links: {}
       )
     end
@@ -87,7 +87,7 @@ module Organizations
                            social_links follower_count memberships_count
                            organizer_type category contact_phone contact_email website_url
                            tin_number address_line1 address_line2 city region
-                           estimated_audience event_frequency experience_summary
+                           estimated_audience event_frequency
                            events_count verified is_following created_at] },
         create: { fields: %i[id name slug description created_at] },
         update: { fields: %i[id name slug description created_at] }
