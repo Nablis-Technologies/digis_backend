@@ -1,0 +1,796 @@
+{
+  "info": {
+    "name": "Digis API — Filtering & Searching",
+    "description": "Filtering, searching, pagination, and sorting examples for all endpoints. Works with seed data.\n\n1. Run \"Login\" requests first to set the access token\n2. Public endpoints don't need auth (but work with it too)\n3. Admin/Owner endpoints need a logged-in admin user\n\nSee docs/API_FILTERING_AND_SEARCHING.md for full documentation.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "▶️ Auth — Login First",
+      "description": "Run one of these to set the access token. Public endpoints don't need auth, but admin endpoints do.",
+      "item": [
+        {
+          "name": "Login as Admin (SUPER_ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"+251911000001\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Login as SUPER_ADMIN (admin@digis.et). Sets the access token for all subsequent requests."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  const token = json?.data?.access_token;",
+                  "  if (token) pm.collectionVariables.set(\"accessToken\", token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as Organizer (CORE_ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"+251911000002\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Login as CORE_ADMIN (organizer@digis.et). Has limited admin access."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  const token = json?.data?.access_token;",
+                  "  if (token) pm.collectionVariables.set(\"accessToken\", token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🌐 Public — Categories",
+      "item": [
+        {
+          "name": "List categories (default)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["categories"]
+            }
+          }
+        },
+        {
+          "name": "Search by name: q[name_cont]=music",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/categories?q[name_cont]=music",
+              "host": ["{{baseUrl}}"],
+              "path": ["categories"],
+              "query": [
+                { "key": "q[name_cont]", "value": "music" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Sort alphabetically: order_by=name&order_direction=asc",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/categories?order_by=name&order_direction=asc",
+              "host": ["{{baseUrl}}"],
+              "path": ["categories"],
+              "query": [
+                { "key": "order_by", "value": "name" },
+                { "key": "order_direction", "value": "asc" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🌐 Public — Venues",
+      "item": [
+        {
+          "name": "List venues (default 25)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/venues",
+              "host": ["{{baseUrl}}"],
+              "path": ["venues"]
+            }
+          }
+        },
+        {
+          "name": "Filter by city: city=Addis+Ababa",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/venues?city=Addis+Ababa",
+              "host": ["{{baseUrl}}"],
+              "path": ["venues"],
+              "query": [
+                { "key": "city", "value": "Addis Ababa" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Filter by verified=true (catalog filter)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/venues?verified=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["venues"],
+              "query": [
+                { "key": "verified", "value": "true" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search by name: q[name_cont]=hall",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/venues?q[name_cont]=hall",
+              "host": ["{{baseUrl}}"],
+              "path": ["venues"],
+              "query": [
+                { "key": "q[name_cont]", "value": "hall" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Combined: city filter + q search",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/venues?city=Addis+Ababa&q[name_cont]=sheraton",
+              "host": ["{{baseUrl}}"],
+              "path": ["venues"],
+              "query": [
+                { "key": "city", "value": "Addis Ababa" },
+                { "key": "q[name_cont]", "value": "sheraton" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Sort by name asc, paginated",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/venues?order_by=name&order_direction=asc&page=1&per_page=2",
+              "host": ["{{baseUrl}}"],
+              "path": ["venues"],
+              "query": [
+                { "key": "order_by", "value": "name" },
+                { "key": "order_direction", "value": "asc" },
+                { "key": "page", "value": "1" },
+                { "key": "per_page", "value": "2" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Unfiltered list with pagination metadata",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/venues?page=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["venues"],
+              "query": [
+                { "key": "page", "value": "1" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🌐 Public — Artists",
+      "item": [
+        {
+          "name": "List artists (default 25)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/artists",
+              "host": ["{{baseUrl}}"],
+              "path": ["artists"]
+            }
+          }
+        },
+        {
+          "name": "Filter by genre=jazz (catalog filter)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/artists?genre=jazz",
+              "host": ["{{baseUrl}}"],
+              "path": ["artists"],
+              "query": [
+                { "key": "genre", "value": "jazz" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Filter by verified=true",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/artists?verified=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["artists"],
+              "query": [
+                { "key": "verified", "value": "true" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search by name: q[name_cont]=teddy",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/artists?q[name_cont]=teddy",
+              "host": ["{{baseUrl}}"],
+              "path": ["artists"],
+              "query": [
+                { "key": "q[name_cont]", "value": "teddy" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Combined: genre + search",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/artists?genre=jazz&q[name_cont]=band",
+              "host": ["{{baseUrl}}"],
+              "path": ["artists"],
+              "query": [
+                { "key": "genre", "value": "jazz" },
+                { "key": "q[name_cont]", "value": "band" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Sort by name asc",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/artists?order_by=name&order_direction=asc",
+              "host": ["{{baseUrl}}"],
+              "path": ["artists"],
+              "query": [
+                { "key": "order_by", "value": "name" },
+                { "key": "order_direction", "value": "asc" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🌐 Public — Organizations",
+      "item": [
+        {
+          "name": "List organizations (default 25)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/organizations",
+              "host": ["{{baseUrl}}"],
+              "path": ["organizations"]
+            }
+          }
+        },
+        {
+          "name": "Search by name: q[name_cont]=tech",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/organizations?q[name_cont]=tech",
+              "host": ["{{baseUrl}}"],
+              "path": ["organizations"],
+              "query": [
+                { "key": "q[name_cont]", "value": "tech" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search by name: q[name_cont]=addis",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/organizations?q[name_cont]=addis",
+              "host": ["{{baseUrl}}"],
+              "path": ["organizations"],
+              "query": [
+                { "key": "q[name_cont]", "value": "addis" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Filter by category: q[category_eq]=music",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/organizations?q[category_eq]=music",
+              "host": ["{{baseUrl}}"],
+              "path": ["organizations"],
+              "query": [
+                { "key": "q[category_eq]", "value": "music" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Filter by organizer type: q[organizer_type_eq]=company",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/organizations?q[organizer_type_eq]=company",
+              "host": ["{{baseUrl}}"],
+              "path": ["organizations"],
+              "query": [
+                { "key": "q[organizer_type_eq]", "value": "company" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Combined: search + category + pagination",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/organizations?q[category_eq]=conference&page=1&per_page=2&order_by=name",
+              "host": ["{{baseUrl}}"],
+              "path": ["organizations"],
+              "query": [
+                { "key": "q[category_eq]", "value": "conference" },
+                { "key": "page", "value": "1" },
+                { "key": "per_page", "value": "2" },
+                { "key": "order_by", "value": "name" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔒 Admin — Users",
+      "item": [
+        {
+          "name": "List users (default sort: id desc)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users"]
+            }
+          }
+        },
+        {
+          "name": "Search email domain: q[email_cont]=@digis.et",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/users?q[email_cont]=@digis.et",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users"],
+              "query": [
+                { "key": "q[email_cont]", "value": "@digis.et" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Active users only: q[deactivated_at_null]=1",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/users?q[deactivated_at_null]=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users"],
+              "query": [
+                { "key": "q[deactivated_at_null]", "value": "1" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Sort by email asc, paginated",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/users?order_by=email&order_direction=asc&page=1&per_page=2",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users"],
+              "query": [
+                { "key": "order_by", "value": "email" },
+                { "key": "order_direction", "value": "asc" },
+                { "key": "page", "value": "1" },
+                { "key": "per_page", "value": "2" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔒 Admin — Roles",
+      "item": [
+        {
+          "name": "List roles",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/roles",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "roles"]
+            }
+          }
+        },
+        {
+          "name": "Active roles: q[active_true]=1",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/roles?q[active_true]=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "roles"],
+              "query": [
+                { "key": "q[active_true]", "value": "1" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search by name: q[name_cont]=admin",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/roles?q[name_cont]=admin",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "roles"],
+              "query": [
+                { "key": "q[name_cont]", "value": "admin" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔒 Admin — Permissions",
+      "item": [
+        {
+          "name": "Filter by resource: q[resource_eq]=organization",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/permissions?q[resource_eq]=organization",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "permissions"],
+              "query": [
+                { "key": "q[resource_eq]", "value": "organization" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Filter by namespace: q[namespace_eq]=admin",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/permissions?q[namespace_eq]=admin",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "permissions"],
+              "query": [
+                { "key": "q[namespace_eq]", "value": "admin" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Combined: resource + action",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/permissions?q[resource_eq]=user&q[action_eq]=create",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "permissions"],
+              "query": [
+                { "key": "q[resource_eq]", "value": "user" },
+                { "key": "q[action_eq]", "value": "create" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔒 Admin — Categories",
+      "item": [
+        {
+          "name": "Search by name: q[name_cont]=food",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/categories?q[name_cont]=food",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "categories"],
+              "query": [
+                { "key": "q[name_cont]", "value": "food" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Active only: q[active_true]=1 + sort by name",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/categories?q[active_true]=1&order_by=name&order_direction=asc",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "categories"],
+              "query": [
+                { "key": "q[active_true]", "value": "1" },
+                { "key": "order_by", "value": "name" },
+                { "key": "order_direction", "value": "asc" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔒 Admin — Venues",
+      "item": [
+        {
+          "name": "Search by name: q[name_cont]=hall",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/venues?q[name_cont]=hall",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "venues"],
+              "query": [
+                { "key": "q[name_cont]", "value": "hall" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Verified only: q[verified_true]=1",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/venues?q[verified_true]=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "venues"],
+              "query": [
+                { "key": "q[verified_true]", "value": "1" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔒 Admin — Artists",
+      "item": [
+        {
+          "name": "Search by name: q[name_cont]=haleluya",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/artists?q[name_cont]=haleluya",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "artists"],
+              "query": [
+                { "key": "q[name_cont]", "value": "haleluya" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Unverified: q[verified_false]=1",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/artists?q[verified_false]=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "artists"],
+              "query": [
+                { "key": "q[verified_false]", "value": "1" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔒 Admin — Organizations",
+      "item": [
+        {
+          "name": "Filter by category: q[category_eq]=music",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/organizations?q[category_eq]=music",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "organizations"],
+              "query": [
+                { "key": "q[category_eq]", "value": "music" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search by name: q[name_cont]=summit",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/organizations?q[name_cont]=summit",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "organizations"],
+              "query": [
+                { "key": "q[name_cont]", "value": "summit" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Combined: category + search + pagination + sorting",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/organizations?q[category_eq]=conference&q[name_cont]=digis&page=1&per_page=10&order_by=name&order_direction=asc",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "organizations"],
+              "query": [
+                { "key": "q[category_eq]", "value": "conference" },
+                { "key": "q[name_cont]", "value": "digis" },
+                { "key": "page", "value": "1" },
+                { "key": "per_page", "value": "10" },
+                { "key": "order_by", "value": "name" },
+                { "key": "order_direction", "value": "asc" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔒 Admin — Memberships",
+      "item": [
+        {
+          "name": "Filter memberships by role=admin",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": ""
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/organizations/{{orgDigisHqId}}/memberships?q[role_eq]=admin",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "organizations", "{{orgDigisHqId}}", "memberships"],
+              "query": [
+                { "key": "q[role_eq]", "value": "admin" }
+              ]
+            },
+            "description": "Replace orgDigisHqId with an actual organization UUID from the list endpoint."
+          }
+        }
+      ]
+    },
+    {
+      "name": "👤 Owner Endpoints",
+      "item": [
+        {
+          "name": "My organizations (owner)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/organizations/owner",
+              "host": ["{{baseUrl}}"],
+              "path": ["organizations", "owner"]
+            },
+            "description": "Lists organizations where the current user is a member. Login first."
+          }
+        },
+        {
+          "name": "My memberships (owner), filter by role",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/organizations/owner/{{orgId}}/memberships?q[role_eq]=staff",
+              "host": ["{{baseUrl}}"],
+              "path": ["organizations", "owner", "{{orgId}}", "memberships"],
+              "query": [
+                { "key": "q[role_eq]", "value": "staff" }
+              ]
+            },
+            "description": "Replace orgId with an actual org UUID you own. Lists members filtered by role."
+          }
+        }
+      ]
+    }
+  ]
+}

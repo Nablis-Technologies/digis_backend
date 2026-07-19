@@ -32,6 +32,9 @@
 /config/*.key
 
 /vendor/*
-*.md
 .superpowers
 /coverage/
+.qoder
+.DS_Store
+.codegraph/
+.commandcode/

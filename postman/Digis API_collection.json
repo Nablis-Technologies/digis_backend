@@ -1033,7 +1033,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"organization\": {\n    \"name\": \"My Organization\",\n    \"description\": \"Description of the organization\",\n    \"organizer_type\": \"individual\",\n    \"category\": \"conference\",\n    \"contact_phone\": \"+1234567890\",\n    \"contact_email\": \"org@example.com\",\n    \"website_url\": \"https://example.com\",\n    \"tin_number\": \"12-3456789\",\n    \"address_line1\": \"123 Main St\",\n    \"city\": \"New York\",\n    \"region\": \"NY\",\n    \"estimated_audience\": \"100_500\",\n    \"event_frequency\": \"monthly\",\n    \"experience_summary\": \"Experienced event organizer\",\n    \"social_links\": {\n      \"twitter\": \"https://twitter.com/myorg\"\n    }\n  }\n}"
+                  "raw": "{\n  \"organization\": {\n    \"name\": \"My Organization\",\n    \"description\": \"Description of the organization\",\n    \"organizer_type\": \"individual\",\n    \"category\": \"conference\",\n    \"contact_phone\": \"+1234567890\",\n    \"contact_email\": \"org@example.com\",\n    \"website_url\": \"https://example.com\",\n    \"tin_number\": \"12-3456789\",\n    \"address_line1\": \"123 Main St\",\n    \"city\": \"New York\",\n    \"region\": \"NY\",\n    \"estimated_audience\": \"100_500\",\n    \"event_frequency\": \"monthly\",\n    \"social_links\": {\n      \"twitter\": \"https://twitter.com/myorg\"\n    }\n  }\n}"
                 }
               },
               "description": "Create your own organization.",
@@ -1068,7 +1068,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"organization\": {\n    \"name\": \"Updated Organization\",\n    \"description\": \"Updated description\",\n    \"organizer_type\": \"company\",\n    \"category\": \"music\",\n    \"contact_phone\": \"+1987654321\",\n    \"city\": \"Los Angeles\",\n    \"region\": \"CA\",\n    \"estimated_audience\": \"500_1000\",\n    \"event_frequency\": \"quarterly\",\n    \"experience_summary\": \"Updated experience summary\",\n    \"social_links\": {\n      \"twitter\": \"https://twitter.com/updatedorg\"\n    }\n  }\n}"
+                  "raw": "{\n  \"organization\": {\n    \"name\": \"Updated Organization\",\n    \"description\": \"Updated description\",\n    \"organizer_type\": \"company\",\n    \"category\": \"music\",\n    \"contact_phone\": \"+1987654321\",\n    \"city\": \"Los Angeles\",\n    \"region\": \"CA\",\n    \"estimated_audience\": \"500_1000\",\n    \"event_frequency\": \"quarterly\",\n    \"social_links\": {\n      \"twitter\": \"https://twitter.com/updatedorg\"\n    }\n  }\n}"
                 }
               },
               "description": "Update your organization.",
