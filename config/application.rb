@@ -32,5 +32,7 @@ module DigisBackend
     # Middleware like session, flash, cookies can be added back manually.
     # Skip views, helpers and assets when generating a new resource.
     config.api_only = true
+
+    config.x.outbox_handlers = {}
   end
 end

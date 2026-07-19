@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_30_095119) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_17_000100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -73,6 +73,32 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_30_095119) do
     t.index ["followable_id", "followable_type"], name: "index_follows_followable"
     t.index ["follower_id", "followable_id", "followable_type"], name: "index_follows_uniqueness", unique: true
     t.index ["follower_id"], name: "index_core_follows_on_follower_id"
+  end
+
+  create_table "core_outbox_events", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
+    t.uuid "aggregate_id", null: false
+    t.string "aggregate_type", null: false
+    t.integer "attempts", default: 0, null: false
+    t.datetime "available_at", null: false
+    t.datetime "created_at", null: false
+    t.string "event_type", null: false
+    t.string "idempotency_key", null: false
+    t.string "last_error_code"
+    t.datetime "locked_at"
+    t.datetime "occurred_at", null: false
+    t.jsonb "payload", default: {}, null: false
+    t.datetime "published_at"
+    t.string "topic", null: false
+    t.datetime "updated_at", null: false
+    t.index ["aggregate_type", "aggregate_id", "occurred_at"], name: "idx_on_aggregate_type_aggregate_id_occurred_at_dc800603ae"
+    t.index ["event_type"], name: "index_core_outbox_events_on_event_type"
+    t.index ["idempotency_key"], name: "index_core_outbox_events_on_idempotency_key", unique: true
+    t.index ["published_at", "available_at", "id"], name: "idx_on_published_at_available_at_id_30dbfe6ec6"
+    t.check_constraint "aggregate_type::text <> ''::text", name: "core_outbox_events_aggregate_type_nonblank"
+    t.check_constraint "available_at >= occurred_at", name: "core_outbox_events_available_after_occurred"
+    t.check_constraint "event_type::text <> ''::text", name: "core_outbox_events_event_type_nonblank"
+    t.check_constraint "published_at IS NULL OR published_at >= occurred_at", name: "core_outbox_events_published_after_occurred"
+    t.check_constraint "topic::text <> ''::text", name: "core_outbox_events_topic_nonblank"
   end
 
   create_table "core_permissions", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
