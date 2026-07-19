@@ -34,5 +34,18 @@ module DigisBackend
     config.api_only = true
 
     config.x.outbox_handlers = {}
+
+    # Application-level encryption (Active Record Encryption). Keys are sourced
+    # from the environment and never committed. In test we fall back to stable
+    # keys so the suite boots deterministically without a real master key.
+    if ENV["CORE_ENCRYPTION_PRIMARY_KEY"].present?
+      config.active_record.encryption.primary_key = ENV["CORE_ENCRYPTION_PRIMARY_KEY"]
+      config.active_record.encryption.deterministic_key = ENV["CORE_ENCRYPTION_DETERMINISTIC_KEY"]
+      config.active_record.encryption.key_derivation_salt = ENV["CORE_ENCRYPTION_KEY_DERIVATION_SALT"]
+    elsif Rails.env.test?
+      config.active_record.encryption.primary_key = "test_primary_key_1234567890abcdef1234567890abcdef"
+      config.active_record.encryption.deterministic_key = "test_deterministic_key_1234567890abcdef1"
+      config.active_record.encryption.key_derivation_salt = "test_key_derivation_salt_1234567890abc"
+    end
   end
 end
