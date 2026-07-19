@@ -98,6 +98,7 @@ When a `name:string` column is present:
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--auditable` / `--no-auditable` | `true` | Include `Core::AuditableModel` + `Core::AuditableController`. Adds audit logging callbacks, `Core::AuditLoggerJob` enqueue on create/update/destroy |
+| `--business-type` / `--no-business-type` | `false` | Disable STI by emitting `self.inheritance_column = nil`. Use when the resource uses a `type` column as a business discriminator rather than Rails single-table inheritance. Intentionally NOT inferred from a column named `type` — the intent must be explicit and reviewable |
 | `--slug` / `--no-slug` | `false` | Enable `Core::Slugable`. Adds slug column, unique index, `before_validation` slug generation, `validates :slug` |
 | `--slug-source=COL` | `name` | Source column for slug generation (implies `--slug`). Falls back to `name` if omitted |
 | `--skip-migration` | `false` | Don't create the migration file |

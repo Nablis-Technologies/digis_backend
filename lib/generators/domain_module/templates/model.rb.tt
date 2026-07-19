@@ -2,6 +2,9 @@ module <%= namespace_path.camelize %>
   class <%= model_name %> < <%= namespace_path.camelize %>::ApplicationRecord
     self.table_name = "<%= table_name %>"
 
+<% if business_type? -%>
+    self.inheritance_column = nil
+<% end -%>
 <% if auditable? -%>
     include Core::AuditableModel
 <% end -%>

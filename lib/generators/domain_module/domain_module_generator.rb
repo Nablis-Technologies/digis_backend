@@ -41,6 +41,8 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
   class_option :auditable, type: :boolean, default: false
   class_option :slug, type: :boolean, default: false
   class_option :slug_source, type: :string, default: nil
+  class_option :business_type, type: :boolean, default: false,
+    desc: "Disable STI because the resource uses type as a business discriminator"
   class_option :skip_migration, type: :boolean, default: false
   class_option :skip_routes, type: :boolean, default: false
   class_option :skip_tests, type: :boolean, default: false
@@ -176,6 +178,10 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
       options[:auditable] = yes?("Auditable? (Y/n)", :green)
     end
 
+    unless business_type_flag_explicit?
+      options[:business_type] = yes?("Uses type as a business discriminator (disable STI)? (y/N)", :green)
+    end
+
     unless slug_flag_explicit?
       if yes?("Slugable? (y/N)", :green)
         options[:slug] = true
@@ -194,15 +200,19 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
   end
 
   def auditable_flag_explicit?
-    ARGV.include?("--auditable") || ARGV.include?("--no-auditable")
+    args.include?("--auditable") || args.include?("--no-auditable")
+  end
+
+  def business_type_flag_explicit?
+    args.include?("--business-type") || args.include?("--no-business-type")
   end
 
   def slug_flag_explicit?
-    slug_source_flag_explicit? || ARGV.include?("--slug") || ARGV.include?("--no-slug")
+    slug_source_flag_explicit? || args.include?("--slug") || args.include?("--no-slug")
   end
 
   def slug_source_flag_explicit?
-    ARGV.any? { |a| a.start_with?("--slug-source") }
+    args.any? { |a| a.start_with?("--slug-source") }
   end
 
   def namespace_new?
@@ -259,6 +269,10 @@ class DomainModuleGenerator < Rails::Generators::NamedBase
 
   def auditable?
     options[:auditable]
+  end
+
+  def business_type?
+    options[:business_type]
   end
 
   def slugable?
