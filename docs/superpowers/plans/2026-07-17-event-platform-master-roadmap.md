@@ -64,7 +64,7 @@ Parallel work must not create duplicate migrations or competing abstractions. Be
 10. Public controllers remain serializer-controlled because `Public::ApplicationController` bypasses Pundit. Authenticated surfaces must align controller serializer profiles with policy visibility because `Core::JsonResponse` intersects them.
 11. Sensitive attributes use Active Record Encryption and separate keyed digests only when exact lookup/deduplication is required.
 12. PostgreSQL is the final correctness boundary for uniqueness, checks, exclusion constraints, partial indexes, and critical deferred cross-row invariants.
-13. `/api/v1` is a route path, not a duplicate Ruby namespace. Controllers live under their domain (`Orders::`, `Ticketing::`, `Catalog::`, `Marketplace::`, `Finance::`, `Links::`) and inherit the domain application controller created in Plan 0. Keep `Admin::` only for platform-administration surfaces.
+13. URL versioning (`/api/v1`) is **deferred** — pre-launch, no external consumers, so routes stay unversioned at root. When adopted later, `/api/v1` is a route `scope path:`, not a duplicate Ruby namespace. Controllers live under their domain (`Orders::`, `Ticketing::`, `Catalog::`, `Marketplace::`, `Finance::`, `Links::`) and inherit the domain application controller created in Plan 0. Keep `Admin::` only for platform-administration surfaces.
 
 ## State-transition implementation standard
 

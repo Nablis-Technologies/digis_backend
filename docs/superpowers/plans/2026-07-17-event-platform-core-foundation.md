@@ -1305,7 +1305,14 @@ git add config/application.rb config/environments/test.rb config/initializers/fi
 git commit -m "chore(core): configure encrypted domain data"
 ```
 
-## Task 8: Create domain namespace bases and cut new APIs to `/api/v1`
+## Task 8: Create domain namespace bases (no `/api/v1` versioning yet)
+
+> **Decision (2026-07-19):** Skip URL versioning for now — the project is pre-launch with
+> no external API consumers. Routes stay unversioned at the root. Namespace base classes
+> are still created because they are useful regardless of versioning. Revisit `/api/v1`
+> only when a real external consumer or breaking-change policy requires it. The
+> `config/routes.rb` and integration tests/Postman collections are NOT modified by this
+> task.
 
 **Files:**
 - Create: `app/models/catalog/application_record.rb`
@@ -1315,35 +1322,8 @@ git commit -m "chore(core): configure encrypted domain data"
 - Create: `app/models/marketplace/application_record.rb`
 - Create: `app/models/links/application_record.rb`
 - Create: matching `app/controllers/<namespace>/application_controller.rb`
-- Modify: `config/routes.rb`
-- Modify: existing integration tests and Postman collection
-- Create: `test/integration/api_versioning_test.rb`
 
-- [ ] **Step 1: Write the failing API-prefix test**
-
-```ruby
-require "test_helper"
-
-class ApiVersioningTest < ActionDispatch::IntegrationTest
-  test "health-independent application routes live under api v1" do
-    get "/api/v1/categories", as: :json
-    assert_response :success
-
-    get "/categories", as: :json
-    assert_response :not_found
-  end
-end
-```
-
-- [ ] **Step 2: Run and verify RED**
-
-```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/api_versioning_test.rb
-```
-
-Expected: `/api/v1/categories` is not routed and the legacy root route still resolves.
-
-- [ ] **Step 3: Add namespace base records/controllers**
+- [ ] **Step 1: Add namespace base records/controllers**
 
 Each application record follows this complete pattern:
 
@@ -1368,25 +1348,21 @@ module Catalog
 end
 ```
 
-Use the equivalent namespace in each file.
+Use the equivalent namespace in each file. No route changes, no test/Postman changes.
 
-- [ ] **Step 4: Perform the clean route cutover**
-
-Wrap application endpoints in `scope path: "api/v1"` while leaving `/up` at the root. Update integration-test URLs and the Postman collection in the same change. Do not retain duplicate legacy routes.
-
-- [ ] **Step 5: Run all request tests**
+- [ ] **Step 2: Run the full suite to confirm no regressions**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration
+PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test
 ```
 
-Expected: all request tests pass only through `/api/v1` URLs.
+Expected: all existing tests still pass (these are additive base classes only).
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
-git add app/models app/controllers config/routes.rb test/integration postman
-git commit -m "refactor(api): establish v1 domain namespaces"
+git add app/models app/controllers
+git commit -m "refactor(core): establish domain namespace base classes"
 ```
 
 ## Task 9: Teach the domain generator about business `type`
