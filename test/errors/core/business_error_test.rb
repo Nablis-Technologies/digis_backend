@@ -8,13 +8,13 @@ class Core::BusinessErrorTest < ActiveSupport::TestCase
       "Inventory is no longer available",
       code: "inventory_unavailable",
       status: :conflict,
-      errors: { quantity: ["exceeds availability"] },
+      errors: { quantity: [ "exceeds availability" ] },
       meta: { retryable: false }
     )
 
     assert_equal "inventory_unavailable", error.code
     assert_equal :conflict, error.status
-    assert_equal({ quantity: ["exceeds availability"] }, error.errors)
+    assert_equal({ quantity: [ "exceeds availability" ] }, error.errors)
     assert_equal({ retryable: false }, error.meta)
   end
 end

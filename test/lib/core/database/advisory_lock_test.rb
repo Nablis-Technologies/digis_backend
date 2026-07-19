@@ -52,7 +52,7 @@ class Core::Database::AdvisoryLockSerializationTest < ActiveSupport::TestCase
     end
 
     allow_first_commit << true
-    [first, second].each(&:join)
+    [ first, second ].each(&:join)
 
     assert_equal %i[first_entered first_committed second_entered], 3.times.map { order.pop }
   end
