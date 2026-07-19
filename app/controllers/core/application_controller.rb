@@ -1,6 +1,7 @@
 module Core
   class ApplicationController < ::ApplicationController
     include Core::JsonResponse
+    include Core::CommandResponse
     include Core::Authenticatable
     include Core::Authorizable
 

@@ -9,6 +9,9 @@ class CreateCoreAuditLogs < ActiveRecord::Migration[8.1]
       t.string :request_uuid
       t.string :ip_address
       t.string :user_agent
+      # Idempotency key: the unique boundary that makes Core::Audit::Record the
+      # single audit writer. Replays of the same key collapse to one row.
+      t.string :audit_key, null: false
 
       t.timestamps
     end
@@ -18,5 +21,6 @@ class CreateCoreAuditLogs < ActiveRecord::Migration[8.1]
     add_index :core_audit_logs, :request_uuid
     add_index :core_audit_logs, :created_at
     add_index :core_audit_logs, :action
+    add_index :core_audit_logs, :audit_key, unique: true
   end
 end

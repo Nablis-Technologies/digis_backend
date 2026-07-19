@@ -33,5 +33,17 @@ module Core
     def call
       raise NotImplementedError, "#{self.class.name} must implement #call"
     end
+
+    protected
+
+    def success(value = nil)
+      Result.success(value)
+    end
+
+    def failure(error)
+      raise ArgumentError, "failure requires a Core::Error" unless error.is_a?(Core::Error)
+
+      Result.failure(error)
+    end
   end
 end

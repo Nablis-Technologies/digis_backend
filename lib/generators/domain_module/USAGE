@@ -22,6 +22,8 @@ Column types:
 Options:
   [--auditable]           Include Core::AuditableModel + AuditableController (default: true)
   [--no-auditable]        Skip audit logging support
+  [--business-type]       Disable STI because the resource uses type as a business discriminator
+  [--no-business-type]    Keep Rails STI default (default)
   [--slug]                Enable slugable (source defaults to 'name') (default: false)
   [--no-slug]             Disable slugable
   [--slug-source=COL]     Override slug source column (implies --slug)

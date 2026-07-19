@@ -27,7 +27,7 @@ module Core
       #               comments: { only: [:status, :approved_at] },  # filter for comments
       #               attachments: { except: [:private_flag] }      # exclude for attachments
       #             }
-      def auditable(associated: [], only: [], except: [], on: [], action: nil, transactional: true)
+      def auditable(associated: [], only: [], except: [], on: [], action: nil, required: true)
         validate_audit_config!(associated: associated, only: only, except: except, on: on, action: action)
 
         normalized_associated = normalize_associated_for_config(associated)
@@ -38,7 +38,7 @@ module Core
           except: Array(except),
           on: Array(on).map(&:to_sym),
           action: action,
-          transactional: transactional
+          required: required
         }
         self._audit_configs += [ config ]
       end
@@ -262,11 +262,12 @@ module Core
       )
     end
 
-    # Enqueue the audit job with the given data
+    # Build a normalized audit payload and enqueue it. The builder collapses
+    # no-op diffs to nil (skip), and the job is a dumb pipe into Core::Audit::Record.
     def enqueue_audit_job(record_id:, record_type:, before_main:, after_main:, before_associated:, after_associated:)
-      requires_transaction = active_configs.any? { |c| c[:transactional] != false }
+      required = active_configs.any? { |c| c[:required] != false }
 
-      job_args = {
+      result = Core::Audit::BuildControllerPayload.call(
         record_id: record_id,
         record_type: record_type,
         before_main: before_main,
@@ -281,30 +282,25 @@ module Core
         ip_address: request.remote_ip,
         user_agent: request.user_agent,
         configs: active_configs.map { |c| c.except(:block) }
-      }
+      )
 
-      if requires_transaction
-        begin
-          Core::AuditLoggerJob.perform_later(**job_args)
-          Rails.logger.debug "Audit: Job enqueued successfully (transactional)"
-        rescue StandardError => e
-          Rails.logger.error "CRITICAL: Audit enqueue failed - transaction will rollback: #{e.message}"
-          raise Core::AuditableRecordNotFoundError,
-                "Critical Audit Failure: Could not enqueue audit job. Transaction rolled back to prevent untracked changes."
-        end
-      else
-        Core::AuditLoggerJob.perform_later(**job_args)
-        Rails.logger.debug "Audit: Job enqueued successfully (non-transactional)"
+      # No diff -> nothing to record.
+      return unless result.success? && result.value
+
+      begin
+        Core::AuditLoggerJob.perform_later(**result.value)
+        Rails.logger.debug "Audit: Job enqueued successfully"
+      rescue StandardError => e
+        Rails.logger.error "CRITICAL: Audit enqueue failed: #{e.message}"
+        raise Core::AuditableRecordNotFoundError,
+              "Critical Audit Failure: Could not enqueue audit job." if required
       end
     rescue Core::AuditableRecordNotFoundError
       raise
     rescue StandardError => e
       Rails.logger.error "Audit enqueue failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
-      requires_transaction = active_configs.any? { |c| c[:transactional] != false }
-      if requires_transaction
-        raise Core::AuditableRecordNotFoundError,
-              "Critical Audit Failure: Unexpected error during audit enqueue. Transaction rolled back."
-      end
+      raise Core::AuditableRecordNotFoundError,
+            "Critical Audit Failure: Unexpected error during audit enqueue." if required
     end
 
     # Capture complete state of a record
