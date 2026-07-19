@@ -5,6 +5,7 @@ role_bootstrap_audit:
   actor_type: Core::User
   actor_id: 019e5f69-db1c-77b6-be88-3afbf8b65410
   action: role.seeded
+  audit_key: role.seeded:019e5f69-d843-7def-8cf6-53197a1972e5
   audited_changes: {"active":{"old":null,"new":true}}
   metadata: {"source":"fixtures"}
   request_uuid: fixture-request-001
