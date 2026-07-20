@@ -325,8 +325,9 @@ end
 - [ ] **Run RED:** `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/events/event_phase_acceptance_test.rb test/integration/events/event_authorization_matrix_test.rb`; expect any uncovered boundary to fail.
 - [ ] **GREEN:** complete routes, policy scopes, serializer visibility, eager loading, recurring jobs, Plan 0 outbox-handler registrations, and typed error mappings. The domain initializer merges event handlers into `Rails.application.config.x.outbox_handlers` without replacing handlers registered by other domains. Add no business workflow to `Core::Common`.
 - [ ] **Run GREEN:** run `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/events test/services/events test/integration/events test/jobs/events`; expect pass.
-- [ ] **Refactor:** run `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test`; inspect query counts on public list/detail and remove N+1 queries without broadening serializer visibility.
-- [ ] **Commit:** `git add config app/models/events app/controllers/events app/services/events app/jobs/events app/policies/events app/serializers/events db/migrate/2026071701*.rb test && git commit -m "test(events): complete event foundation phase gate"`
+  - [ ] **Refactor:** run `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test`; inspect query counts on public list/detail and remove N+1 queries without broadening serializer visibility.
+  - [ ] **Dev sample data:** add a `db/seeds.rb` dev block (or `lib/tasks/dev_seed.rake`) that creates a verified organization plus a few sample events with categories, collaborator manager, a date, recurrence, participant, cover/gallery, access zone, and a published consent document — so local development has clickable data. This is dev-only sample data (NOT production seed data); reference tables such as `events_categories` are already seeded by Plan 0. Verify with `db:seed:replant`.
+  - [ ] **Commit:** `git add config app/models/events app/controllers/events app/services/events app/jobs/events app/policies/events app/serializers/events db/migrate/2026071701*.rb test && git commit -m "test(events): complete event foundation phase gate"`
 
 ## Phase acceptance gate
 
