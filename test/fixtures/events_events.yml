@@ -1,0 +1,31 @@
+# frozen_string_literal: true
+
+draft_concert:
+  id: 019e5f69-d001-7000-8000-000000000001
+  organization_id: 019e5f69-d922-75a3-b880-be8f75b18ad0
+  created_by_id: 019e5f69-db1c-77b6-be88-3afbf8b65410
+  slug: draft-concert
+  title: Draft Concert
+  description: A draft concert awaiting setup
+  status: draft
+  visibility: private
+  timezone: "Africa/Addis_Ababa"
+  currency: ETB
+  version: 1
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+ready_listing:
+  id: 019e5f69-d002-7000-8000-000000000002
+  organization_id: 019e5f69-d922-75a3-b880-be8f75b18ad0
+  created_by_id: 019e5f69-db1c-77b6-be88-3afbf8b65410
+  slug: ready-listing
+  title: Ready Listing
+  description: A listing-only event ready to publish
+  status: draft
+  visibility: public
+  timezone: "Africa/Addis_Ababa"
+  currency: ETB
+  version: 1
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>

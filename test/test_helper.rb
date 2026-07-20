@@ -41,6 +41,9 @@ module ActiveSupport
       core_reviews: Core::Review,
       core_outbox_events: Core::OutboxEvent,
       events_categories: Events::Category,
+      events_events: Events::Event,
+      events_event_settings: Events::EventSetting,
+      events_event_categories: Events::EventCategory,
       organizations_organizations: Organizations::Organization,
       organizations_memberships: Organizations::Membership,
     )

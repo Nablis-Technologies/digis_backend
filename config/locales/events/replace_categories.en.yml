@@ -1,0 +1,8 @@
+# frozen_string_literal: true
+
+en:
+  events:
+    replace_categories:
+      errors:
+        too_many_categories: "cannot replace with more than %{max} categories"
+        invalid_category: "contains an invalid category"
