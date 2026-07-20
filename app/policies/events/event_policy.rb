@@ -7,7 +7,7 @@ module Events
     end
 
     def show?
-      return true if user&.has_role?("SUPER_ADMIN") || user&.has_role?("ADMIN")
+      return true if user&.has_role?("SUPER_ADMIN") || user&.has_role?("ADMIN") || user&.has_role?("CORE_ADMIN")
       return true if record.visibility == "public" && record.published?
 
       owner_or_collaborator?(record) || staff_of?(record)
@@ -18,14 +18,14 @@ module Events
     end
 
     def update?
-      return true if user&.has_role?("SUPER_ADMIN") || user&.has_role?("ADMIN")
+      return true if user&.has_role?("SUPER_ADMIN") || user&.has_role?("ADMIN") || user&.has_role?("CORE_ADMIN")
       return false if record.published?
 
       owner_or_collaborator?(record) || manager_of?(record)
     end
 
     def publish?
-      return true if user&.has_role?("SUPER_ADMIN") || user&.has_role?("ADMIN")
+      return true if user&.has_role?("SUPER_ADMIN") || user&.has_role?("ADMIN") || user&.has_role?("CORE_ADMIN")
       return false unless record.organization.verified?
 
       owner_or_collaborator?(record) || manager_of?(record)
@@ -44,7 +44,7 @@ module Events
 
     class Scope < Core::ApplicationPolicy::Scope
       def resolve
-        return scope.all if user&.has_role?("SUPER_ADMIN") || user&.has_role?("ADMIN")
+        return scope.all if user&.has_role?("SUPER_ADMIN") || user&.has_role?("ADMIN") || user&.has_role?("CORE_ADMIN")
 
         scope.where(
           organization_id: owned_organization_ids
@@ -64,27 +64,15 @@ module Events
     private
 
     def owner_or_collaborator?(event)
-      organization = event.organization
-      return false unless organization
-
-      Organizations::Membership
-        .where(user:, organization:, status: "active")
-        .where(role: %w[owner admin manager])
-        .exists?
+      Events::AuthorizationResolver.organization_admin_or_owner?(user, event)
     end
 
     def manager_of?(event)
-      event.event_staff_assignments
-          .managers
-          .where(user:)
-          .exists?
+      Events::AuthorizationResolver.role_for(user, event) == :manager
     end
 
     def staff_of?(event)
-      event.event_staff_assignments
-          .active
-          .where(user:)
-          .exists?
+      Events::AuthorizationResolver.role_for(user, event).in?(%i[staff scanner contractor])
     end
   end
 end
