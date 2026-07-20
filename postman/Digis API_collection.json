@@ -703,6 +703,107 @@
               "response": []
             }
           ]
+        },
+        {
+          "name": "Public Events",
+          "description": "Public, unauthenticated event discovery.",
+          "item": [
+            {
+              "name": "List Public Events",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/public/events?page=1&per_page=10&order_by=created_at&order_direction=desc",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "public",
+                    "events"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "10"
+                    },
+                    {
+                      "key": "order_by",
+                      "value": "created_at"
+                    },
+                    {
+                      "key": "order_direction",
+                      "value": "desc"
+                    }
+                  ]
+                },
+                "description": "Discover published public events without authentication."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has correct structure\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "  pm.expect(json).to.have.property(\"data\");",
+                      "  pm.expect(json.data).to.be.an(\"array\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Public Event by Slug",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/public/events/:slug",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "public",
+                    "events",
+                    ":slug"
+                  ]
+                },
+                "description": "Get a single published event by its slug (attendee-safe fields only)."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has correct structure\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "  pm.expect(json).to.have.property(\"data\");",
+                      "  pm.expect(json.data).to.have.property(\"id\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            }
+          ]
         }
       ]
     },
@@ -3546,6 +3647,289 @@
           ]
         },
         {
+          "name": "Events",
+          "description": "Admin platform-administration surface for events (mirrors Organizations). Full CRUD plus force publish/unpublish moderation.",
+          "item": [
+            {
+              "name": "List Events",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/events?page=1&per_page=10&order_by=created_at&order_direction=desc",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "events"
+                  ]
+                }
+              },
+              "description": "List all events (admin).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2xx\", function () {",
+                      "  pm.expect(pm.response.code).to.be.oneOf([200,201,204]);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Create Event",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/events",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "events"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event\": {\n    \"title\": \"New Event\",\n    \"description\": \"Admin-created event\",\n    \"organization_id\": \"<organization_uuid>\",\n    \"visibility\": \"public\",\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"currency\": \"ETB\",\n    \"category_ids\": [\"<category_uuid>\"]\n  }\n}"
+                }
+              },
+              "description": "Create an event (owner/organizer). Optionally pass category_ids to attach categories in the same request.",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2xx\", function () {",
+                      "  pm.expect(pm.response.code).to.be.oneOf([200,201,204]);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Event",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/events/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "events",
+                    ":id"
+                  ]
+                }
+              },
+              "description": "Get a single event by id (admin).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2xx\", function () {",
+                      "  pm.expect(pm.response.code).to.be.oneOf([200,201,204]);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Event",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/events/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "events",
+                    ":id"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event\": {\n    \"title\": \"Updated Event Title\",\n    \"description\": \"Updated description\",\n    \"category_ids\": [\"<category_uuid>\"]\n  }\n}"
+                }
+              },
+              "description": "Update a draft event (owner/organizer). May include category_ids to replace the event's categories.",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2xx\", function () {",
+                      "  pm.expect(pm.response.code).to.be.oneOf([200,201,204]);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Delete Event",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/events/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "events",
+                    ":id"
+                  ]
+                }
+              },
+              "description": "Delete an event (admin).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2xx\", function () {",
+                      "  pm.expect(pm.response.code).to.be.oneOf([200,201,204]);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Publish Event",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/events/:id/publish",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "events",
+                    ":id",
+                    "publish"
+                  ]
+                }
+              },
+              "description": "Force-publish an event (admin moderation).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2xx\", function () {",
+                      "  pm.expect(pm.response.code).to.be.oneOf([200,201,204]);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Unpublish Event",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/events/:id/unpublish",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "events",
+                    ":id",
+                    "unpublish"
+                  ]
+                }
+              },
+              "description": "Force-unpublish a published event back to draft (admin moderation).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2xx\", function () {",
+                      "  pm.expect(pm.response.code).to.be.oneOf([200,201,204]);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
           "name": "Organizations",
           "item": [
             {
@@ -4232,6 +4616,253 @@
                   ]
                 }
               ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Events",
+      "description": "Event aggregate: draft creation, publication, and nested resources.",
+      "item": [
+        {
+          "name": "List Events",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/events?page=1&per_page=10&order_by=created_at&order_direction=desc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "per_page",
+                  "value": "10"
+                },
+                {
+                  "key": "order_by",
+                  "value": "created_at"
+                },
+                {
+                  "key": "order_direction",
+                  "value": "desc"
+                },
+                {
+                  "key": "q[status_eq]",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "q[visibility_eq]",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List events owned by the authenticated organization (paginated, ordered)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property(\"success\", true);",
+                  "  pm.expect(json).to.have.property(\"data\");",
+                  "  pm.expect(json.data).to.be.an(\"array\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Event by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/events/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events",
+                ":id"
+              ]
+            },
+            "description": "Get a single event by ID."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property(\"success\", true);",
+                  "  pm.expect(json).to.have.property(\"data\");",
+                  "  pm.expect(json.data).to.have.property(\"id\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Event",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events"
+              ]
+            },
+            "description": "Create a draft event owned by the given organization.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": {\n    \"title\": \"New Year Concert\",\n    \"description\": \"A brand new year concert in Addis Ababa\",\n    \"visibility\": \"public\",\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"currency\": \"ETB\",\n    \"organization_id\": \"<organization_uuid>\",\n    \"category_ids\": [\"<category_uuid>\"]\n  }\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property(\"success\", true);",
+                  "  pm.expect(json).to.have.property(\"data\");",
+                  "  pm.expect(json.data).to.have.property(\"id\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "description": "Create a draft event (owner/organizer). Pass category_ids to attach categories in the same request so the event can be published."
+        },
+        {
+          "name": "Update Event",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/events/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events",
+                ":id"
+              ]
+            },
+            "description": "Update a draft event's attributes.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": {\n    \"title\": \"Updated Event Title\",\n    \"description\": \"Updated description\",\n    \"category_ids\": [\"<category_uuid>\"]\n  }\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property(\"success\", true);",
+                  "  pm.expect(json).to.have.property(\"data\");",
+                  "  pm.expect(json.data).to.have.property(\"id\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "description": "Update a draft event (owner/organizer). May include category_ids to replace the event's categories."
+        },
+        {
+          "name": "Publish Event",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/events/:id/publish",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events",
+                ":id",
+                "publish"
+              ]
+            },
+            "description": "Publish a ready event (verified org + at least one category). Idempotent per idempotency key."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property(\"success\", true);",
+                  "  pm.expect(json).to.have.property(\"data\");",
+                  "  pm.expect(json.data).to.have.property(\"status\");",
+                  "});",
+                  "pm.test(\"Event is published\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data.status).to.equal(\"published\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
             }
           ]
         }
