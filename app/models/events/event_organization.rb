@@ -5,6 +5,10 @@ module Events
     self.table_name = "events_event_organizations"
     self.inheritance_column = nil
 
+    include Core::AuditableModel
+
+    attribute :status, :string, default: "active"
+
     TYPES = %w[co_organizer venue_partner promoter sponsor].freeze
     STATUSES = %w[pending active revoked].freeze
 
