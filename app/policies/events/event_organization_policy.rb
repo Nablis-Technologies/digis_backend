@@ -8,6 +8,11 @@ module Events
     def update? = Events::AuthorizationResolver.organization_admin_or_owner?(user, record.event)
     def destroy? = Events::AuthorizationResolver.organization_admin_or_owner?(user, record.event)
 
+    VISIBILITY = {
+      index: { default: :all, admin: :all },
+      show:  { default: :all, admin: :all }
+    }
+
     class Scope < Core::ApplicationPolicy::Scope
       def resolve
         return scope.all if user&.has_role?("SUPER_ADMIN") || user&.has_role?("ADMIN") || user&.has_role?("CORE_ADMIN")
