@@ -1,6 +1,21 @@
 # frozen_string_literal: true
 
 en:
+  event:
+    success:
+      index: "Events retrieved successfully"
+      show: "Event retrieved successfully"
+      create: "Event created successfully"
+      update: "Event updated successfully"
+      destroy: "Event deleted successfully"
+      publish: "Event published successfully"
+      unpublish: "Event unpublished successfully"
+    errors:
+      create: "Failed to create event"
+      update: "Failed to update event"
+      destroy: "Failed to delete event"
+      publish: "Failed to publish event"
+      unpublish: "Failed to unpublish event"
   errors:
     messages:
       slug_taken: "has already been taken (case-insensitive)"
