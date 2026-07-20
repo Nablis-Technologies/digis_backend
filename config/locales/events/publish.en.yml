@@ -1,0 +1,12 @@
+# frozen_string_literal: true
+
+en:
+  events:
+    publish:
+      errors:
+        organization_not_verified: "the event's organization must be verified before publishing"
+        missing_category: "event must have at least one category before publishing"
+        invalid_event: "event is not publishable"
+    create:
+      errors:
+        invalid_event: "event could not be created"

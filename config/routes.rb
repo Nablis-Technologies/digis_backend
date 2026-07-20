@@ -21,6 +21,11 @@ Rails.application.routes.draw do
     resources :categories, only: %i[index show]
     resources :venues, only: %i[index show]
     resources :artists, only: %i[index show]
+
+    resources :events, only: %i[index show create update] do
+      post :publish, on: :member
+    end
+    resources :public_events, only: %i[index show], param: :slug, path: "public/events"
   end
 
   namespace :admin do
@@ -36,6 +41,12 @@ Rails.application.routes.draw do
     resources :categories, except: %i[new edit]
     resources :venues, except: %i[new edit]
     resources :artists, except: %i[new edit]
+    resources :events, except: %i[new edit] do
+      member do
+        post :publish
+        post :unpublish
+      end
+    end
     resources :organizations, except: %i[new edit] do
       member do
         post :transfer_ownership
