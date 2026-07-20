@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_17_000101) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_17_010500) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -236,6 +236,84 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_17_000101) do
     t.index ["slug"], name: "index_events_categories_on_slug", unique: true
   end
 
+  create_table "events_event_categories", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "category_id", null: false
+    t.datetime "created_at", precision: nil, null: false
+    t.uuid "event_id", null: false
+    t.datetime "updated_at", precision: nil, null: false
+    t.index ["category_id"], name: "index_events_event_categories_on_category_id"
+    t.index ["event_id", "category_id"], name: "index_events_event_categories_on_event_id_and_category_id", unique: true
+    t.check_constraint "event_id IS NOT NULL AND category_id IS NOT NULL", name: "chk_event_categories_present"
+  end
+
+  create_table "events_event_organizations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "accepted_at", precision: nil
+    t.datetime "created_at", precision: nil, null: false
+    t.uuid "event_id", null: false
+    t.datetime "invited_at", precision: nil
+    t.uuid "organization_id", null: false
+    t.string "role", default: "collaborator", null: false
+    t.string "status", default: "active", null: false
+    t.string "type", null: false
+    t.datetime "updated_at", precision: nil, null: false
+    t.index ["event_id", "organization_id"], name: "idx_on_event_id_organization_id_ee33770ea4", unique: true
+    t.index ["organization_id"], name: "index_events_event_organizations_on_organization_id"
+    t.check_constraint "role::text <> 'primary_owner'::text", name: "chk_event_organizations_no_primary_owner"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'active'::character varying, 'revoked'::character varying]::text[])", name: "chk_event_organizations_status"
+    t.check_constraint "type::text = ANY (ARRAY['co_organizer'::character varying, 'venue_partner'::character varying, 'promoter'::character varying, 'sponsor'::character varying]::text[])", name: "chk_event_organizations_type"
+  end
+
+  create_table "events_event_settings", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.jsonb "config", default: {}, null: false
+    t.datetime "created_at", precision: nil, null: false
+    t.uuid "event_id", null: false
+    t.datetime "updated_at", precision: nil, null: false
+    t.index ["event_id"], name: "index_events_event_settings_on_event_id", unique: true
+  end
+
+  create_table "events_event_staff_assignments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", precision: nil, null: false
+    t.uuid "event_id", null: false
+    t.datetime "expires_at", precision: nil
+    t.uuid "organization_id", null: false
+    t.string "status", default: "active", null: false
+    t.string "type", null: false
+    t.datetime "updated_at", precision: nil, null: false
+    t.uuid "user_id", null: false
+    t.index ["event_id", "user_id", "type"], name: "idx_on_event_id_user_id_type_04a6bfcc14", unique: true
+    t.index ["organization_id"], name: "index_events_event_staff_assignments_on_organization_id"
+    t.index ["user_id"], name: "index_events_event_staff_assignments_on_user_id"
+    t.check_constraint "status::text = ANY (ARRAY['active'::character varying, 'suspended'::character varying, 'revoked'::character varying, 'expired'::character varying]::text[])", name: "chk_event_staff_assignments_status"
+    t.check_constraint "type::text = ANY (ARRAY['manager'::character varying, 'staff'::character varying, 'scanner'::character varying, 'contractor'::character varying]::text[])", name: "chk_event_staff_assignments_type"
+  end
+
+  create_table "events_events", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "cancelled_at", precision: nil
+    t.datetime "created_at", precision: nil, null: false
+    t.uuid "created_by_id", null: false
+    t.string "currency", default: "ETB", null: false
+    t.text "description"
+    t.uuid "organization_id", null: false
+    t.datetime "published_at", precision: nil
+    t.string "slug", null: false
+    t.string "status", default: "draft", null: false
+    t.string "timezone", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", precision: nil, null: false
+    t.integer "version", default: 1, null: false
+    t.string "visibility", default: "private", null: false
+    t.index "lower((slug)::text)", name: "idx_events_events_lower_slug", unique: true
+    t.index ["created_by_id"], name: "index_events_events_on_created_by_id"
+    t.index ["organization_id", "status"], name: "index_events_events_on_organization_id_and_status"
+    t.index ["organization_id"], name: "index_events_events_on_organization_id"
+    t.check_constraint "cancelled_at IS NULL OR status::text = 'cancelled'::text", name: "chk_events_events_cancelled_at_requires_cancelled"
+    t.check_constraint "currency::text ~ '^[A-Z]{3}$'::text", name: "chk_events_events_currency_iso4217"
+    t.check_constraint "published_at IS NULL OR status::text = 'published'::text", name: "chk_events_events_published_at_requires_published"
+    t.check_constraint "status::text = ANY (ARRAY['draft'::character varying, 'published'::character varying, 'cancelled'::character varying, 'completed'::character varying]::text[])", name: "chk_events_events_status"
+    t.check_constraint "version >= 0", name: "chk_events_events_version_non_negative"
+    t.check_constraint "visibility::text = ANY (ARRAY['private'::character varying, 'public'::character varying, 'unlisted'::character varying]::text[])", name: "chk_events_events_visibility"
+  end
+
   create_table "events_venues", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.boolean "active", default: true
     t.string "address"
@@ -311,6 +389,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_17_000101) do
   add_foreign_key "core_user_roles", "core_roles", column: "role_id"
   add_foreign_key "core_user_roles", "core_users", column: "assigned_by_id"
   add_foreign_key "core_user_roles", "core_users", column: "user_id"
+  add_foreign_key "events_event_categories", "events_categories", column: "category_id", on_delete: :restrict
+  add_foreign_key "events_event_categories", "events_events", column: "event_id", on_delete: :cascade
+  add_foreign_key "events_event_organizations", "events_events", column: "event_id", on_delete: :cascade
+  add_foreign_key "events_event_organizations", "organizations_organizations", column: "organization_id", on_delete: :cascade
+  add_foreign_key "events_event_settings", "events_events", column: "event_id", on_delete: :cascade
+  add_foreign_key "events_event_staff_assignments", "core_users", column: "user_id", on_delete: :cascade
+  add_foreign_key "events_event_staff_assignments", "events_events", column: "event_id", on_delete: :cascade
+  add_foreign_key "events_event_staff_assignments", "organizations_organizations", column: "organization_id", on_delete: :cascade
+  add_foreign_key "events_events", "core_users", column: "created_by_id", on_delete: :restrict
+  add_foreign_key "events_events", "organizations_organizations", column: "organization_id", on_delete: :restrict
   add_foreign_key "organizations_memberships", "core_users", column: "user_id"
   add_foreign_key "organizations_memberships", "organizations_organizations", column: "organization_id"
 end
