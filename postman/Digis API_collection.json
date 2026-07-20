@@ -4865,6 +4865,543 @@
               }
             }
           ]
+        },
+        {
+          "name": "Event Organizations",
+          "item": [
+            {
+              "name": "List",
+              "request": {
+                "description": "List all organizations collaborating on an event.",
+                "header": [],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_organizations"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_organizations",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Get",
+              "request": {
+                "description": "Get a single event organization link.",
+                "header": [],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_organizations",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_organizations/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Create",
+              "request": {
+                "description": "Add an organization as a collaborator on the event.",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_organizations"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_organizations",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event_organization\": {\n    \"organization_id\": \"{{orgId}}\",\n    \"type\": \"promoter\",\n    \"role\": \"collaborator\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Update",
+              "request": {
+                "description": "Update an event organization link.",
+                "header": [],
+                "method": "PATCH",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_organizations",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_organizations/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event_organization\": {\n    \"type\": \"promoter\",\n    \"role\": \"collaborator\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Delete",
+              "request": {
+                "description": "Remove an organization from the event.",
+                "header": [],
+                "method": "DELETE",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_organizations",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_organizations/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Revoke",
+              "request": {
+                "description": "",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_organizations",
+                    ":id",
+                    "revoke"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_organizations/:id/revoke",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Activate",
+              "request": {
+                "description": "",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_organizations",
+                    ":id",
+                    "activate"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_organizations/:id/activate",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Event Staff Assignments",
+          "item": [
+            {
+              "name": "List",
+              "request": {
+                "description": "List all staff assigned to an event.",
+                "header": [],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_staff_assignments"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_staff_assignments",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Get",
+              "request": {
+                "description": "Get a single staff assignment.",
+                "header": [],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_staff_assignments",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_staff_assignments/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Create",
+              "request": {
+                "description": "Assign a staff member to the event.",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_staff_assignments"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_staff_assignments",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event_staff_assignment\": {\n    \"user_id\": \"{{userId}}\",\n    \"role\": \"staff\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Update",
+              "request": {
+                "description": "Update a staff assignment.",
+                "header": [],
+                "method": "PATCH",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_staff_assignments",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_staff_assignments/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event_staff_assignment\": {\n    \"user_id\": \"{{userId}}\",\n    \"organization_id\": \"{{orgId}}\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Delete",
+              "request": {
+                "description": "Revoke a staff assignment.",
+                "header": [],
+                "method": "DELETE",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_staff_assignments",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_staff_assignments/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Suspend",
+              "request": {
+                "description": "Suspend a staff member.",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_staff_assignments",
+                    ":id",
+                    "suspend"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_staff_assignments/:id/suspend",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Revoke",
+              "request": {
+                "description": "Revoke a staff member permanently.",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_staff_assignments",
+                    ":id",
+                    "revoke"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_staff_assignments/:id/revoke",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Change Role",
+              "request": {
+                "description": "Change a staff member's role/type.",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_staff_assignments",
+                    ":id",
+                    "change_role"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_staff_assignments/:id/change_role",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"role\": \"scanner\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Activate",
+              "request": {
+                "description": "",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_staff_assignments",
+                    ":id",
+                    "activate"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_staff_assignments/:id/activate",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
         }
       ]
     }
