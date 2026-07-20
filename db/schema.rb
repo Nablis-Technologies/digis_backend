@@ -277,14 +277,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_17_010500) do
     t.datetime "expires_at", precision: nil
     t.uuid "organization_id", null: false
     t.string "status", default: "active", null: false
-    t.string "type", null: false
+    t.string "role", null: false
     t.datetime "updated_at", precision: nil, null: false
     t.uuid "user_id", null: false
-    t.index ["event_id", "user_id", "type"], name: "idx_on_event_id_user_id_type_04a6bfcc14", unique: true
+    t.index ["event_id", "user_id", "role"], name: "idx_on_event_id_user_id_role", unique: true
     t.index ["organization_id"], name: "index_events_event_staff_assignments_on_organization_id"
     t.index ["user_id"], name: "index_events_event_staff_assignments_on_user_id"
     t.check_constraint "status::text = ANY (ARRAY['active'::character varying, 'suspended'::character varying, 'revoked'::character varying, 'expired'::character varying]::text[])", name: "chk_event_staff_assignments_status"
-    t.check_constraint "type::text = ANY (ARRAY['manager'::character varying, 'staff'::character varying, 'scanner'::character varying, 'contractor'::character varying]::text[])", name: "chk_event_staff_assignments_type"
+    t.check_constraint "role::text = ANY (ARRAY['manager'::character varying, 'staff'::character varying, 'scanner'::character varying, 'contractor'::character varying]::text[])", name: "chk_event_staff_assignments_role"
   end
 
   create_table "events_events", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

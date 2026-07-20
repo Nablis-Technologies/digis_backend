@@ -11,6 +11,14 @@
     {
       "fingerprint": "9560dfde15edfd1630d46de5ecb9e9c72244f4e0c28f5316ea7e572db4ce19e7",
       "note": "role is intentionally permitted on update — guarded against 'owner' in the controller, status has dedicated suspend/activate actions"
+    },
+    {
+      "fingerprint": "63938acc95c1043b140c3d1140f8a7c999d4aac4028291185d8156b8933979fd",
+      "note": "role and type are business columns on events_event_organizations (collaborator role/type), not authorization roles or STI (model sets self.inheritance_column = nil); role is validated against 'primary_owner' exclusion in the model"
+    },
+    {
+      "fingerprint": "39ab9674ecc923499fbd849ad6086665b6a20dca4e35cfe73c8a2aefdd711f7f",
+      "note": "role on events_event_staff_assignments is the staff-function discriminator (manager/staff/scanner/contractor), not an authorization role; validated via ROLES inclusion and ownership/assignment authorization in the policy + services"
     }
   ]
 }
