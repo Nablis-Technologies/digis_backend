@@ -13,3 +13,11 @@ two:
   description: Premier event management company based in Addis Ababa — specializes in concerts and cultural festivals
   organizer_type: company
   category: music
+
+three:
+  id: 019e5f69-dc1a-709f-b748-fd8afb65217a
+  name: Partner Collective
+  slug: partner-collective
+  description: A collaborating organization invited as a co-organizer for events
+  organizer_type: company
+  category: festival

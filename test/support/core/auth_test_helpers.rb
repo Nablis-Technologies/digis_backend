@@ -21,6 +21,10 @@ module Core
       { "Authorization" => "Bearer #{@auth_user_token}" }
     end
 
+    def owner_headers
+      { "Authorization" => "Bearer #{issue_token(:core_admin)}" }
+    end
+
     def issue_token(fixture_key)
       Core::TokenService.issue(Core::TokenService.access_token_payload(core_users(fixture_key)))
     end

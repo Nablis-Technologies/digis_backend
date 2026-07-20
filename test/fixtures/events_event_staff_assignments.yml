@@ -1,0 +1,10 @@
+# frozen_string_literal: true
+
+ready_manager:
+  event_id: 019e5f69-d001-7000-8000-000000000001
+  user_id: 019e5f6b-0003-7aaa-bbbb-ccccccccccc1
+  organization_id: 019e5f69-dc1a-709f-b748-fd8afb65217a
+  role: manager
+  status: active
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>

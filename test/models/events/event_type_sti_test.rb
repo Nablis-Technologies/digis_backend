@@ -14,15 +14,15 @@ class Events::BusinessTypeStiTest < ActiveSupport::TestCase
     assert_instance_of Events::EventOrganization, reloaded
   end
 
-  test "EventStaffAssignment does not instantiate STI subclasses from type" do
+  test "EventStaffAssignment does not instantiate STI subclasses from role" do
     assignment = Events::EventStaffAssignment.create!(
       event: events_events(:draft_concert),
       user: core_users(:super_admin),
       organization: organizations_organizations(:one),
-      type: "manager"
+      role: "manager"
     )
     reloaded = Events::EventStaffAssignment.find(assignment.id)
-    assert_equal "manager", reloaded.type
+    assert_equal "manager", reloaded.role
     assert_instance_of Events::EventStaffAssignment, reloaded
   end
 end
