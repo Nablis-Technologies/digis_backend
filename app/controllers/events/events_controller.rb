@@ -40,7 +40,7 @@ module Events
             return render_service_result(result)
           end
         end
-        render_success(data: @obj, serializer: Events::EventSerializer)
+        render_success(data: @obj, serializer_options: { serializer: Events::EventSerializer })
       else
         render_error(errors: @obj.errors, status: :unprocessable_entity)
       end
