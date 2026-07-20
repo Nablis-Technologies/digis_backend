@@ -1,0 +1,17 @@
+# frozen_string_literal: true
+
+en:
+  events:
+    staff_assignment:
+      success:
+        assign: "Staff assigned successfully"
+        change_role: "Staff role changed successfully"
+        suspend: "Staff suspended successfully"
+        revoke: "Staff revoked successfully"
+      errors:
+        assign: "Failed to assign staff"
+        change_role: "Failed to change staff role"
+        suspend: "Failed to suspend staff"
+        revoke: "Failed to revoke staff"
+        duplicate_assignment: "User already has this role on the event"
+        invalid_role: "Invalid staff role"

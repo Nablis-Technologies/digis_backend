@@ -24,6 +24,16 @@ Rails.application.routes.draw do
 
     resources :events, only: %i[index show create update] do
       post :publish, on: :member
+      resources :event_organizations, only: %i[index show create update destroy] do
+        post :revoke, on: :member
+        post :activate, on: :member
+      end
+      resources :event_staff_assignments, only: %i[index show create update destroy] do
+        post :suspend, on: :member
+        post :revoke, on: :member
+        post :activate, on: :member
+        post :change_role, on: :member
+      end
     end
     resources :public_events, only: %i[index show], param: :slug, path: "public/events"
   end
