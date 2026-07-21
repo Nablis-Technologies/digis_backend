@@ -9,8 +9,8 @@ module Events
     def destroy? = Events::AuthorizationResolver.can_assign?(user, record.event, record.role)
 
     VISIBILITY = {
-      index: { default: :all, admin: :all },
-      show:  { default: :all, admin: :all }
+      index: { default: { fields: :all, include: :all }, admin: { fields: :all, include: :all } },
+      show:  { default: { fields: :all, include: :all }, admin: { fields: :all, include: :all } }
     }
 
     class Scope < Core::ApplicationPolicy::Scope

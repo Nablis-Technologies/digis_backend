@@ -9,8 +9,8 @@ module Events
     def destroy? = Events::AuthorizationResolver.organization_admin_or_owner?(user, record.event)
 
     VISIBILITY = {
-      index: { default: :all, admin: :all },
-      show:  { default: :all, admin: :all }
+      index: { default: { fields: :all, include: :all }, admin: { fields: :all, include: :all } },
+      show:  { default: { fields: :all, include: :all }, admin: { fields: :all, include: :all } }
     }
 
     class Scope < Core::ApplicationPolicy::Scope
