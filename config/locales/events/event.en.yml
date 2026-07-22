@@ -16,28 +16,34 @@ en:
       destroy: "Event deleted successfully"
       publish: "Failed to publish event"
       unpublish: "Failed to unpublish event"
-    event_organization:
-      success:
-        index: "Event collaborators retrieved successfully"
-        show: "Event collaborator retrieved successfully"
-        create: "Event collaborator added successfully"
-        update: "Event collaborator updated successfully"
-        destroy: "Event collaborator removed successfully"
-      errors:
-        create: "Failed to add event collaborator"
-        update: "Failed to update event collaborator"
-        destroy: "Failed to remove event collaborator"
-    event_staff_assignment:
-      success:
-        index: "Event staff retrieved successfully"
-        show: "Event staff member retrieved successfully"
-        create: "Staff assigned successfully"
-        update: "Staff updated successfully"
-        destroy: "Staff removed successfully"
-      errors:
-        create: "Failed to assign staff"
-        update: "Failed to update staff"
-        destroy: "Failed to remove staff"
+  event_organization:
+    success:
+      index: "Event collaborators retrieved successfully"
+      show: "Event collaborator retrieved successfully"
+      create: "Event collaborator added successfully"
+      update: "Event collaborator updated successfully"
+      destroy: "Event collaborator removed successfully"
+      revoke: "Event collaborator revoked successfully"
+      activate: "Event collaborator reactivated successfully"
+    errors:
+      create: "Failed to add event collaborator"
+      update: "Failed to update event collaborator"
+      destroy: "Failed to remove event collaborator"
+  event_staff_assignment:
+    success:
+      index: "Event staff retrieved successfully"
+      show: "Event staff member retrieved successfully"
+      create: "Staff assigned successfully"
+      update: "Staff updated successfully"
+      destroy: "Staff removed successfully"
+      suspend: "Staff suspended successfully"
+      revoke: "Staff revoked successfully"
+      activate: "Staff reactivated successfully"
+      change_role: "Staff role updated successfully"
+    errors:
+      create: "Failed to assign staff"
+      update: "Failed to update staff"
+      destroy: "Failed to remove staff"
   errors:
     messages:
       slug_taken: "has already been taken (case-insensitive)"
