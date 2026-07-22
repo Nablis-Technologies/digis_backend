@@ -21,6 +21,7 @@ module Events
       org = Events::EventOrganization.find_by(event: @event, organization: @org_three)
       assert org
       assert_equal "active", org.status
+      assert_equal I18n.t("event_organization.success.create"), JSON.parse(response.body)["message"]
     end
 
     test "server forces status to active even if client tries to set it" do
@@ -50,6 +51,7 @@ module Events
       org = Events::EventOrganization.create!(event: @event, organization: @org_three, type: "co_organizer", role: "collaborator", status: "active")
       post "/events/#{@event.id}/event_organizations/#{org.id}/revoke", headers: owner_headers, as: :json
       assert_response :ok
+      assert_equal I18n.t("event_organization.success.revoke"), JSON.parse(response.body)["message"]
       assert_equal "revoked", org.reload.status
     end
 
@@ -57,6 +59,7 @@ module Events
       org = Events::EventOrganization.create!(event: @event, organization: @org_three, type: "co_organizer", role: "collaborator", status: "revoked")
       post "/events/#{@event.id}/event_organizations/#{org.id}/activate", headers: owner_headers, as: :json
       assert_response :ok
+      assert_equal I18n.t("event_organization.success.activate"), JSON.parse(response.body)["message"]
       assert_equal "active", org.reload.status
     end
 
@@ -69,6 +72,7 @@ module Events
       org.reload
       assert_equal "sponsor", org.role
       assert_equal "active", org.status
+      assert_equal I18n.t("event_organization.success.update"), JSON.parse(response.body)["message"]
     end
 
     test "outsider cannot revoke a collaborator organization" do

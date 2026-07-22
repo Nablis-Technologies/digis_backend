@@ -11,6 +11,15 @@ module Events
       @attendee = core_users(:attendee)
     end
 
+    test "owner can list staff assignments" do
+      Events::EventStaffAssignment.create!(
+        event: @event, user: @attendee, organization: @event.organization, role: "staff", status: "active"
+      )
+      get "/events/#{@event.id}/event_staff_assignments", headers: owner_headers, as: :json
+      assert_response :ok
+      assert JSON.parse(response.body)["data"].is_a?(Array)
+    end
+
     test "owner can assign staff" do
       assert_difference -> { Events::EventStaffAssignment.count }, 1 do
         post "/events/#{@event.id}/event_staff_assignments",
@@ -23,6 +32,17 @@ module Events
       assert_equal @event.id, assignment.event_id
       assert_equal @attendee.id, assignment.user_id
       assert_equal "staff", assignment.role
+    end
+
+    test "owner assign staff response includes a success message" do
+      post "/events/#{@event.id}/event_staff_assignments",
+           params: { event_staff_assignment: { user_id: @attendee.id, role: "staff" } },
+           headers: owner_headers,
+           as: :json
+      assert_response :created
+      body = JSON.parse(response.body)
+      assert_equal true, body["success"]
+      assert_equal I18n.t("event_staff_assignment.success.create"), body["message"]
     end
 
     test "outsider cannot assign staff" do
@@ -40,6 +60,7 @@ module Events
       post "/events/#{@event.id}/event_staff_assignments/#{assignment.id}/suspend",
            headers: owner_headers, as: :json
       assert_response :success
+      assert_equal I18n.t("event_staff_assignment.success.suspend"), JSON.parse(response.body)["message"]
       assert_equal "suspended", assignment.reload.status
     end
 
@@ -50,6 +71,7 @@ module Events
       post "/events/#{@event.id}/event_staff_assignments/#{assignment.id}/revoke",
            headers: owner_headers, as: :json
       assert_response :success
+      assert_equal I18n.t("event_staff_assignment.success.revoke"), JSON.parse(response.body)["message"]
       assert_equal "revoked", assignment.reload.status
     end
 
@@ -60,6 +82,7 @@ module Events
       post "/events/#{@event.id}/event_staff_assignments/#{assignment.id}/activate",
            headers: owner_headers, as: :json
       assert_response :success
+      assert_equal I18n.t("event_staff_assignment.success.activate"), JSON.parse(response.body)["message"]
       assert_equal "active", assignment.reload.status
     end
 
@@ -81,6 +104,7 @@ module Events
            params: { role: "scanner" },
            headers: owner_headers, as: :json
       assert_response :success
+      assert_equal I18n.t("event_staff_assignment.success.change_role"), JSON.parse(response.body)["message"]
       assert_equal "scanner", assignment.reload.role
     end
 
