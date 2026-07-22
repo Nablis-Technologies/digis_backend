@@ -17,7 +17,7 @@ module Events
     validates :role, presence: true, inclusion: { in: ROLES }
     validates :status, presence: true, inclusion: { in: STATUSES }
     validates :user_id, uniqueness: { scope: %i[event_id role],
-                                       message: :duplicate_staff_assignment }
+                                       message: ->(record, data) { I18n.t("events.staff_assignment.errors.duplicate_assignment") } }
 
     scope :active, -> { where(status: "active") }
     scope :managers, -> { where(role: "manager", status: "active") }

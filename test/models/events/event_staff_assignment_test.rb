@@ -57,7 +57,7 @@ class EventStaffAssignmentModelTest < ActiveSupport::TestCase
       assert duplicate.errors[:user_id].present?
       assert_includes(
         duplicate.errors[:user_id],
-        I18n.t("errors.messages.duplicate_staff_assignment")
+        I18n.t("events.staff_assignment.errors.duplicate_assignment")
       )
     end
 
