@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_17_010500) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_17_010900) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -204,6 +204,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_17_010500) do
     t.index ["phone"], name: "index_core_users_on_phone", unique: true
   end
 
+  create_table "events_access_zones", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.string "code", null: false
+    t.datetime "created_at", null: false
+    t.uuid "event_date_id"
+    t.uuid "event_id", null: false
+    t.string "name", null: false
+    t.integer "sort_order", default: 0, null: false
+    t.string "type", null: false
+    t.datetime "updated_at", null: false
+    t.index ["event_id", "code"], name: "index_access_zones_on_event_code", unique: true
+    t.index ["event_id", "type", "active", "sort_order"], name: "index_access_zones_on_event_type_active_order"
+    t.check_constraint "type::text = ANY (ARRAY['venue'::character varying::text, 'parking'::character varying::text])", name: "chk_access_zones_type"
+  end
+
   create_table "events_artists", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.boolean "active", default: true
     t.datetime "created_at", null: false
@@ -246,6 +261,44 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_17_010500) do
     t.check_constraint "event_id IS NOT NULL AND category_id IS NOT NULL", name: "chk_event_categories_present"
   end
 
+  create_table "events_event_dates", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "doors_at", precision: nil
+    t.datetime "ends_at", precision: nil, null: false
+    t.uuid "event_id", null: false
+    t.integer "held_venue_count", default: 0, null: false
+    t.integer "issued_venue_count", default: 0, null: false
+    t.string "name"
+    t.string "source_key"
+    t.datetime "starts_at", precision: nil, null: false
+    t.string "status", default: "scheduled", null: false
+    t.datetime "updated_at", null: false
+    t.integer "venue_capacity"
+    t.uuid "venue_id"
+    t.index ["event_id", "source_key"], name: "index_events_event_dates_on_event_id_and_source_key", unique: true, where: "(source_key IS NOT NULL)"
+    t.index ["event_id", "starts_at"], name: "index_events_event_dates_on_event_id_and_starts_at"
+    t.index ["event_id"], name: "index_events_event_dates_on_event_id"
+    t.check_constraint "doors_at IS NULL OR doors_at <= starts_at", name: "chk_event_dates_doors_before_starts"
+    t.check_constraint "ends_at > starts_at", name: "chk_event_dates_ends_after_starts"
+    t.check_constraint "held_venue_count >= 0 AND issued_venue_count >= 0", name: "chk_event_dates_counts_nonnegative"
+  end
+
+  create_table "events_event_media", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "alt_text"
+    t.text "caption"
+    t.datetime "created_at", null: false
+    t.uuid "created_by_id", null: false
+    t.uuid "event_id", null: false
+    t.integer "position", default: 0, null: false
+    t.string "type", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_event_media_on_created_by"
+    t.index ["event_id", "type", "position"], name: "index_event_media_on_event_type_position", unique: true
+    t.check_constraint "\"position\" >= 0", name: "chk_event_media_position"
+    t.check_constraint "type::text <> 'cover'::text OR \"position\" = 0", name: "chk_event_media_cover_position"
+    t.check_constraint "type::text = ANY (ARRAY['cover'::character varying, 'gallery'::character varying]::text[])", name: "chk_event_media_type"
+  end
+
   create_table "events_event_organizations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "accepted_at", precision: nil
     t.datetime "created_at", precision: nil, null: false
@@ -259,8 +312,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_17_010500) do
     t.index ["event_id", "organization_id"], name: "idx_on_event_id_organization_id_ee33770ea4", unique: true
     t.index ["organization_id"], name: "index_events_event_organizations_on_organization_id"
     t.check_constraint "role::text <> 'primary_owner'::text", name: "chk_event_organizations_no_primary_owner"
-    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'active'::character varying, 'revoked'::character varying]::text[])", name: "chk_event_organizations_status"
-    t.check_constraint "type::text = ANY (ARRAY['co_organizer'::character varying, 'venue_partner'::character varying, 'promoter'::character varying, 'sponsor'::character varying]::text[])", name: "chk_event_organizations_type"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'active'::character varying::text, 'revoked'::character varying::text])", name: "chk_event_organizations_status"
+    t.check_constraint "type::text = ANY (ARRAY['co_organizer'::character varying::text, 'venue_partner'::character varying::text, 'promoter'::character varying::text, 'sponsor'::character varying::text])", name: "chk_event_organizations_type"
+  end
+
+  create_table "events_event_participants", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "artist_id"
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.integer "display_order", default: 0, null: false
+    t.uuid "event_date_id"
+    t.uuid "event_id", null: false
+    t.jsonb "metadata", default: {}
+    t.string "name", null: false
+    t.string "type", null: false
+    t.datetime "updated_at", null: false
+    t.index ["artist_id", "event_id"], name: "index_event_participants_on_artist_event", where: "(artist_id IS NOT NULL)"
+    t.index ["event_id", "event_date_id", "display_order"], name: "index_event_participants_on_event_date_order"
+    t.check_constraint "type::text = ANY (ARRAY['performer'::character varying::text, 'speaker'::character varying::text, 'host'::character varying::text, 'instructor'::character varying::text, 'panelist'::character varying::text, 'team'::character varying::text, 'guest'::character varying::text])", name: "chk_event_participants_type"
   end
 
   create_table "events_event_settings", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -276,15 +345,50 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_17_010500) do
     t.uuid "event_id", null: false
     t.datetime "expires_at", precision: nil
     t.uuid "organization_id", null: false
-    t.string "status", default: "active", null: false
     t.string "role", null: false
+    t.string "status", default: "active", null: false
     t.datetime "updated_at", precision: nil, null: false
     t.uuid "user_id", null: false
     t.index ["event_id", "user_id", "role"], name: "idx_on_event_id_user_id_role", unique: true
     t.index ["organization_id"], name: "index_events_event_staff_assignments_on_organization_id"
     t.index ["user_id"], name: "index_events_event_staff_assignments_on_user_id"
-    t.check_constraint "status::text = ANY (ARRAY['active'::character varying, 'suspended'::character varying, 'revoked'::character varying, 'expired'::character varying]::text[])", name: "chk_event_staff_assignments_status"
-    t.check_constraint "role::text = ANY (ARRAY['manager'::character varying, 'staff'::character varying, 'scanner'::character varying, 'contractor'::character varying]::text[])", name: "chk_event_staff_assignments_role"
+    t.check_constraint "role::text = ANY (ARRAY['manager'::character varying::text, 'staff'::character varying::text, 'scanner'::character varying::text, 'contractor'::character varying::text])", name: "chk_event_staff_assignments_role"
+    t.check_constraint "status::text = ANY (ARRAY['active'::character varying::text, 'suspended'::character varying::text, 'revoked'::character varying::text, 'expired'::character varying::text])", name: "chk_event_staff_assignments_status"
+  end
+
+  create_table "events_event_streams", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "access_protection", null: false
+    t.jsonb "config", default: {}
+    t.datetime "created_at", null: false
+    t.uuid "event_date_id", null: false
+    t.datetime "live_from", precision: nil, null: false
+    t.datetime "live_until", precision: nil, null: false
+    t.integer "max_concurrent_devices", default: 1, null: false
+    t.string "provider", null: false
+    t.string "provider_playback_id"
+    t.string "provider_stream_id"
+    t.datetime "replay_available_until", precision: nil
+    t.boolean "replay_enabled", default: false, null: false
+    t.string "status", default: "scheduled", null: false
+    t.datetime "updated_at", null: false
+    t.index ["event_date_id"], name: "index_event_streams_on_event_date", unique: true
+    t.check_constraint "access_protection::text = ANY (ARRAY['public'::character varying::text, 'soft_gated'::character varying::text, 'signed'::character varying::text])", name: "chk_event_streams_access_protection"
+    t.check_constraint "replay_available_until IS NOT NULL OR replay_enabled = false", name: "chk_event_streams_replay_until"
+    t.check_constraint "status::text = ANY (ARRAY['scheduled'::character varying::text, 'live'::character varying::text, 'ended'::character varying::text, 'disabled'::character varying::text])", name: "chk_event_streams_status"
+  end
+
+  create_table "events_event_video_links", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.text "caption"
+    t.datetime "created_at", null: false
+    t.uuid "created_by_id", null: false
+    t.uuid "event_id", null: false
+    t.integer "position", default: 0, null: false
+    t.string "provider", default: "youtube", null: false
+    t.string "title"
+    t.datetime "updated_at", null: false
+    t.string "url", null: false
+    t.index ["event_id", "position"], name: "index_event_video_links_on_event_position"
+    t.check_constraint "provider::text = 'youtube'::text", name: "chk_event_video_links_provider"
   end
 
   create_table "events_events", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -309,9 +413,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_17_010500) do
     t.check_constraint "cancelled_at IS NULL OR status::text = 'cancelled'::text", name: "chk_events_events_cancelled_at_requires_cancelled"
     t.check_constraint "currency::text ~ '^[A-Z]{3}$'::text", name: "chk_events_events_currency_iso4217"
     t.check_constraint "published_at IS NULL OR status::text = 'published'::text", name: "chk_events_events_published_at_requires_published"
-    t.check_constraint "status::text = ANY (ARRAY['draft'::character varying, 'published'::character varying, 'cancelled'::character varying, 'completed'::character varying]::text[])", name: "chk_events_events_status"
+    t.check_constraint "status::text = ANY (ARRAY['draft'::character varying::text, 'published'::character varying::text, 'cancelled'::character varying::text, 'completed'::character varying::text])", name: "chk_events_events_status"
     t.check_constraint "version >= 0", name: "chk_events_events_version_non_negative"
-    t.check_constraint "visibility::text = ANY (ARRAY['private'::character varying, 'public'::character varying, 'unlisted'::character varying]::text[])", name: "chk_events_events_visibility"
+    t.check_constraint "visibility::text = ANY (ARRAY['private'::character varying::text, 'public'::character varying::text, 'unlisted'::character varying::text])", name: "chk_events_events_visibility"
+  end
+
+  create_table "events_recurrence_rules", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.timestamp "dtstart_local", null: false
+    t.integer "duration_seconds", null: false
+    t.uuid "event_id", null: false
+    t.jsonb "exdates", default: [], null: false
+    t.datetime "generated_until", precision: nil
+    t.jsonb "rdates", default: [], null: false
+    t.text "rrule", null: false
+    t.string "timezone", null: false
+    t.datetime "updated_at", null: false
+    t.index ["event_id"], name: "index_events_recurrence_rules_on_event_id", unique: true
+    t.check_constraint "duration_seconds > 0", name: "chk_recurrence_duration_positive"
   end
 
   create_table "events_venues", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -389,14 +509,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_17_010500) do
   add_foreign_key "core_user_roles", "core_roles", column: "role_id"
   add_foreign_key "core_user_roles", "core_users", column: "assigned_by_id"
   add_foreign_key "core_user_roles", "core_users", column: "user_id"
+  add_foreign_key "events_access_zones", "events_event_dates", column: "event_date_id", on_delete: :nullify
+  add_foreign_key "events_access_zones", "events_events", column: "event_id", on_delete: :cascade
   add_foreign_key "events_event_categories", "events_categories", column: "category_id", on_delete: :restrict
   add_foreign_key "events_event_categories", "events_events", column: "event_id", on_delete: :cascade
+  add_foreign_key "events_event_media", "core_users", column: "created_by_id", on_delete: :restrict
+  add_foreign_key "events_event_media", "events_events", column: "event_id", on_delete: :cascade
   add_foreign_key "events_event_organizations", "events_events", column: "event_id", on_delete: :cascade
   add_foreign_key "events_event_organizations", "organizations_organizations", column: "organization_id", on_delete: :cascade
+  add_foreign_key "events_event_participants", "events_event_dates", column: "event_date_id", on_delete: :cascade
+  add_foreign_key "events_event_participants", "events_events", column: "event_id", on_delete: :cascade
   add_foreign_key "events_event_settings", "events_events", column: "event_id", on_delete: :cascade
   add_foreign_key "events_event_staff_assignments", "core_users", column: "user_id", on_delete: :cascade
   add_foreign_key "events_event_staff_assignments", "events_events", column: "event_id", on_delete: :cascade
   add_foreign_key "events_event_staff_assignments", "organizations_organizations", column: "organization_id", on_delete: :cascade
+  add_foreign_key "events_event_streams", "events_event_dates", column: "event_date_id", on_delete: :cascade
+  add_foreign_key "events_event_video_links", "core_users", column: "created_by_id", on_delete: :restrict
+  add_foreign_key "events_event_video_links", "events_events", column: "event_id", on_delete: :cascade
   add_foreign_key "events_events", "core_users", column: "created_by_id", on_delete: :restrict
   add_foreign_key "events_events", "organizations_organizations", column: "organization_id", on_delete: :restrict
   add_foreign_key "organizations_memberships", "core_users", column: "user_id"
