@@ -154,7 +154,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/admin/system
 
 - primary database: `SELECT 1`;
 - Solid Queue database/connection: connection checkout and `SELECT 1`;
-- outbox: count undispatched rows older than the configured warning threshold;
+- outbox: count undispatched rows older than the configured warning threshold; a sustained non-zero count means the Plan 0 enqueuer (`Core::ProcessOutboxJob`, core-foundation Task 5 Step 8) is not scheduled or not draining, not merely a transient backlog;
 - storage: verify the configured service and required bucket/container configuration without uploading a probe object;
 - encryption: verify primary, deterministic, and salt configuration is present without returning key material.
 
@@ -248,7 +248,7 @@ The credential job compares active generation, active credential rows, revocatio
 
 - [ ] **Step 4: Schedule recurring supervision**
 
-Configure a short production cadence for payments/outbox and a slower cadence for payouts/projection audits. Keep schedule values environment-configurable. Do not run provider reconciliation in web requests.
+Configure a short production cadence for payments/outbox and a slower cadence for payouts/projection audits. Keep schedule values environment-configurable. Do not run provider reconciliation in web requests. The primary outbox *delivery* driver, `Core::ProcessOutboxJob` (Plan 0, core-foundation Task 5 Step 8), must also be scheduled here; `Reconciliation::OutboxJob` is only the backstop for rows the enqueuer misses or that exhausted their `DispatchOutboxEventJob` retries, not a substitute for the enqueuer.
 
 - [ ] **Step 5: Verify retries, overlap, and unknown outcomes**
 
@@ -526,7 +526,7 @@ Cover these end-to-end journeys with provider/scanner fakes and real database co
 
 - [ ] **Step 2: Complete the release checklist**
 
-The checklist links every architecture invariant to a passing test, migration/index, alert, dashboard signal, and runbook owner. Any missing link blocks launch. Explicitly record the accepted offline-stale-revocation limitation and events that require online validation.
+The checklist links every architecture invariant to a passing test, migration/index, alert, dashboard signal, and runbook owner. Any missing link blocks launch. Explicitly record the accepted offline-stale-revocation limitation and events that require online validation. Also link the outbox-delivery invariant: the Plan 0 enqueuer (`Core::ProcessOutboxJob`, core-foundation Task 5 Step 8) is scheduled and observed draining in staging, `Reconciliation::OutboxJob` is the backstop, and the Task 2 readiness alarm for undispatched rows is green.
 
 - [ ] **Step 3: Run final verification**
 
