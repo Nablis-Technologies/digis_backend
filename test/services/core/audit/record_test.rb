@@ -59,6 +59,23 @@ class Core::Audit::RecordTest < ActiveSupport::TestCase
     end
   end
 
+  test "ignores timestamp drift when deciding replay equality" do
+    base = {
+      audit_key: "ticket.issue:ts-drift",
+      action: "ticket.issue",
+      auditable_type: "Ticketing::Ticket",
+      auditable_id: SecureRandom.uuid
+    }
+
+    Core::Audit::Record.call(**base, audited_changes: { status: "active", updated_at: 1.day.ago })
+
+    assert_nothing_raised do
+      result = Core::Audit::Record.call(**base, audited_changes: { status: "active", updated_at: 1.day.from_now })
+      assert result.success?
+    end
+    assert_equal 1, Core::AuditLog.where(audit_key: "ticket.issue:ts-drift").count
+  end
+
   test "rejects reuse of an audit key for a different payload" do
     base = {
       audit_key: "payment.accept:payment-1",
