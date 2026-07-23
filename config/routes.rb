@@ -37,7 +37,7 @@ Rails.application.routes.draw do
       resources :event_dates, only: %i[index show create update destroy]
       resources :event_participants, only: %i[index show create update destroy]
       resources :access_zones, only: %i[index show create update destroy]
-      resources :recurrence_rules, only: %i[index show create update destroy]
+      resource :recurrence_rule, only: %i[show create update destroy]
       resources :event_media, only: %i[index show create update destroy]
       resources :event_media_orders, only: [] do
         post :reorder, on: :collection
