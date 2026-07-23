@@ -34,6 +34,12 @@ module Core
              class_name: "Core::Review",
              as: :reviewed_by,
              dependent: :nullify
+    has_many :event_video_links,
+             class_name: "Events::EventVideoLink",
+             inverse_of: :created_by
+    has_many :event_media,
+             class_name: "Events::EventMedia",
+             inverse_of: :created_by
 
     scope :active, -> { where(deactivated_at: nil) }
     scope :deactivated, -> { where.not(deactivated_at: nil) }

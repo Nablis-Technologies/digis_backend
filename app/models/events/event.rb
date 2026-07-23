@@ -25,6 +25,18 @@ module Events
              dependent: :destroy, inverse_of: :event
     has_many :collaborators, through: :event_organizations, source: :organization
     has_many :event_staff_assignments, class_name: "Events::EventStaffAssignment",
+              dependent: :destroy, inverse_of: :event
+    has_many :event_dates, class_name: "Events::EventDate",
+             dependent: :destroy, inverse_of: :event
+    has_one :recurrence_rule, class_name: "Events::RecurrenceRule",
+            dependent: :destroy, inverse_of: :event
+    has_many :event_participants, class_name: "Events::EventParticipant",
+             dependent: :destroy, inverse_of: :event
+    has_many :access_zones, class_name: "Events::AccessZone",
+             dependent: :destroy, inverse_of: :event
+    has_many :event_video_links, class_name: "Events::EventVideoLink",
+             dependent: :destroy, inverse_of: :event
+    has_many :event_media, class_name: "Events::EventMedia",
              dependent: :destroy, inverse_of: :event
 
     validates :title, presence: true
