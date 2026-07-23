@@ -1,0 +1,11 @@
+# frozen_string_literal: true
+
+en:
+  events:
+    recurrence:
+      materialize:
+        errors:
+          invalid: "Failed to materialize recurrence dates"
+      configure:
+        errors:
+          invalid: "Failed to configure recurrence rule"

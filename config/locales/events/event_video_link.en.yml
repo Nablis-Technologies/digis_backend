@@ -1,0 +1,22 @@
+# frozen_string_literal: true
+
+en:
+  event_video_link:
+    success:
+      create: "Video link added successfully"
+      update: "Video link updated successfully"
+      destroy: "Video link removed successfully"
+    errors:
+      create: "Failed to add video link"
+      update: "Failed to update video link"
+      destroy: "Failed to remove video link"
+  events:
+    event_video_link:
+      success:
+        create: "Video link added successfully"
+        update: "Video link updated successfully"
+        destroy: "Video link removed successfully"
+      errors:
+        create: "Failed to add video link"
+        update: "Failed to update video link"
+        destroy: "Failed to remove video link"

@@ -34,6 +34,15 @@ Rails.application.routes.draw do
         post :activate, on: :member
         post :change_role, on: :member
       end
+      resources :event_dates, only: %i[index show create update destroy]
+      resources :event_participants, only: %i[index show create update destroy]
+      resources :access_zones, only: %i[index show create update destroy]
+      resources :recurrence_rules, only: %i[index show create update destroy]
+      resources :event_media, only: %i[index show create update destroy]
+      resources :event_media_orders, only: [] do
+        post :reorder, on: :collection
+      end
+      resources :event_video_links, only: %i[index show create update destroy]
     end
     resources :public_events, only: %i[index show], param: :slug, path: "public/events"
   end
