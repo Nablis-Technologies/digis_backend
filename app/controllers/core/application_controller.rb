@@ -16,5 +16,9 @@ module Core
     rescue_from ActiveRecord::RecordInvalid do |error|
       render_error(errors: error.record.errors, status: :unprocessable_entity)
     end
+
+    rescue_from ActiveRecord::RecordNotUnique do |error|
+      render_error(I18n.t(:"errors.not_unique"), status: :unprocessable_entity)
+    end
   end
 end

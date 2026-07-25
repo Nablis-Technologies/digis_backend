@@ -20,6 +20,7 @@ en:
 
   errors:
     not_found: "The requested %{model} was not found"
+    not_unique: "A record with these details already exists"
 
   admin:
     organizations:
