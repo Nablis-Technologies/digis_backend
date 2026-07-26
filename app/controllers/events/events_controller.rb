@@ -7,6 +7,8 @@ module Events
     self.model_class = Events::Event
     self.default_serializer = Events::EventSerializer
 
+    before_action :ensure_idempotency_key_present, only: [ :publish ]
+
     # Draft CRUD index/show/update are plain nested CRUD handled by Core::Common.
     # Creation and publication go through explicit commands.
 
@@ -52,7 +54,7 @@ module Events
       result = Events::Publish.call(
         event: @obj,
         actor: current_user,
-        idempotency_key: request_id
+        idempotency_key: idempotency_key
       )
       render_service_result(result, serializer_options: { serializer: Events::EventSerializer })
     end
@@ -73,10 +75,6 @@ module Events
 
     def model_params
       event_params.except(:organization_id)
-    end
-
-    def request_id
-      request.request_id || SecureRandom.uuid
     end
   end
 end

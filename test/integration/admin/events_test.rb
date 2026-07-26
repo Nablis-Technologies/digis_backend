@@ -24,7 +24,7 @@ class AdminEventsTest < ActionDispatch::IntegrationTest
     # ensure at least one category so readiness passes
     Events::ReplaceCategories.call(event:, category_ids: [ events_categories(:music).id ], actor: core_users(:super_admin))
 
-    post "/admin/events/#{event.id}/publish", headers: admin_headers, as: :json
+    post "/admin/events/#{event.id}/publish", headers: admin_headers.merge("Idempotency-Key" => "admin-publish-1"), as: :json
     assert_response :success
     assert_equal "published", event.reload.status
     assert_equal "Event published successfully", JSON.parse(response.body)["message"]
@@ -39,5 +39,12 @@ class AdminEventsTest < ActionDispatch::IntegrationTest
     assert_equal "draft", event.reload.status
     assert_nil event.published_at
     assert_equal "Event unpublished successfully", JSON.parse(response.body)["message"]
+  end
+
+  test "admin publishing without an Idempotency-Key header returns 400" do
+    event = events_events(:draft_concert)
+    post "/admin/events/#{event.id}/publish", headers: admin_headers, as: :json
+    assert_response :bad_request
+    assert_equal "missing_idempotency_key", JSON.parse(response.body)["code"]
   end
 end

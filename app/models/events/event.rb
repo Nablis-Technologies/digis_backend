@@ -79,7 +79,7 @@ module Events
     end
 
     def published_at_requires_published
-      return unless published_at.present? && status != "published"
+      return unless published_at.present? && !%w[published cancelled].include?(status)
 
       errors.add(:published_at, I18n.t("errors.messages.published_at_requires_published"))
     end
@@ -93,7 +93,9 @@ module Events
     def sync_published_at
       if status == "published"
         self.published_at ||= Time.current
-      else
+      elsif status != "cancelled"
+        # A cancelled event retains published_at as historical evidence that it
+        # was once live; every other non-published status clears it.
         self.published_at = nil
       end
     end

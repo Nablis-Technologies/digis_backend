@@ -57,7 +57,7 @@ class EventsEventsTest < ActionDispatch::IntegrationTest
     event = Events::Event.find(JSON.parse(response.body).dig("data", "id"))
     assert_equal 1, event.event_categories.count
 
-    post "/events/#{event.id}/publish", headers: admin_headers, as: :json
+    post "/events/#{event.id}/publish", headers: admin_headers.merge("Idempotency-Key" => "publish-1"), as: :json
     assert_response :success
     assert_equal "published", event.reload.status
   end
@@ -96,7 +96,7 @@ class EventsEventsTest < ActionDispatch::IntegrationTest
     event = events_events(:ready_listing)
     make_verified(event.organization)
 
-    post "/events/#{event.id}/publish", headers: admin_headers, as: :json
+    post "/events/#{event.id}/publish", headers: admin_headers.merge("Idempotency-Key" => "publish-2"), as: :json
     assert_response :success
     body = JSON.parse(response.body).dig("data")
     assert_equal "published", body["status"]
@@ -109,7 +109,7 @@ class EventsEventsTest < ActionDispatch::IntegrationTest
   test "publishing an unverified organization is forbidden" do
     event = events_events(:ready_listing)
 
-    post "/events/#{event.id}/publish", headers: admin_headers, as: :json
+    post "/events/#{event.id}/publish", headers: admin_headers.merge("Idempotency-Key" => "publish-3"), as: :json
     assert_response :unprocessable_entity
     assert_equal "draft", event.reload.status
   end
@@ -129,8 +129,15 @@ class EventsEventsTest < ActionDispatch::IntegrationTest
                     timezone: "Africa/Addis_Ababa", currency: "ETB" }
     ).value
 
-    post "/events/#{event.id}/publish", headers: user_headers, as: :json
+    post "/events/#{event.id}/publish", headers: user_headers.merge("Idempotency-Key" => "publish-4"), as: :json
     assert_response :forbidden
     assert_equal "draft", event.reload.status
+  end
+
+  test "publishing without an Idempotency-Key header returns 400" do
+    event = events_events(:ready_listing)
+    post "/events/#{event.id}/publish", headers: admin_headers, as: :json
+    assert_response :bad_request
+    assert_equal "missing_idempotency_key", JSON.parse(response.body)["code"]
   end
 end
