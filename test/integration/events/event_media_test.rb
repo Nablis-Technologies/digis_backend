@@ -101,10 +101,11 @@ module Events
       b = create_media(type: "gallery", position: 2)
       c = create_media(type: "gallery", position: 3)
 
-      post "/events/#{@event.id}/event_media_orders/reorder",
+      post "/events/#{@event.id}/event_media/reorder",
            params: { ordered_ids: [ c.id, a.id, b.id ] },
            headers: owner_headers, as: :json
       assert_response :ok
+      assert_equal I18n.t("event_media.success.reorder"), JSON.parse(response.body)["message"]
       assert_equal 1, c.reload.position
       assert_equal 2, a.reload.position
       assert_equal 3, b.reload.position
@@ -114,7 +115,7 @@ module Events
       a = create_media(type: "gallery", position: 1)
       b = create_media(type: "gallery", position: 2)
 
-      post "/events/#{@event.id}/event_media_orders/reorder",
+      post "/events/#{@event.id}/event_media/reorder",
            params: { ordered_ids: [ b.id, a.id ] },
            headers: user_headers, as: :json
       assert_response :forbidden
