@@ -5570,7 +5570,13 @@
               "name": "Publish",
               "request": {
                 "description": "Publish the current draft version (idempotent; retires the prior published version).",
-                "header": [],
+                "header": [
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "<key>",
+                    "type": "text"
+                  }
+                ],
                 "method": "POST",
                 "url": {
                   "host": [
@@ -6596,6 +6602,98 @@
           ]
         },
         {
+          "name": "Event Schedule Changes",
+          "item": [
+            {
+              "name": "Create",
+              "request": {
+                "description": "Record an append-only schedule change for an event's dates.",
+                "header": [
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "<key>",
+                    "type": "text"
+                  }
+                ],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_schedule_changes"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_schedule_changes",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"schedule_change\": {\n    \"changes\": [\n      {\n        \"event_date_id\": \"<date_id>\",\n        \"new_start_at\": \"2026-09-01T20:00:00Z\",\n        \"new_end_at\": \"2026-09-01T22:00:00Z\",\n        \"change_type\": \"reschedule\"\n      }\n    ]\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Event Cancellations",
+          "item": [
+            {
+              "name": "Create",
+              "request": {
+                "description": "Initiate an irreversible event cancellation.",
+                "header": [
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "<key>",
+                    "type": "text"
+                  }
+                ],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_cancellations"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_cancellations",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"cancellation\": {\n    \"reason\": \"internal note (not exposed)\",\n    \"attendee_reason\": \"Event postponed.\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
           "name": "Event Video Links",
           "item": [
             {
@@ -6882,7 +6980,13 @@
           "name": "Publish",
           "request": {
             "description": "Publish the current draft version (retires any prior published version). Idempotent.",
-            "header": [],
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "<key>",
+                "type": "text"
+              }
+            ],
             "method": "POST",
             "url": {
               "host": [
