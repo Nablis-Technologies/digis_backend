@@ -286,11 +286,11 @@ end
 - Test: `test/services/events/consent_documents/publish_version_test.rb`
 - Test: `test/integration/events/consent_documents_test.rb`
 
-- [ ] **RED:** test monotonic version, exactly one published version, immutable published body/digest semantics, canonical SHA-256, manager authorization, and public exclusion of draft/retired versions.
-- [ ] **Run RED:** `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/events/consent_documents/publish_version_test.rb test/integration/events/consent_documents_test.rb`; expect missing classes.
-- [ ] **GREEN:** implement draft CRUD with `Core::Common` and publish through a locked service. Use a partial unique published-version index and database status/timestamp checks. Never change a version already referenced by registration requirements. Product scoping is added only after `ticketing_ticket_types` exists in the catalog plan.
-- [ ] **Run GREEN:** `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/events/consent_documents/publish_version_test.rb test/integration/events/consent_documents_test.rb`; expect pass.
-- [ ] **Refactor:** keep consent acceptance out of this module; the registration plan consumes exact immutable version IDs.
+- [x] **RED:** test monotonic version, exactly one published version, immutable published body/digest semantics, canonical SHA-256, manager authorization, and public exclusion of draft/retired versions.
+- [x] **Run RED:** `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/events/consent_documents/publish_version_test.rb test/integration/events/consent_documents_test.rb`; expect missing classes.
+- [x] **GREEN:** implement draft CRUD with `Core::Common` and publish through a locked service. Use a partial unique published-version index and database status/timestamp checks. Never change a version already referenced by registration requirements. Product scoping is added only after `ticketing_ticket_types` exists in the catalog plan.
+- [x] **Run GREEN:** `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/events/consent_documents/publish_version_test.rb test/integration/events/consent_documents_test.rb`; expect pass.
+- [x] **Refactor:** keep consent acceptance out of this module; the registration plan consumes exact immutable version IDs.
 - [ ] **Commit:** stage listed files and commit `feat(events): add versioned consent documents`.
 
 ## Task 7: Implement append-only schedule change and the irreversible cancellation boundary

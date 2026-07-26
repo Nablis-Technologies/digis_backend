@@ -914,7 +914,7 @@ git commit -m "feat(core): add outbox enqueuer and recovery sweep"
 - Reuse: `test/integration/organizations/owner_organizations_test.rb`
 - Reuse: `test/integration/organizations/owner_memberships_test.rb`
 
-- [ ] **Step 1: RED — specify one deletion-safe, retry-safe recorder contract**
+- [x] **Step 1: RED — specify one deletion-safe, retry-safe recorder contract**
 
 ```ruby
 require "test_helper"
@@ -1007,7 +1007,7 @@ class Core::Audit::RecordTest < ActiveSupport::TestCase
 end
 ```
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/core/audit/record_test.rb
@@ -1015,7 +1015,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/core/audit/r
 
 Expected: missing `audit_key` schema and `Core::Audit::Record`.
 
-- [ ] **Step 3: GREEN — add the idempotency boundary and implement the only audit writer**
+- [x] **Step 3: GREEN — add the idempotency boundary and implement the only audit writer**
 
 ```ruby
 class AddAuditKeyToCoreAuditLogs < ActiveRecord::Migration[8.1]
@@ -1138,7 +1138,7 @@ module Core
 end
 ```
 
-- [ ] **Step 4: Run the recorder tests**
+- [x] **Step 4: Run the recorder tests**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:migrate
@@ -1147,7 +1147,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/core/audit_log
 
 Expected: PASS, including rollback, identical replay, replay conflict, and recursive sensitive-key rejection.
 
-- [ ] **Step 5: RED — preserve the controller DSL's automatic diff behavior**
+- [x] **Step 5: RED — preserve the controller DSL's automatic diff behavior**
 
 Move the existing advanced-signature behavior tests out of `test/jobs/core/audit_logger_job_test.rb` into `test/services/core/audit/build_controller_payload_test.rb`. Keep exact coverage for:
 
@@ -1201,7 +1201,7 @@ def snapshot(record, **overrides)
 end
 ```
 
-- [ ] **Step 6: GREEN — extract normalization from the job without changing the DSL**
+- [x] **Step 6: GREEN — extract normalization from the job without changing the DSL**
 
 Create `Core::Audit::BuildControllerPayload < Core::BaseService`. Move the existing proven `calculate_changes`, `diff_records`, `filter_changes`, association normalization, and action-label resolution from `Core::AuditLoggerJob` into this pure builder. It receives the before/after snapshots and active DSL configurations and returns only normalized scalar/JSON attributes accepted by `Core::Audit::Record`:
 
@@ -1239,7 +1239,7 @@ auditable_record_for :destroy, -> { @event }
 
 The existing `transactional:` name is misleading because an `after_action` job is not atomic with a CRUD transaction that already committed. Replace it with `required: true` in the DSL and update all local call sites in this same pre-launch commit. `required: true` means payload construction or enqueue failure raises and fails the request; it does not promise rollback of already committed controller CRUD. Commands requiring atomic evidence use the synchronous path below.
 
-- [ ] **Step 7: GREEN — reduce the job to one normalized recorder call**
+- [x] **Step 7: GREEN — reduce the job to one normalized recorder call**
 
 ```ruby
 # frozen_string_literal: true
@@ -1258,7 +1258,7 @@ end
 
 Delete `perform_legacy`, snapshot diffing, constantization, record reloading, and the dual signature from the job. Do not use `discard_on ActiveRecord::RecordNotFound`: the normalized payload contains the captured polymorphic type and ID, so create/update/destroy audits remain writable even if the auditable or actor is later deleted. Job retry is safe because `audit_key` is unique and identical replays return the existing row.
 
-- [ ] **Step 8: GREEN — preserve model convenience methods through the same two paths**
+- [x] **Step 8: GREEN — preserve model convenience methods through the same two paths**
 
 `Core::AuditableModel#record_audit!` builds the same scalar payload and calls `Core::Audit::Record` synchronously, returning `result.value`. `record_audit_later!` builds the same payload and enqueues `Core::AuditLoggerJob`. Both accept optional `audit_key:`; when omitted, generate `model:<model_name>:<id>:<action>:<SecureRandom.uuid>` because these convenience calls have no external idempotency identity.
 
@@ -1278,7 +1278,7 @@ test "retains audit history after the auditable is deleted" do
 end
 ```
 
-- [ ] **Step 9: Run controller, builder, job, and model regression tests**
+- [x] **Step 9: Run controller, builder, job, and model regression tests**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
@@ -1292,7 +1292,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
 
 Expected: PASS. Controller authors retain automatic create/update/destroy and associated diffs, destroy audits survive missing records, model helpers preserve return/enqueue behavior, and job retries create one log.
 
-- [ ] **Step 10: Use synchronous audit recording in authoritative commands**
+- [x] **Step 10: Use synchronous audit recording in authoritative commands**
 
 New payment, ticket issuance, credential replacement, refund, finance-ledger, resale-completion, and payout commands call the recorder after their state mutation but before their transaction commits:
 
@@ -1318,7 +1318,7 @@ The surrounding transaction rolls back if recorder validation or insertion raise
 
 Controller CRUD audits remain automatic and asynchronous. Command audits are explicit and synchronous because they record meaningful business transitions rather than every changed database column.
 
-- [ ] **Step 11: Verify the single-writer invariant**
+- [x] **Step 11: Verify the single-writer invariant**
 
 ```bash
 rg -n "AuditLog\.(create|create!)|audit_logs\.(create|create!)|perform_legacy" app --glob '*.rb'
@@ -1334,7 +1334,7 @@ Controller DSL -> automatic snapshot diff -> normalized payload -> AuditLoggerJo
 Financial/ticket command -> explicit business diff inside transaction ----------+-> Core::Audit::Record -> Core::AuditLog
 ```
 
-- [ ] **Step 12: Run all audit and resource tests**
+- [x] **Step 12: Run all audit and resource tests**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
@@ -1348,7 +1348,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
 
 Expected: audits remain visible on CRUD surfaces, automatic diffs match previous behavior, async retries are idempotent, destroy evidence survives deletion, and synchronous audit rollback is proven.
 
-- [ ] **Step 13: Commit**
+- [x] **Step 13: Commit**
 
 ```bash
 git add db/migrate/20260717000101_add_audit_key_to_core_audit_logs.rb db/schema.rb app/services/core/audit app/models/core/audit_log.rb app/models/concerns/core/auditable_model.rb app/controllers/concerns/core/auditable_controller.rb app/jobs/core/audit_logger_job.rb test/models/core/audit_log_test.rb test/models/core/role_test.rb test/services/core/audit test/jobs/core/audit_logger_job_test.rb test/integration/admin test/integration/organizations
