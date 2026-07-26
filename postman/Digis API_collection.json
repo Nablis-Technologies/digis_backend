@@ -215,7 +215,12 @@
           "name": "Logout",
           "request": {
             "method": "POST",
-            "header": [],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/auth/logout",
               "host": [
@@ -226,7 +231,16 @@
                 "logout"
               ]
             },
-            "description": "Logout and invalidate the current refresh token. Requires valid access token."
+            "description": "Logout and invalidate the current refresh token. Requires valid access token.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"refresh_token\": \"{{refreshToken}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "response": [],
           "event": [
@@ -714,7 +728,7 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{baseUrl}}/public/events?page=1&per_page=10&order_by=created_at&order_direction=desc",
+                  "raw": "{{baseUrl}}/public/events",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -722,24 +736,7 @@
                     "public",
                     "events"
                   ],
-                  "query": [
-                    {
-                      "key": "page",
-                      "value": "1"
-                    },
-                    {
-                      "key": "per_page",
-                      "value": "10"
-                    },
-                    {
-                      "key": "order_by",
-                      "value": "created_at"
-                    },
-                    {
-                      "key": "order_direction",
-                      "value": "desc"
-                    }
-                  ]
+                  "query": []
                 },
                 "description": "Discover published public events without authentication."
               },
@@ -5921,7 +5918,7 @@
                 "response": [],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"event_participant\": {\n    \"user_id\": \"{{userId}}\",\n    \"role\": \"attendee\"\n  }\n}",
+                  "raw": "{\"event_participant\":{\"event_date_id\":\"{{eventDateId}}\",\"artist_id\":\"{{artistId}}\",\"name\":\"Guest Performer\",\"type\":\"artist\",\"description\":\"Opening act\",\"display_order\":1}}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -5961,7 +5958,7 @@
                 "response": [],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"event_participant\": {\n    \"user_id\": \"{{userId}}\",\n    \"role\": \"attendee\"\n  }\n}",
+                  "raw": "{\"event_participant\":{\"event_date_id\":\"{{eventDateId}}\",\"artist_id\":\"{{artistId}}\",\"name\":\"Guest Performer\",\"type\":\"artist\",\"description\":\"Opening act\",\"display_order\":1}}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -6089,7 +6086,7 @@
                 "response": [],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"access_zone\": {\n    \"name\": \"Front Stage\",\n    \"capacity\": 100\n  }\n}",
+                  "raw": "{\"access_zone\":{\"event_date_id\":\"{{eventDateId}}\",\"type\":\"general\",\"name\":\"Front Stage\",\"code\":\"FRONT\",\"active\":true,\"sort_order\":1}}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -6129,7 +6126,7 @@
                 "response": [],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"access_zone\": {\n    \"name\": \"Front Stage\",\n    \"capacity\": 100\n  }\n}",
+                  "raw": "{\"access_zone\":{\"event_date_id\":\"{{eventDateId}}\",\"type\":\"general\",\"name\":\"Front Stage\",\"code\":\"FRONT\",\"active\":true,\"sort_order\":1}}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -6187,17 +6184,12 @@
                   "path": [
                     "events",
                     ":event_id",
-                    "recurrence_rule",
-                    ":id"
+                    "recurrence_rule"
                   ],
-                  "raw": "{{baseUrl}}/events/:event_id/recurrence_rule/:id",
+                  "raw": "{{baseUrl}}/events/:event_id/recurrence_rule",
                   "variable": [
                     {
                       "key": "event_id",
-                      "value": ""
-                    },
-                    {
-                      "key": "id",
                       "value": ""
                     }
                   ]
@@ -6231,7 +6223,7 @@
                 "response": [],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"recurrence_rule\": {\n    \"rrule\": \"FREQ=DAILY;COUNT=3\",\n    \"timezone\": \"Africa/Addis_Ababa\"\n  }\n}",
+                  "raw": "{\"recurrence_rule\":{\"rrule\":\"FREQ=DAILY;COUNT=3\",\"timezone\":\"Africa/Addis_Ababa\",\"dtstart_local\":\"2026-01-01T18:00:00\",\"duration_seconds\":7200,\"exdates\":[],\"rdates\":[]}}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -6253,17 +6245,12 @@
                   "path": [
                     "events",
                     ":event_id",
-                    "recurrence_rule",
-                    ":id"
+                    "recurrence_rule"
                   ],
-                  "raw": "{{baseUrl}}/events/:event_id/recurrence_rule/:id",
+                  "raw": "{{baseUrl}}/events/:event_id/recurrence_rule",
                   "variable": [
                     {
                       "key": "event_id",
-                      "value": ""
-                    },
-                    {
-                      "key": "id",
                       "value": ""
                     }
                   ]
@@ -6271,13 +6258,67 @@
                 "response": [],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"recurrence_rule\": {\n    \"rrule\": \"FREQ=DAILY;COUNT=3\",\n    \"timezone\": \"Africa/Addis_Ababa\"\n  }\n}",
+                  "raw": "{\"recurrence_rule\":{\"rrule\":\"FREQ=DAILY;COUNT=3\",\"timezone\":\"Africa/Addis_Ababa\",\"dtstart_local\":\"2026-01-01T18:00:00\",\"duration_seconds\":7200,\"exdates\":[],\"rdates\":[]}}",
                   "options": {
                     "raw": {
                       "language": "json"
                     }
                   }
                 }
+              }
+            },
+            {
+              "name": "Activate",
+              "request": {
+                "description": "Activate the event recurrence rule (idempotent).",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "recurrence_rule",
+                    "activate"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/recurrence_rule/activate",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Deactivate",
+              "request": {
+                "description": "Deactivate the event recurrence rule (idempotent).",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "recurrence_rule",
+                    "deactivate"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/recurrence_rule/deactivate",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
               }
             },
             {
@@ -6293,17 +6334,12 @@
                   "path": [
                     "events",
                     ":event_id",
-                    "recurrence_rule",
-                    ":id"
+                    "recurrence_rule"
                   ],
-                  "raw": "{{baseUrl}}/events/:event_id/recurrence_rule/:id",
+                  "raw": "{{baseUrl}}/events/:event_id/recurrence_rule",
                   "variable": [
                     {
                       "key": "event_id",
-                      "value": ""
-                    },
-                    {
-                      "key": "id",
                       "value": ""
                     }
                   ]
@@ -6520,12 +6556,7 @@
                 },
                 "response": []
               }
-            }
-          ]
-        },
-        {
-          "name": "Event Media Orders",
-          "item": [
+            },
             {
               "name": "Reorder",
               "request": {
@@ -6539,10 +6570,10 @@
                   "path": [
                     "events",
                     ":event_id",
-                    "event_media_orders",
+                    "event_media",
                     "reorder"
                   ],
-                  "raw": "{{baseUrl}}/events/:event_id/event_media_orders/reorder",
+                  "raw": "{{baseUrl}}/events/:event_id/event_media/reorder",
                   "variable": [
                     {
                       "key": "event_id",
