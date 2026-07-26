@@ -5,12 +5,13 @@ module Events
     include Core::CommandResponse
 
     before_action :set_event
-    before_action :set_rule, only: %i[update destroy]
+    before_action :set_rule, only: %i[update destroy activate deactivate]
 
     def show
       rule = @event.recurrence_rule
       authorize(rule || Events::RecurrenceRule.new(event: @event), :show?)
-      render_success(data: rule, serializer_options: { serializer: Events::RecurrenceRuleSerializer })
+      render_success(:"events.recurrence.success.show", data: rule,
+                     serializer_options: { serializer: Events::RecurrenceRuleSerializer })
     end
 
     def create
@@ -21,7 +22,8 @@ module Events
       render_service_result(
         result,
         serializer_options: { serializer: Events::RecurrenceRuleSerializer },
-        success_status: :created
+        success_status: :created,
+        message: :"events.recurrence.success.create"
       )
     end
 
@@ -30,14 +32,38 @@ module Events
       result = Events::Recurrence::Configure.call(
         event: @event, actor: current_user, attributes: rule_params
       )
-      render_service_result(result, serializer_options: { serializer: Events::RecurrenceRuleSerializer })
+      render_service_result(
+        result,
+        serializer_options: { serializer: Events::RecurrenceRuleSerializer },
+        message: :"events.recurrence.success.update"
+      )
     end
 
     def destroy
       authorize @rule, :destroy?
       record_audit
       @rule.destroy!
-      render_success(status: :ok)
+      render_success(:"events.recurrence.success.destroy", status: :ok)
+    end
+
+    def activate
+      authorize @rule, :activate?
+      result = Events::Recurrence::Activate.call(rule: @rule, actor: current_user)
+      render_service_result(
+        result,
+        serializer_options: { serializer: Events::RecurrenceRuleSerializer },
+        message: :"events.recurrence.success.activate"
+      )
+    end
+
+    def deactivate
+      authorize @rule, :deactivate?
+      result = Events::Recurrence::Deactivate.call(rule: @rule, actor: current_user)
+      render_service_result(
+        result,
+        serializer_options: { serializer: Events::RecurrenceRuleSerializer },
+        message: :"events.recurrence.success.deactivate"
+      )
     end
 
     private
@@ -66,7 +92,7 @@ module Events
     def rule_params
       params.require(:recurrence_rule).permit(
         :rrule, :timezone, :dtstart_local, :duration_seconds,
-        :generated_until, :active, exdates: [], rdates: []
+        :generated_until, exdates: [], rdates: []
       )
     end
   end

@@ -7,6 +7,8 @@ module Events
     def create? = Events::AuthorizationResolver.organization_admin_or_owner?(user, record.event)
     def update? = Events::AuthorizationResolver.organization_admin_or_owner?(user, record.event)
     def destroy? = Events::AuthorizationResolver.organization_admin_or_owner?(user, record.event)
+    def activate? = Events::AuthorizationResolver.organization_admin_or_owner?(user, record.event)
+    def deactivate? = Events::AuthorizationResolver.organization_admin_or_owner?(user, record.event)
 
     VISIBILITY = {
       index: { default: { fields: :all, include: :all }, admin: { fields: :all, include: :all } },
