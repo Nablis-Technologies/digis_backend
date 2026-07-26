@@ -1,0 +1,11 @@
+# frozen_string_literal: true
+
+en:
+  events:
+    schedule_change:
+      success:
+        create: "Schedule change recorded"
+      errors:
+        invalid: "Failed to record the schedule change"
+        no_changes: "No schedule changes were provided"
+        invalid_dates: "One or more event dates do not belong to this event"
