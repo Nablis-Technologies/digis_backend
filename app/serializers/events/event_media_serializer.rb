@@ -3,6 +3,7 @@
 module Events
   class EventMediaSerializer < ActiveModel::Serializer
     include Core::AttributeVisibilitySerializer
+    include Rails.application.routes.url_helpers
 
     type :event_media
 
@@ -15,7 +16,10 @@ module Events
       {
         filename: object.file.filename.to_s,
         content_type: object.file.content_type,
-        byte_size: object.file.byte_size
+        byte_size: object.file.byte_size,
+        url: url_for(object.file),
+        thumbnail: url_for(object.file.variant(:thumbnail)),
+        medium: url_for(object.file.variant(:gallery))
       }
     end
   end
