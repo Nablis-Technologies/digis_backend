@@ -4,6 +4,7 @@ module Core
     include Core::CommandResponse
     include Core::Authenticatable
     include Core::Authorizable
+    include Core::IdempotencyKeyResolver
 
     before_action :authenticate_user
     before_action :authorize_action!

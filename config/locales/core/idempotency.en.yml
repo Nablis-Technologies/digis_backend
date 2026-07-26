@@ -1,0 +1,3 @@
+en:
+  idempotency:
+    missing_key: "The Idempotency-Key request header is required to safely retry this request."
