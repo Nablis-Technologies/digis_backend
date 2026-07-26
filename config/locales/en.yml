@@ -21,6 +21,9 @@ en:
   errors:
     not_found: "The requested %{model} was not found"
     not_unique: "A record with these details already exists"
+    statement_invalid: "The operation could not be completed due to a database constraint"
+    parameter_missing: "Required parameter '%{param}' is missing"
+    stale_object: "The record was modified by another user. Please reload and try again"
 
   admin:
     organizations:
