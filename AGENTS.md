@@ -221,13 +221,23 @@ All agents MUST follow the project's RuboCop configuration (`.rubocop.yml`):
 4. **Fixtures** — Leverage YAML fixtures for test data. Integration tests load domain fixtures for read-only operations.
 5. **Test edge cases** — nil values, empty strings, boundary conditions.
 
-### Idempotency Testing Convention
+### Idempotency Convention (controller + test)
 
-Every idempotent command/operation MUST prove idempotency via the shared `IdempotencyAssertions` helper (mixed into `ActiveSupport::TestCase` — no `require` needed), NOT a hand-rolled replay check.
+**Controller side — use the shared resolver concern, never roll your own.**
+
+- Include `Core::IdempotencyKeyResolver` (in `Core::ApplicationController`, so available everywhere) and add `before_action :ensure_idempotency_key_present, only: [:the_mutating_actions]`.
+- The resolver reads the client-supplied `Idempotency-Key` HTTP header (Stripe/Shopify model). There is **no fallback** — no `request_id`, no random UUID. A missing/empty header renders `400` with `code: "missing_idempotency_key"` and a clear message telling the client the header is required to safely retry.
+- The client owns retry semantics: it must replay the **same** key after a timeout/connection drop so the server deduplicates. This is mandatory because some operations (e.g. schedule changes, which are append-only) are only protected by the key — there is no state guard.
+- Do NOT inline an `idempotency_key`/`request_id` method in a controller; use the concern.
+
+**Test side — use the shared assertion, never a hand-rolled replay check.**
+
+Every idempotent command/operation MUST prove idempotency via the shared `IdempotencyAssertions` helper (mixed into `ActiveSupport::TestCase` — no `require` needed), NOT a manual count comparison.
 
 - `assert_idempotent(subject, counter:)` — runs the operation twice and asserts the observable side-effect (e.g. a count) does not change on the second run.
 - `assert_audit_idempotent(subject, action:, auditable_type:, auditable_id:)` — runs the operation twice and asserts no duplicate `Core::AuditLog` rows are written (used when the idempotency guarantee is "at most one audit transition").
-- Mirror the convention used in `test/services/events/media/reorder_test.rb` and `test/services/events/consent_documents/publish_version_test.rb`.
+- Mirror the convention used in `test/services/events/media/reorder_test.rb`, `test/services/events/consent_documents/publish_version_test.rb`, and `test/services/events/schedule/change_test.rb` / `test/services/events/cancellation/initiate_test.rb` (both use `assert_audit_idempotent`).
+- Also add an integration test that sends the `Idempotency-Key` header and asserts a replay is a no-op, plus a `missing Idempotency-Key header returns 400` case.
 - Write a manual replay check ONLY if the helper genuinely cannot express the case; document why.
 
 ### Postman Collection Synchronization
