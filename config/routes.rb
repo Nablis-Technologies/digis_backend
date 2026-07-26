@@ -41,6 +41,8 @@ Rails.application.routes.draw do
         post :activate, on: :member
         post :deactivate, on: :member
       end
+      resources :event_schedule_changes, only: %i[create]
+      resources :event_cancellations, only: %i[create]
       resources :event_media, only: %i[index show create update destroy] do
         post :reorder, on: :collection
       end
