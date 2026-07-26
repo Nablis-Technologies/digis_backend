@@ -43,6 +43,11 @@ Rails.application.routes.draw do
         post :reorder, on: :collection
       end
       resources :event_video_links, only: %i[index show create update destroy]
+      resources :consent_documents, only: %i[index show create update destroy] do
+        post :publish, on: :member
+        post :activate, on: :member
+        post :deactivate, on: :member
+      end
     end
     resources :public_events, only: %i[index show], param: :slug, path: "public/events"
   end
@@ -71,6 +76,14 @@ Rails.application.routes.draw do
         post :transfer_ownership
       end
       resources :memberships, only: %i[index show create update destroy]
+    end
+
+    resources :legal_documents, except: %i[new edit] do
+      member do
+        post :publish
+        post :activate
+        post :deactivate
+      end
     end
 
     post "organizations/:id/verification/approve",              to: "verifications#approve"
