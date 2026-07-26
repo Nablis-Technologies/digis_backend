@@ -9,3 +9,13 @@ en:
       configure:
         errors:
           invalid: "Failed to configure recurrence rule"
+      success:
+        show: "Recurrence rule fetched"
+        create: "Recurrence rule created"
+        update: "Recurrence rule updated"
+        destroy: "Recurrence rule deleted"
+        activate: "Recurrence rule activated"
+        deactivate: "Recurrence rule deactivated"
+      errors:
+        activate: "Could not activate recurrence rule"
+        deactivate: "Could not deactivate recurrence rule"
