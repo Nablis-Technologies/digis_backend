@@ -1,0 +1,9 @@
+# frozen_string_literal: true
+
+en:
+  events:
+    cancellation:
+      success:
+        create: "Event cancellation initiated"
+      errors:
+        already_cancelled: "This event has already been cancelled"
