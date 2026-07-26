@@ -6,6 +6,7 @@ en:
       create: "Media added successfully"
       update: "Media updated successfully"
       destroy: "Media removed successfully"
+      reorder: "Media reordered successfully"
     errors:
       create: "Failed to add media"
       update: "Failed to update media"
@@ -18,6 +19,7 @@ en:
         create: "Media added successfully"
         update: "Media updated successfully"
         destroy: "Media removed successfully"
+        reorder: "Media reordered successfully"
       errors:
         create: "Failed to add media"
         update: "Failed to update media"

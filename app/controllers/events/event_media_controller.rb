@@ -42,10 +42,26 @@ module Events
       render_service_result(result, serializer_options: { serializer: Events::EventMediaSerializer })
     end
 
+    def reorder
+      authorize @parent.event_media.new, :update?
+      result = Events::Media::Reorder.call(
+        event: @parent, actor: current_user, ordered_ids: reorder_params
+      )
+      render_service_result(
+        result,
+        serializer_options: { serializer: Events::EventMediaSerializer },
+        message: :"event_media.success.reorder"
+      )
+    end
+
     private
 
     def media_params
       params.require(:event_media).permit(:type, :position, :alt_text, :caption)
+    end
+
+    def reorder_params
+      params.require(:ordered_ids)
     end
   end
 end
