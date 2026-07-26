@@ -38,6 +38,8 @@ module Events
              dependent: :destroy, inverse_of: :event
     has_many :event_media, class_name: "Events::EventMedia",
              dependent: :destroy, inverse_of: :event
+    has_many :consent_documents, class_name: "Events::ConsentDocument",
+             dependent: :destroy, inverse_of: :event
 
     validates :title, presence: true
     validates :slug, presence: true,

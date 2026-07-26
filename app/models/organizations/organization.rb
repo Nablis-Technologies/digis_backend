@@ -18,12 +18,20 @@ module Organizations
     has_many :memberships,
              class_name: "Organizations::Membership",
              dependent: :destroy
+    has_many :legal_acceptances,
+             -> { where(subject_type: "organization") },
+             class_name: "Legal::LegalAcceptance",
+             foreign_key: :subject_id,
+             dependent: :restrict_with_exception
     has_one :owner_membership,
             -> { where(role: :owner) },
             class_name: "Organizations::Membership"
 
     validates :name, presence: true, uniqueness: true
     validates :slug, presence: true, uniqueness: true
+
+    scope :archived, -> { where(archived: true) }
+    scope :not_archived, -> { where(archived: false) }
     validates :events_count, numericality: { greater_than_or_equal_to: 0 }
     validates :followers_count, numericality: { greater_than_or_equal_to: 0 }
 
