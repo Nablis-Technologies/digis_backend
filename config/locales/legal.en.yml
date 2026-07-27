@@ -9,6 +9,7 @@ en:
       deactivate: "Could not deactivate legal document"
       version_not_published: "Only a published version can be accepted"
       acceptance_invalid: "Could not record legal acceptance"
+      acceptance_conflict: "An acceptance for this subject and version already exists"
     success:
       create: "Legal document created"
       update: "Legal document updated"
