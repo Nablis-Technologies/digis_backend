@@ -69,7 +69,18 @@ module Legal
         )
       )
     rescue ActiveRecord::RecordNotUnique
-      success(Legal::LegalAcceptance.find_by(request_uuid: request_uuid))
+      existing = Legal::LegalAcceptance.find_by(request_uuid: request_uuid)
+      return success(existing) if existing
+
+      # Conflict is on a different unique key (e.g. same subject + version with a
+      # different request_uuid), not an idempotent replay — surface the error.
+      failure(
+        Core::BusinessError.new(
+          I18n.t("legal_document.errors.acceptance_conflict"),
+          code: "acceptance_conflict",
+          status: :unprocessable_entity
+        )
+      )
     end
 
     private
