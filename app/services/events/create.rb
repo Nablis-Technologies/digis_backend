@@ -13,7 +13,9 @@ module Events
     end
 
     def call
-      event = nil
+      return failure(not_authorized) unless Events::AuthorizationResolver.organization_admin?(@actor, @organization)
+
+      outcome = nil
       Events::Event.transaction do
         event = Events::Event.new(@attributes.merge(organization: @organization, created_by: @actor))
         return failure(invalid(event)) unless event.valid?
@@ -26,9 +28,17 @@ module Events
           actor: @actor
         )
 
-        attach_categories(event) if @category_ids.present?
+        if @category_ids.present?
+          category_result = attach_categories(event)
+          unless category_result.success?
+            outcome = category_result
+            raise ActiveRecord::Rollback
+          end
+        end
+
+        outcome = success(event)
       end
-      success(event)
+      outcome
     rescue ActiveRecord::RecordInvalid => error
       failure invalid(error.record)
     end
@@ -39,7 +49,14 @@ module Events
       Events::ReplaceCategories.call(event:, category_ids: @category_ids, actor: @actor)
     end
 
-    private
+    def not_authorized
+      Core::BusinessError.new(
+        I18n.t("events.create.errors.not_authorized",
+               default: "Not authorized to create events for this organization"),
+        code: "not_authorized",
+        status: :forbidden
+      )
+    end
 
     def invalid(record)
       Core::BusinessError.new(
