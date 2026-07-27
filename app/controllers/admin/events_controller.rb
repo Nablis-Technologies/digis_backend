@@ -20,17 +20,14 @@ module Admin
       return render_error(I18n.t("errors.not_found", model: "organization"),
                           status: :not_found) unless organization
 
-      object = @clazz.new(event_params.except(:organization_id, :category_ids))
-      object.organization = organization
-      object.created_by = current_user
-      authorize object
-
-      if object.save
-        attach_categories(object) if event_params[:category_ids].present?
-        render_success(data: object, serializer_options: { serializer: Events::EventSerializer }, status: :created)
-      else
-        render_error(errors: object.errors, status: :unprocessable_entity)
-      end
+      result = Events::Create.call(
+        organization:,
+        actor: current_user,
+        attributes: event_params.except(:organization_id, :category_ids),
+        category_ids: event_params[:category_ids]
+      )
+      render_service_result(result, success_status: :created,
+                            serializer_options: { serializer: Events::EventSerializer })
     end
 
     def update
@@ -63,7 +60,7 @@ module Admin
 
     def event_params
       params.require(:event).permit(
-        :title, :description, :slug, :status, :visibility, :timezone, :currency,
+        :title, :description, :slug, :visibility, :timezone, :currency,
         :organization_id, category_ids: []
       )
     end
