@@ -1,0 +1,15 @@
+# frozen_string_literal: true
+
+draft_music:
+  id: 019e5f69-d021-7000-8000-000000000021
+  event_id: 019e5f69-d001-7000-8000-000000000001
+  category_id: 019e5f69-d9fe-7687-8fcc-78653f30c0f9
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+ready_music:
+  id: 019e5f69-d022-7000-8000-000000000022
+  event_id: 019e5f69-d002-7000-8000-000000000002
+  category_id: 019e5f69-d9fe-7687-8fcc-78653f30c0f9
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>

@@ -1,0 +1,29 @@
+# frozen_string_literal: true
+
+en:
+  event_media:
+    success:
+      create: "Media added successfully"
+      update: "Media updated successfully"
+      destroy: "Media removed successfully"
+      reorder: "Media reordered successfully"
+    errors:
+      create: "Failed to add media"
+      update: "Failed to update media"
+      destroy: "Failed to remove media"
+      reorder: "Failed to reorder media"
+      not_ready: "Event needs an analyzed cover image with alt text before publish"
+  events:
+    event_media:
+      success:
+        create: "Media added successfully"
+        update: "Media updated successfully"
+        destroy: "Media removed successfully"
+        reorder: "Media reordered successfully"
+      errors:
+        create: "Failed to add media"
+        update: "Failed to update media"
+        destroy: "Failed to remove media"
+        reorder: "Failed to reorder media"
+        not_ready: "Event needs an analyzed cover image with alt text before publish"
+        reorder_partial: "All gallery media must be included in the reorder"

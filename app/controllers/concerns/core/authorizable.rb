@@ -16,7 +16,7 @@ module Core
       def skip_authorization(**options)
         actions = options[:only] ? Array(options[:only]) : action_methods.to_a
         actions -= Array(options[:except]) if options[:except]
-        _skip_authorize_actions.merge(actions.map(&:to_s))
+        self._skip_authorize_actions = _skip_authorize_actions.dup.merge(actions.map(&:to_s))
         skip_before_action :authorize_action!, **options
         skip_after_action :verify_authorized, **options
       end

@@ -20,6 +20,9 @@ gem "solid_cache"
 gem "solid_queue"
 gem "solid_cable"
 
+# RFC 5545 recurrence rule expansion (Square's rrule, battle-tested, DST-aware)
+gem "rrule", "~> 0.8"
+
 # Reduces boot times through caching; required in config/boot.rb
 gem "bootsnap", require: false
 

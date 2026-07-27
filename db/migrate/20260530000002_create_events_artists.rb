@@ -1,6 +1,6 @@
 class CreateEventsArtists < ActiveRecord::Migration[8.1]
   def change
-    create_table :events_artists, id: :uuid do |t|
+    create_table :events_artists, id: :uuid, default: -> { "uuidv7()" } do |t|
       t.string   :name,           null: false
       t.string   :slug,           null: false
       t.text     :description

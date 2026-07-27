@@ -58,30 +58,30 @@ module Core
         serializer_options[:serializer] = self.class.default_serializer
       end
       serializer_options[:current_user] = current_user if respond_to?(:current_user) && !serializer_options.key?(:current_user)
-      response = { success: true }
+      payload = { success: true }
       resolved_message = resolve_message(message, type: :success)
-      response[:message] = resolved_message if resolved_message.present?
-      response[:data] = serialize(data, serializer_options.except(:pagination).merge(
+      payload[:message] = resolved_message if resolved_message.present?
+      payload[:data] = serialize(data, serializer_options.except(:pagination).merge(
         visible_attributes: resolved_visible_attributes(data),
         association_fields: build_association_options(resolved_association_fields(data, action_name))
       )) unless data.nil?
-      response[:pagination] = pagination || serializer_options[:pagination] if pagination.present? || serializer_options[:pagination].present?
-      response[:meta] = meta if meta.present?
-      response.merge!(options) if options.present?
+      payload[:pagination] = pagination || serializer_options[:pagination] if pagination.present? || serializer_options[:pagination].present?
+      payload[:meta] = meta if meta.present?
+      payload.merge!(options) if options.present?
 
-      render json: response, status: status
+      render json: payload, adapter: false, status: status
     end
 
     def render_error(message = nil, status: :unprocessable_entity, errors: nil, code: nil, meta: nil, **options)
-      response = { success: false }
+      payload = { success: false }
       resolved_message = resolve_message(message, type: :error)
-      response[:error] = resolved_message if resolved_message.present?
-      response[:errors] = normalize_errors(errors) if errors.present?
-      response[:code] = code if code.present?
-      response[:meta] = meta if meta.present?
-      response.merge!(options) if options.present?
+      payload[:error] = resolved_message if resolved_message.present?
+      payload[:errors] = normalize_errors(errors) if errors.present?
+      payload[:code] = code if code.present?
+      payload[:meta] = meta if meta.present?
+      payload.merge!(options) if options.present?
 
-      render json: response, status: status
+      render json: payload, adapter: false, status: status
     end
 
     private

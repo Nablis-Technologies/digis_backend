@@ -22,9 +22,11 @@ module Organizations
       end
 
       attribute :is_following do
-        return false unless instance_options[:current_user]
-
-        object.followed_by?(instance_options[:current_user])
+        if instance_options[:current_user]
+          object.followed_by?(instance_options[:current_user])
+        else
+          false
+        end
       end
 
       attribute :profile_url do

@@ -11,3 +11,10 @@ owner_two:
   organization_id: 019e5f69-db0a-709f-b748-fd8afb65216f
   role: owner
   status: active
+
+owner_three:
+  id: 019e5f69-d88b-7a3f-9cbe-04ea84b750bd
+  user_id: 019e5f6b-0003-7aaa-bbbb-ccccccccccc1
+  organization_id: 019e5f69-dc1a-709f-b748-fd8afb65217a
+  role: owner
+  status: active

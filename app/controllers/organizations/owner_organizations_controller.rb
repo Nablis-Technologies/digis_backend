@@ -11,9 +11,14 @@ module Organizations
 
     def destroy
       authorize @obj
-      @obj.memberships.delete_all
-      @obj.destroy!
-      render_success(status: :ok)
+      if @obj.legal_acceptances.exists? || organization_has_orders?
+        @obj.update!(archived: true)
+        render_success(status: :ok)
+      else
+        @obj.memberships.delete_all
+        @obj.destroy!
+        render_success(status: :ok)
+      end
     end
 
     def set_object
@@ -75,6 +80,11 @@ module Organizations
 
     def after_create_hook(organization)
       organization.memberships.create!(user: current_user, role: :owner, status: :active)
+    end
+
+    def organization_has_orders?
+      klass = "Orders::Order".safe_constantize
+      klass && klass.where(organization_id: @obj.id).exists?
     end
 
     def serializer_profile

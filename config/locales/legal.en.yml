@@ -1,0 +1,18 @@
+# frozen_string_literal: true
+
+en:
+  legal_document:
+    errors:
+      no_draft: "No draft version available to publish"
+      publish: "Could not publish legal document version"
+      activate: "Could not activate legal document"
+      deactivate: "Could not deactivate legal document"
+      version_not_published: "Only a published version can be accepted"
+      acceptance_invalid: "Could not record legal acceptance"
+      acceptance_conflict: "An acceptance for this subject and version already exists"
+    success:
+      create: "Legal document created"
+      update: "Legal document updated"
+      publish: "Legal document version published"
+      activate: "Legal document activated"
+      deactivate: "Legal document deactivated"

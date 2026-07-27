@@ -43,3 +43,39 @@ inactive_category:
   active: false
   created_at: <%= Time.current %>
   updated_at: <%= Time.current %>
+
+festival:
+  id: 019e5f69-da4e-7000-8000-0000000000a1
+  name: Festival
+  description: Multi-day festivals and cultural celebrations
+  slug: festival
+  metadata:
+    icon: "party"
+    color: "#FF33A1"
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+nightlife:
+  id: 019e5f69-da4f-7000-8000-0000000000a2
+  name: Nightlife
+  description: Clubs, parties, and late-night events
+  slug: nightlife
+  metadata:
+    icon: "moon"
+    color: "#8333FF"
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+education:
+  id: 019e5f69-da50-7000-8000-0000000000a3
+  name: Education
+  description: Workshops, classes, and learning events
+  slug: education
+  metadata:
+    icon: "book"
+    color: "#33A1FF"
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>

@@ -25,6 +25,10 @@ module DigisBackend
       g.orm :active_record, primary_key_type: :uuid
     end
 
+    # DB-level triggers/functions (tamper-evident immutability) cannot be
+    # expressed in schema.rb, so dump the full structure as SQL.
+    config.active_record.schema_format = :sql
+
     # config.time_zone = "Central Time (US & Canada)"
     # config.eager_load_paths << Rails.root.join("extras")
 

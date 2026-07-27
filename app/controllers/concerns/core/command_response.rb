@@ -4,8 +4,8 @@ module Core
   module CommandResponse
     extend ActiveSupport::Concern
 
-    def render_service_result(result, success_status: :ok, serializer_options: {})
-      return render_success(data: result.value, status: success_status, serializer_options:) if result.success?
+    def render_service_result(result, success_status: :ok, serializer_options: {}, message: nil)
+      return render_success(message, data: result.value, status: success_status, serializer_options:) if result.success?
 
       render_business_error(result.error)
     end

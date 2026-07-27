@@ -286,11 +286,11 @@ end
 - Test: `test/services/events/consent_documents/publish_version_test.rb`
 - Test: `test/integration/events/consent_documents_test.rb`
 
-- [ ] **RED:** test monotonic version, exactly one published version, immutable published body/digest semantics, canonical SHA-256, manager authorization, and public exclusion of draft/retired versions.
-- [ ] **Run RED:** `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/events/consent_documents/publish_version_test.rb test/integration/events/consent_documents_test.rb`; expect missing classes.
-- [ ] **GREEN:** implement draft CRUD with `Core::Common` and publish through a locked service. Use a partial unique published-version index and database status/timestamp checks. Never change a version already referenced by registration requirements. Product scoping is added only after `ticketing_ticket_types` exists in the catalog plan.
-- [ ] **Run GREEN:** `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/events/consent_documents/publish_version_test.rb test/integration/events/consent_documents_test.rb`; expect pass.
-- [ ] **Refactor:** keep consent acceptance out of this module; the registration plan consumes exact immutable version IDs.
+- [x] **RED:** test monotonic version, exactly one published version, immutable published body/digest semantics, canonical SHA-256, manager authorization, and public exclusion of draft/retired versions.
+- [x] **Run RED:** `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/events/consent_documents/publish_version_test.rb test/integration/events/consent_documents_test.rb`; expect missing classes.
+- [x] **GREEN:** implement draft CRUD with `Core::Common` and publish through a locked service. Use a partial unique published-version index and database status/timestamp checks. Never change a version already referenced by registration requirements. Product scoping is added only after `ticketing_ticket_types` exists in the catalog plan.
+- [x] **Run GREEN:** `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/events/consent_documents/publish_version_test.rb test/integration/events/consent_documents_test.rb`; expect pass.
+- [x] **Refactor:** keep consent acceptance out of this module; the registration plan consumes exact immutable version IDs.
 - [ ] **Commit:** stage listed files and commit `feat(events): add versioned consent documents`.
 
 ## Task 7: Implement append-only schedule change and the irreversible cancellation boundary
@@ -323,10 +323,11 @@ end
 
 - [ ] **RED:** add one integration test creating a verified organizer event with categories, collaborator manager, date, recurrence, participant, cover/gallery, access zone, and published consent document; publish it; reschedule without changing IDs; assert public/private serialization and audit/outbox behavior.
 - [ ] **Run RED:** `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/events/event_phase_acceptance_test.rb test/integration/events/event_authorization_matrix_test.rb`; expect any uncovered boundary to fail.
-- [ ] **GREEN:** complete routes, policy scopes, serializer visibility, eager loading, recurring jobs, Plan 0 outbox-handler registrations, and typed error mappings. The domain initializer merges event handlers into `Rails.application.config.x.outbox_handlers` without replacing handlers registered by other domains. Add no business workflow to `Core::Common`.
+- [ ] **GREEN:** complete routes, policy scopes, serializer visibility, eager loading, recurring jobs, Plan 0 outbox-handler registrations, and typed error mappings. The domain initializer merges event handlers into `Rails.application.config.x.outbox_handlers` without replacing handlers registered by other domains. Add no business workflow to `Core::Common`. Outbox *delivery* (the enqueuer and recovery sweep that actually dispatch rows) is owned by Plan 0 — core-foundation Task 5, Step 8 (`Core::ProcessOutboxJob` + a `config/recurring.yml` entry); this plan only registers handlers.
 - [ ] **Run GREEN:** run `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/events test/services/events test/integration/events test/jobs/events`; expect pass.
-- [ ] **Refactor:** run `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test`; inspect query counts on public list/detail and remove N+1 queries without broadening serializer visibility.
-- [ ] **Commit:** `git add config app/models/events app/controllers/events app/services/events app/jobs/events app/policies/events app/serializers/events db/migrate/2026071701*.rb test && git commit -m "test(events): complete event foundation phase gate"`
+  - [ ] **Refactor:** run `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test`; inspect query counts on public list/detail and remove N+1 queries without broadening serializer visibility.
+  - [ ] **Dev sample data:** add a `db/seeds.rb` dev block (or `lib/tasks/dev_seed.rake`) that creates a verified organization plus a few sample events with categories, collaborator manager, a date, recurrence, participant, cover/gallery, access zone, and a published consent document — so local development has clickable data. This is dev-only sample data (NOT production seed data); reference tables such as `events_categories` are already seeded by Plan 0. Verify with `db:seed:replant`.
+  - [ ] **Commit:** `git add config app/models/events app/controllers/events app/services/events app/jobs/events app/policies/events app/serializers/events db/migrate/2026071701*.rb test && git commit -m "test(events): complete event foundation phase gate"`
 
 ## Phase acceptance gate
 

@@ -44,3 +44,16 @@ inactive_venue:
   active: false
   created_at: <%= Time.current %>
   updated_at: <%= Time.current %>
+
+main_hall:
+  id: 019e5f70-0001-7000-8000-000000000004
+  name: Main Hall
+  slug: main-hall
+  description: A large downtown event hall
+  city: Downtown
+  country: US
+  capacity: 1000
+  verified: true
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>

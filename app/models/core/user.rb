@@ -34,6 +34,42 @@ module Core
              class_name: "Core::Review",
              as: :reviewed_by,
              dependent: :nullify
+    has_many :event_video_links,
+             class_name: "Events::EventVideoLink",
+             inverse_of: :created_by
+    has_many :event_media,
+             class_name: "Events::EventMedia",
+             inverse_of: :created_by
+    has_many :consent_documents,
+             class_name: "Events::ConsentDocument",
+             inverse_of: :created_by
+    has_many :consent_document_versions,
+             class_name: "Events::ConsentDocumentVersion",
+             inverse_of: :created_by
+    has_many :published_consent_document_versions,
+             class_name: "Events::ConsentDocumentVersion",
+             inverse_of: :published_by
+
+    has_many :legal_documents,
+             class_name: "Legal::LegalDocument",
+             inverse_of: :created_by,
+             foreign_key: :created_by_id,
+             dependent: :restrict_with_exception
+    has_many :legal_document_versions,
+             class_name: "Legal::LegalDocumentVersion",
+             inverse_of: :created_by,
+             foreign_key: :created_by_id,
+             dependent: :restrict_with_exception
+    has_many :legal_acceptances,
+             class_name: "Legal::LegalAcceptance",
+             inverse_of: :accepted_by,
+             foreign_key: :accepted_by_user_id,
+             dependent: :restrict_with_exception
+    has_many :published_legal_document_versions,
+             class_name: "Legal::LegalDocumentVersion",
+             inverse_of: :published_by,
+             foreign_key: :published_by_id,
+             dependent: :restrict_with_exception
 
     scope :active, -> { where(deactivated_at: nil) }
     scope :deactivated, -> { where.not(deactivated_at: nil) }

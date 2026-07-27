@@ -25,3 +25,29 @@ pending:
   available_at: <%= 1.hour.ago %>
   published_at:
   attempts: 0
+
+published:
+  topic: events
+  event_type: events.published
+  aggregate_type: Organizations::Organization
+  aggregate_id: 019e5f69-d922-75a3-b880-be8f75b18ad0
+  payload:
+    event_id: published-event
+  idempotency_key: publish:published:fixture
+  occurred_at: <%= 1.hour.ago %>
+  available_at: <%= 1.hour.ago %>
+  published_at: <%= 1.hour.ago %>
+  attempts: 0
+
+exhausted:
+  topic: events
+  event_type: events.published
+  aggregate_type: Organizations::Organization
+  aggregate_id: 019e5f69-d922-75a3-b880-be8f75b18ad0
+  payload:
+    event_id: exhausted-event
+  idempotency_key: publish:exhausted:fixture
+  occurred_at: <%= 1.hour.ago %>
+  available_at: <%= 1.hour.ago %>
+  published_at:
+  attempts: 10

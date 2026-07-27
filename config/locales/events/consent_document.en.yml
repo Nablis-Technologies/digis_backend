@@ -1,0 +1,17 @@
+# frozen_string_literal: true
+
+en:
+  consent_document:
+    success:
+      create: "Consent document created"
+      update: "Consent document updated"
+      destroy: "Consent document deleted"
+      publish: "Consent document version published"
+      activate: "Consent document activated"
+      deactivate: "Consent document deactivated"
+    errors:
+      no_draft: "No draft version is available to publish"
+      publish: "Could not publish consent document version"
+      activate: "Could not activate consent document"
+      deactivate: "Could not deactivate consent document"
+      delete_published: "Cannot delete a consent document that has been published; deactivate it instead"

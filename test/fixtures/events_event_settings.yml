@@ -1,0 +1,19 @@
+# frozen_string_literal: true
+
+draft_concert_settings:
+  id: 019e5f69-d011-7000-8000-000000000011
+  event_id: 019e5f69-d001-7000-8000-000000000001
+  config:
+    allow_waitlist: false
+    public_guest_limit: 0
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+ready_listing_settings:
+  id: 019e5f69-d012-7000-8000-000000000012
+  event_id: 019e5f69-d002-7000-8000-000000000002
+  config:
+    allow_waitlist: true
+    public_guest_limit: 10
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>

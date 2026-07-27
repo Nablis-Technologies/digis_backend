@@ -87,6 +87,34 @@ class OrganizationsOwnerOrganizationsTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "org with legal acceptance is archived, not deleted" do
+    user = core_users(:attendee)
+    org = Organizations::Organization.create!(name: "Legal Bound Org", organizer_type: "individual", category: "conference")
+    org.memberships.create!(user: user, role: :owner)
+
+    doc = Legal::LegalDocument.create!(
+      document_type: "platform_terms", internal_name: "ToS",
+      jurisdiction_code: "GLOBAL", locale: "en", created_by: core_users(:super_admin)
+    )
+    version = doc.versions.create!(
+      version: 1, title: "T", body: "B",
+      content_sha256: Legal::LegalDocumentVersion.content_sha256_for(title: "T", body: "B"),
+      status: "published", published_by: core_users(:super_admin), published_at: Time.current,
+      created_by: core_users(:super_admin)
+    )
+    Legal::RecordAcceptance.call(
+      subject: org, legal_document_version: version, accepted_by: core_users(:super_admin)
+    )
+
+    token = Core::TokenService.issue(Core::TokenService.access_token_payload(user))
+    headers = { "Authorization" => "Bearer #{token}" }
+    assert_no_difference("Organizations::Organization.count") do
+      delete "/organizations/owner/#{org.id}", headers: headers, as: :json
+    end
+    assert_response :success
+    assert org.reload.archived?
+  end
+
   test "index requires authentication" do
     get "/organizations/owner", as: :json
     assert_response :unauthorized

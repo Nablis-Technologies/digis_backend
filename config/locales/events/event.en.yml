@@ -1,0 +1,57 @@
+# frozen_string_literal: true
+
+en:
+  event:
+    success:
+      index: "Events retrieved successfully"
+      show: "Event retrieved successfully"
+      create: "Event created successfully"
+      update: "Event updated successfully"
+      destroy: "Event deleted successfully"
+      publish: "Event published successfully"
+      unpublish: "Event unpublished successfully"
+    errors:
+      create: "Failed to create event"
+      update: "Failed to update event"
+      destroy: "Event deleted successfully"
+      publish: "Failed to publish event"
+      unpublish: "Failed to unpublish event"
+  event_organization:
+    success:
+      index: "Event collaborators retrieved successfully"
+      show: "Event collaborator retrieved successfully"
+      create: "Event collaborator added successfully"
+      update: "Event collaborator updated successfully"
+      destroy: "Event collaborator removed successfully"
+      revoke: "Event collaborator revoked successfully"
+      activate: "Event collaborator reactivated successfully"
+    errors:
+      create: "Failed to add event collaborator"
+      update: "Failed to update event collaborator"
+      destroy: "Failed to remove event collaborator"
+  event_staff_assignment:
+    success:
+      index: "Event staff retrieved successfully"
+      show: "Event staff member retrieved successfully"
+      create: "Staff assigned successfully"
+      update: "Staff updated successfully"
+      destroy: "Staff removed successfully"
+      suspend: "Staff suspended successfully"
+      revoke: "Staff revoked successfully"
+      activate: "Staff reactivated successfully"
+      change_role: "Staff role updated successfully"
+    errors:
+      create: "Failed to assign staff"
+      update: "Failed to update staff"
+      destroy: "Failed to remove staff"
+  errors:
+    messages:
+      slug_taken: "has already been taken (case-insensitive)"
+      invalid_currency: "must be a valid ISO 4217 alpha code"
+      invalid_timezone: "is not a recognized timezone"
+      version_non_negative: "must be greater than or equal to 0"
+      published_at_requires_published: "requires the event to be published"
+      cancelled_at_requires_cancelled: "requires the event to be cancelled"
+      too_many_categories: "cannot have more than %{max} categories"
+      config_must_be_object: "must be a JSON object"
+      duplicate_category: "is already assigned to this event"

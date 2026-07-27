@@ -1,3 +1,4 @@
+<!-- MIRROR: Canonical rules now live at /AGENTS.md (repo root) for opencode / Claude Code discovery. Edit the root file and keep this in sync for Copilot subagent compatibility. -->
 # Project Agent Instructions (ALWAYS FOLLOW)
 
 ## AI Coding Assistant Guidelines for Digis Backend — Event Ticketing Platform
@@ -220,6 +221,20 @@ All agents MUST follow the project's RuboCop configuration (`.rubocop.yml`):
 3. **Slugable tests** — Include `Core::SlugableTest` + `test_slugable` in any model test for slugable models. Generates 3 tests automatically.
 4. **Fixtures** — Leverage YAML fixtures for test data. Integration tests load domain fixtures for read-only operations.
 5. **Test edge cases** — nil values, empty strings, boundary conditions.
+
+### Idempotency Testing Convention
+
+Every idempotent command/operation MUST prove idempotency via the shared `IdempotencyAssertions` helper (mixed into `ActiveSupport::TestCase` — no `require` needed), NOT a hand-rolled replay check.
+
+- `assert_idempotent(subject, counter:)` — runs the operation twice and asserts the observable side-effect (e.g. a count) does not change on the second run.
+- `assert_audit_idempotent(subject, action:, auditable_type:, auditable_id:)` — runs the operation twice and asserts no duplicate `Core::AuditLog` rows are written (used when the idempotency guarantee is "at most one audit transition").
+- Mirror the convention used in `test/services/events/media/reorder_test.rb` and `test/services/events/consent_documents/publish_version_test.rb`.
+- Write a manual replay check ONLY if the helper genuinely cannot express the case; document why.
+
+### Postman Collection Synchronization
+
+- Any change to an API/route/serializer MUST be mirrored into `postman/Digis API_collection.json` (the `Postman-Generator` subagent owns this, but if it cannot complete the edit, do it directly using the existing folder templates, e.g. `Event Staff Assignments`).
+- Keep route coverage, request bodies, and example payloads in sync with the implemented endpoints.
 
 ### Database Conventions
 

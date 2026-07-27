@@ -21,6 +21,39 @@ Rails.application.routes.draw do
     resources :categories, only: %i[index show]
     resources :venues, only: %i[index show]
     resources :artists, only: %i[index show]
+
+    resources :events, only: %i[index show create update] do
+      post :publish, on: :member
+      resources :event_organizations, only: %i[index show create update destroy] do
+        post :revoke, on: :member
+        post :activate, on: :member
+      end
+      resources :event_staff_assignments, only: %i[index show create update destroy] do
+        post :suspend, on: :member
+        post :revoke, on: :member
+        post :activate, on: :member
+        post :change_role, on: :member
+      end
+      resources :event_dates, only: %i[index show create update destroy]
+      resources :event_participants, only: %i[index show create update destroy]
+      resources :access_zones, only: %i[index show create update destroy]
+      resource :recurrence_rule, only: %i[show create update destroy] do
+        post :activate, on: :member
+        post :deactivate, on: :member
+      end
+      resources :event_schedule_changes, only: %i[create]
+      resources :event_cancellations, only: %i[create]
+      resources :event_media, only: %i[index show create update destroy] do
+        post :reorder, on: :collection
+      end
+      resources :event_video_links, only: %i[index show create update destroy]
+      resources :consent_documents, only: %i[index show create update destroy] do
+        post :publish, on: :member
+        post :activate, on: :member
+        post :deactivate, on: :member
+      end
+    end
+    resources :public_events, only: %i[index show], param: :slug, path: "public/events"
   end
 
   namespace :admin do
@@ -36,11 +69,25 @@ Rails.application.routes.draw do
     resources :categories, except: %i[new edit]
     resources :venues, except: %i[new edit]
     resources :artists, except: %i[new edit]
+    resources :events, except: %i[new edit] do
+      member do
+        post :publish
+        post :unpublish
+      end
+    end
     resources :organizations, except: %i[new edit] do
       member do
         post :transfer_ownership
       end
       resources :memberships, only: %i[index show create update destroy]
+    end
+
+    resources :legal_documents, except: %i[new edit] do
+      member do
+        post :publish
+        post :activate
+        post :deactivate
+      end
     end
 
     post "organizations/:id/verification/approve",              to: "verifications#approve"

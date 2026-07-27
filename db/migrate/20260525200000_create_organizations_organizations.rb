@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class CreateOrganizationsOrganizations < ActiveRecord::Migration[8.1]
   def change
     create_table :organizations_organizations, id: :uuid, default: -> { "uuidv7()" } do |t|
@@ -23,9 +25,12 @@ class CreateOrganizationsOrganizations < ActiveRecord::Migration[8.1]
       t.string :event_frequency
       t.integer :events_count, default: 0, null: false
 
+      t.boolean :archived, null: false, default: false
+
       t.timestamps
     end
 
     add_index :organizations_organizations, :slug, unique: true
+    add_index :organizations_organizations, :archived, name: "index_organizations_on_archived"
   end
 end

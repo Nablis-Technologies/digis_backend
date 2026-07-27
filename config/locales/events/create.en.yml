@@ -1,0 +1,8 @@
+# frozen_string_literal: true
+
+en:
+  events:
+    create:
+      errors:
+        not_authorized: "Not authorized to create events for this organization"
+        invalid_event: "Event could not be created"

@@ -17,6 +17,59 @@ The `Core` namespace provides a set of reusable controller concerns that standar
 | `Core::AuditableController` | `app/controllers/concerns/core/auditable_controller.rb` | Automatic audit logging |
 | `Core::ReviewableController` | `app/controllers/concerns/core/reviewable_controller.rb` | Approval workflow system |
 | `Core::TokenAuthenticatable` | `app/controllers/concerns/core/token_authenticatable.rb` | Token generation helpers |
+| `Core::IdempotencyKeyResolver` | `app/controllers/concerns/core/idempotency_key_resolver.rb` | Resolves the client-supplied `Idempotency-Key` header for mutating commands |
+
+## Idempotency Key Resolver (`Core::IdempotencyKeyResolver`)
+
+Standardizes how mutating commands get a deduplication key. Modeled on Stripe/Shopify: **the client owns retry semantics** by supplying an `Idempotency-Key` HTTP header; the server deduplicates replays of that key across timeouts and connection drops.
+
+### Contract
+
+- `idempotency_key` returns `request.headers["Idempotency-Key"].presence` — i.e. the client-supplied value, or `nil`.
+- There is **no fallback** (no `request_id`, no random UUID). A missing/empty key is rejected, not silently "made idempotent" under a fresh value that defeats deduplication.
+- `ensure_idempotency_key_present` renders `400` with `code: "missing_idempotency_key"` and a clear message when the header is absent.
+
+### Usage
+
+```ruby
+module Events
+  class EventCancellationsController < Events::ApplicationController
+    before_action :set_event
+    before_action :ensure_idempotency_key_present, only: [:create]
+
+    def create
+      result = Events::Cancellation::Initiate.call(
+        event: @event, actor: current_user,
+        idempotency_key: idempotency_key,   # from the concern
+        reason: cancellation_params[:reason]
+      )
+      render_service_result(result, serializer: Events::EventCancellationSerializer)
+    end
+  end
+end
+```
+
+### Why no fallback?
+
+Some operations are only protected by the key. Example: a schedule change is **append-only** — the only thing preventing a duplicate `EventDateChange` snapshot + duplicate `events.schedule_changed` outbox (and the downstream notifications/stream-sync that fire from it) is the client replaying the same key. If the server silently substituted `request_id`, a lost-response client retry (new `request_id` each attempt) would double-append. Cancellation, by contrast, is also state-guarded (`already_cancelled`), so it is safe either way — but the header is still required uniformly for a predictable client contract.
+
+### Testing
+
+Prove idempotency with the shared `IdempotencyAssertions` helper (see AGENTS.md "Idempotency Convention"), never a hand-rolled count check:
+
+```ruby
+test "is idempotent for a repeated idempotency key" do
+  subject = -> { call(key: "same") }
+  assert_audit_idempotent(
+    subject,
+    action: "event.cancellation.initiated",
+    auditable_type: "Events::Event",
+    auditable_id: @event.id
+  )
+end
+```
+
+Also add an integration test that sends the `Idempotency-Key` header and asserts a replay is a no-op, plus a `missing Idempotency-Key header returns 400` case.
 
 ## Quick Start
 

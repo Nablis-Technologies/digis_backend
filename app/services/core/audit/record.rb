@@ -95,11 +95,23 @@ module Core
       # A replay must produce byte-for-byte the same canonical payload as the
       # original; otherwise it is a bug (two distinct events sharing a key).
       def validate_replay!(audit)
-        expected = canonical(@attributes.stringify_keys.slice(*REPLAY_FIELDS))
-        actual = canonical(audit.attributes.slice(*REPLAY_FIELDS))
+        expected = canonical(strip_volatile(@attributes.stringify_keys.slice(*REPLAY_FIELDS)))
+        actual = canonical(strip_volatile(audit.attributes.slice(*REPLAY_FIELDS)))
         return if expected == actual
 
         fail ReplayConflict, "audit_key was already used for a different payload"
+      end
+
+      VOLATILE_AUDIT_KEYS = %w[created_at updated_at].freeze
+
+      # Timestamps drift on every save, so two otherwise-identical replays would
+      # otherwise compare unequal and raise ReplayConflict. They are a side
+      # effect of persisting, not part of the audited intent, so exclude them
+      # from the replay-equality check.
+      def strip_volatile(payload)
+        payload = payload.deep_stringify_keys
+        payload["audited_changes"]&.except!(*VOLATILE_AUDIT_KEYS)
+        payload
       end
 
       def canonical(value)

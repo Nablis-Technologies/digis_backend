@@ -215,7 +215,12 @@
           "name": "Logout",
           "request": {
             "method": "POST",
-            "header": [],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/auth/logout",
               "host": [
@@ -226,7 +231,16 @@
                 "logout"
               ]
             },
-            "description": "Logout and invalidate the current refresh token. Requires valid access token."
+            "description": "Logout and invalidate the current refresh token. Requires valid access token.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"refresh_token\": \"{{refreshToken}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "response": [],
           "event": [
@@ -701,6 +715,131 @@
               },
               "description": "Get a single organization by ID.",
               "response": []
+            }
+          ]
+        },
+        {
+          "name": "Public Events",
+          "description": "Public, unauthenticated event discovery.",
+          "item": [
+            {
+              "name": "List Public Events",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/public/events",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "public",
+                    "events"
+                  ],
+                  "query": []
+                },
+                "description": "Discover published public events without authentication. Each item uses the attendee-safe event serializer: id, slug, title, description, visibility, timezone, currency, published_at, created_at plus the categories, event_dates, event_media, event_organizations and event_streams associations. Owner-only fields (status, version, organization, event_setting) are never included."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Response has correct structure\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "  pm.expect(json).to.have.property(\"data\");",
+                      "  pm.expect(json.data).to.be.an(\"array\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Public Event by Slug",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/public/events/:slug",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "public",
+                    "events",
+                    ":slug"
+                  ]
+                },
+                "description": "Get a single published event by its slug (attendee-safe fields only). Exposes id, slug, title, description, visibility, timezone, currency, published_at, created_at plus the categories, event_dates, event_media, event_organizations and event_streams associations. Never leaks status, version, organization or event_setting."
+              },
+              "response": [
+                {
+                  "name": "Published event detail (attendee-safe)",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/public/events/:slug",
+                      "host": ["{{baseUrl}}"],
+                      "path": ["public", "events", ":slug"]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    { "key": "Content-Type", "value": "application/json" }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"evt_01HXPublicExample\",\n    \"slug\": \"summer-music-festival\",\n    \"title\": \"Summer Music Festival\",\n    \"description\": \"A three-day open-air music festival featuring local and international acts.\",\n    \"visibility\": \"public\",\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"currency\": \"ETB\",\n    \"published_at\": \"2026-07-20T10:00:00.000Z\",\n    \"created_at\": \"2026-06-01T08:30:00.000Z\",\n    \"categories\": [\n      {\n        \"id\": \"cat_01HXMusic\",\n        \"name\": \"Music\",\n        \"description\": \"Live and recorded music events\",\n        \"slug\": \"music\",\n        \"metadata\": {},\n        \"active\": true,\n        \"created_at\": \"2026-05-10T09:00:00.000Z\",\n        \"updated_at\": \"2026-05-10T09:00:00.000Z\"\n      }\n    ],\n    \"event_dates\": [\n      {\n        \"id\": \"evtd_01HXDay1\",\n        \"event_id\": \"evt_01HXPublicExample\",\n        \"venue_id\": \"venue_01HXMain\",\n        \"name\": \"Festival Day 1\",\n        \"doors_at\": \"2026-08-01T14:00:00.000Z\",\n        \"starts_at\": \"2026-08-01T16:00:00.000Z\",\n        \"ends_at\": \"2026-08-01T23:00:00.000Z\",\n        \"status\": \"scheduled\",\n        \"venue_capacity\": 5000,\n        \"held_venue_count\": 0,\n        \"issued_venue_count\": 0,\n        \"source_key\": null,\n        \"created_at\": \"2026-06-02T10:00:00.000Z\",\n        \"updated_at\": \"2026-06-02T10:00:00.000Z\"\n      }\n    ],\n    \"event_media\": [\n      {\n        \"id\": \"evtm_01HXCover\",\n        \"type\": \"image\",\n        \"position\": 0,\n        \"alt_text\": \"Crowd at the main stage\",\n        \"caption\": \"Opening night\",\n        \"event_id\": \"evt_01HXPublicExample\",\n        \"created_by_id\": \"usr_01HXOwner\",\n        \"created_at\": \"2026-06-03T11:00:00.000Z\",\n        \"updated_at\": \"2026-06-03T11:00:00.000Z\",\n        \"file\": null\n      }\n    ],\n    \"event_organizations\": [\n      {\n        \"id\": \"evto_01HXHost\",\n        \"type\": \"host\",\n        \"role\": \"organizer\",\n        \"status\": \"active\",\n        \"organization_id\": \"org_01HXPromoter\",\n        \"event_id\": \"evt_01HXPublicExample\",\n        \"created_at\": \"2026-06-01T09:00:00.000Z\",\n        \"updated_at\": \"2026-06-01T09:00:00.000Z\"\n      }\n    ],\n    \"event_streams\": [\n      {\n        \"id\": \"evts_01HXMain\",\n        \"event_date_id\": \"evtd_01HXDay1\",\n        \"provider\": \"youtube\",\n        \"access_protection\": \"public\",\n        \"status\": \"ready\",\n        \"live_from\": null,\n        \"live_until\": null,\n        \"replay_enabled\": true,\n        \"replay_available_until\": null,\n        \"max_concurrent_devices\": null,\n        \"created_at\": \"2026-07-10T12:00:00.000Z\",\n        \"updated_at\": \"2026-07-10T12:00:00.000Z\"\n      }\n    ]\n  }\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Exposes attendee-safe fields and expanded associations\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "  const data = json.data;",
+                      "  pm.expect(data).to.have.property(\"id\");",
+                      "  pm.expect(data).to.have.property(\"slug\");",
+                      "  pm.expect(data).to.have.property(\"title\");",
+                      "  pm.expect(data).to.have.property(\"description\");",
+                      "  pm.expect(data).to.have.property(\"visibility\");",
+                      "  pm.expect(data).to.have.property(\"timezone\");",
+                      "  pm.expect(data).to.have.property(\"currency\");",
+                      "  pm.expect(data).to.have.property(\"published_at\");",
+                      "  pm.expect(data).to.have.property(\"created_at\");",
+                      "  pm.expect(data).to.have.property(\"categories\");",
+                      "  pm.expect(data).to.have.property(\"event_dates\");",
+                      "  pm.expect(data).to.have.property(\"event_media\");",
+                      "  pm.expect(data).to.have.property(\"event_organizations\");",
+                      "  pm.expect(data).to.have.property(\"event_streams\");",
+                      "});",
+                      "pm.test(\"Never leaks owner-only fields\", function () {",
+                      "  const data = pm.response.json().data;",
+                      "  pm.expect(data).to.not.have.property(\"status\");",
+                      "  pm.expect(data).to.not.have.property(\"version\");",
+                      "  pm.expect(data).to.not.have.property(\"organization\");",
+                      "  pm.expect(data).to.not.have.property(\"event_setting\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
             }
           ]
         }
@@ -3546,6 +3685,289 @@
           ]
         },
         {
+          "name": "Events",
+          "description": "Admin platform-administration surface for events (mirrors Organizations). Full CRUD plus force publish/unpublish moderation.",
+          "item": [
+            {
+              "name": "List Events",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/events?page=1&per_page=10&order_by=created_at&order_direction=desc",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "events"
+                  ]
+                }
+              },
+              "description": "List all events (admin).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2xx\", function () {",
+                      "  pm.expect(pm.response.code).to.be.oneOf([200,201,204]);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Create Event",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/events",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "events"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event\": {\n    \"title\": \"New Event\",\n    \"description\": \"Admin-created event\",\n    \"organization_id\": \"<organization_uuid>\",\n    \"visibility\": \"public\",\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"currency\": \"ETB\",\n    \"category_ids\": [\"<category_uuid>\"]\n  }\n}"
+                }
+              },
+              "description": "Create an event (owner/organizer). Optionally pass category_ids to attach categories in the same request.",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2xx\", function () {",
+                      "  pm.expect(pm.response.code).to.be.oneOf([200,201,204]);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Event",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/events/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "events",
+                    ":id"
+                  ]
+                }
+              },
+              "description": "Get a single event by id (admin).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2xx\", function () {",
+                      "  pm.expect(pm.response.code).to.be.oneOf([200,201,204]);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Update Event",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/events/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "events",
+                    ":id"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event\": {\n    \"title\": \"Updated Event Title\",\n    \"description\": \"Updated description\",\n    \"category_ids\": [\"<category_uuid>\"]\n  }\n}"
+                }
+              },
+              "description": "Update a draft event (owner/organizer). May include category_ids to replace the event's categories.",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2xx\", function () {",
+                      "  pm.expect(pm.response.code).to.be.oneOf([200,201,204]);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Delete Event",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/events/:id",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "events",
+                    ":id"
+                  ]
+                }
+              },
+              "description": "Delete an event (admin).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2xx\", function () {",
+                      "  pm.expect(pm.response.code).to.be.oneOf([200,201,204]);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Publish Event",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/events/:id/publish",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "events",
+                    ":id",
+                    "publish"
+                  ]
+                }
+              },
+              "description": "Force-publish an event (admin moderation).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2xx\", function () {",
+                      "  pm.expect(pm.response.code).to.be.oneOf([200,201,204]);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Unpublish Event",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/events/:id/unpublish",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "events",
+                    ":id",
+                    "unpublish"
+                  ]
+                }
+              },
+              "description": "Force-unpublish a published event back to draft (admin moderation).",
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 2xx\", function () {",
+                      "  pm.expect(pm.response.code).to.be.oneOf([200,201,204]);",
+                      "});",
+                      "pm.test(\"Response has success flag\", function () {",
+                      "  const json = pm.response.json();",
+                      "  pm.expect(json).to.have.property(\"success\", true);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
           "name": "Organizations",
           "item": [
             {
@@ -4234,6 +4656,2453 @@
               ]
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Events",
+      "description": "Event aggregate: draft creation, publication, and nested resources.",
+      "item": [
+        {
+          "name": "List Events",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/events?page=1&per_page=10&order_by=created_at&order_direction=desc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "per_page",
+                  "value": "10"
+                },
+                {
+                  "key": "order_by",
+                  "value": "created_at"
+                },
+                {
+                  "key": "order_direction",
+                  "value": "desc"
+                },
+                {
+                  "key": "q[status_eq]",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "q[visibility_eq]",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List events owned by the authenticated organization (paginated, ordered)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property(\"success\", true);",
+                  "  pm.expect(json).to.have.property(\"data\");",
+                  "  pm.expect(json.data).to.be.an(\"array\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Event by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/events/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events",
+                ":id"
+              ]
+            },
+            "description": "Get a single event by ID."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property(\"success\", true);",
+                  "  pm.expect(json).to.have.property(\"data\");",
+                  "  pm.expect(json.data).to.have.property(\"id\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Event",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events"
+              ]
+            },
+            "description": "Create a draft event owned by the given organization.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": {\n    \"title\": \"New Year Concert\",\n    \"description\": \"A brand new year concert in Addis Ababa\",\n    \"visibility\": \"public\",\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"currency\": \"ETB\",\n    \"organization_id\": \"<organization_uuid>\",\n    \"category_ids\": [\"<category_uuid>\"]\n  }\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property(\"success\", true);",
+                  "  pm.expect(json).to.have.property(\"data\");",
+                  "  pm.expect(json.data).to.have.property(\"id\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "description": "Create a draft event (owner/organizer). Pass category_ids to attach categories in the same request so the event can be published."
+        },
+        {
+          "name": "Update Event",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/events/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events",
+                ":id"
+              ]
+            },
+            "description": "Update a draft event's attributes.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": {\n    \"title\": \"Updated Event Title\",\n    \"description\": \"Updated description\",\n    \"category_ids\": [\"<category_uuid>\"]\n  }\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property(\"success\", true);",
+                  "  pm.expect(json).to.have.property(\"data\");",
+                  "  pm.expect(json.data).to.have.property(\"id\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "description": "Update a draft event (owner/organizer). May include category_ids to replace the event's categories."
+        },
+        {
+          "name": "Publish Event",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/events/:id/publish",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events",
+                ":id",
+                "publish"
+              ]
+            },
+            "description": "Publish a ready event (verified org + at least one category). Idempotent per idempotency key."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property(\"success\", true);",
+                  "  pm.expect(json).to.have.property(\"data\");",
+                  "  pm.expect(json.data).to.have.property(\"status\");",
+                  "});",
+                  "pm.test(\"Event is published\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data.status).to.equal(\"published\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Event Organizations",
+          "item": [
+            {
+              "name": "List",
+              "request": {
+                "description": "List all organizations collaborating on an event.",
+                "header": [],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_organizations"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_organizations",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Get",
+              "request": {
+                "description": "Get a single event organization link.",
+                "header": [],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_organizations",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_organizations/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Create",
+              "request": {
+                "description": "Add an organization as a collaborator on the event.",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_organizations"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_organizations",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event_organization\": {\n    \"organization_id\": \"{{orgId}}\",\n    \"type\": \"promoter\",\n    \"role\": \"collaborator\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Update",
+              "request": {
+                "description": "Update an event organization link.",
+                "header": [],
+                "method": "PATCH",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_organizations",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_organizations/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event_organization\": {\n    \"type\": \"promoter\",\n    \"role\": \"collaborator\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Delete",
+              "request": {
+                "description": "Remove an organization from the event.",
+                "header": [],
+                "method": "DELETE",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_organizations",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_organizations/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Revoke",
+              "request": {
+                "description": "",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_organizations",
+                    ":id",
+                    "revoke"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_organizations/:id/revoke",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Activate",
+              "request": {
+                "description": "",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_organizations",
+                    ":id",
+                    "activate"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_organizations/:id/activate",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Event Staff Assignments",
+          "item": [
+            {
+              "name": "List",
+              "request": {
+                "description": "List all staff assigned to an event.",
+                "header": [],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_staff_assignments"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_staff_assignments",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Get",
+              "request": {
+                "description": "Get a single staff assignment.",
+                "header": [],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_staff_assignments",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_staff_assignments/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Create",
+              "request": {
+                "description": "Assign a staff member to the event.",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_staff_assignments"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_staff_assignments",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event_staff_assignment\": {\n    \"user_id\": \"{{userId}}\",\n    \"role\": \"staff\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Update",
+              "request": {
+                "description": "Update a staff assignment.",
+                "header": [],
+                "method": "PATCH",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_staff_assignments",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_staff_assignments/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event_staff_assignment\": {\n    \"user_id\": \"{{userId}}\",\n    \"organization_id\": \"{{orgId}}\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Delete",
+              "request": {
+                "description": "Revoke a staff assignment.",
+                "header": [],
+                "method": "DELETE",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_staff_assignments",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_staff_assignments/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Suspend",
+              "request": {
+                "description": "Suspend a staff member.",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_staff_assignments",
+                    ":id",
+                    "suspend"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_staff_assignments/:id/suspend",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Revoke",
+              "request": {
+                "description": "Revoke a staff member permanently.",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_staff_assignments",
+                    ":id",
+                    "revoke"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_staff_assignments/:id/revoke",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Change Role",
+              "request": {
+                "description": "Change a staff member's role/type.",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_staff_assignments",
+                    ":id",
+                    "change_role"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_staff_assignments/:id/change_role",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"role\": \"scanner\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Activate",
+              "request": {
+                "description": "",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_staff_assignments",
+                    ":id",
+                    "activate"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_staff_assignments/:id/activate",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Consent Documents",
+          "item": [
+            {
+              "name": "List",
+              "request": {
+                "description": "List consent documents for an event.",
+                "header": [],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "consent_documents"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/consent_documents",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Get",
+              "request": {
+                "description": "Get a single consent document.",
+                "header": [],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "consent_documents",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/consent_documents/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Create",
+              "request": {
+                "description": "Create a draft consent document with an initial draft version.",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "consent_documents"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/consent_documents",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"consent_document\": {\n    \"name\": \"Terms of Entry\",\n    \"type\": \"terms\",\n    \"title\": \"Attendee Terms\",\n    \"body\": \"Enter the terms text here.\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Update",
+              "request": {
+                "description": "Update a consent document and its draft version.",
+                "header": [],
+                "method": "PATCH",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "consent_documents",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/consent_documents/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"consent_document\": {\n    \"name\": \"Updated Terms\",\n    \"body\": \"Updated terms text.\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Delete",
+              "request": {
+                "description": "Delete a consent document and its versions.",
+                "header": [],
+                "method": "DELETE",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "consent_documents",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/consent_documents/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Publish",
+              "request": {
+                "description": "Publish the current draft version (idempotent; retires the prior published version).",
+                "header": [
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "<key>",
+                    "type": "text"
+                  }
+                ],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "consent_documents",
+                    ":id",
+                    "publish"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/consent_documents/:id/publish",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Activate",
+              "request": {
+                "description": "Activate a consent document (operational on/off switch). Idempotent; audited.",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "consent_documents",
+                    ":id",
+                    "activate"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/consent_documents/:id/activate",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Deactivate",
+              "request": {
+                "description": "Deactivate a consent document (operational on/off switch). Idempotent; audited.",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "consent_documents",
+                    ":id",
+                    "deactivate"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/consent_documents/:id/deactivate",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Event Dates",
+          "item": [
+            {
+              "name": "List",
+              "request": {
+                "description": "List event dates.",
+                "header": [],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_dates"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_dates",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Get",
+              "request": {
+                "description": "Get a single event date.",
+                "header": [],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_dates",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_dates/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Create",
+              "request": {
+                "description": "Create an event date.",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_dates"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_dates",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event_date\": {\n    \"starts_at\": \"2026-08-01T20:00:00Z\",\n    \"ends_at\": \"2026-08-01T22:00:00Z\",\n    \"timezone\": \"Africa/Addis_Ababa\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Update",
+              "request": {
+                "description": "Update an event date.",
+                "header": [],
+                "method": "PATCH",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_dates",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_dates/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event_date\": {\n    \"starts_at\": \"2026-08-01T20:00:00Z\",\n    \"ends_at\": \"2026-08-01T22:00:00Z\",\n    \"timezone\": \"Africa/Addis_Ababa\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Delete",
+              "request": {
+                "description": "Delete an event date.",
+                "header": [],
+                "method": "DELETE",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_dates",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_dates/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Event Participants",
+          "item": [
+            {
+              "name": "List",
+              "request": {
+                "description": "List event participants.",
+                "header": [],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_participants"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_participants",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Get",
+              "request": {
+                "description": "Get a single event participant.",
+                "header": [],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_participants",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_participants/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Create",
+              "request": {
+                "description": "Create an event participant.",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_participants"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_participants",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\"event_participant\":{\"event_date_id\":\"{{eventDateId}}\",\"artist_id\":\"{{artistId}}\",\"name\":\"Guest Performer\",\"type\":\"artist\",\"description\":\"Opening act\",\"display_order\":1}}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Update",
+              "request": {
+                "description": "Update an event participant.",
+                "header": [],
+                "method": "PATCH",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_participants",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_participants/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\"event_participant\":{\"event_date_id\":\"{{eventDateId}}\",\"artist_id\":\"{{artistId}}\",\"name\":\"Guest Performer\",\"type\":\"artist\",\"description\":\"Opening act\",\"display_order\":1}}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Delete",
+              "request": {
+                "description": "Delete an event participant.",
+                "header": [],
+                "method": "DELETE",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_participants",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_participants/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Access Zones",
+          "item": [
+            {
+              "name": "List",
+              "request": {
+                "description": "List access zones.",
+                "header": [],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "access_zones"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/access_zones",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Get",
+              "request": {
+                "description": "Get a single access zone.",
+                "header": [],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "access_zones",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/access_zones/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Create",
+              "request": {
+                "description": "Create an access zone.",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "access_zones"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/access_zones",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\"access_zone\":{\"event_date_id\":\"{{eventDateId}}\",\"type\":\"general\",\"name\":\"Front Stage\",\"code\":\"FRONT\",\"active\":true,\"sort_order\":1}}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Update",
+              "request": {
+                "description": "Update an access zone.",
+                "header": [],
+                "method": "PATCH",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "access_zones",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/access_zones/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\"access_zone\":{\"event_date_id\":\"{{eventDateId}}\",\"type\":\"general\",\"name\":\"Front Stage\",\"code\":\"FRONT\",\"active\":true,\"sort_order\":1}}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Delete",
+              "request": {
+                "description": "Delete an access zone.",
+                "header": [],
+                "method": "DELETE",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "access_zones",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/access_zones/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Recurrence Rules",
+          "item": [
+            {
+              "name": "Get",
+              "request": {
+                "description": "Get the event recurrence rule.",
+                "header": [],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "recurrence_rule"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/recurrence_rule",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Create",
+              "request": {
+                "description": "Create the event recurrence rule.",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "recurrence_rule"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/recurrence_rule",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\"recurrence_rule\":{\"rrule\":\"FREQ=DAILY;COUNT=3\",\"timezone\":\"Africa/Addis_Ababa\",\"dtstart_local\":\"2026-01-01T18:00:00\",\"duration_seconds\":7200,\"exdates\":[],\"rdates\":[]}}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Update",
+              "request": {
+                "description": "Update the event recurrence rule.",
+                "header": [],
+                "method": "PATCH",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "recurrence_rule"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/recurrence_rule",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\"recurrence_rule\":{\"rrule\":\"FREQ=DAILY;COUNT=3\",\"timezone\":\"Africa/Addis_Ababa\",\"dtstart_local\":\"2026-01-01T18:00:00\",\"duration_seconds\":7200,\"exdates\":[],\"rdates\":[]}}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Activate",
+              "request": {
+                "description": "Activate the event recurrence rule (idempotent).",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "recurrence_rule",
+                    "activate"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/recurrence_rule/activate",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Deactivate",
+              "request": {
+                "description": "Deactivate the event recurrence rule (idempotent).",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "recurrence_rule",
+                    "deactivate"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/recurrence_rule/deactivate",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Delete",
+              "request": {
+                "description": "Delete the event recurrence rule.",
+                "header": [],
+                "method": "DELETE",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "recurrence_rule"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/recurrence_rule",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Event Media",
+          "item": [
+            {
+              "name": "List",
+              "request": {
+                "description": "List event media.",
+                "header": [],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_media"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_media",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Get",
+              "request": {
+                "description": "Get a single media item.",
+                "header": [],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_media",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_media/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Create",
+              "request": {
+                "description": "Create event media (also requires a multipart file upload).",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_media"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_media",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "event_media[type]",
+                      "value": "cover",
+                      "type": "text"
+                    },
+                    {
+                      "key": "event_media[position]",
+                      "value": "0",
+                      "type": "text"
+                    },
+                    {
+                      "key": "event_media[alt_text]",
+                      "value": "",
+                      "type": "text"
+                    },
+                    {
+                      "key": "event_media[caption]",
+                      "value": "",
+                      "type": "text"
+                    },
+                    {
+                      "key": "file",
+                      "value": "",
+                      "type": "file"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Update",
+              "request": {
+                "description": "Update event media metadata (optionally re-upload a file).",
+                "header": [],
+                "method": "PATCH",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_media",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_media/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "event_media[type]",
+                      "value": "cover",
+                      "type": "text"
+                    },
+                    {
+                      "key": "event_media[position]",
+                      "value": "0",
+                      "type": "text"
+                    },
+                    {
+                      "key": "event_media[alt_text]",
+                      "value": "",
+                      "type": "text"
+                    },
+                    {
+                      "key": "event_media[caption]",
+                      "value": "",
+                      "type": "text"
+                    },
+                    {
+                      "key": "file",
+                      "value": "",
+                      "type": "file"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Delete",
+              "request": {
+                "description": "Delete event media.",
+                "header": [],
+                "method": "DELETE",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_media",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_media/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Reorder",
+              "request": {
+                "description": "Reorder gallery media.",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_media",
+                    "reorder"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_media/reorder",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"ordered_ids\": [\n    \"<id1>\",\n    \"<id2>\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Event Schedule Changes",
+          "item": [
+            {
+              "name": "Create",
+              "request": {
+                "description": "Record an append-only schedule change for an event's dates.",
+                "header": [
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "<key>",
+                    "type": "text"
+                  }
+                ],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_schedule_changes"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_schedule_changes",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"schedule_change\": {\n    \"changes\": [\n      {\n        \"event_date_id\": \"<date_id>\",\n        \"new_start_at\": \"2026-09-01T20:00:00Z\",\n        \"new_end_at\": \"2026-09-01T22:00:00Z\",\n        \"change_type\": \"reschedule\"\n      }\n    ]\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Event Cancellations",
+          "item": [
+            {
+              "name": "Create",
+              "request": {
+                "description": "Initiate an irreversible event cancellation.",
+                "header": [
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "<key>",
+                    "type": "text"
+                  }
+                ],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_cancellations"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_cancellations",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"cancellation\": {\n    \"reason\": \"internal note (not exposed)\",\n    \"attendee_reason\": \"Event postponed.\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Event Video Links",
+          "item": [
+            {
+              "name": "List",
+              "request": {
+                "description": "List event video links.",
+                "header": [],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_video_links"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_video_links",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Get",
+              "request": {
+                "description": "Get a single video link.",
+                "header": [],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_video_links",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_video_links/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Create",
+              "request": {
+                "description": "Create an event video link.",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_video_links"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_video_links",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event_video_link\": {\n    \"title\": \"Opening Act\",\n    \"url\": \"https://youtu.be/xxxx\",\n    \"provider\": \"youtube\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Update",
+              "request": {
+                "description": "Update an event video link.",
+                "header": [],
+                "method": "PATCH",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_video_links",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_video_links/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event_video_link\": {\n    \"title\": \"Opening Act\",\n    \"url\": \"https://youtu.be/xxxx\",\n    \"provider\": \"youtube\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Delete",
+              "request": {
+                "description": "Delete an event video link.",
+                "header": [],
+                "method": "DELETE",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_video_links",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_video_links/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Admin / Legal Documents",
+      "item": [
+        {
+          "name": "List",
+          "request": {
+            "description": "List all platform legal documents (super_admin).",
+            "header": [],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "legal_documents"
+              ],
+              "raw": "{{baseUrl}}/admin/legal_documents",
+              "variable": []
+            },
+            "response": []
+          }
+        },
+        {
+          "name": "Get",
+          "request": {
+            "description": "Get a single legal document.",
+            "header": [],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "legal_documents",
+                ":id"
+              ],
+              "raw": "{{baseUrl}}/admin/legal_documents/:id",
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "response": []
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "description": "Create a legal document with an initial draft version (super_admin).",
+            "header": [],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "legal_documents"
+              ],
+              "raw": "{{baseUrl}}/admin/legal_documents",
+              "variable": []
+            },
+            "response": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"legal_document\": {\n    \"document_type\": \"privacy_policy\",\n    \"internal_name\": \"Privacy Policy\",\n    \"jurisdiction_code\": \"GLOBAL\",\n    \"locale\": \"en\",\n    \"title\": \"Privacy Notice\",\n    \"body\": \"We respect your data.\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "description": "Update legal document metadata and/or draft a new version body.",
+            "header": [],
+            "method": "PATCH",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "legal_documents",
+                ":id"
+              ],
+              "raw": "{{baseUrl}}/admin/legal_documents/:id",
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "response": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"legal_document\": {\n    \"title\": \"Updated Notice\",\n    \"body\": \"Revised text.\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Publish",
+          "request": {
+            "description": "Publish the current draft version (retires any prior published version). Idempotent.",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "<key>",
+                "type": "text"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "legal_documents",
+                ":id",
+                "publish"
+              ],
+              "raw": "{{baseUrl}}/admin/legal_documents/:id/publish",
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "response": []
+          }
+        },
+        {
+          "name": "Activate",
+          "request": {
+            "description": "Activate a legal document (operational on/off switch). Idempotent; audited.",
+            "header": [],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "legal_documents",
+                ":id",
+                "activate"
+              ],
+              "raw": "{{baseUrl}}/admin/legal_documents/:id/activate",
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "response": []
+          }
+        },
+        {
+          "name": "Deactivate",
+          "request": {
+            "description": "Deactivate a legal document (operational on/off switch). Idempotent; audited.",
+            "header": [],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "legal_documents",
+                ":id",
+                "deactivate"
+              ],
+              "raw": "{{baseUrl}}/admin/legal_documents/:id/deactivate",
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "response": []
+          }
         }
       ]
     }

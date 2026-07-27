@@ -33,7 +33,7 @@ module Events
 
     class Scope < Core::ApplicationPolicy::Scope
       def resolve
-        return scope.all if user&.has_role?("SUPER_ADMIN") || user&.has_role?("ADMIN")
+        return scope.all if user&.has_role?("SUPER_ADMIN") || user&.has_role?("ADMIN") || user&.has_role?("CORE_ADMIN")
         scope.active
       end
     end

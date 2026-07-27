@@ -525,7 +525,7 @@ git commit -m "feat(core): add transaction advisory locks"
 - Create: `test/services/core/outbox/publish_test.rb`
 - Create: `test/jobs/core/dispatch_outbox_event_job_test.rb`
 
-- [ ] **Step 1: Write failing publication and dispatch tests**
+- [x] **Step 1: Write failing publication and dispatch tests**
 
 ```ruby
 require "test_helper"
@@ -596,7 +596,7 @@ class Core::DispatchOutboxEventJobTest < ActiveJob::TestCase
 end
 ```
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/core/outbox/publish_test.rb test/jobs/core/dispatch_outbox_event_job_test.rb
@@ -604,11 +604,11 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/core/outbox/
 
 Expected: missing outbox table/classes.
 
-- [ ] **Step 3: Create the outbox schema**
+- [x] **Step 3: Create the outbox schema**
 
 The migration creates `core_outbox_events` with UUIDv7 ID, required `topic`, `event_type`, `aggregate_type`, `aggregate_id`, `payload` JSONB default `{}`, unique `idempotency_key`, `occurred_at`, `available_at`, nullable `published_at`, nonnegative `attempts`, nullable `last_error_code`, `locked_at`, and timestamps. Add indexes on `(published_at, available_at, id)`, `(aggregate_type, aggregate_id, occurred_at)`, and `event_type`. Add checks for nonblank discriminator fields, `available_at >= occurred_at`, and `published_at IS NULL OR published_at >= occurred_at`.
 
-- [ ] **Step 4: Implement publication**
+- [x] **Step 4: Implement publication**
 
 ```ruby
 # frozen_string_literal: true
@@ -678,7 +678,7 @@ module Core
 end
 ```
 
-- [ ] **Step 5: Implement at-least-once dispatch**
+- [x] **Step 5: Implement at-least-once dispatch**
 
 Implement dispatch with a short claim transaction and no database lock held during external work:
 
@@ -762,9 +762,9 @@ module Core
 end
 ```
 
-Add a recurring recovery job that claims due unpublished rows with `FOR UPDATE SKIP LOCKED` in batches of 100, advances `available_at` before enqueueing, and passes only IDs to `Core::DispatchOutboxEventJob`.
+The recurring enqueuer/recovery sweep job that actually drives delivery is specified in **Step 8** below — it was the missing piece that left `core_outbox_events` rows undelivered (nothing ever enqueued `Core::DispatchOutboxEventJob`).
 
-- [ ] **Step 6: Run migration and tests**
+- [x] **Step 6: Run migration and tests**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:migrate
@@ -773,12 +773,127 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/core/outbox/
 
 Expected: outbox tests pass and duplicate publication creates one row.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add db/migrate/20260717000100_create_core_outbox_events.rb app/models/core/outbox_event.rb app/services/core/outbox app/jobs/core test/fixtures/core_outbox_events.yml test/test_helper.rb test/services/core/outbox test/jobs/core/dispatch_outbox_event_job_test.rb
 git commit -m "feat(core): add transactional outbox"
 ```
+
+- [x] **Step 8: Add the outbox enqueuer / recovery sweep**
+
+The dispatch path above is necessary but not sufficient: nothing ever enqueues
+`Core::DispatchOutboxEventJob`, so rows written by `Core::Outbox::Publish` sit at
+`published_at = NULL` forever. This recurring job is **both** the initial enqueuer
+and the recovery sweep: it claims due rows, backs off `available_at`, and
+enqueues only their IDs.
+
+**Open item (handler rollout):** `Core::Outbox::Dispatch` currently treats
+`MissingHandler` (no handler registered for an `event_type`) as a retryable
+failure, so each miss burns an `attempts` and a row can be quarantined before its
+handler ships. Because handler registration lives in Plans 1–3, either (a) ship
+the enqueuer together with the first handlers so no row is ever orphaned, or
+(b) make `Core::Outbox::Dispatch` skip the `attempts` bump for `MissingHandler`
+(treat it as "not yet configured," not a delivery failure). Capture this when
+registering handlers.
+
+**Files:**
+- Create: `app/jobs/core/process_outbox_job.rb`
+- Modify: `config/recurring.yml`
+
+**Behavior:**
+- Runs on a fixed schedule (e.g. every minute) via `config/recurring.yml`.
+- In a short per-batch transaction, `SELECT ... WHERE published_at IS NULL AND available_at <= NOW() AND attempts < MAX_ATTEMPTS FOR UPDATE SKIP LOCKED LIMIT 100`.
+- `FOR UPDATE SKIP LOCKED` lets multiple workers sweep in parallel without double-enqueueing the same row.
+- Advance `available_at` to `NOW() + backoff` *before* enqueueing so the same row is not re-claimed within the same sweep.
+- Enqueue `Core::DispatchOutboxEventJob.perform_later(row.id)` — never the payload.
+- Rows whose `attempts` reached `MAX_ATTEMPTS` are NOT re-enqueued; flag them (e.g. a `dead` flag or alert) so a permanently-failing handler does not loop forever. This is the gap the original plan left as a one-line stub.
+
+```ruby
+# frozen_string_literal: true
+
+module Core
+  # Periodic driver for the transactional outbox: claims due rows in batches and
+  # enqueues their delivery. Doubles as the recovery sweep for rows whose job
+  # retries were exhausted.
+  class ProcessOutboxJob < ApplicationJob
+    queue_as :outbox
+    BATCH_SIZE = 100
+    MAX_ATTEMPTS = 10
+
+    def perform
+      claimed_ids = Core::OutboxEvent.transaction do
+        Core::OutboxEvent
+          .where(published_at: nil)
+          .where("available_at <= ?", Time.current)
+          .where("attempts < ?", MAX_ATTEMPTS)
+          .order(:available_at)
+          .limit(BATCH_SIZE)
+          .lock("FOR UPDATE SKIP LOCKED")
+          .pluck(:id)
+          .then do |ids|
+            next ids if ids.empty?
+
+            Core::OutboxEvent.where(id: ids)
+              .update_all(available_at: Time.current + backoff, updated_at: Time.current)
+            ids
+          end
+      end
+      claimed_ids.each { |id| Core::DispatchOutboxEventJob.perform_later(id) }
+    end
+
+    private
+
+    def backoff
+      30.seconds
+    end
+  end
+end
+```
+
+`config/recurring.yml` (production):
+```yaml
+  process_outbox:
+    class: Core::ProcessOutboxJob
+    queue: outbox
+    schedule: every minute
+```
+
+- [x] **Step 9: Test the enqueuer**
+
+Assert it enqueues `Core::DispatchOutboxEventJob` for due unpublished rows, skips
+already-published rows, respects the batch size, and does NOT re-enqueue rows at
+`attempts >= MAX_ATTEMPTS`.
+
+```ruby
+require "test_helper"
+
+class Core::ProcessOutboxJobTest < ActiveJob::TestCase
+  test "enqueues due unpublished rows and advances available_at" do
+    due = core_outbox_events(:pending)
+    Core::ProcessOutboxJob.perform_now
+    assert_enqueued_with(job: Core::DispatchOutboxEventJob, args: [ due.id ])
+    assert due.reload.available_at > Time.current
+  end
+
+  test "skips published rows and exhausted-retry rows" do
+    published = core_outbox_events(:published)
+    dead = core_outbox_events(:exhausted)
+    Core::ProcessOutboxJob.perform_now
+    refute_enqueued_with(job: Core::DispatchOutboxEventJob, args: [ published.id ])
+    refute_enqueued_with(job: Core::DispatchOutboxEventJob, args: [ dead.id ])
+  end
+end
+```
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add app/jobs/core/process_outbox_job.rb config/recurring.yml test/jobs/core/process_outbox_job_test.rb
+git commit -m "feat(core): add outbox enqueuer and recovery sweep"
+```
+
+
 
 ## Task 6: Unify automatic CRUD and transactional command auditing
 
@@ -799,7 +914,7 @@ git commit -m "feat(core): add transactional outbox"
 - Reuse: `test/integration/organizations/owner_organizations_test.rb`
 - Reuse: `test/integration/organizations/owner_memberships_test.rb`
 
-- [ ] **Step 1: RED — specify one deletion-safe, retry-safe recorder contract**
+- [x] **Step 1: RED — specify one deletion-safe, retry-safe recorder contract**
 
 ```ruby
 require "test_helper"
@@ -892,7 +1007,7 @@ class Core::Audit::RecordTest < ActiveSupport::TestCase
 end
 ```
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/core/audit/record_test.rb
@@ -900,7 +1015,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/core/audit/r
 
 Expected: missing `audit_key` schema and `Core::Audit::Record`.
 
-- [ ] **Step 3: GREEN — add the idempotency boundary and implement the only audit writer**
+- [x] **Step 3: GREEN — add the idempotency boundary and implement the only audit writer**
 
 ```ruby
 class AddAuditKeyToCoreAuditLogs < ActiveRecord::Migration[8.1]
@@ -1023,7 +1138,7 @@ module Core
 end
 ```
 
-- [ ] **Step 4: Run the recorder tests**
+- [x] **Step 4: Run the recorder tests**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:migrate
@@ -1032,7 +1147,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/core/audit_log
 
 Expected: PASS, including rollback, identical replay, replay conflict, and recursive sensitive-key rejection.
 
-- [ ] **Step 5: RED — preserve the controller DSL's automatic diff behavior**
+- [x] **Step 5: RED — preserve the controller DSL's automatic diff behavior**
 
 Move the existing advanced-signature behavior tests out of `test/jobs/core/audit_logger_job_test.rb` into `test/services/core/audit/build_controller_payload_test.rb`. Keep exact coverage for:
 
@@ -1086,7 +1201,7 @@ def snapshot(record, **overrides)
 end
 ```
 
-- [ ] **Step 6: GREEN — extract normalization from the job without changing the DSL**
+- [x] **Step 6: GREEN — extract normalization from the job without changing the DSL**
 
 Create `Core::Audit::BuildControllerPayload < Core::BaseService`. Move the existing proven `calculate_changes`, `diff_records`, `filter_changes`, association normalization, and action-label resolution from `Core::AuditLoggerJob` into this pure builder. It receives the before/after snapshots and active DSL configurations and returns only normalized scalar/JSON attributes accepted by `Core::Audit::Record`:
 
@@ -1124,7 +1239,7 @@ auditable_record_for :destroy, -> { @event }
 
 The existing `transactional:` name is misleading because an `after_action` job is not atomic with a CRUD transaction that already committed. Replace it with `required: true` in the DSL and update all local call sites in this same pre-launch commit. `required: true` means payload construction or enqueue failure raises and fails the request; it does not promise rollback of already committed controller CRUD. Commands requiring atomic evidence use the synchronous path below.
 
-- [ ] **Step 7: GREEN — reduce the job to one normalized recorder call**
+- [x] **Step 7: GREEN — reduce the job to one normalized recorder call**
 
 ```ruby
 # frozen_string_literal: true
@@ -1143,7 +1258,7 @@ end
 
 Delete `perform_legacy`, snapshot diffing, constantization, record reloading, and the dual signature from the job. Do not use `discard_on ActiveRecord::RecordNotFound`: the normalized payload contains the captured polymorphic type and ID, so create/update/destroy audits remain writable even if the auditable or actor is later deleted. Job retry is safe because `audit_key` is unique and identical replays return the existing row.
 
-- [ ] **Step 8: GREEN — preserve model convenience methods through the same two paths**
+- [x] **Step 8: GREEN — preserve model convenience methods through the same two paths**
 
 `Core::AuditableModel#record_audit!` builds the same scalar payload and calls `Core::Audit::Record` synchronously, returning `result.value`. `record_audit_later!` builds the same payload and enqueues `Core::AuditLoggerJob`. Both accept optional `audit_key:`; when omitted, generate `model:<model_name>:<id>:<action>:<SecureRandom.uuid>` because these convenience calls have no external idempotency identity.
 
@@ -1163,7 +1278,7 @@ test "retains audit history after the auditable is deleted" do
 end
 ```
 
-- [ ] **Step 9: Run controller, builder, job, and model regression tests**
+- [x] **Step 9: Run controller, builder, job, and model regression tests**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
@@ -1177,7 +1292,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
 
 Expected: PASS. Controller authors retain automatic create/update/destroy and associated diffs, destroy audits survive missing records, model helpers preserve return/enqueue behavior, and job retries create one log.
 
-- [ ] **Step 10: Use synchronous audit recording in authoritative commands**
+- [x] **Step 10: Use synchronous audit recording in authoritative commands**
 
 New payment, ticket issuance, credential replacement, refund, finance-ledger, resale-completion, and payout commands call the recorder after their state mutation but before their transaction commits:
 
@@ -1203,7 +1318,7 @@ The surrounding transaction rolls back if recorder validation or insertion raise
 
 Controller CRUD audits remain automatic and asynchronous. Command audits are explicit and synchronous because they record meaningful business transitions rather than every changed database column.
 
-- [ ] **Step 11: Verify the single-writer invariant**
+- [x] **Step 11: Verify the single-writer invariant**
 
 ```bash
 rg -n "AuditLog\.(create|create!)|audit_logs\.(create|create!)|perform_legacy" app --glob '*.rb'
@@ -1219,7 +1334,7 @@ Controller DSL -> automatic snapshot diff -> normalized payload -> AuditLoggerJo
 Financial/ticket command -> explicit business diff inside transaction ----------+-> Core::Audit::Record -> Core::AuditLog
 ```
 
-- [ ] **Step 12: Run all audit and resource tests**
+- [x] **Step 12: Run all audit and resource tests**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
@@ -1233,7 +1348,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
 
 Expected: audits remain visible on CRUD surfaces, automatic diffs match previous behavior, async retries are idempotent, destroy evidence survives deletion, and synchronous audit rollback is proven.
 
-- [ ] **Step 13: Commit**
+- [x] **Step 13: Commit**
 
 ```bash
 git add db/migrate/20260717000101_add_audit_key_to_core_audit_logs.rb db/schema.rb app/services/core/audit app/models/core/audit_log.rb app/models/concerns/core/auditable_model.rb app/controllers/concerns/core/auditable_controller.rb app/jobs/core/audit_logger_job.rb test/models/core/audit_log_test.rb test/models/core/role_test.rb test/services/core/audit test/jobs/core/audit_logger_job_test.rb test/integration/admin test/integration/organizations
