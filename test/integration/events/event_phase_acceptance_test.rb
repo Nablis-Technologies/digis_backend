@@ -79,7 +79,19 @@ class EventsPhaseAcceptanceTest < ActionDispatch::IntegrationTest
     assert event.reload.published_at.present?
 
     assert event.audit_logs.for_action("event.published").exists?
-    assert Core::OutboxEvent.where(event_type: "event.published", aggregate_id: event.id).exists?
+    outbox_event = Core::OutboxEvent.find_by!(
+      event_type: "event.published", aggregate_id: event.id
+    )
+    assert outbox_event.published_at.blank?, "outbox row starts undrained"
+
+    # Drain the outbox: the registered event.published handler must fire and
+    # enqueue RefreshDiscoveryJob, which stamps discovery_refreshed_at, proving
+    # the publish -> discovery-refresh path works end-to-end (not just wired).
+    perform_enqueued_jobs do
+      Core::Outbox::Dispatch.call(event_id: outbox_event.id)
+    end
+    assert outbox_event.reload.published_at.present?, "outbox event marked published after dispatch"
+    assert event.reload.discovery_refreshed_at.present?, "discovery refresh job stamped the event"
 
     change = Events::Schedule::Change.call(
       event:, actor: @actor,
