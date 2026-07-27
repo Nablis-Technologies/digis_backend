@@ -10,6 +10,7 @@ class Events::PublishTest < ActiveSupport::TestCase
     actor = core_users(:super_admin)
     organization = event.organization
     make_verified(organization)
+    make_publishable(event)
 
     assert_difference -> { Core::OutboxEvent.where(event_type: "event.published").count }, 1 do
       result = Events::Publish.call(event:, actor:, idempotency_key: SecureRandom.uuid)
@@ -33,6 +34,7 @@ class Events::PublishTest < ActiveSupport::TestCase
     event = events_events(:ready_listing)
     actor = core_users(:super_admin)
     make_verified(event.organization)
+    make_publishable(event)
     key = SecureRandom.uuid
 
     Events::Publish.call(event:, actor:, idempotency_key: key)

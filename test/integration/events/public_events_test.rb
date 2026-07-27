@@ -12,6 +12,7 @@ class EventsPublicEventsTest < ActionDispatch::IntegrationTest
       context: "verification",
       status: "approved"
     )
+    make_publishable(@event)
     Events::Publish.call(event: @event, actor: core_users(:super_admin),
                          idempotency_key: SecureRandom.uuid)
   end
