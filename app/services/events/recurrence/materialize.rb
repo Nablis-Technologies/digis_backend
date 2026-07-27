@@ -24,16 +24,17 @@ module Events
       end
 
       def call
-        rrule = RRule::Rule.new(
-          @rule.rrule,
-          dtstart: @dtstart,
-          tzid: @timezone,
-          exdate: parse_times(@rule.exdates)
-        )
+      rrule = RRule::Rule.new(
+        @rule.rrule,
+        dtstart: @dtstart,
+        tzid: @timezone,
+        exdate: parse_times(@rule.exdates)
+      )
 
         horizon = @rule.generated_until || (@dtstart + MAX_OCCURRENCES.days)
         occurrences = rrule.between(@dtstart, horizon)
         parse_times(@rule.rdates).each { |time| occurrences << time }
+        occurrences = occurrences.first(MAX_OCCURRENCES)
 
         existing = @event.event_dates
                        .where(source_key: occurrence_keys(occurrences))
