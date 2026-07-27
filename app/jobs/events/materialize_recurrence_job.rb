@@ -11,8 +11,10 @@ module Events
     def perform(rule_id)
       rule = Events::RecurrenceRule.find_by(id: rule_id)
       return unless rule
+      return unless rule.active?
 
-      Events::Recurrence::Materialize.call(rule: rule)
+      result = Events::Recurrence::Materialize.call(rule: rule)
+      raise result.error unless result.success?
     end
   end
 end
