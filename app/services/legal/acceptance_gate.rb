@@ -2,15 +2,19 @@
 
 module Legal
   module AcceptanceGate
-    REQUIRED_TYPES = %w[
-      platform_terms privacy_policy organizer_agreement
-      organizer_fee_schedule buyer_purchase_terms
-    ].freeze
+    CONTEXT_TYPES = {
+      signup: %w[platform_terms privacy_policy],
+      organizer_onboarding: %w[organizer_agreement organizer_fee_schedule],
+      checkout: %w[buyer_purchase_terms]
+    }.freeze
 
     class << self
       def required_for(context:)
+        types = CONTEXT_TYPES.fetch(context[:context]&.to_sym, [])
+        return [] if types.empty?
+
         docs = Legal::LegalDocument.active
-                                .where(document_type: REQUIRED_TYPES)
+                                .where(document_type: types)
                                 .where(jurisdiction_code: jurisdiction_for(context))
                                 .where(locale: locale_for(context))
         docs.flat_map do |doc|
