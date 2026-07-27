@@ -14,7 +14,15 @@ module Events
     end
 
     def create?
-      user.present?
+      return true if user&.has_role?("SUPER_ADMIN") || user&.has_role?("ADMIN") || user&.has_role?("CORE_ADMIN")
+
+      org = record.is_a?(Events::Event) ? record.organization : nil
+      return false unless org
+
+      Organizations::Membership
+        .where(user:, organization: org, status: "active")
+        .where(role: %w[owner admin])
+        .exists?
     end
 
     def update?
