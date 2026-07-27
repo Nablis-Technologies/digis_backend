@@ -52,5 +52,17 @@ module Events
            .where(user:, status: "active")
            .exists?
     end
+
+    # True when the user is a platform admin or an active owner/admin member of
+    # the given organization. Used to gate event creation.
+    def organization_admin?(user, organization)
+      return true if user&.has_role?("SUPER_ADMIN") || user&.has_role?("ADMIN") || user&.has_role?("CORE_ADMIN")
+      return false if user.nil? || organization.nil?
+
+      Organizations::Membership
+        .where(user:, organization:, status: "active")
+        .where(role: %w[owner admin])
+        .exists?
+    end
   end
 end
