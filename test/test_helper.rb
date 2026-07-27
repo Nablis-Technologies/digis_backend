@@ -27,7 +27,15 @@ Dir[Rails.root.join("test/support/**/*.rb")].each { |f| require f }
 
 module ActiveSupport
   class TestCase
-    parallelize(workers: :number_of_processors)
+    # Fork-based parallelism is fast, but on macOS forking crashes under the
+    # Objective-C runtime (+[NSNumber initialize]...) unless the shell exports
+    # OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES. If that's set (or we're not on
+    # macOS) we fork for full speed; otherwise fall back to serial to avoid a hang.
+    if RUBY_PLATFORM.match?(/darwin/) && ENV["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] != "YES"
+      parallelize(workers: 1)
+    else
+      parallelize(workers: :number_of_processors)
+    end
     fixtures :all
 
     set_fixture_class(
@@ -54,6 +62,23 @@ module ActiveSupport
 
     teardown do
       Prosopite.finish
+    end
+
+    # Gives an event the minimum state required by Events::PublicationReadiness:
+    # at least one scheduled date and a cover image with alt text.
+    def make_publishable(event, actor: nil)
+      actor ||= event.created_by || core_users(:super_admin)
+      event.event_dates.create!(
+        starts_at: 1.month.from_now.beginning_of_hour,
+        ends_at: 1.month.from_now.beginning_of_hour + 2.hours,
+        status: "scheduled"
+      )
+      cover = Events::EventMedia.create!(event: event, created_by: actor, type: "cover", position: 0) do |m|
+        m.file.attach(io: File.open(Rails.root.join("test/fixtures/files/pixel.png")),
+                      filename: "pixel.png", content_type: "image/png")
+      end
+      cover.file.blob.analyze
+      cover.update!(alt_text: "Accessibility description for the event cover")
     end
   end
 end
