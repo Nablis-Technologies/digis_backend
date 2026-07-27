@@ -738,7 +738,7 @@
                   ],
                   "query": []
                 },
-                "description": "Discover published public events without authentication."
+                "description": "Discover published public events without authentication. Each item uses the attendee-safe event serializer: id, slug, title, description, visibility, timezone, currency, published_at, created_at plus the categories, event_dates, event_media, event_organizations and event_streams associations. Owner-only fields (status, version, organization, event_setting) are never included."
               },
               "response": [],
               "event": [
@@ -777,9 +777,30 @@
                     ":slug"
                   ]
                 },
-                "description": "Get a single published event by its slug (attendee-safe fields only)."
+                "description": "Get a single published event by its slug (attendee-safe fields only). Exposes id, slug, title, description, visibility, timezone, currency, published_at, created_at plus the categories, event_dates, event_media, event_organizations and event_streams associations. Never leaks status, version, organization or event_setting."
               },
-              "response": [],
+              "response": [
+                {
+                  "name": "Published event detail (attendee-safe)",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/public/events/:slug",
+                      "host": ["{{baseUrl}}"],
+                      "path": ["public", "events", ":slug"]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    { "key": "Content-Type", "value": "application/json" }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"evt_01HXPublicExample\",\n    \"slug\": \"summer-music-festival\",\n    \"title\": \"Summer Music Festival\",\n    \"description\": \"A three-day open-air music festival featuring local and international acts.\",\n    \"visibility\": \"public\",\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"currency\": \"ETB\",\n    \"published_at\": \"2026-07-20T10:00:00.000Z\",\n    \"created_at\": \"2026-06-01T08:30:00.000Z\",\n    \"categories\": [\n      {\n        \"id\": \"cat_01HXMusic\",\n        \"name\": \"Music\",\n        \"description\": \"Live and recorded music events\",\n        \"slug\": \"music\",\n        \"metadata\": {},\n        \"active\": true,\n        \"created_at\": \"2026-05-10T09:00:00.000Z\",\n        \"updated_at\": \"2026-05-10T09:00:00.000Z\"\n      }\n    ],\n    \"event_dates\": [\n      {\n        \"id\": \"evtd_01HXDay1\",\n        \"event_id\": \"evt_01HXPublicExample\",\n        \"venue_id\": \"venue_01HXMain\",\n        \"name\": \"Festival Day 1\",\n        \"doors_at\": \"2026-08-01T14:00:00.000Z\",\n        \"starts_at\": \"2026-08-01T16:00:00.000Z\",\n        \"ends_at\": \"2026-08-01T23:00:00.000Z\",\n        \"status\": \"scheduled\",\n        \"venue_capacity\": 5000,\n        \"held_venue_count\": 0,\n        \"issued_venue_count\": 0,\n        \"source_key\": null,\n        \"created_at\": \"2026-06-02T10:00:00.000Z\",\n        \"updated_at\": \"2026-06-02T10:00:00.000Z\"\n      }\n    ],\n    \"event_media\": [\n      {\n        \"id\": \"evtm_01HXCover\",\n        \"type\": \"image\",\n        \"position\": 0,\n        \"alt_text\": \"Crowd at the main stage\",\n        \"caption\": \"Opening night\",\n        \"event_id\": \"evt_01HXPublicExample\",\n        \"created_by_id\": \"usr_01HXOwner\",\n        \"created_at\": \"2026-06-03T11:00:00.000Z\",\n        \"updated_at\": \"2026-06-03T11:00:00.000Z\",\n        \"file\": null\n      }\n    ],\n    \"event_organizations\": [\n      {\n        \"id\": \"evto_01HXHost\",\n        \"type\": \"host\",\n        \"role\": \"organizer\",\n        \"status\": \"active\",\n        \"organization_id\": \"org_01HXPromoter\",\n        \"event_id\": \"evt_01HXPublicExample\",\n        \"created_at\": \"2026-06-01T09:00:00.000Z\",\n        \"updated_at\": \"2026-06-01T09:00:00.000Z\"\n      }\n    ],\n    \"event_streams\": [\n      {\n        \"id\": \"evts_01HXMain\",\n        \"event_date_id\": \"evtd_01HXDay1\",\n        \"provider\": \"youtube\",\n        \"access_protection\": \"public\",\n        \"status\": \"ready\",\n        \"live_from\": null,\n        \"live_until\": null,\n        \"replay_enabled\": true,\n        \"replay_available_until\": null,\n        \"max_concurrent_devices\": null,\n        \"created_at\": \"2026-07-10T12:00:00.000Z\",\n        \"updated_at\": \"2026-07-10T12:00:00.000Z\"\n      }\n    ]\n  }\n}"
+                }
+              ],
               "event": [
                 {
                   "listen": "test",
@@ -788,11 +809,31 @@
                       "pm.test(\"Status code is 200\", function () {",
                       "  pm.response.to.have.status(200);",
                       "});",
-                      "pm.test(\"Response has correct structure\", function () {",
+                      "pm.test(\"Exposes attendee-safe fields and expanded associations\", function () {",
                       "  const json = pm.response.json();",
                       "  pm.expect(json).to.have.property(\"success\", true);",
-                      "  pm.expect(json).to.have.property(\"data\");",
-                      "  pm.expect(json.data).to.have.property(\"id\");",
+                      "  const data = json.data;",
+                      "  pm.expect(data).to.have.property(\"id\");",
+                      "  pm.expect(data).to.have.property(\"slug\");",
+                      "  pm.expect(data).to.have.property(\"title\");",
+                      "  pm.expect(data).to.have.property(\"description\");",
+                      "  pm.expect(data).to.have.property(\"visibility\");",
+                      "  pm.expect(data).to.have.property(\"timezone\");",
+                      "  pm.expect(data).to.have.property(\"currency\");",
+                      "  pm.expect(data).to.have.property(\"published_at\");",
+                      "  pm.expect(data).to.have.property(\"created_at\");",
+                      "  pm.expect(data).to.have.property(\"categories\");",
+                      "  pm.expect(data).to.have.property(\"event_dates\");",
+                      "  pm.expect(data).to.have.property(\"event_media\");",
+                      "  pm.expect(data).to.have.property(\"event_organizations\");",
+                      "  pm.expect(data).to.have.property(\"event_streams\");",
+                      "});",
+                      "pm.test(\"Never leaks owner-only fields\", function () {",
+                      "  const data = pm.response.json().data;",
+                      "  pm.expect(data).to.not.have.property(\"status\");",
+                      "  pm.expect(data).to.not.have.property(\"version\");",
+                      "  pm.expect(data).to.not.have.property(\"organization\");",
+                      "  pm.expect(data).to.not.have.property(\"event_setting\");",
                       "});"
                     ],
                     "type": "text/javascript"
