@@ -23,6 +23,7 @@ class AdminEventsTest < ActionDispatch::IntegrationTest
     event.organization.reviews.find_or_create_by!(context: "verification", status: "approved")
     # ensure at least one category so readiness passes
     Events::ReplaceCategories.call(event:, category_ids: [ events_categories(:music).id ], actor: core_users(:super_admin))
+    make_publishable(event, actor: core_users(:super_admin))
 
     post "/admin/events/#{event.id}/publish", headers: admin_headers.merge("Idempotency-Key" => "admin-publish-1"), as: :json
     assert_response :success

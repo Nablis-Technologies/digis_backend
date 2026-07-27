@@ -56,6 +56,7 @@ class EventsEventsTest < ActionDispatch::IntegrationTest
     assert_response :created
     event = Events::Event.find(JSON.parse(response.body).dig("data", "id"))
     assert_equal 1, event.event_categories.count
+    make_publishable(event)
 
     post "/events/#{event.id}/publish", headers: admin_headers.merge("Idempotency-Key" => "publish-1"), as: :json
     assert_response :success
@@ -95,6 +96,7 @@ class EventsEventsTest < ActionDispatch::IntegrationTest
   test "publishing a ready event flips status and exposes public data" do
     event = events_events(:ready_listing)
     make_verified(event.organization)
+    make_publishable(event)
 
     post "/events/#{event.id}/publish", headers: admin_headers.merge("Idempotency-Key" => "publish-2"), as: :json
     assert_response :success
