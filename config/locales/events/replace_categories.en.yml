@@ -6,3 +6,4 @@ en:
       errors:
         too_many_categories: "cannot replace with more than %{max} categories"
         invalid_category: "contains an invalid category"
+        missing_categories: "Unknown category ids: %{ids}"

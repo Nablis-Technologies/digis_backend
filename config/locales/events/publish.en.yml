@@ -6,6 +6,7 @@ en:
       errors:
         organization_not_verified: "the event's organization must be verified before publishing"
         missing_category: "event must have at least one category before publishing"
+        missing_date: "event must have at least one scheduled date"
         invalid_event: "event is not publishable"
     create:
       errors:
