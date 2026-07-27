@@ -16,6 +16,14 @@ module Events
     validates :change_type, presence: true, inclusion: { in: CHANGE_TYPES }
     validates :old_start_at, :old_end_at, :new_start_at, :new_end_at, presence: true
 
+    # Append-only: snapshots are created but never edited or deleted.
+    before_update :prevent_mutation
+    before_destroy :prevent_mutation
+
+    def prevent_mutation
+      raise ActiveRecord::ReadOnlyRecord, "EventDateChange is append-only"
+    end
+
     def self.ransackable_attributes(_auth_object = nil)
       %w[id event_id event_date_id change_type old_start_at old_end_at
          new_start_at new_end_at scheduled_by_id created_at updated_at]
