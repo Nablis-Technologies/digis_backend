@@ -17,7 +17,7 @@ module Legal
 
     test "reports required published docs as unaccepted when no acceptance" do
       out = Legal::AcceptanceGate.required_for(
-        context: { subject: core_users(:attendee), jurisdiction_code: "GLOBAL", locale: "en" }
+        context: { context: :signup, subject: core_users(:attendee), jurisdiction_code: "GLOBAL", locale: "en" }
       )
       assert out.any? { |d| d[:document_type] == "platform_terms" && d[:accepted] == false }
     end
@@ -29,7 +29,7 @@ module Legal
         accepted_by: core_users(:super_admin)
       )
       out = Legal::AcceptanceGate.required_for(
-        context: { subject: core_users(:attendee), jurisdiction_code: "GLOBAL", locale: "en" }
+        context: { context: :signup, subject: core_users(:attendee), jurisdiction_code: "GLOBAL", locale: "en" }
       )
       assert out.any? { |d| d[:document_type] == "platform_terms" && d[:accepted] == true }
     end
