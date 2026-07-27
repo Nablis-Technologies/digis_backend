@@ -9,7 +9,7 @@ module Events
     slugable source: :title, target: :slug
 
     STATUSES = %w[draft published cancelled completed].freeze
-    VISIBILITIES = %w[private public unlisted].freeze
+    VISIBILITIES = %w[public private].freeze
     MAX_CATEGORIES = 3
 
 
@@ -38,6 +38,8 @@ module Events
              dependent: :destroy, inverse_of: :event
     has_many :event_media, class_name: "Events::EventMedia",
              dependent: :destroy, inverse_of: :event
+    has_many :event_streams, class_name: "Events::EventStream",
+             through: :event_dates
     has_many :consent_documents, class_name: "Events::ConsentDocument",
              dependent: :destroy, inverse_of: :event
 
