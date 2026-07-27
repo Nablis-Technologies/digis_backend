@@ -17,6 +17,9 @@ module Events
       return render_error(I18n.t("errors.not_found", model: "organization"),
                           status: :not_found) unless organization
 
+      event = Events::Event.new(organization: organization)
+      authorize event, :create?
+
       result = Events::Create.call(
         organization:,
         actor: current_user,
@@ -31,7 +34,13 @@ module Events
       set_object
       authorize @obj, :update?
 
-      if @obj.update(model_params)
+      error = nil
+      Events::Event.transaction do
+        unless @obj.update(model_params)
+          error = { errors: @obj.errors.to_hash, status: :unprocessable_entity }
+          raise ActiveRecord::Rollback
+        end
+
         if category_ids_present?
           result = Events::ReplaceCategories.call(
             event: @obj,
@@ -39,12 +48,16 @@ module Events
             actor: current_user
           )
           unless result.success?
-            return render_service_result(result)
+            error = { errors: result.error.errors.to_hash, status: result.error.status }
+            raise ActiveRecord::Rollback
           end
         end
-        render_success(data: @obj, serializer_options: { serializer: Events::EventSerializer })
+      end
+
+      if error
+        render_error(errors: error[:errors], status: error[:status])
       else
-        render_error(errors: @obj.errors, status: :unprocessable_entity)
+        render_success(data: @obj.reload, serializer_options: { serializer: Events::EventSerializer })
       end
     end
 
@@ -67,7 +80,7 @@ module Events
 
     def event_params
       params.require(:event).permit(
-        :title, :description, :slug, :status, :visibility,
+        :title, :description, :slug, :visibility,
         :timezone, :currency, :organization_id,
         category_ids: []
       )
