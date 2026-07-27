@@ -338,7 +338,7 @@ puts "✓ #{Legal::LegalDocument.count} legal documents; " \
 # ─────────────────────────────────────────────
 puts "\n❤️  Seeding follows..."
 
-[venue, artist, dev_org].compact.each do |followable|
+[ venue, artist, dev_org ].compact.each do |followable|
   Core::Follow.find_or_create_by!(follower: attendee, followable: followable)
 end
 
