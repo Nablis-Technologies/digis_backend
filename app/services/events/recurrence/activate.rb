@@ -16,6 +16,7 @@ module Events
 
         ActiveRecord::Base.transaction do
           rule.update!(active: true)
+          Events::MaterializeRecurrenceJob.perform_later(rule.id)
           record_audit
           success(rule)
         end
@@ -34,7 +35,7 @@ module Events
 
       def record_audit
         Core::Audit::Record.call(
-          audit_key: "event-recurrence-activate-#{rule.id}",
+          audit_key: "event-recurrence-activate-#{rule.id}-#{Time.current.to_f}",
           action: "event.recurrence.activated",
           auditable_type: "Events::RecurrenceRule",
           auditable_id: rule.id,
