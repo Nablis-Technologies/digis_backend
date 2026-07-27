@@ -29,7 +29,7 @@ module Legal
     validates :status, presence: true, inclusion: { in: STATUSES }
 
     validate :published_requires_metadata, if: :published?
-    validate :published_is_immutable, if: -> { published? && !status_changed? }
+    validate :published_is_immutable, if: -> { published_at_in_database.present? }
 
     scope :published, -> { where(status: "published") }
     scope :draft, -> { where(status: "draft") }
