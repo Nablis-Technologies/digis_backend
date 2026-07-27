@@ -16,6 +16,10 @@ module Events
     def call
       return too_many_error if @category_ids.size > MAX_CATEGORIES
 
+      existing = Events::Category.where(id: @category_ids).pluck(:id).map(&:to_s)
+      missing = @category_ids - existing
+      return missing_categories_error(missing) unless missing.empty?
+
       result = nil
       Events::Event.transaction do
         @event.lock!
@@ -51,6 +55,15 @@ module Events
         I18n.t("events.replace_categories.errors.too_many_categories",
                max: MAX_CATEGORIES),
         code: "too_many_categories",
+        status: :unprocessable_entity
+      )
+    end
+
+    def missing_categories_error(missing)
+      failure Core::BusinessError.new(
+        I18n.t("events.replace_categories.errors.missing_categories",
+               ids: missing.join(", ")),
+        code: "missing_categories",
         status: :unprocessable_entity
       )
     end
