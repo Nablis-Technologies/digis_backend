@@ -15,11 +15,17 @@ module Events
 
     private
 
+    # Creation may set the scheduling fields, but ordinary updates must not touch
+    # starts_at/ends_at (those go through the schedule-change command), status
+    # (date lifecycle), or the inventory-owned held/issued counters.
     def model_params
-      params.require(:event_date).permit(
-        :venue_id, :name, :doors_at, :starts_at, :ends_at, :status,
-        :venue_capacity, :held_venue_count, :issued_venue_count
-      )
+      if action_name == "create"
+        params.require(:event_date).permit(
+          :venue_id, :name, :doors_at, :starts_at, :ends_at, :venue_capacity
+        )
+      else
+        params.require(:event_date).permit(:name)
+      end
     end
   end
 end
