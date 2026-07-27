@@ -16,6 +16,7 @@ class CreateEventsEvents < ActiveRecord::Migration[8.1]
       t.integer :version, null: false, default: 1
       t.timestamptz :published_at
       t.timestamptz :cancelled_at
+      t.timestamptz :discovery_refreshed_at
       t.timestamps
 
       t.index :organization_id
