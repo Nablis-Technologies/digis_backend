@@ -14,49 +14,62 @@ module Events
         @ordered_ids = ordered_ids
       end
 
-      def call
-        normalized = Array(@ordered_ids).map(&:to_s)
-        return failure(empty_error) if normalized.empty?
+    def call
+      normalized = Array(@ordered_ids).map(&:to_s)
+      return failure(empty_error) if normalized.empty?
 
-        requested = normalized.uniq
-        records = @event.event_media.lock.where(id: requested).to_a
-        return failure(missing_error(requested, records)) if records.size != requested.size
+      requested = normalized.uniq
 
-        # Covers stay pinned at 0; non-covers get a contiguous 1..n sequence in
-        # the order supplied (covers don't consume a slot, so no gaps).
+      outcome = nil
+      # Lock every media row for the event and apply the reorder inside one
+      # transaction so the pessimistic locks cover the writes and the audit is
+      # committed atomically with the position changes.
+      ActiveRecord::Base.transaction do
+        all_media = @event.event_media.lock.to_a
+        covers = all_media.select { |m| m.type == "cover" }
+        galleries = all_media - covers
+        gallery_ids = galleries.map { |m| m.id.to_s }
+
+        # A partial list would collide with omitted rows' positions, so require
+        # every non-cover media row to be present in the requested order.
+        missing = requested - gallery_ids
+        return failure(missing_error(requested, galleries)) unless missing.empty?
+        extra = gallery_ids - requested
+        return failure(partial_error) unless extra.empty?
+
+        requested_records = requested.filter_map { |id| galleries.find { |m| m.id.to_s == id } }
+
         positions = {}
         sequence = 0
-        normalized.each do |id|
-          next if records.find { |r| r.id.to_s == id }&.type == "cover"
-
+        requested_records.each do |record|
           sequence += 1
-          positions[id] = sequence
+          positions[record.id.to_s] = sequence
         end
 
-        ActiveRecord::Base.transaction do
-          records.each do |record|
-            next unless positions.key?(record.id.to_s)
-
-            # Temporary high-base positions stay >= 0 (check constraint) and
-            # cannot collide with the final 1..n range, emulating deferrable
-            # uniqueness (unavailable in schema.rb).
-            record.update_columns(position: TEMP_BASE + positions[record.id.to_s])
-          end
-          records.each do |record|
-            next unless positions.key?(record.id.to_s)
-
-            record.update_columns(position: positions[record.id.to_s])
-          end
+        requested_records.each do |record|
+          # Temporary high-base positions stay >= 0 (check constraint) and
+          # cannot collide with the final 1..n range, emulating deferrable
+          # uniqueness (unavailable in schema.rb).
+          record.update_columns(position: TEMP_BASE + positions[record.id.to_s])
         end
-
-        record_audit
-        success
-      rescue ActiveRecord::RecordInvalid => e
-        failure Core::BusinessError.new(
-          I18n.t("events.event_media.errors.reorder"),
-          code: "invalid", status: :unprocessable_entity, errors: e.record.errors.to_hash
-        )
+        requested_records.each do |record|
+          record.update_columns(position: positions[record.id.to_s])
+        end
       end
+
+      record_audit
+      success
+    rescue ActiveRecord::RecordInvalid => e
+      failure Core::BusinessError.new(
+        I18n.t("events.event_media.errors.reorder"),
+        code: "invalid", status: :unprocessable_entity, errors: e.record.errors.to_hash
+      )
+    rescue ActiveRecord::RecordNotUnique
+      failure Core::BusinessError.new(
+        I18n.t("events.event_media.errors.reorder"),
+        code: "invalid", status: :unprocessable_entity
+      )
+    end
 
       private
 
@@ -70,14 +83,21 @@ module Events
         )
       end
 
-      def missing_error(requested, records)
-        missing = requested - records.map(&:id).map(&:to_s)
-        Core::BusinessError.new(
-          I18n.t("events.event_media.errors.reorder"),
-          code: "invalid", status: :unprocessable_entity,
-          errors: { ordered_ids: [ "contains unknown ids: #{missing.join(', ')}" ] }
-        )
-      end
+    def missing_error(requested, records)
+      missing = requested - records.map(&:id).map(&:to_s)
+      Core::BusinessError.new(
+        I18n.t("events.event_media.errors.reorder"),
+        code: "invalid", status: :unprocessable_entity,
+        errors: { ordered_ids: [ "contains unknown ids: #{missing.join(', ')}" ] }
+      )
+    end
+
+    def partial_error
+      Core::BusinessError.new(
+        I18n.t("events.event_media.errors.reorder_partial"),
+        code: "invalid", status: :unprocessable_entity
+      )
+    end
 
       def record_audit
         fingerprint = Digest::SHA256.hexdigest(@ordered_ids.to_s)[0, 12]
