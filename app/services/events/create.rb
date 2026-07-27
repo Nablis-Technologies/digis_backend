@@ -51,8 +51,7 @@ module Events
 
     def not_authorized
       Core::BusinessError.new(
-        I18n.t("events.create.errors.not_authorized",
-               default: "Not authorized to create events for this organization"),
+        I18n.t("events.create.errors.not_authorized"),
         code: "not_authorized",
         status: :forbidden
       )
