@@ -34,7 +34,7 @@ module Events
 
       def record_audit
         Core::Audit::Record.call(
-          audit_key: "event-recurrence-deactivate-#{rule.id}",
+          audit_key: "event-recurrence-deactivate-#{rule.id}-#{Time.current.to_f}",
           action: "event.recurrence.deactivated",
           auditable_type: "Events::RecurrenceRule",
           auditable_id: rule.id,
