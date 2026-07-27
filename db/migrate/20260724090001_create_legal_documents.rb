@@ -2,7 +2,7 @@
 
 class CreateLegalDocuments < ActiveRecord::Migration[8.1]
   def change
-    create_table :legal_documents, id: :uuid do |t|
+    create_table :legal_documents, id: :uuid, default: -> { "uuidv7()" } do |t|
       t.string :document_type, null: false
       t.string :internal_name, null: false
       t.string :jurisdiction_code, null: false, default: "GLOBAL"

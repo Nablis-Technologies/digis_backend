@@ -2,7 +2,7 @@
 
 class CreateEventsEventVideoLinks < ActiveRecord::Migration[8.1]
   def change
-    create_table :events_event_video_links, id: :uuid do |t|
+    create_table :events_event_video_links, id: :uuid, default: -> { "uuidv7()" } do |t|
       t.uuid    :event_id,      null: false
       t.uuid    :created_by_id, null: false
       t.string  :provider,      null: false, default: "youtube"

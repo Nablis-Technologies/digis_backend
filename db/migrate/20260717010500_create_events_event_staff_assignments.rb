@@ -3,7 +3,7 @@
 class CreateEventsEventStaffAssignments < ActiveRecord::Migration[8.1]
   def change
     create_table :events_event_staff_assignments, id: false do |t|
-      t.uuid :id, null: false, primary_key: true, default: -> { "gen_random_uuid()" }
+      t.uuid :id, null: false, primary_key: true, default: -> { "uuidv7()" }
       # Business discriminator: manager, staff, scanner, contractor.
       t.string :role, null: false
       t.uuid :event_id, null: false

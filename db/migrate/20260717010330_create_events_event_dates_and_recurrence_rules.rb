@@ -2,7 +2,7 @@
 
 class CreateEventsEventDatesAndRecurrenceRules < ActiveRecord::Migration[8.1]
   def change
-    create_table :events_event_dates, id: :uuid do |t|
+    create_table :events_event_dates, id: :uuid, default: -> { "uuidv7()" } do |t|
       t.uuid    :event_id,         null: false
       t.uuid    :venue_id
       t.string  :name
@@ -30,7 +30,7 @@ class CreateEventsEventDatesAndRecurrenceRules < ActiveRecord::Migration[8.1]
     add_check_constraint :events_event_dates, "held_venue_count >= 0 AND issued_venue_count >= 0",
                          name: "chk_event_dates_counts_nonnegative"
 
-    create_table :events_recurrence_rules, id: :uuid do |t|
+    create_table :events_recurrence_rules, id: :uuid, default: -> { "uuidv7()" } do |t|
       t.uuid    :event_id,            null: false
       t.text    :rrule,               null: false
       t.string  :timezone,            null: false
@@ -47,5 +47,9 @@ class CreateEventsEventDatesAndRecurrenceRules < ActiveRecord::Migration[8.1]
               name: "index_events_recurrence_rules_on_event_id"
     add_check_constraint :events_recurrence_rules, "duration_seconds > 0",
                          name: "chk_recurrence_duration_positive"
+
+    add_foreign_key :events_event_dates, :events_events, column: :event_id, on_delete: :cascade
+    add_foreign_key :events_event_dates, :events_venues, column: :venue_id, on_delete: :nullify
+    add_foreign_key :events_recurrence_rules, :events_events, column: :event_id, on_delete: :cascade
   end
 end

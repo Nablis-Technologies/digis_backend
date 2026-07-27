@@ -3,7 +3,7 @@
 class CreateEventsEvents < ActiveRecord::Migration[8.1]
   def change
     create_table :events_events, id: false do |t|
-      t.uuid :id, null: false, primary_key: true, default: -> { "gen_random_uuid()" }
+      t.uuid :id, null: false, primary_key: true, default: -> { "uuidv7()" }
       t.uuid :organization_id, null: false
       t.uuid :created_by_id, null: false
       t.string :slug, null: false

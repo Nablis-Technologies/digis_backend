@@ -2,7 +2,7 @@
 
 class CreateEventsConsentDocuments < ActiveRecord::Migration[8.1]
   def change
-    create_table :events_consent_documents, id: :uuid do |t|
+    create_table :events_consent_documents, id: :uuid, default: -> { "uuidv7()" } do |t|
       t.uuid :event_id,      null: false
       t.string :type,        null: false
       t.string :name,        null: false

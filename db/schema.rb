@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_27_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -204,7 +204,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
     t.index ["phone"], name: "index_core_users_on_phone", unique: true
   end
 
-  create_table "events_access_zones", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "events_access_zones", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.string "code", null: false
     t.datetime "created_at", null: false
@@ -219,7 +219,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
     t.check_constraint "type::text = ANY (ARRAY['venue'::character varying::text, 'parking'::character varying::text])", name: "chk_access_zones_type"
   end
 
-  create_table "events_artists", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "events_artists", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.boolean "active", default: true
     t.datetime "created_at", null: false
     t.text "description"
@@ -251,7 +251,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
     t.index ["slug"], name: "index_events_categories_on_slug", unique: true
   end
 
-  create_table "events_consent_document_versions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "events_consent_document_versions", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.string "acceptance_scope", default: "buyer"
     t.text "body", null: false
     t.uuid "consent_document_id", null: false
@@ -270,7 +270,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
     t.check_constraint "status::text = ANY (ARRAY['draft'::character varying::text, 'published'::character varying::text, 'retired'::character varying::text])", name: "chk_consent_version_status"
   end
 
-  create_table "events_consent_documents", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "events_consent_documents", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
     t.uuid "created_by_id", null: false
@@ -282,7 +282,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
     t.check_constraint "type::text = ANY (ARRAY['terms'::character varying::text, 'liability_waiver'::character varying::text, 'media_consent'::character varying::text, 'age_declaration'::character varying::text, 'other'::character varying::text])", name: "chk_consent_doc_type"
   end
 
-  create_table "events_event_cancellations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "events_event_cancellations", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.text "attendee_reason"
     t.datetime "cancelled_at", precision: nil
     t.datetime "created_at", null: false
@@ -299,7 +299,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
     t.check_constraint "status::text = ANY (ARRAY['initiated'::character varying::text, 'completed'::character varying::text])", name: "chk_events_event_cancellations_status"
   end
 
-  create_table "events_event_categories", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "events_event_categories", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.uuid "category_id", null: false
     t.datetime "created_at", null: false
     t.uuid "event_id", null: false
@@ -309,7 +309,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
     t.check_constraint "event_id IS NOT NULL AND category_id IS NOT NULL", name: "chk_event_categories_present"
   end
 
-  create_table "events_event_date_changes", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "events_event_date_changes", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.string "change_type", default: "reschedule", null: false
     t.datetime "created_at", null: false
     t.uuid "event_date_id", null: false
@@ -325,7 +325,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
     t.index ["event_id"], name: "index_events_event_date_changes_on_event_id"
   end
 
-  create_table "events_event_dates", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "events_event_dates", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "doors_at", precision: nil
     t.datetime "ends_at", precision: nil, null: false
@@ -347,7 +347,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
     t.check_constraint "held_venue_count >= 0 AND issued_venue_count >= 0", name: "chk_event_dates_counts_nonnegative"
   end
 
-  create_table "events_event_media", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "events_event_media", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.string "alt_text"
     t.text "caption"
     t.datetime "created_at", null: false
@@ -363,7 +363,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
     t.check_constraint "type::text = ANY (ARRAY['cover'::character varying::text, 'gallery'::character varying::text])", name: "chk_event_media_type"
   end
 
-  create_table "events_event_organizations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "events_event_organizations", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.datetime "accepted_at", precision: nil
     t.datetime "created_at", null: false
     t.uuid "event_id", null: false
@@ -380,7 +380,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
     t.check_constraint "type::text = ANY (ARRAY['co_organizer'::character varying::text, 'venue_partner'::character varying::text, 'promoter'::character varying::text, 'sponsor'::character varying::text])", name: "chk_event_organizations_type"
   end
 
-  create_table "events_event_participants", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "events_event_participants", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.uuid "artist_id"
     t.datetime "created_at", null: false
     t.text "description"
@@ -396,7 +396,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
     t.check_constraint "type::text = ANY (ARRAY['performer'::character varying::text, 'speaker'::character varying::text, 'host'::character varying::text, 'instructor'::character varying::text, 'panelist'::character varying::text, 'team'::character varying::text, 'guest'::character varying::text])", name: "chk_event_participants_type"
   end
 
-  create_table "events_event_settings", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "events_event_settings", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.jsonb "config", default: {}, null: false
     t.datetime "created_at", null: false
     t.uuid "event_id", null: false
@@ -404,7 +404,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
     t.index ["event_id"], name: "index_events_event_settings_on_event_id", unique: true
   end
 
-  create_table "events_event_staff_assignments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "events_event_staff_assignments", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.uuid "event_id", null: false
     t.datetime "expires_at", precision: nil
@@ -420,7 +420,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
     t.check_constraint "status::text = ANY (ARRAY['active'::character varying::text, 'suspended'::character varying::text, 'revoked'::character varying::text, 'expired'::character varying::text])", name: "chk_event_staff_assignments_status"
   end
 
-  create_table "events_event_streams", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "events_event_streams", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.string "access_protection", null: false
     t.jsonb "config", default: {}
     t.datetime "created_at", null: false
@@ -441,7 +441,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
     t.check_constraint "status::text = ANY (ARRAY['scheduled'::character varying::text, 'live'::character varying::text, 'ended'::character varying::text, 'disabled'::character varying::text])", name: "chk_event_streams_status"
   end
 
-  create_table "events_event_video_links", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "events_event_video_links", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.text "caption"
     t.datetime "created_at", null: false
     t.uuid "created_by_id", null: false
@@ -455,7 +455,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
     t.check_constraint "provider::text = 'youtube'::text", name: "chk_event_video_links_provider"
   end
 
-  create_table "events_events", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "events_events", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.datetime "cancelled_at", precision: nil
     t.datetime "created_at", null: false
     t.uuid "created_by_id", null: false
@@ -482,7 +482,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
     t.check_constraint "visibility::text = ANY (ARRAY['private'::character varying::text, 'public'::character varying::text, 'unlisted'::character varying::text])", name: "chk_events_events_visibility"
   end
 
-  create_table "events_recurrence_rules", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "events_recurrence_rules", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
     t.timestamp "dtstart_local", null: false
@@ -498,7 +498,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
     t.check_constraint "duration_seconds > 0", name: "chk_recurrence_duration_positive"
   end
 
-  create_table "events_venues", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "events_venues", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.boolean "active", default: true
     t.string "address"
     t.jsonb "amenities", default: []
@@ -526,7 +526,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
     t.index ["verified"], name: "index_events_venues_on_verified"
   end
 
-  create_table "legal_acceptances", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "legal_acceptances", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.string "acceptance_method", default: "checkbox", null: false
     t.datetime "accepted_at", null: false
     t.string "accepted_by_role"
@@ -540,12 +540,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
     t.string "subject_type", null: false
     t.datetime "updated_at", null: false
     t.index ["accepted_by_user_id", "accepted_at"], name: "idx_legal_acceptances_by_actor"
+    t.index ["request_uuid"], name: "idx_unique_legal_acceptance_request_uuid", unique: true
     t.index ["subject_type", "subject_id", "legal_document_version_id"], name: "idx_unique_legal_acceptance", unique: true
     t.check_constraint "acceptance_method::text = ANY (ARRAY['checkbox'::character varying::text, 'otp'::character varying::text])", name: "chk_legal_acceptance_method"
     t.check_constraint "subject_type::text = ANY (ARRAY['user'::character varying::text, 'organization'::character varying::text, 'order'::character varying::text])", name: "chk_legal_acceptance_subject_type"
   end
 
-  create_table "legal_document_versions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "legal_document_versions", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.text "body", null: false
     t.string "commercial_policy_reference"
     t.string "content_sha256", limit: 64, null: false
@@ -563,7 +564,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
     t.check_constraint "status::text = ANY (ARRAY['draft'::character varying::text, 'published'::character varying::text, 'retired'::character varying::text])", name: "chk_legal_version_status"
   end
 
-  create_table "legal_documents", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+  create_table "legal_documents", id: :uuid, default: -> { "uuidv7()" }, force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
     t.uuid "created_by_id", null: false
@@ -639,6 +640,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
   add_foreign_key "events_event_date_changes", "core_users", column: "scheduled_by_id", on_delete: :restrict
   add_foreign_key "events_event_date_changes", "events_event_dates", column: "event_date_id", on_delete: :cascade
   add_foreign_key "events_event_date_changes", "events_events", column: "event_id", on_delete: :cascade
+  add_foreign_key "events_event_dates", "events_events", column: "event_id", on_delete: :cascade
+  add_foreign_key "events_event_dates", "events_venues", column: "venue_id", on_delete: :nullify
   add_foreign_key "events_event_media", "core_users", column: "created_by_id", on_delete: :restrict
   add_foreign_key "events_event_media", "events_events", column: "event_id", on_delete: :cascade
   add_foreign_key "events_event_organizations", "events_events", column: "event_id", on_delete: :cascade
@@ -654,6 +657,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_090003) do
   add_foreign_key "events_event_video_links", "events_events", column: "event_id", on_delete: :cascade
   add_foreign_key "events_events", "core_users", column: "created_by_id", on_delete: :restrict
   add_foreign_key "events_events", "organizations_organizations", column: "organization_id", on_delete: :restrict
+  add_foreign_key "events_recurrence_rules", "events_events", column: "event_id", on_delete: :cascade
   add_foreign_key "legal_acceptances", "core_users", column: "accepted_by_user_id", on_delete: :restrict
   add_foreign_key "legal_acceptances", "legal_document_versions", on_delete: :restrict
   add_foreign_key "legal_document_versions", "core_users", column: "created_by_id", on_delete: :restrict

@@ -4,7 +4,7 @@ class CreateEventsEventCancellations < ActiveRecord::Migration[8.1]
   def change
     # At most one cancellation per event: cancellation is an irreversible
     # boundary, so the unique event_id makes a second attempt impossible.
-    create_table :events_event_cancellations, id: :uuid do |t|
+    create_table :events_event_cancellations, id: :uuid, default: -> { "uuidv7()" } do |t|
       t.uuid        :event_id,        null: false
       t.uuid        :initiated_by_id, null: false
       t.text        :reason

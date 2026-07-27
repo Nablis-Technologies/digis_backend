@@ -2,7 +2,7 @@
 
 class CreateLegalDocumentVersions < ActiveRecord::Migration[8.1]
   def change
-    create_table :legal_document_versions, id: :uuid do |t|
+    create_table :legal_document_versions, id: :uuid, default: -> { "uuidv7()" } do |t|
       t.uuid :legal_document_id, null: false
       t.integer :version, null: false
       t.string :title, null: false

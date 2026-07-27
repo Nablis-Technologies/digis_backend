@@ -4,7 +4,7 @@ class CreateEventsEventDateChanges < ActiveRecord::Migration[8.1]
   def change
     # Append-only ledger of schedule changes. Snapshot columns are non-nullable
     # so every row is a complete, immutable record of one reschedule.
-    create_table :events_event_date_changes, id: :uuid do |t|
+    create_table :events_event_date_changes, id: :uuid, default: -> { "uuidv7()" } do |t|
       t.uuid        :event_id,       null: false
       t.uuid        :event_date_id,  null: false
       t.string      :change_type,    null: false, default: "reschedule"

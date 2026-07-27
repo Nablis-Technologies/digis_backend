@@ -2,7 +2,7 @@
 
 class CreateEventsParticipantsStreamsAccessZones < ActiveRecord::Migration[8.1]
   def change
-    create_table :events_event_participants, id: :uuid do |t|
+    create_table :events_event_participants, id: :uuid, default: -> { "uuidv7()" } do |t|
       t.uuid    :event_id,         null: false
       t.uuid    :event_date_id
       t.uuid    :artist_id
@@ -27,7 +27,7 @@ class CreateEventsParticipantsStreamsAccessZones < ActiveRecord::Migration[8.1]
     add_foreign_key :events_event_participants, :events_event_dates,
                     column: :event_date_id, on_delete: :cascade
 
-    create_table :events_event_streams, id: :uuid do |t|
+    create_table :events_event_streams, id: :uuid, default: -> { "uuidv7()" } do |t|
       t.uuid    :event_date_id,             null: false
       t.string  :provider,                 null: false
       t.string  :provider_stream_id
@@ -57,7 +57,7 @@ class CreateEventsParticipantsStreamsAccessZones < ActiveRecord::Migration[8.1]
     add_foreign_key :events_event_streams, :events_event_dates,
                     column: :event_date_id, on_delete: :cascade
 
-    create_table :events_access_zones, id: :uuid do |t|
+    create_table :events_access_zones, id: :uuid, default: -> { "uuidv7()" } do |t|
       t.uuid    :event_id,         null: false
       t.uuid    :event_date_id
       t.string  :type,             null: false
