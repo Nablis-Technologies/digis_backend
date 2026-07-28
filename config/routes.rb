@@ -56,6 +56,11 @@ Rails.application.routes.draw do
     resources :public_events, only: %i[index show], param: :slug, path: "public/events"
   end
 
+  scope path: :catalog, module: :catalog do
+    resources :product_prices, only: %i[index show create]
+    resources :product_quotes, only: %i[create]
+  end
+
   namespace :admin do
     resources :users, except: %i[new edit] do
       member do
