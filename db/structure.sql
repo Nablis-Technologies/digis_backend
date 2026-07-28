@@ -183,6 +183,37 @@ CREATE TABLE public.ar_internal_metadata (
 
 
 --
+-- Name: catalog_event_products; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.catalog_event_products (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    event_id uuid NOT NULL,
+    name character varying NOT NULL,
+    description text,
+    type character varying NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    hidden boolean DEFAULT false NOT NULL,
+    allow_custom_price boolean DEFAULT false NOT NULL,
+    sales_start_at timestamp with time zone,
+    sales_end_at timestamp with time zone,
+    min_per_order integer DEFAULT 1 NOT NULL,
+    max_per_order integer,
+    schedule_change_refund_policy character varying DEFAULT 'full_or_partial'::character varying NOT NULL,
+    sort_order integer DEFAULT 0 NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    lock_version integer DEFAULT 0 NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT catalog_event_products_max_per_order_check CHECK (((max_per_order IS NULL) OR (max_per_order >= min_per_order))),
+    CONSTRAINT catalog_event_products_min_per_order_check CHECK ((min_per_order >= 1)),
+    CONSTRAINT catalog_event_products_refund_policy_check CHECK (((schedule_change_refund_policy)::text = ANY ((ARRAY['full_or_partial'::character varying, 'full_only'::character varying])::text[]))),
+    CONSTRAINT catalog_event_products_sales_window_check CHECK (((sales_end_at IS NULL) OR (sales_start_at IS NULL) OR (sales_end_at > sales_start_at))),
+    CONSTRAINT catalog_event_products_type_check CHECK (((type)::text = ANY ((ARRAY['ticket'::character varying, 'parking'::character varying, 'merchandise'::character varying, 'food'::character varying, 'donation'::character varying, 'digital_addon'::character varying, 'other'::character varying])::text[])))
+);
+
+
+--
 -- Name: core_audit_logs; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -415,6 +446,19 @@ CREATE TABLE public.events_categories (
     metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
     name character varying NOT NULL,
     slug character varying NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL
+);
+
+
+--
+-- Name: events_consent_document_products; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.events_consent_document_products (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    consent_document_id uuid NOT NULL,
+    ticket_type_id uuid NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL
 );
 
@@ -873,6 +917,96 @@ CREATE TABLE public.schema_migrations (
 
 
 --
+-- Name: ticketing_access_codes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_access_codes (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    ticket_type_id uuid NOT NULL,
+    code_digest character varying NOT NULL,
+    label character varying,
+    max_uses integer,
+    used_count integer DEFAULT 0 NOT NULL,
+    max_quantity_per_use integer DEFAULT 1 NOT NULL,
+    starts_at timestamp with time zone,
+    expires_at timestamp with time zone,
+    active boolean DEFAULT true NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_access_codes_max_quantity_check CHECK ((max_quantity_per_use >= 1)),
+    CONSTRAINT ticketing_access_codes_max_uses_check CHECK (((max_uses IS NULL) OR (max_uses >= 1))),
+    CONSTRAINT ticketing_access_codes_used_count_check CHECK ((used_count >= 0)),
+    CONSTRAINT ticketing_access_codes_window_check CHECK (((expires_at IS NULL) OR (starts_at IS NULL) OR (expires_at > starts_at)))
+);
+
+
+--
+-- Name: ticketing_invitations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_invitations (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    ticket_type_id uuid NOT NULL,
+    invited_user_id uuid,
+    name character varying,
+    email_ciphertext text,
+    phone_ciphertext text,
+    contact_digest character varying NOT NULL,
+    token_digest character varying NOT NULL,
+    allowed_quantity integer DEFAULT 1 NOT NULL,
+    status character varying DEFAULT 'pending'::character varying NOT NULL,
+    expires_at timestamp with time zone,
+    accepted_at timestamp with time zone,
+    created_by_id uuid NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_invitations_allowed_quantity_check CHECK ((allowed_quantity >= 1)),
+    CONSTRAINT ticketing_invitations_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'accepted'::character varying, 'revoked'::character varying, 'expired'::character varying])::text[])))
+);
+
+
+--
+-- Name: ticketing_ticket_types; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_ticket_types (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    event_product_id uuid NOT NULL,
+    approval_mode character varying DEFAULT 'automatic'::character varying NOT NULL,
+    audience character varying NOT NULL,
+    date_selection character varying NOT NULL,
+    waitlist_enabled boolean DEFAULT false NOT NULL,
+    transferable boolean,
+    transfer_cutoff_seconds_before_start integer DEFAULT 0 CONSTRAINT ticketing_ticket_types_transfer_cutoff_seconds_before__not_null NOT NULL,
+    admissions_per_unit integer DEFAULT 1 NOT NULL,
+    delegation_enabled boolean DEFAULT false NOT NULL,
+    delegation_validation_mode character varying DEFAULT 'offline_allowed'::character varying NOT NULL,
+    entry_validation_mode character varying DEFAULT 'qr'::character varying NOT NULL,
+    max_packages_per_user integer,
+    resale_enabled boolean DEFAULT false NOT NULL,
+    resale_cutoff_seconds_before_start integer DEFAULT 0 CONSTRAINT ticketing_ticket_types_resale_cutoff_seconds_before_st_not_null NOT NULL,
+    resale_price_cap_type character varying,
+    resale_fixed_cap_minor bigint,
+    resale_fixed_cap_currency character varying(3),
+    resale_percentage_cap_bps integer,
+    max_completed_resales integer DEFAULT 1 NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_ticket_types_admissions_check CHECK ((admissions_per_unit > 0)),
+    CONSTRAINT ticketing_ticket_types_approval_mode_check CHECK (((approval_mode)::text = ANY ((ARRAY['automatic'::character varying, 'manual'::character varying])::text[]))),
+    CONSTRAINT ticketing_ticket_types_audience_check CHECK (((audience)::text = ANY ((ARRAY['public'::character varying, 'access_code'::character varying, 'invitation'::character varying, 'code_or_invitation'::character varying])::text[]))),
+    CONSTRAINT ticketing_ticket_types_date_selection_check CHECK (((date_selection)::text = ANY ((ARRAY['fixed'::character varying, 'choose_one'::character varying])::text[]))),
+    CONSTRAINT ticketing_ticket_types_delegation_mode_check CHECK (((delegation_validation_mode)::text = ANY ((ARRAY['offline_allowed'::character varying, 'online_required'::character varying])::text[]))),
+    CONSTRAINT ticketing_ticket_types_entry_mode_check CHECK (((entry_validation_mode)::text = ANY ((ARRAY['qr'::character varying, 'qr_and_id'::character varying])::text[]))),
+    CONSTRAINT ticketing_ticket_types_max_per_user_check CHECK (((max_packages_per_user IS NULL) OR (max_packages_per_user > 0))),
+    CONSTRAINT ticketing_ticket_types_max_resales_check CHECK ((max_completed_resales > 0)),
+    CONSTRAINT ticketing_ticket_types_resale_cap_check CHECK (((resale_price_cap_type IS NULL) OR (((resale_price_cap_type)::text = 'fixed'::text) AND (resale_fixed_cap_minor IS NOT NULL) AND (resale_fixed_cap_currency IS NOT NULL) AND (resale_percentage_cap_bps IS NULL)) OR (((resale_price_cap_type)::text = 'percentage'::text) AND (resale_percentage_cap_bps IS NOT NULL) AND (resale_fixed_cap_minor IS NULL) AND (resale_fixed_cap_currency IS NULL)))),
+    CONSTRAINT ticketing_ticket_types_resale_cutoff_check CHECK ((resale_cutoff_seconds_before_start >= 0)),
+    CONSTRAINT ticketing_ticket_types_transfer_cutoff_check CHECK ((transfer_cutoff_seconds_before_start >= 0))
+);
+
+
+--
 -- Name: active_storage_attachments active_storage_attachments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -902,6 +1036,14 @@ ALTER TABLE ONLY public.active_storage_variant_records
 
 ALTER TABLE ONLY public.ar_internal_metadata
     ADD CONSTRAINT ar_internal_metadata_pkey PRIMARY KEY (key);
+
+
+--
+-- Name: catalog_event_products catalog_event_products_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_event_products
+    ADD CONSTRAINT catalog_event_products_pkey PRIMARY KEY (id);
 
 
 --
@@ -1006,6 +1148,14 @@ ALTER TABLE ONLY public.events_artists
 
 ALTER TABLE ONLY public.events_categories
     ADD CONSTRAINT events_categories_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: events_consent_document_products events_consent_document_products_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.events_consent_document_products
+    ADD CONSTRAINT events_consent_document_products_pkey PRIMARY KEY (id);
 
 
 --
@@ -1185,6 +1335,30 @@ ALTER TABLE ONLY public.schema_migrations
 
 
 --
+-- Name: ticketing_access_codes ticketing_access_codes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_access_codes
+    ADD CONSTRAINT ticketing_access_codes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_invitations ticketing_invitations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_invitations
+    ADD CONSTRAINT ticketing_invitations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_ticket_types ticketing_ticket_types_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_ticket_types
+    ADD CONSTRAINT ticketing_ticket_types_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: idx_core_reviews_resource_context; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1220,6 +1394,20 @@ CREATE INDEX idx_on_aggregate_type_aggregate_id_occurred_at_dc800603ae ON public
 
 
 --
+-- Name: idx_on_consent_document_id_ticket_type_id_73d6f9f9f0; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_on_consent_document_id_ticket_type_id_73d6f9f9f0 ON public.events_consent_document_products USING btree (consent_document_id, ticket_type_id);
+
+
+--
+-- Name: idx_on_event_id_active_sort_order_a88b786a62; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_event_id_active_sort_order_a88b786a62 ON public.catalog_event_products USING btree (event_id, active, sort_order);
+
+
+--
 -- Name: idx_on_event_id_organization_id_ee33770ea4; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1238,6 +1426,13 @@ CREATE UNIQUE INDEX idx_on_event_id_user_id_role_75273129b3 ON public.events_eve
 --
 
 CREATE INDEX idx_on_published_at_available_at_id_30dbfe6ec6 ON public.core_outbox_events USING btree (published_at, available_at, id);
+
+
+--
+-- Name: idx_on_ticket_type_id_contact_digest_bd3fd90acf; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_ticket_type_id_contact_digest_bd3fd90acf ON public.ticketing_invitations USING btree (ticket_type_id, contact_digest);
 
 
 --
@@ -1899,6 +2094,27 @@ CREATE UNIQUE INDEX index_organizations_organizations_on_slug ON public.organiza
 
 
 --
+-- Name: index_ticketing_access_codes_on_ticket_type_id_and_code_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_ticketing_access_codes_on_ticket_type_id_and_code_digest ON public.ticketing_access_codes USING btree (ticket_type_id, code_digest);
+
+
+--
+-- Name: index_ticketing_invitations_on_token_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_ticketing_invitations_on_token_digest ON public.ticketing_invitations USING btree (token_digest);
+
+
+--
+-- Name: index_ticketing_ticket_types_on_event_product_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_ticketing_ticket_types_on_event_product_id ON public.ticketing_ticket_types USING btree (event_product_id);
+
+
+--
 -- Name: events_consent_document_versions trg_consent_version_locked; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -2046,6 +2262,14 @@ ALTER TABLE ONLY public.core_refresh_tokens
 
 
 --
+-- Name: ticketing_access_codes fk_rails_46c5693101; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_access_codes
+    ADD CONSTRAINT fk_rails_46c5693101 FOREIGN KEY (ticket_type_id) REFERENCES public.ticketing_ticket_types(id);
+
+
+--
 -- Name: legal_document_versions fk_rails_49e0e9421c; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2070,11 +2294,35 @@ ALTER TABLE ONLY public.events_event_media
 
 
 --
+-- Name: events_consent_document_products fk_rails_520812941a; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.events_consent_document_products
+    ADD CONSTRAINT fk_rails_520812941a FOREIGN KEY (consent_document_id) REFERENCES public.events_consent_documents(id);
+
+
+--
+-- Name: ticketing_invitations fk_rails_596dd5e6f4; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_invitations
+    ADD CONSTRAINT fk_rails_596dd5e6f4 FOREIGN KEY (created_by_id) REFERENCES public.core_users(id);
+
+
+--
 -- Name: core_follows fk_rails_5acb788933; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.core_follows
     ADD CONSTRAINT fk_rails_5acb788933 FOREIGN KEY (follower_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: ticketing_ticket_types fk_rails_5e4a0f5f12; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_ticket_types
+    ADD CONSTRAINT fk_rails_5e4a0f5f12 FOREIGN KEY (event_product_id) REFERENCES public.catalog_event_products(id);
 
 
 --
@@ -2123,6 +2371,14 @@ ALTER TABLE ONLY public.legal_acceptances
 
 ALTER TABLE ONLY public.events_events
     ADD CONSTRAINT fk_rails_784925b6cd FOREIGN KEY (created_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: catalog_event_products fk_rails_7bf2218d4e; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_event_products
+    ADD CONSTRAINT fk_rails_7bf2218d4e FOREIGN KEY (event_id) REFERENCES public.events_events(id);
 
 
 --
@@ -2262,11 +2518,35 @@ ALTER TABLE ONLY public.events_event_settings
 
 
 --
+-- Name: events_consent_document_products fk_rails_c649989cad; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.events_consent_document_products
+    ADD CONSTRAINT fk_rails_c649989cad FOREIGN KEY (ticket_type_id) REFERENCES public.ticketing_ticket_types(id);
+
+
+--
+-- Name: ticketing_invitations fk_rails_ca5550ab7b; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_invitations
+    ADD CONSTRAINT fk_rails_ca5550ab7b FOREIGN KEY (ticket_type_id) REFERENCES public.ticketing_ticket_types(id);
+
+
+--
 -- Name: events_event_organizations fk_rails_ca5c06224a; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.events_event_organizations
     ADD CONSTRAINT fk_rails_ca5c06224a FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ticketing_invitations fk_rails_cc4a24abb3; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_invitations
+    ADD CONSTRAINT fk_rails_cc4a24abb3 FOREIGN KEY (invited_user_id) REFERENCES public.core_users(id);
 
 
 --
@@ -2332,6 +2612,11 @@ ALTER TABLE ONLY public.events_event_categories
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260727090024'),
+('20260727090023'),
+('20260727090022'),
+('20260727090021'),
+('20260727090020'),
 ('20260727090000'),
 ('20260727000002'),
 ('20260726090003'),
