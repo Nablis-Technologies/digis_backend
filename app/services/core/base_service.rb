@@ -45,5 +45,9 @@ module Core
 
       Result.failure(error)
     end
+
+    def failure_i18n(key, **opts)
+      failure(Core::Error.new(I18n.t(key, **opts)))
+    end
   end
 end
