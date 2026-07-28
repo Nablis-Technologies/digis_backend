@@ -7105,6 +7105,209 @@
           }
         }
       ]
+    },
+    {
+      "name": "Catalog",
+      "item": [
+        {
+          "name": "Create Product Price",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product_id\": \"0f9d3c2a-1b4e-4f6a-8c7d-2e5a9b1c3d4e\",\n  \"kind\": \"override\",\n  \"currency\": \"USD\",\n  \"amount_minor\": 2500,\n  \"active_from\": \"2026-01-01T00:00:00Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/catalog/product_prices",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "catalog",
+                "product_prices"
+              ]
+            },
+            "description": "Create a product price override (admin)."
+          },
+          "response": [
+            {
+              "name": "Created product price",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"product_id\": \"0f9d3c2a-1b4e-4f6a-8c7d-2e5a9b1c3d4e\",\n  \"kind\": \"override\",\n  \"currency\": \"USD\",\n  \"amount_minor\": 2500,\n  \"active_from\": \"2026-01-01T00:00:00Z\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/catalog/product_prices",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "catalog",
+                    "product_prices"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"a1b2c3d4-0000-4000-8000-000000000001\",\n    \"kind\": \"override\",\n    \"currency\": \"USD\",\n    \"amount_minor\": 2500,\n    \"active_from\": \"2026-01-01T00:00:00Z\",\n    \"active_to\": null,\n    \"ticket_type_id\": null,\n    \"event_product_id\": \"0f9d3c2a-1b4e-4f6a-8c7d-2e5a9b1c3d4e\"\n  }\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property(\"success\", true);",
+                  "  pm.expect(json).to.have.property(\"data\");",
+                  "  pm.expect(json.data).to.have.property(\"id\");",
+                  "  pm.expect(json.data).to.have.property(\"event_product_id\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Product Quote",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product_id\": \"0f9d3c2a-1b4e-4f6a-8c7d-2e5a9b1c3d4e\",\n  \"charge_currency\": \"USD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/catalog/product_quotes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "catalog",
+                "product_quotes"
+              ]
+            },
+            "description": "Quote a product price in a charge currency."
+          },
+          "response": [
+            {
+              "name": "Product quote",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"product_id\": \"0f9d3c2a-1b4e-4f6a-8c7d-2e5a9b1c3d4e\",\n  \"charge_currency\": \"USD\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/catalog/product_quotes",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "catalog",
+                    "product_quotes"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"product_id\": \"0f9d3c2a-1b4e-4f6a-8c7d-2e5a9b1c3d4e\",\n    \"charge_currency\": \"USD\",\n    \"amount_minor\": 2500,\n    \"source_type\": \"override\",\n    \"from_currency\": \"USD\",\n    \"exchange_rate_id\": null,\n    \"exchange_rate_value\": null,\n    \"at\": \"2026-01-01T00:00:00Z\"\n  }\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response has correct structure\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property(\"success\", true);",
+                  "  pm.expect(json).to.have.property(\"data\");",
+                  "  pm.expect(json.data).to.have.property(\"product_id\");",
+                  "  pm.expect(json.data).to.have.property(\"amount_minor\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }
