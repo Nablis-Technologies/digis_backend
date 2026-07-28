@@ -44,11 +44,20 @@ module Core
              class_name: "Events::ConsentDocument",
              inverse_of: :created_by
     has_many :consent_document_versions,
-             class_name: "Events::ConsentDocumentVersion",
-             inverse_of: :created_by
+              class_name: "Events::ConsentDocumentVersion",
+              inverse_of: :created_by
     has_many :published_consent_document_versions,
-             class_name: "Events::ConsentDocumentVersion",
-             inverse_of: :published_by
+              class_name: "Events::ConsentDocumentVersion",
+              inverse_of: :published_by
+
+    has_many :invitations,
+              class_name: "Ticketing::Invitation",
+              inverse_of: :invited_user,
+              foreign_key: :invited_user_id
+    has_many :created_invitations,
+              class_name: "Ticketing::Invitation",
+              inverse_of: :created_by,
+              foreign_key: :created_by_id
 
     has_many :legal_documents,
              class_name: "Legal::LegalDocument",
