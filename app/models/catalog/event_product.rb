@@ -18,6 +18,10 @@ module Catalog
             class_name: "Ticketing::TicketType",
             inverse_of: :event_product,
             dependent: :destroy
+    has_many :prices,
+             class_name: "Catalog::ProductPrice",
+             inverse_of: :event_product,
+             dependent: :destroy
 
     validates :event, presence: true
     validates :name, presence: true
