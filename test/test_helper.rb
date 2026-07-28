@@ -37,7 +37,7 @@ module ActiveSupport
     if RUBY_PLATFORM.match?(/darwin/) && ENV["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] != "YES"
       parallelize(workers: 1)
     else
-      parallelize(workers: 6)
+      parallelize(workers: ENV.fetch("PARALLEL_WORKERS", 6).to_i)
     end
     fixtures :all
 
