@@ -69,13 +69,13 @@ class Events::EventMediaTest < ActiveSupport::TestCase
   end
 
   test "caps gallery images at twenty per event" do
-    Prosopite.finish
+    Prosopite.finish if ENV["N_PLUS_ONE"] == "1"
     20.times do |i|
       Events::EventMedia.create!(event: @event, created_by: @user, type: "gallery", position: i) do |media|
         attach_image(media)
       end
     end
-    Prosopite.scan
+    Prosopite.scan if ENV["N_PLUS_ONE"] == "1"
     twenty_first = Events::EventMedia.new(
       event: @event, created_by: @user, type: "gallery", position: 21
     )
