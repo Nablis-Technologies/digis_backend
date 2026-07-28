@@ -51,11 +51,13 @@ Rails.application.configure do
   # Raise on missing translations.
   # config.i18n.raise_on_missing_translations = true
 
-  # Catch N+1 queries via Prosopite.
-  config.after_initialize do
-    require "prosopite"
-    Prosopite.rails_logger = true
-    Prosopite.raise = true
+  # Catch N+1 queries in the explicit verification mode and in CI.
+  if ENV["N_PLUS_ONE"] == "1"
+    config.after_initialize do
+      require "prosopite"
+      Prosopite.rails_logger = true
+      Prosopite.raise = true
+    end
   end
 
   # Annotate rendered view with file names.
@@ -63,6 +65,11 @@ Rails.application.configure do
 
   # Raise error when a before_action's only/except options reference missing actions.
   config.action_controller.raise_on_missing_callback_actions = true
+
+  # Avoid query-log I/O in the test environment.
+  config.active_record.verbose_query_logs = false
+  config.active_record.query_log_tags_enabled = false
+  config.log_level = :fatal
 
   # Encrypt fixtures so encrypted-domain-model tests run on real ciphertext.
   config.active_record.encryption.encrypt_fixtures = true
