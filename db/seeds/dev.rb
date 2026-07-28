@@ -345,6 +345,89 @@ end
 puts "✓ #{Core::Follow.count} follows"
 
 # ─────────────────────────────────────────────
+# 7. Catalog: products, ticket types, access codes, invitations (Plan 2, Task 1)
+# ─────────────────────────────────────────────
+puts "\n🎟️  Seeding catalog products + ticket audience policies..."
+
+fest_ticket = if Catalog::EventProduct.exists?(event: fest_event, name: "Fest General Admission", type: "ticket")
+  Catalog::EventProduct.find_by(event: fest_event, name: "Fest General Admission", type: "ticket")
+else
+  Catalog::Products::Create.call(
+    event: fest_event,
+    attributes: {
+      name: "Fest General Admission",
+      type: "ticket",
+      min_per_order: 1,
+      max_per_order: 6,
+      sales_start_at: 1.week.ago,
+      sales_end_at: 1.month.from_now
+    },
+    ticket_type_attributes: {
+      approval_mode: "automatic",
+      audience: "public",
+      date_selection: "fixed",
+      admissions_per_unit: 1,
+      transferable: true
+    }
+  ).value
+end
+
+vip_ticket = if Catalog::EventProduct.exists?(event: fest_event, name: "Fest VIP Pass", type: "ticket")
+  Catalog::EventProduct.find_by(event: fest_event, name: "Fest VIP Pass", type: "ticket")
+else
+  Catalog::Products::Create.call(
+    event: fest_event,
+    attributes: { name: "Fest VIP Pass", type: "ticket", min_per_order: 1, max_per_order: 2 },
+    ticket_type_attributes: {
+      approval_mode: "manual",
+      audience: "code_or_invitation",
+      date_selection: "choose_one",
+      admissions_per_unit: 1,
+      delegation_enabled: true,
+      resale_enabled: true,
+      resale_price_cap_type: "percentage",
+      resale_percentage_cap_bps: 10_000,
+      max_completed_resales: 1
+    }
+  ).value
+end
+vip_tt = vip_ticket.ticket_type
+
+# Access code (raw value shown here only for local/dev testing — never log in prod).
+Ticketing::AccessCode.find_or_create_by!(
+  ticket_type: vip_tt,
+  code_digest: Ticketing::AccessCode.code_digest_for(event_id: fest_event.id, code: "VIP-2026")
+) do |c|
+  c.label = "VIP early-bird"
+  c.max_uses = 50
+  c.max_quantity_per_use = 2
+  c.active = true
+end
+
+# Named guest invitation.
+Ticketing::Invitation.find_or_create_by!(
+  ticket_type: vip_tt,
+  token_digest: Ticketing::Invitation.token_digest_for(event_id: fest_event.id, token: "vip-invite-0001")
+) do |i|
+  i.created_by = admin
+  i.email = "vip.guest@example.com"
+  i.contact_digest = Ticketing::Invitation.contact_digest_for(event_id: fest_event.id, contact: "vip.guest@example.com")
+  i.allowed_quantity = 1
+  i.status = "pending"
+end
+
+# Scope the fest terms consent document to the VIP ticket type (same-event).
+vip_consent_doc = Events::ConsentDocument.find_by(event: fest_event, type: "terms")
+Events::ConsentDocuments::ReplaceScope.call(
+  consent_document: vip_consent_doc, ticket_type_ids: [ vip_tt.id ]
+) if vip_consent_doc
+
+puts "✓ #{Catalog::EventProduct.count} products, " \
+     "#{Ticketing::TicketType.count} ticket types, " \
+     "#{Ticketing::AccessCode.count} access codes, " \
+     "#{Ticketing::Invitation.count} invitations"
+
+# ─────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────
 puts "\n" + "=" * 60
@@ -354,6 +437,7 @@ puts "  Users (SUPER_ADMIN): #{Core::User.count}"
 puts "  Organizations:      #{Organizations::Organization.count}"
 puts "  Events:            #{Events::Event.count}"
 puts "  Consent docs:      #{Events::ConsentDocument.count} (#{Events::ConsentDocumentVersion.published.count} published)"
+puts "  Products:          #{Catalog::EventProduct.count} (#{Ticketing::TicketType.count} ticket types)"
 puts "  Legal docs:        #{Legal::LegalDocument.count} (#{Legal::LegalDocumentVersion.published.count} published)"
 puts "  Legal acceptances: #{Legal::LegalAcceptance.count}"
 puts "\n🔑 Auth (POST /core/auth/login):"
