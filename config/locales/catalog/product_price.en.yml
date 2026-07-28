@@ -1,0 +1,8 @@
+# frozen_string_literal: true
+
+en:
+  catalog:
+    product_price:
+      errors:
+        currency_format: "must be a valid ISO 4217 code"
+        active_range_overlap: "overlaps an existing active price"

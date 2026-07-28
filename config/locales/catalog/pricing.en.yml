@@ -1,0 +1,8 @@
+# frozen_string_literal: true
+
+en:
+  catalog:
+    pricing:
+      errors:
+        no_active_price: "no active price for this product"
+        unsupported_charge_currency: "unsupported charge currency"

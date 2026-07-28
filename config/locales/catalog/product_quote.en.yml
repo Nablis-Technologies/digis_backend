@@ -1,0 +1,7 @@
+# frozen_string_literal: true
+
+en:
+  catalog:
+    product_quote:
+      errors:
+        invalid_at: "at must be a valid ISO 8601 timestamp"
