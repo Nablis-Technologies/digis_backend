@@ -221,9 +221,9 @@ CREATE TABLE public.catalog_event_products (
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT catalog_event_products_max_per_order_check CHECK (((max_per_order IS NULL) OR (max_per_order >= min_per_order))),
     CONSTRAINT catalog_event_products_min_per_order_check CHECK ((min_per_order >= 1)),
-    CONSTRAINT catalog_event_products_refund_policy_check CHECK (((schedule_change_refund_policy)::text = ANY (ARRAY[('full_or_partial'::character varying)::text, ('full_only'::character varying)::text]))),
+    CONSTRAINT catalog_event_products_refund_policy_check CHECK (((schedule_change_refund_policy)::text = ANY ((ARRAY['full_or_partial'::character varying, 'full_only'::character varying])::text[]))),
     CONSTRAINT catalog_event_products_sales_window_check CHECK (((sales_end_at IS NULL) OR (sales_start_at IS NULL) OR (sales_end_at > sales_start_at))),
-    CONSTRAINT catalog_event_products_type_check CHECK (((type)::text = ANY (ARRAY[('ticket'::character varying)::text, ('parking'::character varying)::text, ('merchandise'::character varying)::text, ('food'::character varying)::text, ('donation'::character varying)::text, ('digital_addon'::character varying)::text, ('other'::character varying)::text])))
+    CONSTRAINT catalog_event_products_type_check CHECK (((type)::text = ANY ((ARRAY['ticket'::character varying, 'parking'::character varying, 'merchandise'::character varying, 'food'::character varying, 'donation'::character varying, 'digital_addon'::character varying, 'other'::character varying])::text[])))
 );
 
 
@@ -257,7 +257,7 @@ CREATE TABLE public.catalog_product_prices (
     ticket_type_id uuid,
     currency character varying NOT NULL,
     amount_minor bigint NOT NULL,
-    kind character varying DEFAULT 'base'::character varying NOT NULL,
+    type character varying DEFAULT 'base'::character varying NOT NULL,
     active_from timestamp with time zone NOT NULL,
     active_to timestamp with time zone,
     active_range tstzrange GENERATED ALWAYS AS (tstzrange(active_from, active_to, '[]'::text)) STORED NOT NULL,
@@ -265,7 +265,7 @@ CREATE TABLE public.catalog_product_prices (
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT catalog_product_prices_amount_check CHECK ((amount_minor >= 0)),
     CONSTRAINT catalog_product_prices_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
-    CONSTRAINT catalog_product_prices_kind_check CHECK (((kind)::text = ANY (ARRAY[('base'::character varying)::text, ('override'::character varying)::text])))
+    CONSTRAINT catalog_product_prices_type_check CHECK (((type)::text = ANY ((ARRAY['base'::character varying, 'override'::character varying])::text[])))
 );
 
 
@@ -1017,7 +1017,7 @@ CREATE TABLE public.ticketing_invitations (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_invitations_allowed_quantity_check CHECK ((allowed_quantity >= 1)),
-    CONSTRAINT ticketing_invitations_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('accepted'::character varying)::text, ('revoked'::character varying)::text, ('expired'::character varying)::text])))
+    CONSTRAINT ticketing_invitations_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'accepted'::character varying, 'revoked'::character varying, 'expired'::character varying])::text[])))
 );
 
 
@@ -1049,11 +1049,11 @@ CREATE TABLE public.ticketing_ticket_types (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_ticket_types_admissions_check CHECK ((admissions_per_unit > 0)),
-    CONSTRAINT ticketing_ticket_types_approval_mode_check CHECK (((approval_mode)::text = ANY (ARRAY[('automatic'::character varying)::text, ('manual'::character varying)::text]))),
-    CONSTRAINT ticketing_ticket_types_audience_check CHECK (((audience)::text = ANY (ARRAY[('public'::character varying)::text, ('access_code'::character varying)::text, ('invitation'::character varying)::text, ('code_or_invitation'::character varying)::text]))),
-    CONSTRAINT ticketing_ticket_types_date_selection_check CHECK (((date_selection)::text = ANY (ARRAY[('fixed'::character varying)::text, ('choose_one'::character varying)::text]))),
-    CONSTRAINT ticketing_ticket_types_delegation_mode_check CHECK (((delegation_validation_mode)::text = ANY (ARRAY[('offline_allowed'::character varying)::text, ('online_required'::character varying)::text]))),
-    CONSTRAINT ticketing_ticket_types_entry_mode_check CHECK (((entry_validation_mode)::text = ANY (ARRAY[('qr'::character varying)::text, ('qr_and_id'::character varying)::text]))),
+    CONSTRAINT ticketing_ticket_types_approval_mode_check CHECK (((approval_mode)::text = ANY ((ARRAY['automatic'::character varying, 'manual'::character varying])::text[]))),
+    CONSTRAINT ticketing_ticket_types_audience_check CHECK (((audience)::text = ANY ((ARRAY['public'::character varying, 'access_code'::character varying, 'invitation'::character varying, 'code_or_invitation'::character varying])::text[]))),
+    CONSTRAINT ticketing_ticket_types_date_selection_check CHECK (((date_selection)::text = ANY ((ARRAY['fixed'::character varying, 'choose_one'::character varying])::text[]))),
+    CONSTRAINT ticketing_ticket_types_delegation_mode_check CHECK (((delegation_validation_mode)::text = ANY ((ARRAY['offline_allowed'::character varying, 'online_required'::character varying])::text[]))),
+    CONSTRAINT ticketing_ticket_types_entry_mode_check CHECK (((entry_validation_mode)::text = ANY ((ARRAY['qr'::character varying, 'qr_and_id'::character varying])::text[]))),
     CONSTRAINT ticketing_ticket_types_max_per_user_check CHECK (((max_packages_per_user IS NULL) OR (max_packages_per_user > 0))),
     CONSTRAINT ticketing_ticket_types_max_resales_check CHECK ((max_completed_resales > 0)),
     CONSTRAINT ticketing_ticket_types_resale_cap_check CHECK (((resale_price_cap_type IS NULL) OR (((resale_price_cap_type)::text = 'fixed'::text) AND (resale_fixed_cap_minor IS NOT NULL) AND (resale_fixed_cap_currency IS NOT NULL) AND (resale_percentage_cap_bps IS NULL)) OR (((resale_price_cap_type)::text = 'percentage'::text) AND (resale_percentage_cap_bps IS NOT NULL) AND (resale_fixed_cap_minor IS NULL) AND (resale_fixed_cap_currency IS NULL)))),

@@ -11,7 +11,7 @@ class CreateCatalogProductPrices < ActiveRecord::Migration[8.1]
       t.uuid :ticket_type_id
       t.string :currency, null: false
       t.bigint :amount_minor, null: false
-      t.string :kind, null: false, default: "base"
+      t.string :type, null: false, default: "base"
       t.timestamptz :active_from, null: false
       t.timestamptz :active_to
       t.tstzrange :active_range, null: false,
@@ -24,8 +24,8 @@ class CreateCatalogProductPrices < ActiveRecord::Migration[8.1]
       "currency ~ '^[A-Z]{3}$'",
       name: "catalog_product_prices_currency_check"
     add_check_constraint :catalog_product_prices,
-      "kind IN ('base','override')",
-      name: "catalog_product_prices_kind_check"
+      "type IN ('base','override')",
+      name: "catalog_product_prices_type_check"
     add_check_constraint :catalog_product_prices,
       "amount_minor >= 0",
       name: "catalog_product_prices_amount_check"
