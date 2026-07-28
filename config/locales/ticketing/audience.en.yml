@@ -1,0 +1,8 @@
+# frozen_string_literal: true
+
+en:
+  ticketing:
+    audience:
+      errors:
+        unknown_audience: "unknown audience: %{audience}"
+        no_valid_code_or_invitation: "no valid access code or invitation supplied"

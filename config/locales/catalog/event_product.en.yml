@@ -1,0 +1,10 @@
+# frozen_string_literal: true
+
+en:
+  catalog:
+    event_product:
+      errors:
+        max_per_order_gte_min: "must be greater than or equal to min_per_order"
+        sales_end_after_start: "must be after sales_start_at"
+        ticket_type_required: "must be present for ticket products"
+        ticket_type_not_allowed: "must not be present for non-ticket products"

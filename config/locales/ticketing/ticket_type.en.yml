@@ -1,0 +1,14 @@
+# frozen_string_literal: true
+
+en:
+  ticketing:
+    ticket_type:
+      errors:
+        resale_fixed_cap_minor_required: "is required for fixed cap"
+        resale_fixed_cap_currency_required: "is required for fixed cap"
+        resale_percentage_cap_must_blank: "must be blank for fixed cap"
+        resale_percentage_cap_required: "is required for percentage cap"
+        resale_fixed_cap_minor_must_blank: "must be blank for percentage cap"
+        resale_fixed_cap_currency_must_blank: "must be blank for percentage cap"
+        resale_price_cap_type_invalid: "is invalid"
+        admissions_per_unit_locked: "cannot be changed after commitments exist"
