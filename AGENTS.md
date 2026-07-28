@@ -253,6 +253,7 @@ Every idempotent command/operation MUST prove idempotency via the shared `Idempo
 - **JSONB**: Use for flexible data (conditions, configurations, metadata)
 - **Indexes**: Always index foreign keys, status fields, and frequently queried columns
 - **Check constraints**: Use database-level constraints where possible (e.g., capacity checks)
+- **One table per migration**: NEVER create more than one table in a single migration file. Each `create_table` gets its own migration named after that single table (e.g. `create_catalog_event_products.rb`, `create_ticketing_ticket_types.rb`). Do not bundle multiple tables into one migration like `create_catalog_event_products_and_ticket_types.rb` — this applies even if a plan doc suggests bundling.
 
 ### Implementation Rules - No Backward Compatibility / Zero Debt
 
