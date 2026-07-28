@@ -427,6 +427,45 @@ puts "✓ #{Catalog::EventProduct.count} products, " \
      "#{Ticketing::AccessCode.count} access codes, " \
      "#{Ticketing::Invitation.count} invitations"
 
+# 7b. Catalog pricing: product prices + exchange rates (Plan 2, Task 2)
+# ─────────────────────────────────────────────
+puts "\n💱  Seeding catalog pricing (prices + exchange rates)..."
+
+# General Admission: a fixed USD override price (quotes in USD return as-is).
+unless Catalog::ProductPrice.exists?(event_product: fest_ticket, currency: "USD", type: "override")
+  Catalog::Pricing::CreatePrice.call(
+    event_product: fest_ticket,
+    attributes: {
+      type: "override",
+      currency: "USD",
+      amount_minor: 2500,
+      active_from: 1.week.ago,
+      active_to: 1.month.from_now
+    }
+  ).value
+end
+
+# VIP Pass: a base EUR price, convertible to USD via an exchange rate.
+unless Catalog::ProductPrice.exists?(event_product: vip_ticket, currency: "EUR", type: "base")
+  Catalog::Pricing::CreatePrice.call(
+    event_product: vip_ticket,
+    attributes: {
+      type: "base",
+      currency: "EUR",
+      amount_minor: 2000,
+      active_from: 1.week.ago,
+      active_to: 1.month.from_now
+    }
+  ).value
+end
+
+# Applicable exchange rate EUR -> USD (latest per effective window wins).
+unless Catalog::ExchangeRate.exists?(from_currency: "EUR", to_currency: "USD")
+  Catalog::ExchangeRates::Record.call(from_currency: "EUR", to_currency: "USD", rate: 1.1)
+end
+
+puts "✓ #{Catalog::ProductPrice.count} prices, #{Catalog::ExchangeRate.count} exchange rates"
+
 # ─────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────
@@ -438,6 +477,7 @@ puts "  Organizations:      #{Organizations::Organization.count}"
 puts "  Events:            #{Events::Event.count}"
 puts "  Consent docs:      #{Events::ConsentDocument.count} (#{Events::ConsentDocumentVersion.published.count} published)"
 puts "  Products:          #{Catalog::EventProduct.count} (#{Ticketing::TicketType.count} ticket types)"
+puts "  Pricing:           #{Catalog::ProductPrice.count} prices, #{Catalog::ExchangeRate.count} exchange rates"
 puts "  Legal docs:        #{Legal::LegalDocument.count} (#{Legal::LegalDocumentVersion.published.count} published)"
 puts "  Legal acceptances: #{Legal::LegalAcceptance.count}"
 puts "\n🔑 Auth (POST /core/auth/login):"
@@ -451,4 +491,6 @@ puts "  GET  /admin/legal_documents             (as Admin)"
 puts "  POST /admin/legal_documents/:id/publish"
 puts "  GET  /events/:id/consent_documents"
 puts "  GET  /organizations/owner              (owner orgs)"
+puts "  POST /catalog/product_quotes            { product_id, charge_currency: \"USD\" }"
+puts "  POST /catalog/product_prices            { product_id, type, currency, amount_minor, active_from }"
 puts "=" * 60
