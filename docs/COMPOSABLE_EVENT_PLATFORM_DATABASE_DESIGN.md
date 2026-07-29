@@ -1274,6 +1274,25 @@ Pool counter change and reservation creation occur in one locked PostgreSQL tran
 
 `processing` means checkout has closed but the current payment attempt is still inside its bounded settlement grace. It continues to count against `held_count`; it is not sold. A status/expiry worker index on `(status, expires_at)` supports prompt transition or release.
 
+#### 7.5.1 `catalog_venue_capacity_reservations`
+
+Venue capacity is recorded independently from product inventory so event-wide and unlimited products can still reserve the correct physical event dates without inventing per-date product pools.
+
+| Column | Type | Rules |
+|---|---|---|
+| `reservation_group_id` | UUID | Required |
+| `event_date_id` | UUID | Required FK |
+| `event_product_id` | UUID | Required FK |
+| `registration_id` / `order_item_id` | UUID | Same owner as the product hold |
+| `quantity_people` | integer | Required, positive; packages multiplied by admissions per unit |
+| `status` | string | Same lifecycle as the inventory reservation |
+| `expires_at`, `committed_at`, `released_at` | timestamptz | Lifecycle timestamps |
+| `request_fingerprint` | string | Required SHA-256 digest |
+
+Unique `(reservation_group_id, event_date_id)`.
+
+The reserve command receives selected `event_date_ids` for product-pool selection and explicit `venue_event_date_ids` for physical admission. A stream-only ticket may select an event date while passing no venue dates, so it never consumes the in-person venue capacity. All rows in both reservation tables share one request fingerprint and transition as one advisory-locked group.
+
 ### 7.6 `catalog_product_accesses`
 
 Describes what a credential-bearing product grants.
