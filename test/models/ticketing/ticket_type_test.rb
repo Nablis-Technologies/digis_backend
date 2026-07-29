@@ -6,14 +6,16 @@ module Ticketing
   class TicketTypeTest < ActiveSupport::TestCase
     setup do
       @event = events_events(:ready_listing)
-      @product = Catalog::Products::Create.new(
+      @product = Catalog::Products::CreateDraft.call(
         event: @event,
-        attributes: { name: "VIP", type: "ticket" },
+        actor: core_users(:super_admin),
+        product_attributes: { name: "VIP", type: "ticket" },
         ticket_type_attributes: {
           audience: "public", approval_mode: "automatic", date_selection: "fixed",
           admissions_per_unit: 1
-        }
-      ).call.value
+        },
+        inventory_configuration: { mode: "unlimited" }
+      ).value
       @ticket_type = @product.ticket_type
     end
 

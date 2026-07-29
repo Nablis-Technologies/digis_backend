@@ -86,14 +86,16 @@ module Ticketing
       private
 
       def ticket_product(audience:, **ticket_attrs)
-        Catalog::Products::Create.new(
+        Catalog::Products::CreateDraft.call(
           event: @event,
-          attributes: { name: "VIP", type: "ticket" },
+          actor: core_users(:super_admin),
+          product_attributes: { name: "VIP", type: "ticket" },
           ticket_type_attributes: {
             audience: audience, approval_mode: "automatic", date_selection: "fixed",
             admissions_per_unit: 1
-          }.merge(ticket_attrs)
-        ).call.value
+          }.merge(ticket_attrs),
+          inventory_configuration: { mode: "unlimited" }
+        ).value
       end
 
       def create_access_code(tt, raw, **overrides)

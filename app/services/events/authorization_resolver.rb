@@ -12,6 +12,56 @@ module Events
         Events::AuthorizationResolver.active_assignment?(user, event)
     end
 
+    def can_manage_catalog?(user, event)
+      return false if user.nil? || event.nil?
+
+      manageable_catalog_events(user, Events::Event.where(id: event.id)).exists?
+    end
+
+    def manageable_catalog_events(user, scope = Events::Event.all)
+      return scope.none if user.nil?
+      return scope.all if platform_admin?(user)
+
+      manager_organization_ids = Organizations::Membership
+        .where(user:, status: "active", role: %w[owner admin])
+        .select(:organization_id)
+
+      co_organizer_event_ids = Events::EventOrganization
+        .where(
+          organization_id: manager_organization_ids,
+          type: "co_organizer",
+          status: "active"
+        )
+        .select(:event_id)
+
+      primary_manager_event_ids = Events::EventStaffAssignment
+        .joins(:event)
+        .where(user:, role: "manager", status: "active")
+        .where("events_event_staff_assignments.organization_id = events_events.organization_id")
+        .select(:event_id)
+
+      co_organizer_manager_event_ids = Events::EventStaffAssignment
+        .joins(
+          "INNER JOIN events_event_organizations catalog_manager_organizations " \
+          "ON catalog_manager_organizations.event_id = events_event_staff_assignments.event_id " \
+          "AND catalog_manager_organizations.organization_id = events_event_staff_assignments.organization_id"
+        )
+        .where(user:, role: "manager", status: "active")
+        .where(
+          catalog_manager_organizations: {
+            type: "co_organizer",
+            status: "active"
+          }
+        )
+        .select(:event_id)
+
+      scope
+        .where(organization_id: manager_organization_ids)
+        .or(scope.where(id: co_organizer_event_ids))
+        .or(scope.where(id: primary_manager_event_ids))
+        .or(scope.where(id: co_organizer_manager_event_ids))
+    end
+
     def role_for(user, event)
       return :none if user.nil? || event.nil?
       return :super_admin if user.has_role?("SUPER_ADMIN")
@@ -64,5 +114,10 @@ module Events
         .where(role: %w[owner admin])
         .exists?
     end
+
+    def platform_admin?(user)
+      user.has_role?("SUPER_ADMIN") || user.has_role?("ADMIN") || user.has_role?("CORE_ADMIN")
+    end
+    private_class_method :platform_admin?
   end
 end

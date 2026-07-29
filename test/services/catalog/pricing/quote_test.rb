@@ -7,14 +7,16 @@ module Catalog
     class QuoteTest < ActiveSupport::TestCase
       setup do
         @event = events_events(:ready_listing)
-        @product = Catalog::Products::Create.new(
+        @product = Catalog::Products::CreateDraft.call(
           event: @event,
-          attributes: { name: "Festival Pass", type: "ticket" },
+          actor: core_users(:super_admin),
+          product_attributes: { name: "Festival Pass", type: "ticket" },
           ticket_type_attributes: {
             audience: "public", approval_mode: "automatic",
             date_selection: "fixed", admissions_per_unit: 1
-          }
-        ).call.value
+          },
+          inventory_configuration: { mode: "unlimited" }
+        ).value
       end
 
       test "uses an active fixed override before exchange conversion" do

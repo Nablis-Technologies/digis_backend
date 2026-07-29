@@ -352,9 +352,10 @@ puts "\n🎟️  Seeding catalog products + ticket audience policies..."
 fest_ticket = if Catalog::EventProduct.exists?(event: fest_event, name: "Fest General Admission", type: "ticket")
   Catalog::EventProduct.find_by(event: fest_event, name: "Fest General Admission", type: "ticket")
 else
-  Catalog::Products::Create.call(
+  Catalog::Products::CreateDraft.call(
     event: fest_event,
-    attributes: {
+    actor: nil,
+    product_attributes: {
       name: "Fest General Admission",
       type: "ticket",
       min_per_order: 1,
@@ -368,16 +369,20 @@ else
       date_selection: "fixed",
       admissions_per_unit: 1,
       transferable: true
-    }
-  ).value
+    },
+    inventory_configuration: { mode: "unlimited" },
+    price_attributes: { currency: "ETB", amount_minor: 500_00, active_from: 1.week.ago }
+  ).value.tap { |p| Catalog::Products::Activate.call(product: p) }
 end
 
 vip_ticket = if Catalog::EventProduct.exists?(event: fest_event, name: "Fest VIP Pass", type: "ticket")
   Catalog::EventProduct.find_by(event: fest_event, name: "Fest VIP Pass", type: "ticket")
 else
-  Catalog::Products::Create.call(
+  Catalog::Products::CreateDraft.call(
     event: fest_event,
-    attributes: { name: "Fest VIP Pass", type: "ticket", min_per_order: 1, max_per_order: 2 },
+    actor: nil,
+    product_attributes: { name: "Fest VIP Pass", type: "ticket", min_per_order: 1, max_per_order: 2 },
+    price_attributes: { currency: "ETB", amount_minor: 1500_00, active_from: 1.week.ago },
     ticket_type_attributes: {
       approval_mode: "manual",
       audience: "code_or_invitation",
@@ -388,8 +393,9 @@ else
       resale_price_cap_type: "percentage",
       resale_percentage_cap_bps: 10_000,
       max_completed_resales: 1
-    }
-  ).value
+    },
+    inventory_configuration: { mode: "unlimited" }
+  ).value.tap { |p| Catalog::Products::Activate.call(product: p) }
 end
 vip_tt = vip_ticket.ticket_type
 
@@ -427,7 +433,27 @@ puts "✓ #{Catalog::EventProduct.count} products, " \
      "#{Ticketing::AccessCode.count} access codes, " \
      "#{Ticketing::Invitation.count} invitations"
 
-# 7b. Catalog pricing: product prices + exchange rates (Plan 2, Task 2)
+# 7b. Catalog inventory: product inventories (Plan 2, Task 3)
+# ─────────────────────────────────────────────
+puts "\n📦  Seeding catalog inventory..."
+
+unless Catalog::ProductInventory.exists?(event_product: fest_ticket, event_date_id: nil)
+  Catalog::ProductInventory.create!(
+    event_product: fest_ticket,
+    capacity: 500
+  )
+end
+
+unless Catalog::ProductInventory.exists?(event_product: vip_ticket, event_date_id: nil)
+  Catalog::ProductInventory.create!(
+    event_product: vip_ticket,
+    capacity: 100
+  )
+end
+
+puts "✓ #{Catalog::ProductInventory.count} product inventories"
+
+# 7c. Catalog pricing: product prices + exchange rates (Plan 2, Task 2)
 # ─────────────────────────────────────────────
 puts "\n💱  Seeding catalog pricing (prices + exchange rates)..."
 

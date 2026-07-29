@@ -14,24 +14,28 @@ module Events
           created_by: core_users(:super_admin)
         )
 
-        @same_event_product = Catalog::Products::Create.new(
+        @same_event_product = Catalog::Products::CreateDraft.call(
           event: @event_a,
-          attributes: { name: "VIP A", type: "ticket" },
+          actor: core_users(:super_admin),
+          product_attributes: { name: "VIP A", type: "ticket" },
           ticket_type_attributes: {
             audience: "public", approval_mode: "automatic", date_selection: "fixed",
             admissions_per_unit: 1
-          }
-        ).call.value
+          },
+          inventory_configuration: { mode: "unlimited" }
+        ).value
         @same_event_tt = @same_event_product.ticket_type
 
-        @other_event_product = Catalog::Products::Create.new(
+        @other_event_product = Catalog::Products::CreateDraft.call(
           event: @event_b,
-          attributes: { name: "VIP B", type: "ticket" },
+          actor: core_users(:super_admin),
+          product_attributes: { name: "VIP B", type: "ticket" },
           ticket_type_attributes: {
             audience: "public", approval_mode: "automatic", date_selection: "fixed",
             admissions_per_unit: 1
-          }
-        ).call.value
+          },
+          inventory_configuration: { mode: "unlimited" }
+        ).value
         @other_event_tt = @other_event_product.ticket_type
       end
 
