@@ -16,6 +16,9 @@ module Events
             dependent: :destroy, inverse_of: :event_date
     has_many :access_zones, class_name: "Events::AccessZone",
              dependent: :destroy, inverse_of: :event_date
+    has_many :venue_capacity_reservations,
+             class_name: "Catalog::VenueCapacityReservation",
+             inverse_of: :event_date
 
     validates :starts_at, :ends_at, presence: true
     validates :status, presence: true, inclusion: { in: STATUSES }
