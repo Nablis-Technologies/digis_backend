@@ -1,0 +1,6 @@
+en:
+  catalog:
+    product_inventory:
+      errors:
+        total_exceeds_capacity: "held plus sold count exceeds capacity"
+        capacity_cannot_be_reduced: "capacity reduction below held+sold count not allowed"

@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 module Catalog
+  # Tracks available, held, and sold counts per event product. Uses
+  # optimistic locking (lock_version) and DB-level capacity constraints.
+  # Each inventory row is scoped to either a specific event date (per-date
+  # cap) or no date (global product cap).
   class ProductInventory < Catalog::ApplicationRecord
     self.table_name = "catalog_product_inventories"
 

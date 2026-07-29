@@ -1,0 +1,9 @@
+en:
+  catalog:
+    inventory:
+      errors:
+        capacity_exceeded: "insufficient inventory capacity for %{product_name}"
+        venue_capacity_exceeded: "venue capacity exceeded for this event date"
+        reservation_not_found: "inventory reservation not found"
+        no_inventory_for_requested_dates: "no inventory configured for the requested dates"
+        reservation_group_not_found: "reservation group %{group_id} not found"

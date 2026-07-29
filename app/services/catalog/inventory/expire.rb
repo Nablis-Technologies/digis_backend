@@ -2,51 +2,95 @@
 
 module Catalog
   module Inventory
-    # Bulk-expires held reservations past their expires_at. Processes in
-    # batches, decrementing held_count and releasing venue capacity.
+    # Batch expiry for timed-out reservation groups. Processes groups in
+    # batches of BATCH_SIZE, acquiring the advisory lock per group so
+    # concurrent workers never double-expire. Validates all rows are still
+    # active and still past their expires_at before mutating counters.
     class Expire < Core::BaseService
+      BATCH_SIZE = 100
+
       def call
-        expired = Catalog::InventoryReservation.held
-          .where("expires_at < ?", Time.current)
-          .includes(:product_inventory)
-        expired_count = 0
+        now = Time.current
+        candidate_group_ids(now).each_slice(BATCH_SIZE).sum do |group_ids|
+          group_ids.sum { |group_id| expire_group(group_id, now:) }
+        end.then { |count| success(count) }
+      rescue Core::Error => e
+        failure(e)
+      rescue ActiveRecord::RecordInvalid => e
+        failure(Core::Error.new(e.record.errors.full_messages.join(", ")))
+      end
 
-        expired.find_in_batches do |batch|
-          group_ids = batch.map(&:id)
-          inventories = Hash.new(0)
-          venue_dates = Hash.new(0)
+      private
 
-          batch.each do |res|
-            inventories[res.product_inventory_id] += res.quantity
-            inv = res.product_inventory
-            if inv.event_date_id
-              venue_dates[inv.event_date_id] += res.quantity * res.admissions_per_unit
-            end
+      def candidate_group_ids(now)
+        inventory_groups = Catalog::InventoryReservation.active
+          .where("expires_at < ?", now)
+          .distinct
+          .pluck(:reservation_group_id)
+        venue_groups = Catalog::VenueCapacityReservation.active
+          .where("expires_at < ?", now)
+          .distinct
+          .pluck(:reservation_group_id)
+
+        (inventory_groups + venue_groups).uniq.sort
+      end
+
+      def expire_group(group_id, now:)
+        ActiveRecord::Base.transaction do
+          group = ReservationGroupLock.acquire!(group_id)
+          reservations = group.reservations
+          next 0 if reservations.empty? || reservations.all?(&:expired?)
+
+          unless reservations.all?(&:active?)
+            raise Core::Error, "Reservation group cannot expire from mixed or terminal states"
+          end
+          next 0 unless reservations.all? { |reservation| reservation.expires_at.present? && reservation.expires_at < now }
+
+          inventory_quantities = inventory_quantities(group.inventory_reservations)
+          venue_quantities = venue_quantities(group.venue_reservations)
+          validate_held_counters!(group, inventory_quantities, venue_quantities)
+
+          inventories = group.inventories.index_by(&:id)
+          inventory_quantities.each do |inventory_id, quantity|
+            inventory = inventories.fetch(inventory_id)
+            inventory.update!(held_count: inventory.held_count - quantity)
+          end
+          dates = group.event_dates.index_by(&:id)
+          venue_quantities.each do |event_date_id, quantity|
+            event_date = dates.fetch(event_date_id)
+            event_date.update!(held_venue_count: event_date.held_venue_count - quantity)
           end
 
-          ActiveRecord::Base.transaction do
-            inventories.each do |inv_id, qty|
-              Catalog::ProductInventory.where(id: inv_id).update_all(
-                [ "held_count = GREATEST(held_count - ?, 0)", qty ]
-              )
-            end
-
-            venue_dates.each do |date_id, people|
-              Events::EventDate.where(id: date_id).update_all(
-                [ "held_venue_count = GREATEST(held_venue_count - ?, 0)", people ]
-              )
-            end
-
-            Catalog::InventoryReservation.where(id: group_ids).update_all(
-              status: "expired",
-              released_at: Time.current
-            )
+          reservations.each do |reservation|
+            reservation.update!(status: "expired", released_at: now)
           end
 
-          expired_count += batch.size
+          reservations.size
         end
+      end
 
-        success(expired_count)
+      def inventory_quantities(reservations)
+        reservations.each_with_object(Hash.new(0)) do |reservation, totals|
+          totals[reservation.product_inventory_id] += reservation.quantity
+        end
+      end
+
+      def venue_quantities(reservations)
+        reservations.each_with_object(Hash.new(0)) do |reservation, totals|
+          totals[reservation.event_date_id] += reservation.quantity_people
+        end
+      end
+
+      def validate_held_counters!(group, inventory_quantities, venue_quantities)
+        inventories = group.inventories.index_by(&:id)
+        dates = group.event_dates.index_by(&:id)
+
+        inventory_quantities.each do |inventory_id, quantity|
+          raise Core::Error, "Inventory held count drift detected" if inventories.fetch(inventory_id).held_count < quantity
+        end
+        venue_quantities.each do |event_date_id, quantity|
+          raise Core::Error, "Venue held count drift detected" if dates.fetch(event_date_id).held_venue_count < quantity
+        end
       end
     end
   end

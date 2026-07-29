@@ -13,6 +13,7 @@ class CreateCatalogInventoryReservations < ActiveRecord::Migration[8.1]
       t.timestamptz :expires_at
       t.timestamptz :committed_at
       t.timestamptz :released_at
+      t.string :request_fingerprint, limit: 64, null: false
 
       t.timestamps
     end
@@ -32,10 +33,20 @@ class CreateCatalogInventoryReservations < ActiveRecord::Migration[8.1]
     add_check_constraint :catalog_inventory_reservations,
       "NOT (registration_id IS NOT NULL AND order_item_id IS NOT NULL)",
       name: "catalog_inventory_reservations_owner_check"
+    add_check_constraint :catalog_inventory_reservations,
+      "request_fingerprint ~ '^[0-9a-f]{64}$'",
+      name: "catalog_inventory_reservations_fingerprint_check"
+    add_check_constraint :catalog_inventory_reservations,
+      "status IN ('committed','released','expired') OR expires_at IS NOT NULL",
+      name: "catalog_inventory_reservations_expiry_check"
 
     add_index :catalog_inventory_reservations, :product_inventory_id
     add_index :catalog_inventory_reservations, :registration_id
     add_index :catalog_inventory_reservations, :order_item_id
+    add_index :catalog_inventory_reservations, :reservation_group_id
+    add_index :catalog_inventory_reservations, %i[reservation_group_id product_inventory_id],
+              unique: true,
+              name: "idx_inv_reservations_group_product_unique"
     add_index :catalog_inventory_reservations, %i[status expires_at],
               name: "idx_inventory_reservations_on_status_and_expires"
   end

@@ -42,11 +42,47 @@ module Catalog
           end
         end
 
+        Events::EventDate.find_each do |event_date|
+          total_checked += 1
+          expected_held = event_date.venue_capacity_reservations.active.sum(:quantity_people)
+          expected_issued = event_date.venue_capacity_reservations.where(status: "committed").sum(:quantity_people)
+
+          total_discrepancies += append_discrepancy!(
+            discrepancies,
+            event_date:,
+            field: "held_venue_count",
+            expected: expected_held,
+            actual: event_date.held_venue_count
+          )
+          total_discrepancies += append_discrepancy!(
+            discrepancies,
+            event_date:,
+            field: "issued_venue_count",
+            expected: expected_issued,
+            actual: event_date.issued_venue_count
+          )
+        end
+
         success(
           discrepancies: discrepancies,
           total_checked: total_checked,
           total_discrepancies: total_discrepancies
         )
+      end
+
+      private
+
+      def append_discrepancy!(discrepancies, event_date:, field:, expected:, actual:)
+        return 0 if (expected - actual).abs <= @threshold
+
+        discrepancies << {
+          event_date_id: event_date.id,
+          event_id: event_date.event_id,
+          field:,
+          expected:,
+          actual:
+        }
+        1
       end
     end
   end
