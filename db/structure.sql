@@ -148,11 +148,11 @@ SET default_table_access_method = heap;
 
 CREATE TABLE public.active_storage_attachments (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    blob_id uuid NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
     name character varying NOT NULL,
+    record_type character varying NOT NULL,
     record_id uuid NOT NULL,
-    record_type character varying NOT NULL
+    blob_id uuid NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL
 );
 
 
@@ -162,14 +162,14 @@ CREATE TABLE public.active_storage_attachments (
 
 CREATE TABLE public.active_storage_blobs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
+    key character varying NOT NULL,
+    filename character varying NOT NULL,
+    content_type character varying,
+    metadata text,
+    service_name character varying NOT NULL,
     byte_size bigint NOT NULL,
     checksum character varying,
-    content_type character varying,
-    created_at timestamp(6) with time zone NOT NULL,
-    filename character varying NOT NULL,
-    key character varying NOT NULL,
-    metadata text,
-    service_name character varying NOT NULL
+    created_at timestamp(6) with time zone NOT NULL
 );
 
 
@@ -248,6 +248,52 @@ CREATE TABLE public.catalog_exchange_rates (
 
 
 --
+-- Name: catalog_inventory_reservations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.catalog_inventory_reservations (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    product_inventory_id uuid NOT NULL,
+    registration_id uuid,
+    order_item_id uuid,
+    reservation_group_id uuid NOT NULL,
+    quantity integer NOT NULL,
+    admissions_per_unit integer DEFAULT 1 NOT NULL,
+    status character varying DEFAULT 'held'::character varying NOT NULL,
+    expires_at timestamp with time zone,
+    committed_at timestamp with time zone,
+    released_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT catalog_inventory_reservations_admissions_check CHECK ((admissions_per_unit >= 1)),
+    CONSTRAINT catalog_inventory_reservations_owner_check CHECK ((NOT ((registration_id IS NOT NULL) AND (order_item_id IS NOT NULL)))),
+    CONSTRAINT catalog_inventory_reservations_quantity_check CHECK ((quantity > 0)),
+    CONSTRAINT catalog_inventory_reservations_status_check CHECK (((status)::text = ANY ((ARRAY['held'::character varying, 'processing'::character varying, 'committed'::character varying, 'released'::character varying, 'expired'::character varying])::text[])))
+);
+
+
+--
+-- Name: catalog_product_inventories; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.catalog_product_inventories (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    event_product_id uuid NOT NULL,
+    event_date_id uuid,
+    capacity integer NOT NULL,
+    held_count integer DEFAULT 0 NOT NULL,
+    sold_count integer DEFAULT 0 NOT NULL,
+    lock_version integer DEFAULT 0 NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT catalog_product_inventories_capacity_check CHECK ((capacity >= 0)),
+    CONSTRAINT catalog_product_inventories_held_count_check CHECK ((held_count >= 0)),
+    CONSTRAINT catalog_product_inventories_sold_count_check CHECK ((sold_count >= 0)),
+    CONSTRAINT catalog_product_inventories_total_check CHECK (((held_count + sold_count) <= capacity))
+);
+
+
+--
 -- Name: catalog_product_prices; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -275,19 +321,19 @@ CREATE TABLE public.catalog_product_prices (
 
 CREATE TABLE public.core_audit_logs (
     id uuid DEFAULT uuidv7() NOT NULL,
-    action character varying NOT NULL,
-    actor_id uuid,
-    actor_type character varying,
-    audit_key character varying NOT NULL,
-    auditable_id uuid NOT NULL,
     auditable_type character varying NOT NULL,
+    auditable_id uuid NOT NULL,
+    action character varying NOT NULL,
     audited_changes jsonb DEFAULT '{}'::jsonb NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    ip_address character varying,
     metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    actor_type character varying,
+    actor_id uuid,
     request_uuid character varying,
-    updated_at timestamp(6) with time zone NOT NULL,
-    user_agent character varying
+    ip_address character varying,
+    user_agent character varying,
+    audit_key character varying NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL
 );
 
 
@@ -297,11 +343,11 @@ CREATE TABLE public.core_audit_logs (
 
 CREATE TABLE public.core_follows (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
+    follower_id uuid NOT NULL,
     followable_id uuid NOT NULL,
     followable_type character varying NOT NULL,
     followed_at timestamp(6) with time zone NOT NULL,
-    follower_id uuid NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL
 );
 
@@ -312,19 +358,19 @@ CREATE TABLE public.core_follows (
 
 CREATE TABLE public.core_outbox_events (
     id uuid DEFAULT uuidv7() NOT NULL,
-    aggregate_id uuid NOT NULL,
-    aggregate_type character varying NOT NULL,
-    attempts integer DEFAULT 0 NOT NULL,
-    available_at timestamp(6) with time zone NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
+    topic character varying NOT NULL,
     event_type character varying NOT NULL,
+    aggregate_type character varying NOT NULL,
+    aggregate_id uuid NOT NULL,
+    payload jsonb DEFAULT '{}'::jsonb NOT NULL,
     idempotency_key character varying NOT NULL,
+    occurred_at timestamp(6) with time zone NOT NULL,
+    available_at timestamp(6) with time zone NOT NULL,
+    published_at timestamp(6) with time zone,
+    attempts integer DEFAULT 0 NOT NULL,
     last_error_code character varying,
     locked_at timestamp(6) with time zone,
-    occurred_at timestamp(6) with time zone NOT NULL,
-    payload jsonb DEFAULT '{}'::jsonb NOT NULL,
-    published_at timestamp(6) with time zone,
-    topic character varying NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT core_outbox_events_aggregate_type_nonblank CHECK (((aggregate_type)::text <> ''::text)),
     CONSTRAINT core_outbox_events_available_after_occurred CHECK ((available_at >= occurred_at)),
@@ -340,13 +386,13 @@ CREATE TABLE public.core_outbox_events (
 
 CREATE TABLE public.core_permissions (
     id uuid DEFAULT uuidv7() NOT NULL,
-    action character varying(50) NOT NULL,
-    active boolean DEFAULT true NOT NULL,
     code character varying(100) NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    description character varying,
-    namespace character varying(50) DEFAULT 'core'::character varying NOT NULL,
     resource character varying(50) NOT NULL,
+    action character varying(50) NOT NULL,
+    namespace character varying(50) DEFAULT 'core'::character varying NOT NULL,
+    description character varying,
+    active boolean DEFAULT true NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL
 );
 
@@ -357,17 +403,17 @@ CREATE TABLE public.core_permissions (
 
 CREATE TABLE public.core_refresh_tokens (
     id uuid DEFAULT uuidv7() NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    device_id character varying,
-    expires_at timestamp(6) with time zone NOT NULL,
-    ip_address character varying,
+    user_id uuid NOT NULL,
+    token_fingerprint character varying NOT NULL,
     jti character varying NOT NULL,
+    expires_at timestamp(6) with time zone NOT NULL,
     revoked boolean DEFAULT false NOT NULL,
     revoked_at timestamp(6) with time zone,
-    token_fingerprint character varying NOT NULL,
-    updated_at timestamp(6) with time zone NOT NULL,
+    device_id character varying,
+    ip_address character varying,
     user_agent character varying,
-    user_id uuid NOT NULL
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL
 );
 
 
@@ -377,15 +423,15 @@ CREATE TABLE public.core_refresh_tokens (
 
 CREATE TABLE public.core_reviews (
     id uuid DEFAULT uuidv7() NOT NULL,
-    context character varying DEFAULT 'default'::character varying NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    feedback jsonb DEFAULT '{}'::jsonb NOT NULL,
-    reviewable_id uuid NOT NULL,
     reviewable_type character varying NOT NULL,
-    reviewed_at timestamp(6) with time zone,
-    reviewed_by_id uuid,
-    reviewed_by_type character varying,
+    reviewable_id uuid NOT NULL,
+    context character varying DEFAULT 'default'::character varying NOT NULL,
     status character varying DEFAULT 'draft'::character varying NOT NULL,
+    feedback jsonb DEFAULT '{}'::jsonb NOT NULL,
+    reviewed_by_type character varying,
+    reviewed_by_id uuid,
+    reviewed_at timestamp(6) with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL
 );
 
@@ -396,9 +442,9 @@ CREATE TABLE public.core_reviews (
 
 CREATE TABLE public.core_role_permissions (
     id uuid DEFAULT uuidv7() NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    permission_id uuid NOT NULL,
     role_id uuid NOT NULL,
+    permission_id uuid NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL
 );
 
@@ -409,11 +455,11 @@ CREATE TABLE public.core_role_permissions (
 
 CREATE TABLE public.core_roles (
     id uuid DEFAULT uuidv7() NOT NULL,
-    active boolean DEFAULT true NOT NULL,
     code character varying(50) NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    description character varying,
     name character varying(100) NOT NULL,
+    description character varying,
+    active boolean DEFAULT true NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL
 );
 
@@ -424,12 +470,12 @@ CREATE TABLE public.core_roles (
 
 CREATE TABLE public.core_user_roles (
     id uuid DEFAULT uuidv7() NOT NULL,
-    assigned_by_id uuid,
-    created_at timestamp(6) with time zone NOT NULL,
-    expires_at timestamp(6) with time zone,
+    user_id uuid NOT NULL,
     role_id uuid NOT NULL,
-    updated_at timestamp(6) with time zone NOT NULL,
-    user_id uuid NOT NULL
+    assigned_by_id uuid,
+    expires_at timestamp(6) with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL
 );
 
 
@@ -439,14 +485,14 @@ CREATE TABLE public.core_user_roles (
 
 CREATE TABLE public.core_users (
     id uuid DEFAULT uuidv7() NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
+    email character varying(150),
+    phone character varying(30),
+    verified_at timestamp(6) with time zone,
+    password_digest character varying,
     deactivated_at timestamp(6) with time zone,
     deactivated_reason character varying,
-    email character varying(150),
-    password_digest character varying,
-    phone character varying(30),
-    updated_at timestamp(6) with time zone NOT NULL,
-    verified_at timestamp(6) with time zone
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL
 );
 
 
@@ -456,16 +502,16 @@ CREATE TABLE public.core_users (
 
 CREATE TABLE public.events_access_zones (
     id uuid DEFAULT uuidv7() NOT NULL,
-    active boolean DEFAULT true NOT NULL,
-    code character varying NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    event_date_id uuid,
     event_id uuid NOT NULL,
-    name character varying NOT NULL,
-    sort_order integer DEFAULT 0 NOT NULL,
+    event_date_id uuid,
     type character varying NOT NULL,
+    name character varying NOT NULL,
+    code character varying NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    sort_order integer DEFAULT 0 NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_access_zones_type CHECK (((type)::text = ANY (ARRAY[('venue'::character varying)::text, ('parking'::character varying)::text])))
+    CONSTRAINT chk_access_zones_type CHECK (((type)::text = ANY ((ARRAY['venue'::character varying, 'parking'::character varying])::text[])))
 );
 
 
@@ -475,18 +521,18 @@ CREATE TABLE public.events_access_zones (
 
 CREATE TABLE public.events_artists (
     id uuid DEFAULT uuidv7() NOT NULL,
-    active boolean DEFAULT true,
-    created_at timestamp(6) with time zone NOT NULL,
-    description text,
-    followers_count integer DEFAULT 0 NOT NULL,
-    genres jsonb DEFAULT '[]'::jsonb,
-    image_url character varying,
-    metadata jsonb DEFAULT '{}'::jsonb,
     name character varying NOT NULL,
     slug character varying NOT NULL,
+    description text,
+    image_url character varying,
+    genres jsonb DEFAULT '[]'::jsonb,
     social_links jsonb DEFAULT '{}'::jsonb,
-    updated_at timestamp(6) with time zone NOT NULL,
-    verified boolean DEFAULT false
+    verified boolean DEFAULT false,
+    active boolean DEFAULT true,
+    followers_count integer DEFAULT 0 NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL
 );
 
 
@@ -496,12 +542,12 @@ CREATE TABLE public.events_artists (
 
 CREATE TABLE public.events_categories (
     id uuid DEFAULT uuidv7() NOT NULL,
-    active boolean DEFAULT true NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
+    name character varying NOT NULL,
     description character varying,
     metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
-    name character varying NOT NULL,
     slug character varying NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL
 );
 
@@ -525,20 +571,20 @@ CREATE TABLE public.events_consent_document_products (
 
 CREATE TABLE public.events_consent_document_versions (
     id uuid DEFAULT uuidv7() NOT NULL,
-    acceptance_scope character varying DEFAULT 'buyer'::character varying,
-    body text NOT NULL,
     consent_document_id uuid NOT NULL,
-    content_sha256 character varying(64) NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    created_by_id uuid NOT NULL,
-    published_at timestamp without time zone,
-    published_by_id uuid,
-    required boolean DEFAULT true NOT NULL,
-    status character varying DEFAULT 'draft'::character varying NOT NULL,
-    title character varying NOT NULL,
-    updated_at timestamp(6) with time zone NOT NULL,
     version integer NOT NULL,
-    CONSTRAINT chk_consent_version_status CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('published'::character varying)::text, ('retired'::character varying)::text])))
+    title character varying NOT NULL,
+    body text NOT NULL,
+    content_sha256 character varying(64) NOT NULL,
+    required boolean DEFAULT true NOT NULL,
+    acceptance_scope character varying DEFAULT 'buyer'::character varying,
+    status character varying DEFAULT 'draft'::character varying NOT NULL,
+    published_by_id uuid,
+    published_at timestamp without time zone,
+    created_by_id uuid NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT chk_consent_version_status CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'published'::character varying, 'retired'::character varying])::text[])))
 );
 
 
@@ -548,14 +594,14 @@ CREATE TABLE public.events_consent_document_versions (
 
 CREATE TABLE public.events_consent_documents (
     id uuid DEFAULT uuidv7() NOT NULL,
-    active boolean DEFAULT true NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    created_by_id uuid NOT NULL,
     event_id uuid NOT NULL,
-    name character varying NOT NULL,
     type character varying NOT NULL,
+    name character varying NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    created_by_id uuid NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_consent_doc_type CHECK (((type)::text = ANY (ARRAY[('terms'::character varying)::text, ('liability_waiver'::character varying)::text, ('media_consent'::character varying)::text, ('age_declaration'::character varying)::text, ('other'::character varying)::text])))
+    CONSTRAINT chk_consent_doc_type CHECK (((type)::text = ANY ((ARRAY['terms'::character varying, 'liability_waiver'::character varying, 'media_consent'::character varying, 'age_declaration'::character varying, 'other'::character varying])::text[])))
 );
 
 
@@ -565,17 +611,17 @@ CREATE TABLE public.events_consent_documents (
 
 CREATE TABLE public.events_event_cancellations (
     id uuid DEFAULT uuidv7() NOT NULL,
-    attendee_reason text,
-    cancelled_at timestamp with time zone,
-    created_at timestamp(6) with time zone NOT NULL,
     event_id uuid NOT NULL,
-    idempotency_key character varying NOT NULL,
     initiated_by_id uuid NOT NULL,
     reason text,
+    attendee_reason text,
     status character varying DEFAULT 'initiated'::character varying NOT NULL,
+    idempotency_key character varying NOT NULL,
+    cancelled_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT chk_events_event_cancellations_cancelled_at CHECK ((cancelled_at IS NOT NULL)),
-    CONSTRAINT chk_events_event_cancellations_status CHECK (((status)::text = ANY (ARRAY[('initiated'::character varying)::text, ('completed'::character varying)::text])))
+    CONSTRAINT chk_events_event_cancellations_status CHECK (((status)::text = ANY ((ARRAY['initiated'::character varying, 'completed'::character varying])::text[])))
 );
 
 
@@ -585,9 +631,9 @@ CREATE TABLE public.events_event_cancellations (
 
 CREATE TABLE public.events_event_categories (
     id uuid DEFAULT uuidv7() NOT NULL,
+    event_id uuid NOT NULL,
     category_id uuid NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
-    event_id uuid NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT chk_event_categories_present CHECK (((event_id IS NOT NULL) AND (category_id IS NOT NULL)))
 );
@@ -599,15 +645,15 @@ CREATE TABLE public.events_event_categories (
 
 CREATE TABLE public.events_event_date_changes (
     id uuid DEFAULT uuidv7() NOT NULL,
-    change_type character varying DEFAULT 'reschedule'::character varying NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    event_date_id uuid NOT NULL,
     event_id uuid NOT NULL,
-    new_end_at timestamp with time zone NOT NULL,
-    new_start_at timestamp with time zone NOT NULL,
-    old_end_at timestamp with time zone NOT NULL,
+    event_date_id uuid NOT NULL,
+    change_type character varying DEFAULT 'reschedule'::character varying NOT NULL,
     old_start_at timestamp with time zone NOT NULL,
+    old_end_at timestamp with time zone NOT NULL,
+    new_start_at timestamp with time zone NOT NULL,
+    new_end_at timestamp with time zone NOT NULL,
     scheduled_by_id uuid NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL
 );
 
@@ -618,19 +664,19 @@ CREATE TABLE public.events_event_date_changes (
 
 CREATE TABLE public.events_event_dates (
     id uuid DEFAULT uuidv7() NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    doors_at timestamp with time zone,
-    ends_at timestamp with time zone NOT NULL,
     event_id uuid NOT NULL,
+    venue_id uuid,
+    name character varying,
+    doors_at timestamp with time zone,
+    starts_at timestamp with time zone NOT NULL,
+    ends_at timestamp with time zone NOT NULL,
+    status character varying DEFAULT 'scheduled'::character varying NOT NULL,
+    venue_capacity integer,
     held_venue_count integer DEFAULT 0 NOT NULL,
     issued_venue_count integer DEFAULT 0 NOT NULL,
-    name character varying,
     source_key character varying,
-    starts_at timestamp with time zone NOT NULL,
-    status character varying DEFAULT 'scheduled'::character varying NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    venue_capacity integer,
-    venue_id uuid,
     CONSTRAINT chk_event_dates_counts_nonnegative CHECK (((held_venue_count >= 0) AND (issued_venue_count >= 0))),
     CONSTRAINT chk_event_dates_doors_before_starts CHECK (((doors_at IS NULL) OR (doors_at <= starts_at))),
     CONSTRAINT chk_event_dates_ends_after_starts CHECK ((ends_at > starts_at))
@@ -643,17 +689,17 @@ CREATE TABLE public.events_event_dates (
 
 CREATE TABLE public.events_event_media (
     id uuid DEFAULT uuidv7() NOT NULL,
+    event_id uuid NOT NULL,
+    created_by_id uuid NOT NULL,
+    type character varying NOT NULL,
+    "position" integer DEFAULT 0 NOT NULL,
     alt_text character varying,
     caption text,
     created_at timestamp(6) with time zone NOT NULL,
-    created_by_id uuid NOT NULL,
-    event_id uuid NOT NULL,
-    "position" integer DEFAULT 0 NOT NULL,
-    type character varying NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT chk_event_media_cover_position CHECK ((((type)::text <> 'cover'::text) OR ("position" = 0))),
     CONSTRAINT chk_event_media_position CHECK (("position" >= 0)),
-    CONSTRAINT chk_event_media_type CHECK (((type)::text = ANY (ARRAY[('cover'::character varying)::text, ('gallery'::character varying)::text])))
+    CONSTRAINT chk_event_media_type CHECK (((type)::text = ANY ((ARRAY['cover'::character varying, 'gallery'::character varying])::text[])))
 );
 
 
@@ -663,18 +709,18 @@ CREATE TABLE public.events_event_media (
 
 CREATE TABLE public.events_event_organizations (
     id uuid DEFAULT uuidv7() NOT NULL,
-    accepted_at timestamp with time zone,
-    created_at timestamp(6) with time zone NOT NULL,
+    type character varying NOT NULL,
     event_id uuid NOT NULL,
-    invited_at timestamp with time zone,
     organization_id uuid NOT NULL,
     role character varying DEFAULT 'collaborator'::character varying NOT NULL,
     status character varying DEFAULT 'active'::character varying NOT NULL,
-    type character varying NOT NULL,
+    invited_at timestamp with time zone,
+    accepted_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT chk_event_organizations_no_primary_owner CHECK (((role)::text <> 'primary_owner'::text)),
-    CONSTRAINT chk_event_organizations_status CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('active'::character varying)::text, ('revoked'::character varying)::text]))),
-    CONSTRAINT chk_event_organizations_type CHECK (((type)::text = ANY (ARRAY[('co_organizer'::character varying)::text, ('venue_partner'::character varying)::text, ('promoter'::character varying)::text, ('sponsor'::character varying)::text])))
+    CONSTRAINT chk_event_organizations_status CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'active'::character varying, 'revoked'::character varying])::text[]))),
+    CONSTRAINT chk_event_organizations_type CHECK (((type)::text = ANY ((ARRAY['co_organizer'::character varying, 'venue_partner'::character varying, 'promoter'::character varying, 'sponsor'::character varying])::text[])))
 );
 
 
@@ -684,17 +730,17 @@ CREATE TABLE public.events_event_organizations (
 
 CREATE TABLE public.events_event_participants (
     id uuid DEFAULT uuidv7() NOT NULL,
-    artist_id uuid,
-    created_at timestamp(6) with time zone NOT NULL,
-    description text,
-    display_order integer DEFAULT 0 NOT NULL,
-    event_date_id uuid,
     event_id uuid NOT NULL,
-    metadata jsonb DEFAULT '{}'::jsonb,
+    event_date_id uuid,
+    artist_id uuid,
     name character varying NOT NULL,
     type character varying NOT NULL,
+    description text,
+    display_order integer DEFAULT 0 NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb,
+    created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_event_participants_type CHECK (((type)::text = ANY (ARRAY[('performer'::character varying)::text, ('speaker'::character varying)::text, ('host'::character varying)::text, ('instructor'::character varying)::text, ('panelist'::character varying)::text, ('team'::character varying)::text, ('guest'::character varying)::text])))
+    CONSTRAINT chk_event_participants_type CHECK (((type)::text = ANY ((ARRAY['performer'::character varying, 'speaker'::character varying, 'host'::character varying, 'instructor'::character varying, 'panelist'::character varying, 'team'::character varying, 'guest'::character varying])::text[])))
 );
 
 
@@ -704,9 +750,9 @@ CREATE TABLE public.events_event_participants (
 
 CREATE TABLE public.events_event_settings (
     id uuid DEFAULT uuidv7() NOT NULL,
+    event_id uuid NOT NULL,
     config jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
-    event_id uuid NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL
 );
 
@@ -717,16 +763,16 @@ CREATE TABLE public.events_event_settings (
 
 CREATE TABLE public.events_event_staff_assignments (
     id uuid DEFAULT uuidv7() NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    event_id uuid NOT NULL,
-    expires_at timestamp with time zone,
-    organization_id uuid NOT NULL,
     role character varying NOT NULL,
-    status character varying DEFAULT 'active'::character varying NOT NULL,
-    updated_at timestamp(6) with time zone NOT NULL,
+    event_id uuid NOT NULL,
     user_id uuid NOT NULL,
-    CONSTRAINT chk_event_staff_assignments_role CHECK (((role)::text = ANY (ARRAY[('manager'::character varying)::text, ('staff'::character varying)::text, ('scanner'::character varying)::text, ('contractor'::character varying)::text]))),
-    CONSTRAINT chk_event_staff_assignments_status CHECK (((status)::text = ANY (ARRAY[('active'::character varying)::text, ('suspended'::character varying)::text, ('revoked'::character varying)::text, ('expired'::character varying)::text])))
+    organization_id uuid NOT NULL,
+    status character varying DEFAULT 'active'::character varying NOT NULL,
+    expires_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT chk_event_staff_assignments_role CHECK (((role)::text = ANY ((ARRAY['manager'::character varying, 'staff'::character varying, 'scanner'::character varying, 'contractor'::character varying])::text[]))),
+    CONSTRAINT chk_event_staff_assignments_status CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'suspended'::character varying, 'revoked'::character varying, 'expired'::character varying])::text[])))
 );
 
 
@@ -736,23 +782,23 @@ CREATE TABLE public.events_event_staff_assignments (
 
 CREATE TABLE public.events_event_streams (
     id uuid DEFAULT uuidv7() NOT NULL,
-    access_protection character varying NOT NULL,
-    config jsonb DEFAULT '{}'::jsonb,
-    created_at timestamp(6) with time zone NOT NULL,
     event_date_id uuid NOT NULL,
+    provider character varying NOT NULL,
+    provider_stream_id character varying,
+    provider_playback_id character varying,
+    access_protection character varying NOT NULL,
+    status character varying DEFAULT 'scheduled'::character varying NOT NULL,
     live_from timestamp with time zone NOT NULL,
     live_until timestamp with time zone NOT NULL,
-    max_concurrent_devices integer DEFAULT 1 NOT NULL,
-    provider character varying NOT NULL,
-    provider_playback_id character varying,
-    provider_stream_id character varying,
-    replay_available_until timestamp with time zone,
     replay_enabled boolean DEFAULT false NOT NULL,
-    status character varying DEFAULT 'scheduled'::character varying NOT NULL,
+    replay_available_until timestamp with time zone,
+    max_concurrent_devices integer DEFAULT 1 NOT NULL,
+    config jsonb DEFAULT '{}'::jsonb,
+    created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_event_streams_access_protection CHECK (((access_protection)::text = ANY (ARRAY[('public'::character varying)::text, ('soft_gated'::character varying)::text, ('signed'::character varying)::text]))),
+    CONSTRAINT chk_event_streams_access_protection CHECK (((access_protection)::text = ANY ((ARRAY['public'::character varying, 'soft_gated'::character varying, 'signed'::character varying])::text[]))),
     CONSTRAINT chk_event_streams_replay_until CHECK (((replay_available_until IS NOT NULL) OR (replay_enabled = false))),
-    CONSTRAINT chk_event_streams_status CHECK (((status)::text = ANY (ARRAY[('scheduled'::character varying)::text, ('live'::character varying)::text, ('ended'::character varying)::text, ('disabled'::character varying)::text])))
+    CONSTRAINT chk_event_streams_status CHECK (((status)::text = ANY ((ARRAY['scheduled'::character varying, 'live'::character varying, 'ended'::character varying, 'disabled'::character varying])::text[])))
 );
 
 
@@ -762,15 +808,15 @@ CREATE TABLE public.events_event_streams (
 
 CREATE TABLE public.events_event_video_links (
     id uuid DEFAULT uuidv7() NOT NULL,
-    caption text,
-    created_at timestamp(6) with time zone NOT NULL,
-    created_by_id uuid NOT NULL,
     event_id uuid NOT NULL,
-    "position" integer DEFAULT 0 NOT NULL,
+    created_by_id uuid NOT NULL,
     provider character varying DEFAULT 'youtube'::character varying NOT NULL,
-    title character varying,
-    updated_at timestamp(6) with time zone NOT NULL,
     url character varying NOT NULL,
+    title character varying,
+    caption text,
+    "position" integer DEFAULT 0 NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT chk_event_video_links_provider CHECK (((provider)::text = 'youtube'::text))
 );
 
@@ -781,27 +827,27 @@ CREATE TABLE public.events_event_video_links (
 
 CREATE TABLE public.events_events (
     id uuid DEFAULT uuidv7() NOT NULL,
-    cancelled_at timestamp with time zone,
-    created_at timestamp(6) with time zone NOT NULL,
-    created_by_id uuid NOT NULL,
-    currency character varying DEFAULT 'ETB'::character varying NOT NULL,
-    description text,
     organization_id uuid NOT NULL,
-    published_at timestamp with time zone,
+    created_by_id uuid NOT NULL,
     slug character varying NOT NULL,
-    status character varying DEFAULT 'draft'::character varying NOT NULL,
-    timezone character varying NOT NULL,
     title character varying NOT NULL,
-    updated_at timestamp(6) with time zone NOT NULL,
-    version integer DEFAULT 1 NOT NULL,
+    description text,
+    status character varying DEFAULT 'draft'::character varying NOT NULL,
     visibility character varying DEFAULT 'private'::character varying NOT NULL,
+    timezone character varying NOT NULL,
+    currency character varying DEFAULT 'ETB'::character varying NOT NULL,
+    version integer DEFAULT 1 NOT NULL,
+    published_at timestamp with time zone,
+    cancelled_at timestamp with time zone,
     discovery_refreshed_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT chk_events_events_cancelled_at_requires_cancelled CHECK (((cancelled_at IS NULL) OR ((status)::text = 'cancelled'::text))),
     CONSTRAINT chk_events_events_currency_iso4217 CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
     CONSTRAINT chk_events_events_published_at_requires_published CHECK (((published_at IS NULL) OR ((status)::text = ANY (ARRAY['published'::text, 'cancelled'::text])))),
-    CONSTRAINT chk_events_events_status CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('published'::character varying)::text, ('cancelled'::character varying)::text, ('completed'::character varying)::text]))),
+    CONSTRAINT chk_events_events_status CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'published'::character varying, 'cancelled'::character varying, 'completed'::character varying])::text[]))),
     CONSTRAINT chk_events_events_version_non_negative CHECK ((version >= 0)),
-    CONSTRAINT chk_events_events_visibility CHECK (((visibility)::text = ANY (ARRAY[('private'::character varying)::text, ('public'::character varying)::text, ('unlisted'::character varying)::text])))
+    CONSTRAINT chk_events_events_visibility CHECK (((visibility)::text = ANY ((ARRAY['private'::character varying, 'public'::character varying, 'unlisted'::character varying])::text[])))
 );
 
 
@@ -811,16 +857,16 @@ CREATE TABLE public.events_events (
 
 CREATE TABLE public.events_recurrence_rules (
     id uuid DEFAULT uuidv7() NOT NULL,
-    active boolean DEFAULT true NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    dtstart_local timestamp without time zone NOT NULL,
-    duration_seconds integer NOT NULL,
     event_id uuid NOT NULL,
-    exdates jsonb DEFAULT '[]'::jsonb NOT NULL,
-    generated_until timestamp with time zone,
-    rdates jsonb DEFAULT '[]'::jsonb NOT NULL,
     rrule text NOT NULL,
     timezone character varying NOT NULL,
+    dtstart_local timestamp without time zone NOT NULL,
+    duration_seconds integer NOT NULL,
+    generated_until timestamp with time zone,
+    active boolean DEFAULT true NOT NULL,
+    exdates jsonb DEFAULT '[]'::jsonb NOT NULL,
+    rdates jsonb DEFAULT '[]'::jsonb NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT chk_recurrence_duration_positive CHECK ((duration_seconds > 0))
 );
@@ -832,26 +878,26 @@ CREATE TABLE public.events_recurrence_rules (
 
 CREATE TABLE public.events_venues (
     id uuid DEFAULT uuidv7() NOT NULL,
-    active boolean DEFAULT true,
-    address character varying,
-    amenities jsonb DEFAULT '[]'::jsonb,
-    capacity integer,
-    city character varying,
-    contact_email character varying,
-    contact_phone character varying,
-    country character varying,
-    created_at timestamp(6) with time zone NOT NULL,
-    description text,
-    followers_count integer DEFAULT 0 NOT NULL,
-    latitude numeric(10,6),
-    longitude numeric(10,6),
-    metadata jsonb DEFAULT '{}'::jsonb,
     name character varying NOT NULL,
     slug character varying NOT NULL,
+    description text,
+    address character varying,
+    city character varying,
+    country character varying,
+    latitude numeric(10,6),
+    longitude numeric(10,6),
+    capacity integer,
+    amenities jsonb DEFAULT '[]'::jsonb,
     social_links jsonb DEFAULT '{}'::jsonb,
-    updated_at timestamp(6) with time zone NOT NULL,
+    contact_phone character varying,
+    contact_email character varying,
+    website_url character varying,
     verified boolean DEFAULT false,
-    website_url character varying
+    active boolean DEFAULT true,
+    followers_count integer DEFAULT 0 NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL
 );
 
 
@@ -861,20 +907,20 @@ CREATE TABLE public.events_venues (
 
 CREATE TABLE public.legal_acceptances (
     id uuid DEFAULT uuidv7() NOT NULL,
-    acceptance_method character varying DEFAULT 'checkbox'::character varying NOT NULL,
-    accepted_at timestamp(6) with time zone NOT NULL,
-    accepted_by_role character varying,
-    accepted_by_user_id uuid NOT NULL,
-    content_sha256 character varying(64) NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    evidence_digest character varying(64) NOT NULL,
-    legal_document_version_id uuid NOT NULL,
-    request_uuid uuid NOT NULL,
-    subject_id uuid NOT NULL,
     subject_type character varying NOT NULL,
+    subject_id uuid NOT NULL,
+    legal_document_version_id uuid NOT NULL,
+    accepted_by_user_id uuid NOT NULL,
+    acceptance_method character varying DEFAULT 'checkbox'::character varying NOT NULL,
+    accepted_by_role character varying,
+    content_sha256 character varying(64) NOT NULL,
+    evidence_digest character varying(64) NOT NULL,
+    request_uuid uuid NOT NULL,
+    accepted_at timestamp(6) with time zone NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_legal_acceptance_method CHECK (((acceptance_method)::text = ANY (ARRAY[('checkbox'::character varying)::text, ('otp'::character varying)::text]))),
-    CONSTRAINT chk_legal_acceptance_subject_type CHECK (((subject_type)::text = ANY (ARRAY[('user'::character varying)::text, ('organization'::character varying)::text, ('order'::character varying)::text])))
+    CONSTRAINT chk_legal_acceptance_method CHECK (((acceptance_method)::text = ANY ((ARRAY['checkbox'::character varying, 'otp'::character varying])::text[]))),
+    CONSTRAINT chk_legal_acceptance_subject_type CHECK (((subject_type)::text = ANY ((ARRAY['user'::character varying, 'organization'::character varying, 'order'::character varying])::text[])))
 );
 
 
@@ -884,19 +930,19 @@ CREATE TABLE public.legal_acceptances (
 
 CREATE TABLE public.legal_document_versions (
     id uuid DEFAULT uuidv7() NOT NULL,
-    body text NOT NULL,
-    commercial_policy_reference character varying,
-    content_sha256 character varying(64) NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    created_by_id uuid NOT NULL,
     legal_document_id uuid NOT NULL,
-    published_at timestamp without time zone,
-    published_by_id uuid,
-    status character varying DEFAULT 'draft'::character varying NOT NULL,
-    title character varying NOT NULL,
-    updated_at timestamp(6) with time zone NOT NULL,
     version integer NOT NULL,
-    CONSTRAINT chk_legal_version_status CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('published'::character varying)::text, ('retired'::character varying)::text])))
+    title character varying NOT NULL,
+    body text NOT NULL,
+    content_sha256 character varying(64) NOT NULL,
+    status character varying DEFAULT 'draft'::character varying NOT NULL,
+    commercial_policy_reference character varying,
+    published_by_id uuid,
+    published_at timestamp without time zone,
+    created_by_id uuid NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT chk_legal_version_status CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'published'::character varying, 'retired'::character varying])::text[])))
 );
 
 
@@ -906,15 +952,15 @@ CREATE TABLE public.legal_document_versions (
 
 CREATE TABLE public.legal_documents (
     id uuid DEFAULT uuidv7() NOT NULL,
-    active boolean DEFAULT true NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    created_by_id uuid NOT NULL,
     document_type character varying NOT NULL,
     internal_name character varying NOT NULL,
     jurisdiction_code character varying DEFAULT 'GLOBAL'::character varying NOT NULL,
     locale character varying DEFAULT 'en'::character varying NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    created_by_id uuid NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_legal_doc_type CHECK (((document_type)::text = ANY (ARRAY[('platform_terms'::character varying)::text, ('privacy_policy'::character varying)::text, ('organizer_agreement'::character varying)::text, ('organizer_fee_schedule'::character varying)::text, ('buyer_purchase_terms'::character varying)::text])))
+    CONSTRAINT chk_legal_doc_type CHECK (((document_type)::text = ANY ((ARRAY['platform_terms'::character varying, 'privacy_policy'::character varying, 'organizer_agreement'::character varying, 'organizer_fee_schedule'::character varying, 'buyer_purchase_terms'::character varying])::text[])))
 );
 
 
@@ -924,12 +970,12 @@ CREATE TABLE public.legal_documents (
 
 CREATE TABLE public.organizations_memberships (
     id uuid DEFAULT uuidv7() NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
+    user_id uuid NOT NULL,
     organization_id uuid NOT NULL,
     role character varying DEFAULT 'staff'::character varying NOT NULL,
     status character varying DEFAULT 'active'::character varying NOT NULL,
-    updated_at timestamp(6) with time zone NOT NULL,
-    user_id uuid NOT NULL
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL
 );
 
 
@@ -939,27 +985,27 @@ CREATE TABLE public.organizations_memberships (
 
 CREATE TABLE public.organizations_organizations (
     id uuid DEFAULT uuidv7() NOT NULL,
+    name character varying NOT NULL,
+    slug character varying NOT NULL,
+    description text,
+    social_links jsonb DEFAULT '{}'::jsonb,
+    followers_count integer DEFAULT 0 NOT NULL,
+    organizer_type character varying NOT NULL,
+    category character varying NOT NULL,
+    contact_phone character varying,
+    contact_email character varying,
+    website_url character varying,
+    tin_number character varying,
     address_line1 character varying,
     address_line2 character varying,
-    archived boolean DEFAULT false NOT NULL,
-    category character varying NOT NULL,
     city character varying,
-    contact_email character varying,
-    contact_phone character varying,
-    created_at timestamp(6) with time zone NOT NULL,
-    description text,
+    region character varying,
     estimated_audience character varying,
     event_frequency character varying,
     events_count integer DEFAULT 0 NOT NULL,
-    followers_count integer DEFAULT 0 NOT NULL,
-    name character varying NOT NULL,
-    organizer_type character varying NOT NULL,
-    region character varying,
-    slug character varying NOT NULL,
-    social_links jsonb DEFAULT '{}'::jsonb,
-    tin_number character varying,
-    updated_at timestamp(6) with time zone NOT NULL,
-    website_url character varying
+    archived boolean DEFAULT false NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL
 );
 
 
@@ -1108,6 +1154,22 @@ ALTER TABLE ONLY public.catalog_event_products
 
 ALTER TABLE ONLY public.catalog_exchange_rates
     ADD CONSTRAINT catalog_exchange_rates_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: catalog_inventory_reservations catalog_inventory_reservations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_inventory_reservations
+    ADD CONSTRAINT catalog_inventory_reservations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: catalog_product_inventories catalog_product_inventories_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_product_inventories
+    ADD CONSTRAINT catalog_product_inventories_pkey PRIMARY KEY (id);
 
 
 --
@@ -1460,6 +1522,27 @@ CREATE UNIQUE INDEX idx_events_events_lower_slug ON public.events_events USING b
 
 
 --
+-- Name: idx_inventories_on_product_and_date; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_inventories_on_product_and_date ON public.catalog_product_inventories USING btree (event_product_id, event_date_id) WHERE (event_date_id IS NOT NULL);
+
+
+--
+-- Name: idx_inventories_on_product_where_date_null; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_inventories_on_product_where_date_null ON public.catalog_product_inventories USING btree (event_product_id) WHERE (event_date_id IS NULL);
+
+
+--
+-- Name: idx_inventory_reservations_on_status_and_expires; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_inventory_reservations_on_status_and_expires ON public.catalog_inventory_reservations USING btree (status, expires_at);
+
+
+--
 -- Name: idx_legal_acceptances_by_actor; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1597,6 +1680,41 @@ CREATE INDEX index_catalog_exchange_rates_on_active ON public.catalog_exchange_r
 --
 
 CREATE INDEX index_catalog_exchange_rates_on_from_currency_and_to_currency ON public.catalog_exchange_rates USING btree (from_currency, to_currency);
+
+
+--
+-- Name: index_catalog_inventory_reservations_on_order_item_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_catalog_inventory_reservations_on_order_item_id ON public.catalog_inventory_reservations USING btree (order_item_id);
+
+
+--
+-- Name: index_catalog_inventory_reservations_on_product_inventory_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_catalog_inventory_reservations_on_product_inventory_id ON public.catalog_inventory_reservations USING btree (product_inventory_id);
+
+
+--
+-- Name: index_catalog_inventory_reservations_on_registration_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_catalog_inventory_reservations_on_registration_id ON public.catalog_inventory_reservations USING btree (registration_id);
+
+
+--
+-- Name: index_catalog_product_inventories_on_event_date_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_catalog_product_inventories_on_event_date_id ON public.catalog_product_inventories USING btree (event_date_id);
+
+
+--
+-- Name: index_catalog_product_inventories_on_event_product_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_catalog_product_inventories_on_event_product_id ON public.catalog_product_inventories USING btree (event_product_id);
 
 
 --
@@ -2329,6 +2447,14 @@ ALTER TABLE ONLY public.events_consent_document_versions
 
 
 --
+-- Name: catalog_product_inventories fk_rails_1cac5a0ee8; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_product_inventories
+    ADD CONSTRAINT fk_rails_1cac5a0ee8 FOREIGN KEY (event_product_id) REFERENCES public.catalog_event_products(id);
+
+
+--
 -- Name: events_consent_documents fk_rails_29adff7b26; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2417,6 +2543,14 @@ ALTER TABLE ONLY public.events_event_media
 
 
 --
+-- Name: catalog_inventory_reservations fk_rails_520317750a; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_inventory_reservations
+    ADD CONSTRAINT fk_rails_520317750a FOREIGN KEY (product_inventory_id) REFERENCES public.catalog_product_inventories(id);
+
+
+--
 -- Name: events_consent_document_products fk_rails_520812941a; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2486,6 +2620,14 @@ ALTER TABLE ONLY public.events_event_participants
 
 ALTER TABLE ONLY public.legal_acceptances
     ADD CONSTRAINT fk_rails_73b4597b95 FOREIGN KEY (accepted_by_user_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: catalog_product_inventories fk_rails_774162eb7a; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_product_inventories
+    ADD CONSTRAINT fk_rails_774162eb7a FOREIGN KEY (event_date_id) REFERENCES public.events_event_dates(id);
 
 
 --
@@ -2743,6 +2885,8 @@ ALTER TABLE ONLY public.events_event_categories
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260728000004'),
+('20260728000003'),
 ('20260728000002'),
 ('20260728000001'),
 ('20260727090024'),
@@ -2751,7 +2895,6 @@ INSERT INTO "schema_migrations" (version) VALUES
 ('20260727090021'),
 ('20260727090020'),
 ('20260727090000'),
-('20260727000002'),
 ('20260726090003'),
 ('20260726090002'),
 ('20260726090001'),

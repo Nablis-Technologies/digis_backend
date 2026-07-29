@@ -22,6 +22,10 @@ module Catalog
              class_name: "Catalog::ProductPrice",
              inverse_of: :event_product,
              dependent: :destroy
+    has_many :inventories,
+             class_name: "Catalog::ProductInventory",
+             inverse_of: :event_product,
+             dependent: :destroy
 
     validates :event, presence: true
     validates :name, presence: true
