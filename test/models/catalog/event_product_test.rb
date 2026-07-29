@@ -67,14 +67,16 @@ module Catalog
     private
 
     def create_ticket_product
-      Catalog::Products::Create.new(
+      Catalog::Products::CreateDraft.call(
         event: @event,
-        attributes: { name: "VIP", type: "ticket" },
+        actor: core_users(:super_admin),
+        product_attributes: { name: "VIP", type: "ticket" },
         ticket_type_attributes: {
           audience: "public", approval_mode: "automatic", date_selection: "fixed",
           admissions_per_unit: 1
-        }
-      ).call.value
+        },
+        inventory_configuration: { mode: "unlimited" }
+      ).value
     end
   end
 end

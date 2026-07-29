@@ -59,6 +59,17 @@ Rails.application.routes.draw do
   scope path: :catalog, module: :catalog do
     resources :product_prices, only: %i[index show create]
     resources :product_quotes, only: %i[create]
+    resources :product_inventories, only: %i[index show]
+  end
+
+  resources :events, only: [] do
+    scope module: :catalog do
+      resources :event_products, only: %i[index show create update destroy] do
+        post :activate, on: :member
+        post :deactivate, on: :member
+        post :update_inventory_configuration, on: :member
+      end
+    end
   end
 
   namespace :admin do

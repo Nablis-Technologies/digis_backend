@@ -3,7 +3,9 @@
 module Catalog
   # Anything an attendee can select, claim, or purchase. Ticket products
   # require exactly one `Ticketing::TicketType` row; all other product types
-  # must not have one.
+  # must not have one. Status transitions: draft → active → retired (one-way). Retired products are permanently hidden from sale and cannot be reactivated.
+  # Inventory mode determines how capacity is tracked: unlimited (no caps),
+  # event_wide (single pool), per_date (daily pools), or both.
   class EventProduct < Catalog::ApplicationRecord
     self.table_name = "catalog_event_products"
     self.inheritance_column = nil
@@ -12,6 +14,8 @@ module Catalog
       ticket parking merchandise food donation digital_addon other
     ].freeze
     REFUND_POLICIES = %w[full_or_partial full_only].freeze
+    INVENTORY_MODES = %w[unlimited event_wide per_date event_wide_and_per_date].freeze
+    STATUSES = %w[draft active retired].freeze
 
     belongs_to :event, class_name: "Events::Event", inverse_of: :event_products
     has_one :ticket_type,
@@ -26,10 +30,15 @@ module Catalog
              class_name: "Catalog::ProductInventory",
              inverse_of: :event_product,
              dependent: :destroy
+    has_many :venue_capacity_reservations,
+             class_name: "Catalog::VenueCapacityReservation",
+             inverse_of: :event_product
 
     validates :event, presence: true
     validates :name, presence: true
     validates :type, presence: true, inclusion: { in: PRODUCT_TYPES }
+    validates :status, presence: true, inclusion: { in: STATUSES }
+    validates :inventory_mode, presence: true, inclusion: { in: INVENTORY_MODES }
     validates :schedule_change_refund_policy,
               presence: true,
               inclusion: { in: REFUND_POLICIES }
@@ -42,8 +51,8 @@ module Catalog
     validate :sales_window_order
     validate :ticket_type_presence_policy
 
-    scope :active, -> { where(active: true) }
-    scope :visible, -> { where(hidden: false) }
+    scope :active, -> { where(status: "active") }
+    scope :visible, -> { where(status: "active") }
     scope :tickets, -> { where(type: "ticket") }
 
     def ticket?
@@ -52,7 +61,7 @@ module Catalog
 
     def self.ransackable_attributes(_auth_object = nil)
       %w[
-        id event_id name type active hidden allow_custom_price
+        id event_id name type status inventory_mode allow_custom_price
         sales_start_at sales_end_at min_per_order max_per_order
         schedule_change_refund_policy sort_order created_at updated_at
       ]

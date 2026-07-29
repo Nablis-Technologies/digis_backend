@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 en:
   catalog:
     event_product:
@@ -8,3 +6,5 @@ en:
         sales_end_after_start: "must be after sales_start_at"
         ticket_type_required: "must be present for ticket products"
         ticket_type_not_allowed: "must not be present for non-ticket products"
+        invalid_status: "is not a valid status"
+        invalid_inventory_mode: "is not a valid inventory mode"

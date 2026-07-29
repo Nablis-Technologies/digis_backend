@@ -35,6 +35,5 @@ module Catalog
     def quote_payload(quote)
       Catalog::ProductQuoteSerializer.new(quote).attributes.symbolize_keys
     end
-
   end
 end

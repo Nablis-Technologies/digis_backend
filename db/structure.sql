@@ -206,8 +206,6 @@ CREATE TABLE public.catalog_event_products (
     name character varying NOT NULL,
     description text,
     type character varying NOT NULL,
-    active boolean DEFAULT true NOT NULL,
-    hidden boolean DEFAULT false NOT NULL,
     allow_custom_price boolean DEFAULT false NOT NULL,
     sales_start_at timestamp with time zone,
     sales_end_at timestamp with time zone,
@@ -219,10 +217,18 @@ CREATE TABLE public.catalog_event_products (
     lock_version integer DEFAULT 0 NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
+    status character varying DEFAULT 'draft'::character varying NOT NULL,
+    inventory_mode character varying DEFAULT 'unlimited'::character varying NOT NULL,
+    idempotency_key character varying,
+    idempotency_key_digest character varying(64),
+    creation_request_digest character varying(64),
+    CONSTRAINT catalog_event_products_creation_digests_check CHECK ((((idempotency_key_digest IS NULL) AND (creation_request_digest IS NULL)) OR (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((creation_request_digest)::text ~ '^[0-9a-f]{64}$'::text)))),
+    CONSTRAINT catalog_event_products_inventory_mode_check CHECK (((inventory_mode)::text = ANY ((ARRAY['unlimited'::character varying, 'event_wide'::character varying, 'per_date'::character varying, 'event_wide_and_per_date'::character varying])::text[]))),
     CONSTRAINT catalog_event_products_max_per_order_check CHECK (((max_per_order IS NULL) OR (max_per_order >= min_per_order))),
     CONSTRAINT catalog_event_products_min_per_order_check CHECK ((min_per_order >= 1)),
     CONSTRAINT catalog_event_products_refund_policy_check CHECK (((schedule_change_refund_policy)::text = ANY ((ARRAY['full_or_partial'::character varying, 'full_only'::character varying])::text[]))),
     CONSTRAINT catalog_event_products_sales_window_check CHECK (((sales_end_at IS NULL) OR (sales_start_at IS NULL) OR (sales_end_at > sales_start_at))),
+    CONSTRAINT catalog_event_products_status_check CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'active'::character varying, 'retired'::character varying])::text[]))),
     CONSTRAINT catalog_event_products_type_check CHECK (((type)::text = ANY ((ARRAY['ticket'::character varying, 'parking'::character varying, 'merchandise'::character varying, 'food'::character varying, 'donation'::character varying, 'digital_addon'::character varying, 'other'::character varying])::text[])))
 );
 
@@ -265,7 +271,9 @@ CREATE TABLE public.catalog_inventory_reservations (
     released_at timestamp with time zone,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
+    request_fingerprint character varying(64) NOT NULL,
     CONSTRAINT catalog_inventory_reservations_admissions_check CHECK ((admissions_per_unit >= 1)),
+    CONSTRAINT catalog_inventory_reservations_fingerprint_check CHECK (((request_fingerprint)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT catalog_inventory_reservations_owner_check CHECK ((NOT ((registration_id IS NOT NULL) AND (order_item_id IS NOT NULL)))),
     CONSTRAINT catalog_inventory_reservations_quantity_check CHECK ((quantity > 0)),
     CONSTRAINT catalog_inventory_reservations_status_check CHECK (((status)::text = ANY ((ARRAY['held'::character varying, 'processing'::character varying, 'committed'::character varying, 'released'::character varying, 'expired'::character varying])::text[])))
@@ -312,6 +320,33 @@ CREATE TABLE public.catalog_product_prices (
     CONSTRAINT catalog_product_prices_amount_check CHECK ((amount_minor >= 0)),
     CONSTRAINT catalog_product_prices_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
     CONSTRAINT catalog_product_prices_type_check CHECK (((type)::text = ANY ((ARRAY['base'::character varying, 'override'::character varying])::text[])))
+);
+
+
+--
+-- Name: catalog_venue_capacity_reservations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.catalog_venue_capacity_reservations (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    reservation_group_id uuid CONSTRAINT catalog_venue_capacity_reservatio_reservation_group_id_not_null NOT NULL,
+    event_date_id uuid NOT NULL,
+    event_product_id uuid NOT NULL,
+    registration_id uuid,
+    order_item_id uuid,
+    quantity_people integer NOT NULL,
+    status character varying DEFAULT 'held'::character varying NOT NULL,
+    expires_at timestamp with time zone,
+    committed_at timestamp with time zone,
+    released_at timestamp with time zone,
+    request_fingerprint character varying(64) CONSTRAINT catalog_venue_capacity_reservation_request_fingerprint_not_null NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT catalog_venue_capacity_reservations_expiry_check CHECK ((((status)::text = ANY ((ARRAY['committed'::character varying, 'released'::character varying, 'expired'::character varying])::text[])) OR (expires_at IS NOT NULL))),
+    CONSTRAINT catalog_venue_capacity_reservations_fingerprint_check CHECK (((request_fingerprint)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT catalog_venue_capacity_reservations_owner_check CHECK ((NOT ((registration_id IS NOT NULL) AND (order_item_id IS NOT NULL)))),
+    CONSTRAINT catalog_venue_capacity_reservations_quantity_check CHECK ((quantity_people > 0)),
+    CONSTRAINT catalog_venue_capacity_reservations_status_check CHECK (((status)::text = ANY ((ARRAY['held'::character varying, 'processing'::character varying, 'committed'::character varying, 'released'::character varying, 'expired'::character varying])::text[])))
 );
 
 
@@ -1189,6 +1224,14 @@ ALTER TABLE ONLY public.catalog_product_prices
 
 
 --
+-- Name: catalog_venue_capacity_reservations catalog_venue_capacity_reservations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_venue_capacity_reservations
+    ADD CONSTRAINT catalog_venue_capacity_reservations_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: core_audit_logs core_audit_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1501,6 +1544,20 @@ ALTER TABLE ONLY public.ticketing_ticket_types
 
 
 --
+-- Name: idx_catalog_event_products_on_idempotency_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_catalog_event_products_on_idempotency_key ON public.catalog_event_products USING btree (idempotency_key) WHERE (idempotency_key IS NOT NULL);
+
+
+--
+-- Name: idx_catalog_event_products_on_idempotency_key_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_catalog_event_products_on_idempotency_key_digest ON public.catalog_event_products USING btree (event_id, idempotency_key_digest) WHERE (idempotency_key_digest IS NOT NULL);
+
+
+--
 -- Name: idx_core_reviews_resource_context; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1519,6 +1576,13 @@ CREATE INDEX idx_core_reviews_reviewer ON public.core_reviews USING btree (revie
 --
 
 CREATE UNIQUE INDEX idx_events_events_lower_slug ON public.events_events USING btree (lower((slug)::text));
+
+
+--
+-- Name: idx_inv_reservations_group_product_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_inv_reservations_group_product_unique ON public.catalog_inventory_reservations USING btree (reservation_group_id, product_inventory_id);
 
 
 --
@@ -1564,17 +1628,17 @@ CREATE UNIQUE INDEX idx_on_consent_document_id_ticket_type_id_73d6f9f9f0 ON publ
 
 
 --
--- Name: idx_on_event_id_active_sort_order_a88b786a62; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_on_event_id_active_sort_order_a88b786a62 ON public.catalog_event_products USING btree (event_id, active, sort_order);
-
-
---
 -- Name: idx_on_event_id_organization_id_ee33770ea4; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX idx_on_event_id_organization_id_ee33770ea4 ON public.events_event_organizations USING btree (event_id, organization_id);
+
+
+--
+-- Name: idx_on_event_id_status_sort_order_542594280f; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_event_id_status_sort_order_542594280f ON public.catalog_event_products USING btree (event_id, status, sort_order);
 
 
 --
@@ -1624,6 +1688,20 @@ CREATE UNIQUE INDEX idx_unique_legal_acceptance ON public.legal_acceptances USIN
 --
 
 CREATE UNIQUE INDEX idx_unique_legal_acceptance_request_uuid ON public.legal_acceptances USING btree (request_uuid);
+
+
+--
+-- Name: idx_venue_capacity_reservations_on_group_and_date; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_venue_capacity_reservations_on_group_and_date ON public.catalog_venue_capacity_reservations USING btree (reservation_group_id, event_date_id);
+
+
+--
+-- Name: idx_venue_capacity_reservations_on_status_and_expires; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_venue_capacity_reservations_on_status_and_expires ON public.catalog_venue_capacity_reservations USING btree (status, expires_at);
 
 
 --
@@ -1736,6 +1814,34 @@ CREATE INDEX index_catalog_product_prices_on_event_product_id ON public.catalog_
 --
 
 CREATE INDEX index_catalog_product_prices_on_ticket_type_id ON public.catalog_product_prices USING btree (ticket_type_id);
+
+
+--
+-- Name: index_catalog_venue_capacity_reservations_on_event_date_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_catalog_venue_capacity_reservations_on_event_date_id ON public.catalog_venue_capacity_reservations USING btree (event_date_id);
+
+
+--
+-- Name: index_catalog_venue_capacity_reservations_on_event_product_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_catalog_venue_capacity_reservations_on_event_product_id ON public.catalog_venue_capacity_reservations USING btree (event_product_id);
+
+
+--
+-- Name: index_catalog_venue_capacity_reservations_on_order_item_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_catalog_venue_capacity_reservations_on_order_item_id ON public.catalog_venue_capacity_reservations USING btree (order_item_id);
+
+
+--
+-- Name: index_catalog_venue_capacity_reservations_on_registration_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_catalog_venue_capacity_reservations_on_registration_id ON public.catalog_venue_capacity_reservations USING btree (registration_id);
 
 
 --
@@ -2471,6 +2577,14 @@ ALTER TABLE ONLY public.core_user_roles
 
 
 --
+-- Name: catalog_venue_capacity_reservations fk_rails_2e6172ce0c; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_venue_capacity_reservations
+    ADD CONSTRAINT fk_rails_2e6172ce0c FOREIGN KEY (event_product_id) REFERENCES public.catalog_event_products(id);
+
+
+--
 -- Name: events_access_zones fk_rails_2f500dd95d; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2596,6 +2710,14 @@ ALTER TABLE ONLY public.legal_document_versions
 
 ALTER TABLE ONLY public.events_event_streams
     ADD CONSTRAINT fk_rails_6008354dda FOREIGN KEY (event_date_id) REFERENCES public.events_event_dates(id) ON DELETE CASCADE;
+
+
+--
+-- Name: catalog_venue_capacity_reservations fk_rails_644ded3b72; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_venue_capacity_reservations
+    ADD CONSTRAINT fk_rails_644ded3b72 FOREIGN KEY (event_date_id) REFERENCES public.events_event_dates(id);
 
 
 --
@@ -2885,6 +3007,7 @@ ALTER TABLE ONLY public.events_event_categories
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260729000001'),
 ('20260728000004'),
 ('20260728000003'),
 ('20260728000002'),

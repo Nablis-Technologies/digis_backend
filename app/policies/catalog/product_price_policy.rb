@@ -2,43 +2,30 @@
 
 module Catalog
   class ProductPricePolicy < Core::ApplicationPolicy
-    def index? = admin?
-    def show?  = admin?
-    def create? = admin?
+    def index?  = Events::AuthorizationResolver.manageable_catalog_events(user).exists?
+    def show?   = Events::AuthorizationResolver.can_manage_catalog?(user, record.event_product&.event)
+    def create? = Events::AuthorizationResolver.can_manage_catalog?(user, record.event_product&.event)
 
     VISIBILITY = {
       index: {
-        default: { fields: [], include: [] },
+        default: { fields: :all, include: [] },
         admin: { include: :all, fields: :all }
       },
       show: {
-        default: { fields: [], include: [] },
+        default: { fields: :all, include: [] },
         admin: { include: :all, fields: :all }
       },
       create: {
-        default: { fields: [], include: [] },
+        default: { fields: :all, include: [] },
         admin: { include: :all, fields: :all }
       }
-    }
+    }.freeze
 
     class Scope < Core::ApplicationPolicy::Scope
       def resolve
-        return scope.all if user_admin?
-
-        scope.none
+        manageable_events = Events::AuthorizationResolver.manageable_catalog_events(user)
+        scope.joins(:event_product).where(catalog_event_products: { event_id: manageable_events.select(:id) })
       end
-
-      private
-
-      def user_admin?
-        user&.has_role?("SUPER_ADMIN") || user&.has_role?("ADMIN") || user&.has_role?("CORE_ADMIN")
-      end
-    end
-
-    private
-
-    def admin?
-      user_role_key == :admin
     end
   end
 end

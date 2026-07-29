@@ -6,14 +6,16 @@ module Catalog
   class ProductPriceTest < ActiveSupport::TestCase
     setup do
       @event = events_events(:ready_listing)
-      @product = Catalog::Products::Create.new(
+      @product = Catalog::Products::CreateDraft.call(
         event: @event,
-        attributes: { name: "Festival Pass", type: "ticket" },
+        actor: core_users(:super_admin),
+        product_attributes: { name: "Festival Pass", type: "ticket" },
         ticket_type_attributes: {
           audience: "public", approval_mode: "automatic",
           date_selection: "fixed", admissions_per_unit: 1
-        }
-      ).call.value
+        },
+        inventory_configuration: { mode: "unlimited" }
+      ).value
     end
 
     test "currency must be ISO-4217 alpha-3" do
