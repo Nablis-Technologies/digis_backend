@@ -6216,6 +6216,266 @@
           ]
         },
         {
+          "name": "Event Products",
+          "item": [
+            {
+              "name": "List",
+              "request": {
+                "description": "List event products for an event.",
+                "header": [],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_products"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_products",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "disabled": true
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "10",
+                      "disabled": true
+                    },
+                    {
+                      "key": "order_by",
+                      "value": "sort_order",
+                      "disabled": true
+                    },
+                    {
+                      "key": "order_direction",
+                      "value": "asc",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Get",
+              "request": {
+                "description": "Get a single event product.",
+                "header": [],
+                "method": "GET",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_products",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_products/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Create",
+              "request": {
+                "description": "Create a draft event product using the CreateDraft service. Accepts nested ticket_type_attributes and inventory_configuration. Requires Idempotency-Key header for safe retry.",
+                "header": [
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "<key>",
+                    "type": "text"
+                  }
+                ],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_products"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_products",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"General Admission Ticket\",\n  \"type\": \"ticket\",\n  \"description\": \"Standard entry to the event\",\n  \"allow_custom_price\": false,\n  \"sales_start_at\": \"2026-08-01T00:00:00Z\",\n  \"sales_end_at\": \"2026-09-01T00:00:00Z\",\n  \"min_per_order\": 1,\n  \"max_per_order\": 10,\n  \"sort_order\": 1,\n  \"ticket_type_attributes\": {\n    \"approval_mode\": \"automatic\",\n    \"audience\": \"public\",\n    \"date_selection\": \"fixed\",\n    \"admissions_per_unit\": 1\n  },\n  \"price_attributes\": {\n    \"type\": \"base\",\n    \"currency\": \"ETB\",\n    \"amount_minor\": 50000,\n    \"active_from\": \"2026-08-01T00:00:00Z\"\n  },\n  \"inventory_configuration\": {\n    \"mode\": \"per_date\",\n    \"dates\": [\n      {\n        \"event_date_id\": \"<event_date_id>\",\n        \"capacity\": 5000\n      }\n    ]\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Update",
+              "request": {
+                "description": "Update an event product's mutable fields.",
+                "header": [],
+                "method": "PATCH",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_products",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_products/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Updated Ticket Name\",\n  \"description\": \"Updated description\",\n  \"allow_custom_price\": true,\n  \"min_per_order\": 1,\n  \"max_per_order\": 5,\n  \"sort_order\": 2\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "Delete",
+              "request": {
+                "description": "Delete a draft event product. Cannot delete active products or products with sold inventory.",
+                "header": [],
+                "method": "DELETE",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_products",
+                    ":id"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_products/:id",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Activate",
+              "request": {
+                "description": "Activate a draft event product, making it available for sale.",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_products",
+                    ":id",
+                    "activate"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_products/:id/activate",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            },
+            {
+              "name": "Deactivate",
+              "request": {
+                "description": "Deactivate an active event product, making it unavailable for sale.",
+                "header": [],
+                "method": "POST",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_products",
+                    ":id",
+                    "deactivate"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_products/:id/deactivate",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "response": []
+              }
+            }
+          ]
+        },
+        {
           "name": "Recurrence Rules",
           "item": [
             {
@@ -7306,8 +7566,101 @@
               }
             }
           ]
-        }
-      ]
-    }
-  ]
+        },
+      {
+        "name": "Product Inventories",
+        "item": [
+          {
+            "name": "List All Product Inventories",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{accessToken}}",
+                  "type": "text"
+                }
+              ],
+              "url": {
+                "raw": "{{baseUrl}}/catalog/product_inventories",
+                "host": [
+                  "{{baseUrl}}"
+                ],
+                "path": [
+                  "catalog",
+                  "product_inventories"
+                ]
+              },
+              "description": "List all product inventories (admin)."
+            },
+            "response": [],
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200\", function () {",
+                    "  pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Response has correct structure\", function () {",
+                    "  const json = pm.response.json();",
+                    "  pm.expect(json).to.have.property(\"success\", true);",
+                    "  pm.expect(json).to.have.property(\"data\");",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ]
+          },
+          {
+            "name": "Get Product Inventory by ID",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{accessToken}}",
+                  "type": "text"
+                }
+              ],
+              "url": {
+                "raw": "{{baseUrl}}/catalog/product_inventories/1",
+                "host": [
+                  "{{baseUrl}}"
+                ],
+                "path": [
+                  "catalog",
+                  "product_inventories",
+                  "1"
+                ]
+              },
+              "description": "Get a single product inventory by ID (admin)."
+            },
+            "response": [],
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test(\"Status code is 200\", function () {",
+                    "  pm.response.to.have.status(200);",
+                    "});",
+                    "pm.test(\"Response has correct structure\", function () {",
+                    "  const json = pm.response.json();",
+                    "  pm.expect(json).to.have.property(\"success\", true);",
+                    "  pm.expect(json).to.have.property(\"data\");",
+                    "  pm.expect(json.data).to.have.property(\"id\");",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]
 }
