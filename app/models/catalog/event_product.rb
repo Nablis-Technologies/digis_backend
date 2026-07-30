@@ -52,7 +52,6 @@ module Catalog
     validate :ticket_type_presence_policy
 
     scope :active, -> { where(status: "active") }
-    scope :visible, -> { where(status: "active") }
     scope :tickets, -> { where(type: "ticket") }
 
     def ticket?
