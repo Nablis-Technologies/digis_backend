@@ -349,8 +349,12 @@ puts "✓ #{Core::Follow.count} follows"
 # ─────────────────────────────────────────────
 puts "\n🎟️  Seeding catalog products + ticket audience policies..."
 
-fest_ticket = if Catalog::EventProduct.exists?(event: fest_event, name: "Fest General Admission", type: "ticket")
-  Catalog::EventProduct.find_by(event: fest_event, name: "Fest General Admission", type: "ticket")
+fest_ticket = if fest_ticket = Catalog::EventProduct.find_by(event: fest_event, name: "Fest General Admission", type: "ticket")
+  unless fest_ticket.inventories.where(event_date_id: nil).exists?
+    fest_ticket.update!(inventory_mode: "event_wide")
+    fest_ticket.inventories.create!(event_date_id: nil, capacity: 500, held_count: 0, sold_count: 0)
+  end
+  fest_ticket
 else
   Catalog::Products::CreateDraft.call(
     event: fest_event,
@@ -370,13 +374,17 @@ else
       admissions_per_unit: 1,
       transferable: true
     },
-    inventory_configuration: { mode: "unlimited" },
+    inventory_configuration: { mode: "event_wide", capacity: 500 },
     price_attributes: { currency: "ETB", amount_minor: 500_00, active_from: 1.week.ago }
   ).value.tap { |p| Catalog::Products::Activate.call(product: p) }
 end
 
-vip_ticket = if Catalog::EventProduct.exists?(event: fest_event, name: "Fest VIP Pass", type: "ticket")
-  Catalog::EventProduct.find_by(event: fest_event, name: "Fest VIP Pass", type: "ticket")
+vip_ticket = if vip_ticket = Catalog::EventProduct.find_by(event: fest_event, name: "Fest VIP Pass", type: "ticket")
+  unless vip_ticket.inventories.where(event_date_id: nil).exists?
+    vip_ticket.update!(inventory_mode: "event_wide")
+    vip_ticket.inventories.create!(event_date_id: nil, capacity: 200, held_count: 0, sold_count: 0)
+  end
+  vip_ticket
 else
   Catalog::Products::CreateDraft.call(
     event: fest_event,
@@ -394,7 +402,7 @@ else
       resale_percentage_cap_bps: 10_000,
       max_completed_resales: 1
     },
-    inventory_configuration: { mode: "unlimited" }
+    inventory_configuration: { mode: "event_wide", capacity: 200 }
   ).value.tap { |p| Catalog::Products::Activate.call(product: p) }
 end
 vip_tt = vip_ticket.ticket_type
@@ -436,22 +444,8 @@ puts "✓ #{Catalog::EventProduct.count} products, " \
 # 7b. Catalog inventory: product inventories (Plan 2, Task 3)
 # ─────────────────────────────────────────────
 puts "\n📦  Seeding catalog inventory..."
-
-unless Catalog::ProductInventory.exists?(event_product: fest_ticket, event_date_id: nil)
-  Catalog::ProductInventory.create!(
-    event_product: fest_ticket,
-    capacity: 500
-  )
-end
-
-unless Catalog::ProductInventory.exists?(event_product: vip_ticket, event_date_id: nil)
-  Catalog::ProductInventory.create!(
-    event_product: vip_ticket,
-    capacity: 100
-  )
-end
-
-puts "✓ #{Catalog::ProductInventory.count} product inventories"
+# Products are created with event_wide inventory — ProductInventory rows are
+# created implicitly by CreateDraft via the inventory configuration.
 
 # 7c. Catalog pricing: product prices + exchange rates (Plan 2, Task 2)
 # ─────────────────────────────────────────────
