@@ -36,7 +36,7 @@ module Catalog
     test "real JSON inventory update normalizes configuration and provisions inventory" do
       product = create_product(name: "Configurable merchandise")
 
-      post "/events/#{@event.id}/event_products/#{product.id}/update_inventory_configuration",
+      patch "/events/#{@event.id}/event_products/#{product.id}/update_inventory_configuration",
            params: {
              inventory_configuration: {
                mode: "event_wide",
