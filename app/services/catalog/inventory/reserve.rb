@@ -72,8 +72,8 @@ module Catalog
           raise Core::Error, "Venue dates must be included in the selected event dates"
         end
 
-        event_date_ids = @product.event.event_dates
-          .where(id: requested_ids)
+        event_date_ids = Events::EventDate
+          .where(event_id: @product.event_id, id: requested_ids)
           .pluck(:id)
           .map(&:to_s)
         missing = requested_ids - event_date_ids
