@@ -18,6 +18,22 @@ module Catalog
         def reservations
           inventory_reservations + venue_reservations
         end
+
+        def validate_held_counters!(inventory_quantities, venue_quantities)
+          inv_index = inventories.index_by(&:id)
+          date_index = event_dates.index_by(&:id)
+
+          inventory_quantities.each do |inventory_id, quantity|
+            if inv_index.fetch(inventory_id).held_count < quantity
+              raise Core::Error, "Inventory held count drift detected"
+            end
+          end
+          venue_quantities.each do |event_date_id, quantity|
+            if date_index.fetch(event_date_id).held_venue_count < quantity
+              raise Core::Error, "Venue held count drift detected"
+            end
+          end
+        end
       end
 
       def self.acquire!(reservation_group_id, inventory_ids: [], event_date_ids: [])
@@ -36,6 +52,7 @@ module Catalog
           .pluck(:event_date_id)
 
         inventories = Catalog::ProductInventory
+          .includes(:event_product)
           .where(id: (Array(inventory_ids) + existing_inventory_ids).uniq)
           .order(:id)
           .lock

@@ -21,7 +21,7 @@ module Catalog
           validate_all_active!(reservations, target: "committed")
           inventory_quantities = inventory_quantities(group.inventory_reservations)
           venue_quantities = venue_quantities(group.venue_reservations)
-          validate_held_counters!(group, inventory_quantities, venue_quantities)
+          group.validate_held_counters!(inventory_quantities, venue_quantities)
 
           inventory_quantities.each do |inventory_id, quantity|
             inventory = group.inventories.index_by(&:id).fetch(inventory_id)
@@ -72,18 +72,6 @@ module Catalog
       def venue_quantities(reservations)
         reservations.each_with_object(Hash.new(0)) do |reservation, totals|
           totals[reservation.event_date_id] += reservation.quantity_people
-        end
-      end
-
-      def validate_held_counters!(group, inventory_quantities, venue_quantities)
-        inventories = group.inventories.index_by(&:id)
-        dates = group.event_dates.index_by(&:id)
-
-        inventory_quantities.each do |inventory_id, quantity|
-          raise Core::Error, "Inventory held count drift detected" if inventories.fetch(inventory_id).held_count < quantity
-        end
-        venue_quantities.each do |event_date_id, quantity|
-          raise Core::Error, "Venue held count drift detected" if dates.fetch(event_date_id).held_venue_count < quantity
         end
       end
     end
