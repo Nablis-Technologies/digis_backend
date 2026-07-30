@@ -6472,6 +6472,42 @@
                 },
                 "response": []
               }
+            },
+            {
+              "name": "Update Inventory Configuration",
+              "request": {
+                "description": "Replace the inventory mode and capacity configuration for a draft event product. Uses PATCH for idempotent full replacement. Rejected for active or retired products.",
+                "header": [],
+                "method": "PATCH",
+                "url": {
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    ":event_id",
+                    "event_products",
+                    ":id",
+                    "update_inventory_configuration"
+                  ],
+                  "raw": "{{baseUrl}}/events/:event_id/event_products/:id/update_inventory_configuration",
+                  "variable": [
+                    {
+                      "key": "event_id",
+                      "value": ""
+                    },
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "json",
+                  "raw": "{\n  \"inventory_configuration\": {\n    \"mode\": \"per_date\",\n    \"capacity\": 2000,\n    \"dates\": [\n      {\n        \"event_date_id\": \"<event_date_id>\",\n        \"capacity\": 1000\n      },\n      {\n        \"event_date_id\": \"<event_date_id>\",\n        \"capacity\": 1000\n      }\n    ]\n  }\n}"
+                },
+                "response": []
+              }
             }
           ]
         },

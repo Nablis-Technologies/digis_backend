@@ -67,7 +67,7 @@ Rails.application.routes.draw do
       resources :event_products, only: %i[index show create update destroy] do
         post :activate, on: :member
         post :deactivate, on: :member
-        post :update_inventory_configuration, on: :member
+        patch :update_inventory_configuration, on: :member
       end
     end
   end
