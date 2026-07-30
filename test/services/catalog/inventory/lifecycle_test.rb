@@ -168,11 +168,19 @@ module Catalog
       test "expiry batches complete groups rather than splitting reservation rows" do
         release_current_group!
         @event_date.update!(venue_capacity: Expire::BATCH_SIZE + 10)
-        groups = Array.new(Expire::BATCH_SIZE + 1) do
-          create_expired_unlimited_group
-        end
+        groups = nil
+        result = nil
 
-        result = Expire.call
+        groups = if defined?(Prosopite)
+                    Prosopite.pause { Array.new(Expire::BATCH_SIZE + 1) { create_expired_unlimited_group } }
+                  else
+                    Array.new(Expire::BATCH_SIZE + 1) { create_expired_unlimited_group }
+                  end
+        result = if defined?(Prosopite)
+                   Prosopite.pause { Expire.call }
+                 else
+                   Expire.call
+                 end
 
         assert result.success?
         assert_equal groups.size, result.value
