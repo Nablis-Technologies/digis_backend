@@ -19,6 +19,10 @@ module Events
     has_many :venue_capacity_reservations,
              class_name: "Catalog::VenueCapacityReservation",
              inverse_of: :event_date
+    has_many :product_accesses,
+             class_name: "Catalog::ProductAccess",
+             inverse_of: :event_date,
+             dependent: :delete_all
 
     validates :starts_at, :ends_at, presence: true
     validates :status, presence: true, inclusion: { in: STATUSES }

@@ -33,6 +33,14 @@ module Catalog
     has_many :venue_capacity_reservations,
              class_name: "Catalog::VenueCapacityReservation",
              inverse_of: :event_product
+    has_many :product_accesses,
+             class_name: "Catalog::ProductAccess",
+             inverse_of: :event_product,
+             dependent: :destroy
+    has_many :product_date_allocations,
+             class_name: "Catalog::ProductDateAllocation",
+             inverse_of: :event_product,
+             dependent: :destroy
 
     validates :event, presence: true
     validates :name, presence: true
@@ -67,7 +75,7 @@ module Catalog
     end
 
     def self.ransackable_associations(_auth_object = nil)
-      %w[event ticket_type]
+      %w[event ticket_type product_accesses product_date_allocations]
     end
 
     private
