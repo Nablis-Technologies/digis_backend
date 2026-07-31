@@ -223,13 +223,13 @@ CREATE TABLE public.catalog_event_products (
     idempotency_key_digest character varying(64),
     creation_request_digest character varying(64),
     CONSTRAINT catalog_event_products_creation_digests_check CHECK ((((idempotency_key_digest IS NULL) AND (creation_request_digest IS NULL)) OR (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((creation_request_digest)::text ~ '^[0-9a-f]{64}$'::text)))),
-    CONSTRAINT catalog_event_products_inventory_mode_check CHECK (((inventory_mode)::text = ANY ((ARRAY['unlimited'::character varying, 'event_wide'::character varying, 'per_date'::character varying, 'event_wide_and_per_date'::character varying])::text[]))),
+    CONSTRAINT catalog_event_products_inventory_mode_check CHECK (((inventory_mode)::text = ANY (ARRAY[('unlimited'::character varying)::text, ('event_wide'::character varying)::text, ('per_date'::character varying)::text, ('event_wide_and_per_date'::character varying)::text]))),
     CONSTRAINT catalog_event_products_max_per_order_check CHECK (((max_per_order IS NULL) OR (max_per_order >= min_per_order))),
     CONSTRAINT catalog_event_products_min_per_order_check CHECK ((min_per_order >= 1)),
-    CONSTRAINT catalog_event_products_refund_policy_check CHECK (((schedule_change_refund_policy)::text = ANY ((ARRAY['full_or_partial'::character varying, 'full_only'::character varying])::text[]))),
+    CONSTRAINT catalog_event_products_refund_policy_check CHECK (((schedule_change_refund_policy)::text = ANY (ARRAY[('full_or_partial'::character varying)::text, ('full_only'::character varying)::text]))),
     CONSTRAINT catalog_event_products_sales_window_check CHECK (((sales_end_at IS NULL) OR (sales_start_at IS NULL) OR (sales_end_at > sales_start_at))),
-    CONSTRAINT catalog_event_products_status_check CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'active'::character varying, 'retired'::character varying])::text[]))),
-    CONSTRAINT catalog_event_products_type_check CHECK (((type)::text = ANY ((ARRAY['ticket'::character varying, 'parking'::character varying, 'merchandise'::character varying, 'food'::character varying, 'donation'::character varying, 'digital_addon'::character varying, 'other'::character varying])::text[])))
+    CONSTRAINT catalog_event_products_status_check CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('active'::character varying)::text, ('retired'::character varying)::text]))),
+    CONSTRAINT catalog_event_products_type_check CHECK (((type)::text = ANY (ARRAY[('ticket'::character varying)::text, ('parking'::character varying)::text, ('merchandise'::character varying)::text, ('food'::character varying)::text, ('donation'::character varying)::text, ('digital_addon'::character varying)::text, ('other'::character varying)::text])))
 );
 
 
@@ -276,7 +276,58 @@ CREATE TABLE public.catalog_inventory_reservations (
     CONSTRAINT catalog_inventory_reservations_fingerprint_check CHECK (((request_fingerprint)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT catalog_inventory_reservations_owner_check CHECK ((NOT ((registration_id IS NOT NULL) AND (order_item_id IS NOT NULL)))),
     CONSTRAINT catalog_inventory_reservations_quantity_check CHECK ((quantity > 0)),
-    CONSTRAINT catalog_inventory_reservations_status_check CHECK (((status)::text = ANY ((ARRAY['held'::character varying, 'processing'::character varying, 'committed'::character varying, 'released'::character varying, 'expired'::character varying])::text[])))
+    CONSTRAINT catalog_inventory_reservations_status_check CHECK (((status)::text = ANY (ARRAY[('held'::character varying)::text, ('processing'::character varying)::text, ('committed'::character varying)::text, ('released'::character varying)::text, ('expired'::character varying)::text])))
+);
+
+
+--
+-- Name: catalog_product_access_zones; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.catalog_product_access_zones (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    product_access_id uuid NOT NULL,
+    access_zone_id uuid NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL
+);
+
+
+--
+-- Name: catalog_product_accesses; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.catalog_product_accesses (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    event_product_id uuid NOT NULL,
+    event_date_id uuid NOT NULL,
+    type character varying NOT NULL,
+    required_access_protection character varying,
+    usage_limit integer,
+    opens_offset_seconds integer,
+    closes_offset_seconds integer,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT catalog_product_accesses_offset_check CHECK (((opens_offset_seconds IS NULL) OR (closes_offset_seconds IS NULL) OR ((closes_offset_seconds - opens_offset_seconds) > 0))),
+    CONSTRAINT catalog_product_accesses_protection_check CHECK (((required_access_protection IS NULL) OR ((required_access_protection)::text = ANY ((ARRAY['public'::character varying, 'soft_gated'::character varying, 'signed'::character varying])::text[])))),
+    CONSTRAINT catalog_product_accesses_protection_stream_check CHECK ((((required_access_protection IS NULL) AND ((type)::text <> 'stream'::text)) OR ((required_access_protection IS NOT NULL) AND ((type)::text = 'stream'::text)))),
+    CONSTRAINT catalog_product_accesses_type_check CHECK (((type)::text = ANY ((ARRAY['venue'::character varying, 'stream'::character varying, 'parking'::character varying])::text[]))),
+    CONSTRAINT catalog_product_accesses_usage_limit_check CHECK (((usage_limit > 0) OR (usage_limit IS NULL)))
+);
+
+
+--
+-- Name: catalog_product_date_allocations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.catalog_product_date_allocations (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    event_product_id uuid NOT NULL,
+    event_date_id uuid NOT NULL,
+    allocation_basis_points integer CONSTRAINT catalog_product_date_allocatio_allocation_basis_points_not_null NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT catalog_product_date_allocations_bps_range_check CHECK (((allocation_basis_points > 0) AND (allocation_basis_points <= 10000)))
 );
 
 
@@ -319,7 +370,7 @@ CREATE TABLE public.catalog_product_prices (
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT catalog_product_prices_amount_check CHECK ((amount_minor >= 0)),
     CONSTRAINT catalog_product_prices_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
-    CONSTRAINT catalog_product_prices_type_check CHECK (((type)::text = ANY ((ARRAY['base'::character varying, 'override'::character varying])::text[])))
+    CONSTRAINT catalog_product_prices_type_check CHECK (((type)::text = ANY (ARRAY[('base'::character varying)::text, ('override'::character varying)::text])))
 );
 
 
@@ -342,11 +393,11 @@ CREATE TABLE public.catalog_venue_capacity_reservations (
     request_fingerprint character varying(64) CONSTRAINT catalog_venue_capacity_reservation_request_fingerprint_not_null NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT catalog_venue_capacity_reservations_expiry_check CHECK ((((status)::text = ANY ((ARRAY['committed'::character varying, 'released'::character varying, 'expired'::character varying])::text[])) OR (expires_at IS NOT NULL))),
+    CONSTRAINT catalog_venue_capacity_reservations_expiry_check CHECK ((((status)::text = ANY (ARRAY[('committed'::character varying)::text, ('released'::character varying)::text, ('expired'::character varying)::text])) OR (expires_at IS NOT NULL))),
     CONSTRAINT catalog_venue_capacity_reservations_fingerprint_check CHECK (((request_fingerprint)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT catalog_venue_capacity_reservations_owner_check CHECK ((NOT ((registration_id IS NOT NULL) AND (order_item_id IS NOT NULL)))),
     CONSTRAINT catalog_venue_capacity_reservations_quantity_check CHECK ((quantity_people > 0)),
-    CONSTRAINT catalog_venue_capacity_reservations_status_check CHECK (((status)::text = ANY ((ARRAY['held'::character varying, 'processing'::character varying, 'committed'::character varying, 'released'::character varying, 'expired'::character varying])::text[])))
+    CONSTRAINT catalog_venue_capacity_reservations_status_check CHECK (((status)::text = ANY (ARRAY[('held'::character varying)::text, ('processing'::character varying)::text, ('committed'::character varying)::text, ('released'::character varying)::text, ('expired'::character varying)::text])))
 );
 
 
@@ -546,7 +597,7 @@ CREATE TABLE public.events_access_zones (
     sort_order integer DEFAULT 0 NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_access_zones_type CHECK (((type)::text = ANY ((ARRAY['venue'::character varying, 'parking'::character varying])::text[])))
+    CONSTRAINT chk_access_zones_type CHECK (((type)::text = ANY (ARRAY[('venue'::character varying)::text, ('parking'::character varying)::text])))
 );
 
 
@@ -619,7 +670,7 @@ CREATE TABLE public.events_consent_document_versions (
     created_by_id uuid NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_consent_version_status CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'published'::character varying, 'retired'::character varying])::text[])))
+    CONSTRAINT chk_consent_version_status CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('published'::character varying)::text, ('retired'::character varying)::text])))
 );
 
 
@@ -636,7 +687,7 @@ CREATE TABLE public.events_consent_documents (
     created_by_id uuid NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_consent_doc_type CHECK (((type)::text = ANY ((ARRAY['terms'::character varying, 'liability_waiver'::character varying, 'media_consent'::character varying, 'age_declaration'::character varying, 'other'::character varying])::text[])))
+    CONSTRAINT chk_consent_doc_type CHECK (((type)::text = ANY (ARRAY[('terms'::character varying)::text, ('liability_waiver'::character varying)::text, ('media_consent'::character varying)::text, ('age_declaration'::character varying)::text, ('other'::character varying)::text])))
 );
 
 
@@ -656,7 +707,7 @@ CREATE TABLE public.events_event_cancellations (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT chk_events_event_cancellations_cancelled_at CHECK ((cancelled_at IS NOT NULL)),
-    CONSTRAINT chk_events_event_cancellations_status CHECK (((status)::text = ANY ((ARRAY['initiated'::character varying, 'completed'::character varying])::text[])))
+    CONSTRAINT chk_events_event_cancellations_status CHECK (((status)::text = ANY (ARRAY[('initiated'::character varying)::text, ('completed'::character varying)::text])))
 );
 
 
@@ -734,7 +785,7 @@ CREATE TABLE public.events_event_media (
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT chk_event_media_cover_position CHECK ((((type)::text <> 'cover'::text) OR ("position" = 0))),
     CONSTRAINT chk_event_media_position CHECK (("position" >= 0)),
-    CONSTRAINT chk_event_media_type CHECK (((type)::text = ANY ((ARRAY['cover'::character varying, 'gallery'::character varying])::text[])))
+    CONSTRAINT chk_event_media_type CHECK (((type)::text = ANY (ARRAY[('cover'::character varying)::text, ('gallery'::character varying)::text])))
 );
 
 
@@ -754,8 +805,8 @@ CREATE TABLE public.events_event_organizations (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT chk_event_organizations_no_primary_owner CHECK (((role)::text <> 'primary_owner'::text)),
-    CONSTRAINT chk_event_organizations_status CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'active'::character varying, 'revoked'::character varying])::text[]))),
-    CONSTRAINT chk_event_organizations_type CHECK (((type)::text = ANY ((ARRAY['co_organizer'::character varying, 'venue_partner'::character varying, 'promoter'::character varying, 'sponsor'::character varying])::text[])))
+    CONSTRAINT chk_event_organizations_status CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('active'::character varying)::text, ('revoked'::character varying)::text]))),
+    CONSTRAINT chk_event_organizations_type CHECK (((type)::text = ANY (ARRAY[('co_organizer'::character varying)::text, ('venue_partner'::character varying)::text, ('promoter'::character varying)::text, ('sponsor'::character varying)::text])))
 );
 
 
@@ -775,7 +826,7 @@ CREATE TABLE public.events_event_participants (
     metadata jsonb DEFAULT '{}'::jsonb,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_event_participants_type CHECK (((type)::text = ANY ((ARRAY['performer'::character varying, 'speaker'::character varying, 'host'::character varying, 'instructor'::character varying, 'panelist'::character varying, 'team'::character varying, 'guest'::character varying])::text[])))
+    CONSTRAINT chk_event_participants_type CHECK (((type)::text = ANY (ARRAY[('performer'::character varying)::text, ('speaker'::character varying)::text, ('host'::character varying)::text, ('instructor'::character varying)::text, ('panelist'::character varying)::text, ('team'::character varying)::text, ('guest'::character varying)::text])))
 );
 
 
@@ -806,8 +857,8 @@ CREATE TABLE public.events_event_staff_assignments (
     expires_at timestamp with time zone,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_event_staff_assignments_role CHECK (((role)::text = ANY ((ARRAY['manager'::character varying, 'staff'::character varying, 'scanner'::character varying, 'contractor'::character varying])::text[]))),
-    CONSTRAINT chk_event_staff_assignments_status CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'suspended'::character varying, 'revoked'::character varying, 'expired'::character varying])::text[])))
+    CONSTRAINT chk_event_staff_assignments_role CHECK (((role)::text = ANY (ARRAY[('manager'::character varying)::text, ('staff'::character varying)::text, ('scanner'::character varying)::text, ('contractor'::character varying)::text]))),
+    CONSTRAINT chk_event_staff_assignments_status CHECK (((status)::text = ANY (ARRAY[('active'::character varying)::text, ('suspended'::character varying)::text, ('revoked'::character varying)::text, ('expired'::character varying)::text])))
 );
 
 
@@ -831,9 +882,9 @@ CREATE TABLE public.events_event_streams (
     config jsonb DEFAULT '{}'::jsonb,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_event_streams_access_protection CHECK (((access_protection)::text = ANY ((ARRAY['public'::character varying, 'soft_gated'::character varying, 'signed'::character varying])::text[]))),
+    CONSTRAINT chk_event_streams_access_protection CHECK (((access_protection)::text = ANY (ARRAY[('public'::character varying)::text, ('soft_gated'::character varying)::text, ('signed'::character varying)::text]))),
     CONSTRAINT chk_event_streams_replay_until CHECK (((replay_available_until IS NOT NULL) OR (replay_enabled = false))),
-    CONSTRAINT chk_event_streams_status CHECK (((status)::text = ANY ((ARRAY['scheduled'::character varying, 'live'::character varying, 'ended'::character varying, 'disabled'::character varying])::text[])))
+    CONSTRAINT chk_event_streams_status CHECK (((status)::text = ANY (ARRAY[('scheduled'::character varying)::text, ('live'::character varying)::text, ('ended'::character varying)::text, ('disabled'::character varying)::text])))
 );
 
 
@@ -880,9 +931,9 @@ CREATE TABLE public.events_events (
     CONSTRAINT chk_events_events_cancelled_at_requires_cancelled CHECK (((cancelled_at IS NULL) OR ((status)::text = 'cancelled'::text))),
     CONSTRAINT chk_events_events_currency_iso4217 CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
     CONSTRAINT chk_events_events_published_at_requires_published CHECK (((published_at IS NULL) OR ((status)::text = ANY (ARRAY['published'::text, 'cancelled'::text])))),
-    CONSTRAINT chk_events_events_status CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'published'::character varying, 'cancelled'::character varying, 'completed'::character varying])::text[]))),
+    CONSTRAINT chk_events_events_status CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('published'::character varying)::text, ('cancelled'::character varying)::text, ('completed'::character varying)::text]))),
     CONSTRAINT chk_events_events_version_non_negative CHECK ((version >= 0)),
-    CONSTRAINT chk_events_events_visibility CHECK (((visibility)::text = ANY ((ARRAY['private'::character varying, 'public'::character varying, 'unlisted'::character varying])::text[])))
+    CONSTRAINT chk_events_events_visibility CHECK (((visibility)::text = ANY (ARRAY[('private'::character varying)::text, ('public'::character varying)::text, ('unlisted'::character varying)::text])))
 );
 
 
@@ -954,8 +1005,8 @@ CREATE TABLE public.legal_acceptances (
     accepted_at timestamp(6) with time zone NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_legal_acceptance_method CHECK (((acceptance_method)::text = ANY ((ARRAY['checkbox'::character varying, 'otp'::character varying])::text[]))),
-    CONSTRAINT chk_legal_acceptance_subject_type CHECK (((subject_type)::text = ANY ((ARRAY['user'::character varying, 'organization'::character varying, 'order'::character varying])::text[])))
+    CONSTRAINT chk_legal_acceptance_method CHECK (((acceptance_method)::text = ANY (ARRAY[('checkbox'::character varying)::text, ('otp'::character varying)::text]))),
+    CONSTRAINT chk_legal_acceptance_subject_type CHECK (((subject_type)::text = ANY (ARRAY[('user'::character varying)::text, ('organization'::character varying)::text, ('order'::character varying)::text])))
 );
 
 
@@ -977,7 +1028,7 @@ CREATE TABLE public.legal_document_versions (
     created_by_id uuid NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_legal_version_status CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'published'::character varying, 'retired'::character varying])::text[])))
+    CONSTRAINT chk_legal_version_status CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('published'::character varying)::text, ('retired'::character varying)::text])))
 );
 
 
@@ -995,7 +1046,7 @@ CREATE TABLE public.legal_documents (
     created_by_id uuid NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_legal_doc_type CHECK (((document_type)::text = ANY ((ARRAY['platform_terms'::character varying, 'privacy_policy'::character varying, 'organizer_agreement'::character varying, 'organizer_fee_schedule'::character varying, 'buyer_purchase_terms'::character varying])::text[])))
+    CONSTRAINT chk_legal_doc_type CHECK (((document_type)::text = ANY (ARRAY[('platform_terms'::character varying)::text, ('privacy_policy'::character varying)::text, ('organizer_agreement'::character varying)::text, ('organizer_fee_schedule'::character varying)::text, ('buyer_purchase_terms'::character varying)::text])))
 );
 
 
@@ -1098,7 +1149,7 @@ CREATE TABLE public.ticketing_invitations (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_invitations_allowed_quantity_check CHECK ((allowed_quantity >= 1)),
-    CONSTRAINT ticketing_invitations_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'accepted'::character varying, 'revoked'::character varying, 'expired'::character varying])::text[])))
+    CONSTRAINT ticketing_invitations_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('accepted'::character varying)::text, ('revoked'::character varying)::text, ('expired'::character varying)::text])))
 );
 
 
@@ -1130,11 +1181,11 @@ CREATE TABLE public.ticketing_ticket_types (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_ticket_types_admissions_check CHECK ((admissions_per_unit > 0)),
-    CONSTRAINT ticketing_ticket_types_approval_mode_check CHECK (((approval_mode)::text = ANY ((ARRAY['automatic'::character varying, 'manual'::character varying])::text[]))),
-    CONSTRAINT ticketing_ticket_types_audience_check CHECK (((audience)::text = ANY ((ARRAY['public'::character varying, 'access_code'::character varying, 'invitation'::character varying, 'code_or_invitation'::character varying])::text[]))),
-    CONSTRAINT ticketing_ticket_types_date_selection_check CHECK (((date_selection)::text = ANY ((ARRAY['fixed'::character varying, 'choose_one'::character varying])::text[]))),
-    CONSTRAINT ticketing_ticket_types_delegation_mode_check CHECK (((delegation_validation_mode)::text = ANY ((ARRAY['offline_allowed'::character varying, 'online_required'::character varying])::text[]))),
-    CONSTRAINT ticketing_ticket_types_entry_mode_check CHECK (((entry_validation_mode)::text = ANY ((ARRAY['qr'::character varying, 'qr_and_id'::character varying])::text[]))),
+    CONSTRAINT ticketing_ticket_types_approval_mode_check CHECK (((approval_mode)::text = ANY (ARRAY[('automatic'::character varying)::text, ('manual'::character varying)::text]))),
+    CONSTRAINT ticketing_ticket_types_audience_check CHECK (((audience)::text = ANY (ARRAY[('public'::character varying)::text, ('access_code'::character varying)::text, ('invitation'::character varying)::text, ('code_or_invitation'::character varying)::text]))),
+    CONSTRAINT ticketing_ticket_types_date_selection_check CHECK (((date_selection)::text = ANY (ARRAY[('fixed'::character varying)::text, ('choose_one'::character varying)::text]))),
+    CONSTRAINT ticketing_ticket_types_delegation_mode_check CHECK (((delegation_validation_mode)::text = ANY (ARRAY[('offline_allowed'::character varying)::text, ('online_required'::character varying)::text]))),
+    CONSTRAINT ticketing_ticket_types_entry_mode_check CHECK (((entry_validation_mode)::text = ANY (ARRAY[('qr'::character varying)::text, ('qr_and_id'::character varying)::text]))),
     CONSTRAINT ticketing_ticket_types_max_per_user_check CHECK (((max_packages_per_user IS NULL) OR (max_packages_per_user > 0))),
     CONSTRAINT ticketing_ticket_types_max_resales_check CHECK ((max_completed_resales > 0)),
     CONSTRAINT ticketing_ticket_types_resale_cap_check CHECK (((resale_price_cap_type IS NULL) OR (((resale_price_cap_type)::text = 'fixed'::text) AND (resale_fixed_cap_minor IS NOT NULL) AND (resale_fixed_cap_currency IS NOT NULL) AND (resale_percentage_cap_bps IS NULL)) OR (((resale_price_cap_type)::text = 'percentage'::text) AND (resale_percentage_cap_bps IS NOT NULL) AND (resale_fixed_cap_minor IS NULL) AND (resale_fixed_cap_currency IS NULL)))),
@@ -1197,6 +1248,30 @@ ALTER TABLE ONLY public.catalog_exchange_rates
 
 ALTER TABLE ONLY public.catalog_inventory_reservations
     ADD CONSTRAINT catalog_inventory_reservations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: catalog_product_access_zones catalog_product_access_zones_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_product_access_zones
+    ADD CONSTRAINT catalog_product_access_zones_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: catalog_product_accesses catalog_product_accesses_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_product_accesses
+    ADD CONSTRAINT catalog_product_accesses_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: catalog_product_date_allocations catalog_product_date_allocations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_product_date_allocations
+    ADD CONSTRAINT catalog_product_date_allocations_pkey PRIMARY KEY (id);
 
 
 --
@@ -1544,6 +1619,13 @@ ALTER TABLE ONLY public.ticketing_ticket_types
 
 
 --
+-- Name: idx_access_zones_on_product_and_zone; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_access_zones_on_product_and_zone ON public.catalog_product_access_zones USING btree (product_access_id, access_zone_id);
+
+
+--
 -- Name: idx_catalog_event_products_on_idempotency_key; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1569,6 +1651,13 @@ CREATE INDEX idx_core_reviews_resource_context ON public.core_reviews USING btre
 --
 
 CREATE INDEX idx_core_reviews_reviewer ON public.core_reviews USING btree (reviewed_by_type, reviewed_by_id);
+
+
+--
+-- Name: idx_date_allocations_on_product_and_date; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_date_allocations_on_product_and_date ON public.catalog_product_date_allocations USING btree (event_product_id, event_date_id);
 
 
 --
@@ -1677,6 +1766,13 @@ CREATE UNIQUE INDEX idx_org_memberships_on_user_and_org ON public.organizations_
 
 
 --
+-- Name: idx_product_accesses_on_product_date_type; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_product_accesses_on_product_date_type ON public.catalog_product_accesses USING btree (event_product_id, event_date_id, type);
+
+
+--
 -- Name: idx_unique_legal_acceptance; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1779,6 +1875,20 @@ CREATE INDEX index_catalog_inventory_reservations_on_product_inventory_id ON pub
 --
 
 CREATE INDEX index_catalog_inventory_reservations_on_registration_id ON public.catalog_inventory_reservations USING btree (registration_id);
+
+
+--
+-- Name: index_catalog_product_access_zones_on_access_zone_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_catalog_product_access_zones_on_access_zone_id ON public.catalog_product_access_zones USING btree (access_zone_id);
+
+
+--
+-- Name: index_catalog_product_accesses_on_event_date_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_catalog_product_accesses_on_event_date_id ON public.catalog_product_accesses USING btree (event_date_id);
 
 
 --
@@ -2505,6 +2615,14 @@ ALTER TABLE ONLY public.core_user_roles
 
 
 --
+-- Name: catalog_product_date_allocations fk_rails_0586ee8b97; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_product_date_allocations
+    ADD CONSTRAINT fk_rails_0586ee8b97 FOREIGN KEY (event_date_id) REFERENCES public.events_event_dates(id);
+
+
+--
 -- Name: events_events fk_rails_08a9375b27; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2534,6 +2652,14 @@ ALTER TABLE ONLY public.legal_document_versions
 
 ALTER TABLE ONLY public.events_event_date_changes
     ADD CONSTRAINT fk_rails_116ec6066e FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE CASCADE;
+
+
+--
+-- Name: catalog_product_access_zones fk_rails_15800e5abf; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_product_access_zones
+    ADD CONSTRAINT fk_rails_15800e5abf FOREIGN KEY (access_zone_id) REFERENCES public.events_access_zones(id);
 
 
 --
@@ -2582,6 +2708,14 @@ ALTER TABLE ONLY public.core_user_roles
 
 ALTER TABLE ONLY public.catalog_venue_capacity_reservations
     ADD CONSTRAINT fk_rails_2e6172ce0c FOREIGN KEY (event_product_id) REFERENCES public.catalog_event_products(id);
+
+
+--
+-- Name: catalog_product_date_allocations fk_rails_2eea671c63; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_product_date_allocations
+    ADD CONSTRAINT fk_rails_2eea671c63 FOREIGN KEY (event_product_id) REFERENCES public.catalog_event_products(id);
 
 
 --
@@ -2750,6 +2884,14 @@ ALTER TABLE ONLY public.legal_acceptances
 
 ALTER TABLE ONLY public.catalog_product_inventories
     ADD CONSTRAINT fk_rails_774162eb7a FOREIGN KEY (event_date_id) REFERENCES public.events_event_dates(id);
+
+
+--
+-- Name: catalog_product_accesses fk_rails_77c2aaedcd; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_product_accesses
+    ADD CONSTRAINT fk_rails_77c2aaedcd FOREIGN KEY (event_date_id) REFERENCES public.events_event_dates(id);
 
 
 --
@@ -2945,6 +3087,14 @@ ALTER TABLE ONLY public.ticketing_invitations
 
 
 --
+-- Name: catalog_product_accesses fk_rails_d1fa2d2567; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_product_accesses
+    ADD CONSTRAINT fk_rails_d1fa2d2567 FOREIGN KEY (event_product_id) REFERENCES public.catalog_event_products(id);
+
+
+--
 -- Name: events_event_date_changes fk_rails_d2b65b013d; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3001,12 +3151,23 @@ ALTER TABLE ONLY public.events_event_categories
 
 
 --
+-- Name: catalog_product_access_zones fk_rails_ffe7c83358; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_product_access_zones
+    ADD CONSTRAINT fk_rails_ffe7c83358 FOREIGN KEY (product_access_id) REFERENCES public.catalog_product_accesses(id);
+
+
+--
 -- PostgreSQL database dump complete
 --
 
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260730010003'),
+('20260730010002'),
+('20260730010001'),
 ('20260729000001'),
 ('20260728000004'),
 ('20260728000003'),
