@@ -68,6 +68,15 @@ Rails.application.routes.draw do
         post :activate, on: :member
         post :deactivate, on: :member
         patch :update_inventory_configuration, on: :member
+        resources :product_accesses, only: %i[index] do
+          post :replace, on: :collection
+          resources :product_access_zones, only: %i[index] do
+            post :replace, on: :collection
+          end
+        end
+        resources :product_date_allocations, only: %i[index] do
+          post :replace, on: :collection
+        end
       end
     end
   end

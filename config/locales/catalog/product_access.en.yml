@@ -1,0 +1,6 @@
+en:
+  catalog:
+    product_access:
+      errors:
+        replace_forbidden: "access can only be replaced for draft products"
+        immutable: "access is immutable once reservations exist"
