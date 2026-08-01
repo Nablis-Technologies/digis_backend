@@ -6412,7 +6412,7 @@
             {
               "name": "Activate",
               "request": {
-                "description": "Activate a draft event product, making it available for sale.",
+                "description": "Activate a draft event product, making it available for sale. Multi-date fixed products with a full_or_partial refund policy require a date allocation for every granted date before activation.",
                 "header": [],
                 "method": "POST",
                 "url": {
@@ -6508,6 +6508,143 @@
                 },
                 "response": []
               }
+            },
+            {
+              "name": "Product Accesses",
+              "item": [
+                {
+                  "name": "List",
+                  "request": {
+                    "description": "List product access rows (venue, stream, parking) for this event product.",
+                    "header": [],
+                    "method": "GET",
+                    "url": {
+                      "host": ["{{baseUrl}}"],
+                      "path": ["events", ":event_id", "event_products", ":event_product_id", "product_accesses"],
+                      "raw": "{{baseUrl}}/events/:event_id/event_products/:event_product_id/product_accesses",
+                      "variable": [
+                        { "key": "event_id", "value": "" },
+                        { "key": "event_product_id", "value": "" }
+                      ]
+                    },
+                    "response": []
+                  }
+                },
+                {
+                  "name": "Replace",
+                  "request": {
+                    "description": "Replace all product access rows (venue/stream/parking). Only for draft products.",
+                    "header": [{ "key": "Content-Type", "value": "application/json" }],
+                    "method": "POST",
+                    "url": {
+                      "host": ["{{baseUrl}}"],
+                      "path": ["events", ":event_id", "event_products", ":event_product_id", "product_accesses", "replace"],
+                      "raw": "{{baseUrl}}/events/:event_id/event_products/:event_product_id/product_accesses/replace",
+                      "variable": [
+                        { "key": "event_id", "value": "" },
+                        { "key": "event_product_id", "value": "" }
+                      ]
+                    },
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"accesses\": [\n    { \"event_date_id\": \"{{fest_date_id}}\", \"type\": \"venue\", \"usage_limit\": 1 },\n    { \"event_date_id\": \"{{fest_date_id}}\", \"type\": \"stream\", \"required_access_protection\": \"public\" }\n  ]\n}"
+                    },
+                    "response": []
+                  }
+                },
+                {
+                  "name": "Zone Grants",
+                  "item": [
+                    {
+                      "name": "List",
+                      "request": {
+                        "description": "List zone grants for a product access row.",
+                        "header": [],
+                        "method": "GET",
+                        "url": {
+                          "host": ["{{baseUrl}}"],
+                          "path": ["events", ":event_id", "event_products", ":event_product_id", "product_accesses", ":product_access_id", "product_access_zones"],
+                          "raw": "{{baseUrl}}/events/:event_id/event_products/:event_product_id/product_accesses/:product_access_id/product_access_zones",
+                          "variable": [
+                            { "key": "event_id", "value": "" },
+                            { "key": "event_product_id", "value": "" },
+                            { "key": "product_access_id", "value": "" }
+                          ]
+                        },
+                        "response": []
+                      }
+                    },
+                    {
+                      "name": "Replace",
+                      "request": {
+                        "description": "Replace zone grants for a venue or parking product access. Only for draft products.",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "method": "POST",
+                        "url": {
+                          "host": ["{{baseUrl}}"],
+                          "path": ["events", ":event_id", "event_products", ":event_product_id", "product_accesses", ":product_access_id", "product_access_zones", "replace"],
+                          "raw": "{{baseUrl}}/events/:event_id/event_products/:event_product_id/product_accesses/:product_access_id/product_access_zones/replace",
+                          "variable": [
+                            { "key": "event_id", "value": "" },
+                            { "key": "event_product_id", "value": "" },
+                            { "key": "product_access_id", "value": "" }
+                          ]
+                        },
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{ \"zone_ids\": [\"{{main_zone_id}}\", \"{{backstage_zone_id}}\"] }"
+                        },
+                        "response": []
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Date Allocations",
+              "item": [
+                {
+                  "name": "List",
+                  "request": {
+                    "description": "List date allocations for a multi-date product (basis points per date, must sum to 10000).",
+                    "header": [],
+                    "method": "GET",
+                    "url": {
+                      "host": ["{{baseUrl}}"],
+                      "path": ["events", ":event_id", "event_products", ":event_product_id", "product_date_allocations"],
+                      "raw": "{{baseUrl}}/events/:event_id/event_products/:event_product_id/product_date_allocations",
+                      "variable": [
+                        { "key": "event_id", "value": "" },
+                        { "key": "event_product_id", "value": "" }
+                      ]
+                    },
+                    "response": []
+                  }
+                },
+                {
+                  "name": "Replace",
+                  "request": {
+                    "description": "Replace all date allocations for a product. Allocations must sum to 10000 basis points; sending an empty allocations array auto-generates an even split across granted dates. Only for draft products.",
+                    "header": [{ "key": "Content-Type", "value": "application/json" }],
+                    "method": "POST",
+                    "url": {
+                      "host": ["{{baseUrl}}"],
+                      "path": ["events", ":event_id", "event_products", ":event_product_id", "product_date_allocations", "replace"],
+                      "raw": "{{baseUrl}}/events/:event_id/event_products/:event_product_id/product_date_allocations/replace",
+                      "variable": [
+                        { "key": "event_id", "value": "" },
+                        { "key": "event_product_id", "value": "" }
+                      ]
+                    },
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"allocations\": [\n    { \"event_date_id\": \"{{fest_date_id}}\", \"allocation_basis_points\": 5000 },\n    { \"event_date_id\": \"{{day2_date_id}}\", \"allocation_basis_points\": 3000 },\n    { \"event_date_id\": \"{{day3_date_id}}\", \"allocation_basis_points\": 2000 }\n  ]\n}"
+                    },
+                    "response": []
+                  }
+                }
+              ]
             }
           ]
         },
