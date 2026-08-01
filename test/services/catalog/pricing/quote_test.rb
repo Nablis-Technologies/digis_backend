@@ -39,7 +39,7 @@ module Catalog
           event_product: @product, type: "base", currency: "EUR",
           amount_minor: 1000, active_from: 1.day.ago
         )
-        Catalog::ExchangeRate.create!(
+        rate = Catalog::ExchangeRate.create!(
           from_currency: "EUR", to_currency: "USD", rate: 1.1, effective_from: 2.days.ago
         )
         result = Catalog::Pricing::Quote.call(product: @product, charge_currency: "USD", at: Time.current)
@@ -49,7 +49,8 @@ module Catalog
         assert_equal "USD", quote.charge_currency
         assert_equal 1100, quote.amount_minor
         assert_equal "exchange", quote.source_type
-        assert_not_nil quote.exchange_rate_id
+        assert_equal rate.id, quote.exchange_rate_id
+        assert_equal rate.rate, quote.exchange_rate_value
         assert_equal "EUR", quote.from_currency
       end
 
