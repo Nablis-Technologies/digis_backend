@@ -1384,7 +1384,7 @@ A deliberately small buyer-discount definition. Platform commission promotions b
 | `minimum_subtotal_minor` | bigint | Optional nonnegative eligible subtotal threshold |
 | `maximum_discount_minor` | bigint | Optional positive cap, primarily for percentage discounts |
 | `redemption_limit` | integer | Optional positive total reservation/application limit |
-| `per_user_limit` | integer | Optional positive limit; default `1` |
+| `per_user_limit` | integer | Required positive limit; default `1` |
 | `starts_at` | timestamptz | Optional |
 | `ends_at` | timestamptz | Optional |
 | `status` | string | `draft`, `active`, `disabled` |
@@ -1405,7 +1405,7 @@ One promotion may have multiple campaign/influencer codes that share the same di
 |---|---|---|
 | `promotion_id` | UUID | Required FK |
 | `code_digest` | string | Required keyed digest of normalized `event_id:code` |
-| `encrypted_code` | text | Optional encrypted value when organizers must retrieve it later |
+| `code_ciphertext` | text | Required encrypted value for organizer retrieval |
 | `label` | string | Optional internal campaign label |
 | `redemption_limit` | integer | Optional positive limit for this particular code |
 | `starts_at` | timestamptz | Optional additional code window |
