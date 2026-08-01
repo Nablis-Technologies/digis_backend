@@ -69,9 +69,12 @@ module Catalog
       # zone grant. An empty mapping would silently mean "all zones" at the
       # gate (spec §7.6 / §2.32).
       def validate_zone_mappings!
-        @product.product_accesses.includes(:product_access_zones, :event_date).each do |access|
+        accesses = @product.product_accesses.includes(:product_access_zones, :event_date).to_a
+        active_zones = active_zones_for(accesses)
+
+        accesses.each do |access|
           next unless access.venue? || access.parking?
-          next unless zones_active_for?(access)
+          next unless zones_active_for?(access, active_zones)
 
           if access.product_access_zones.empty?
             raise Core::Error,
@@ -79,6 +82,15 @@ module Catalog
                          type: access.type, date: access.event_date_id)
           end
         end
+      end
+
+      def active_zones_for(accesses)
+        types = accesses.filter_map { |access| access.type if access.venue? || access.parking? }.uniq
+        return [] if types.empty?
+
+        Events::AccessZone.active
+          .where(event_id: @product.event_id, type: types)
+          .pluck(:type, :event_date_id)
       end
 
       # Multi-date `fixed` products with `full_or_partial` refunds must have a
@@ -101,10 +113,11 @@ module Catalog
                      dates: missing.sort.join(", "))
       end
 
-      def zones_active_for?(access)
-        scope = Events::AccessZone.where(event: @product.event, type: access.type).active
-        scope = scope.where(event_date_id: [ nil, access.event_date_id ]) if access.event_date_id.present?
-        scope.exists?
+      def zones_active_for?(access, active_zones)
+        return active_zones.any? { |type, _date_id| type == access.type } if access.event_date_id.blank?
+
+        active_zones.include?([ access.type, nil ]) ||
+          active_zones.include?([ access.type, access.event_date_id ])
       end
 
       def record_audit!
