@@ -60,6 +60,14 @@ Rails.application.routes.draw do
     resources :product_prices, only: %i[index show create]
     resources :product_quotes, only: %i[create]
     resources :product_inventories, only: %i[index show]
+    resources :promotions, only: %i[index show create update destroy] do
+      post :publish, on: :member
+      post :disable, on: :member
+      post :quote, on: :member
+    end
+    resources :promotion_codes, only: %i[index show create] do
+      post :reveal, on: :member
+    end
   end
 
   resources :events, only: [] do

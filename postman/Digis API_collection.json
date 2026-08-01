@@ -29,6 +29,21 @@
       "key": "refreshToken",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "eventId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "productId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "promotionId",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -7741,7 +7756,421 @@
           ]
         },
       {
-        "name": "Product Inventories",
+        "name": "Promotions",
+        "item": [
+          {
+            "name": "List Promotions",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{accessToken}}"
+                }
+              ],
+              "url": {
+                "raw": "{{baseUrl}}/catalog/promotions?event_id={{eventId}}",
+                "host": [ "{{baseUrl}}" ],
+                "path": [ "catalog", "promotions" ],
+                "query": [
+                  {
+                    "key": "event_id",
+                    "value": "{{eventId}}"
+                  }
+                ]
+              },
+              "description": "List promotions visible to the current organizer, optionally filtered by event."
+            },
+            "response": []
+          },
+          {
+            "name": "Get Promotion",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{accessToken}}"
+                }
+              ],
+              "url": {
+                "raw": "{{baseUrl}}/catalog/promotions/:id",
+                "host": [ "{{baseUrl}}" ],
+                "path": [ "catalog", "promotions", ":id" ],
+                "variable": [
+                  {
+                    "key": "id",
+                    "value": ""
+                  }
+                ]
+              },
+              "description": "Get a promotion version and its non-sensitive code metadata."
+            },
+            "response": []
+          },
+          {
+            "name": "Create Draft Promotion",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{accessToken}}"
+                },
+                {
+                  "key": "Idempotency-Key",
+                  "value": "promotion-create-{{$guid}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"event_id\": \"{{eventId}}\",\n  \"name\": \"Fest early bird\",\n  \"type\": \"percentage\",\n  \"percentage_basis_points\": 1000,\n  \"currency\": \"ETB\",\n  \"minimum_subtotal_minor\": 1000,\n  \"maximum_discount_minor\": 2000,\n  \"redemption_limit\": 100,\n  \"per_user_limit\": 1,\n  \"product_ids\": [\"{{productId}}\"]\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{baseUrl}}/catalog/promotions",
+                "host": [ "{{baseUrl}}" ],
+                "path": [ "catalog", "promotions" ]
+              },
+              "description": "Create a draft promotion version."
+            },
+            "response": []
+          },
+          {
+            "name": "Create Successor Promotion",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{accessToken}}"
+                },
+                {
+                  "key": "Idempotency-Key",
+                  "value": "promotion-successor-create-{{$guid}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"event_id\": \"{{eventId}}\",\n  \"supersedes_promotion_id\": \"{{promotionId}}\",\n  \"name\": \"Fest early bird v2\",\n  \"type\": \"percentage\",\n  \"percentage_basis_points\": 1500,\n  \"currency\": \"ETB\",\n  \"per_user_limit\": 1,\n  \"product_ids\": [\"{{productId}}\"]\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{baseUrl}}/catalog/promotions",
+                "host": [ "{{baseUrl}}" ],
+                "path": [ "catalog", "promotions" ]
+              },
+              "description": "Create a draft successor promotion. The server derives the next version from supersedes_promotion_id; version is not client-controlled."
+            },
+            "response": []
+          },
+          {
+            "name": "Update Draft Promotion",
+            "request": {
+              "method": "PATCH",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{accessToken}}"
+                },
+                {
+                  "key": "Idempotency-Key",
+                  "value": "promotion-update-{{$guid}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"name\": \"Updated early bird\",\n  \"maximum_discount_minor\": 2500,\n  \"product_ids\": [\"{{productId}}\"]\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{baseUrl}}/catalog/promotions/:id",
+                "host": [ "{{baseUrl}}" ],
+                "path": [ "catalog", "promotions", ":id" ],
+                "variable": [
+                  {
+                    "key": "id",
+                    "value": ""
+                  }
+                ]
+              },
+              "description": "Update a draft promotion only. Published and disabled versions are immutable."
+            },
+            "response": []
+          },
+          {
+            "name": "Delete Draft Promotion",
+            "request": {
+              "method": "DELETE",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{accessToken}}"
+                },
+                {
+                  "key": "Idempotency-Key",
+                  "value": "promotion-delete-{{$guid}}"
+                }
+              ],
+              "url": {
+                "raw": "{{baseUrl}}/catalog/promotions/:id",
+                "host": [ "{{baseUrl}}" ],
+                "path": [ "catalog", "promotions", ":id" ],
+                "variable": [
+                  {
+                    "key": "id",
+                    "value": ""
+                  }
+                ]
+              },
+              "description": "Discard a draft promotion version."
+            },
+            "response": []
+          },
+          {
+            "name": "Publish Promotion",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{accessToken}}"
+                },
+                {
+                  "key": "Idempotency-Key",
+                  "value": "promotion-publish-{{$guid}}"
+                }
+              ],
+              "url": {
+                "raw": "{{baseUrl}}/catalog/promotions/:id/publish",
+                "host": [ "{{baseUrl}}" ],
+                "path": [ "catalog", "promotions", ":id", "publish" ],
+                "variable": [
+                  {
+                    "key": "id",
+                    "value": ""
+                  }
+                ]
+              },
+              "description": "Publish a draft promotion version."
+            },
+            "response": []
+          },
+          {
+            "name": "Disable Promotion",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{accessToken}}"
+                },
+                {
+                  "key": "Idempotency-Key",
+                  "value": "promotion-disable-{{$guid}}"
+                }
+              ],
+              "url": {
+                "raw": "{{baseUrl}}/catalog/promotions/:id/disable",
+                "host": [ "{{baseUrl}}" ],
+                "path": [ "catalog", "promotions", ":id", "disable" ],
+                "variable": [
+                  {
+                    "key": "id",
+                    "value": ""
+                  }
+                ]
+              },
+              "description": "Disable an active promotion version."
+            },
+            "response": []
+          },
+          {
+            "name": "Quote Promotion",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{accessToken}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"code\": \"OPENING10\",\n  \"eligible_product_ids\": [\"{{productId}}\"],\n  \"eligible_subtotal_minor\": 10000,\n  \"charge_currency\": \"ETB\"\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{baseUrl}}/catalog/promotions/:id/quote",
+                "host": [ "{{baseUrl}}" ],
+                "path": [ "catalog", "promotions", ":id", "quote" ],
+                "variable": [
+                  {
+                    "key": "id",
+                    "value": ""
+                  }
+                ]
+              },
+              "description": "Quote a promotion discount. The quote returns promotion and code limit evidence."
+            },
+            "response": []
+          }
+        ]
+      },
+      {
+        "name": "Promotion Codes",
+        "item": [
+          {
+            "name": "List Promotion Codes",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{accessToken}}"
+                }
+              ],
+              "url": {
+                "raw": "{{baseUrl}}/catalog/promotion_codes?promotion_id={{promotionId}}",
+                "host": [ "{{baseUrl}}" ],
+                "path": [ "catalog", "promotion_codes" ],
+                "query": [
+                  {
+                    "key": "promotion_id",
+                    "value": "{{promotionId}}"
+                  }
+                ]
+              },
+              "description": "List promotion-code metadata without plaintext values or digests."
+            },
+            "response": []
+          },
+          {
+            "name": "Get Promotion Code",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{accessToken}}"
+                }
+              ],
+              "url": {
+                "raw": "{{baseUrl}}/catalog/promotion_codes/:id",
+                "host": [ "{{baseUrl}}" ],
+                "path": [ "catalog", "promotion_codes", ":id" ],
+                "variable": [
+                  {
+                    "key": "id",
+                    "value": ""
+                  }
+                ]
+              },
+              "description": "Get promotion-code metadata without the plaintext code."
+            },
+            "response": []
+          },
+          {
+            "name": "Create Promotion Code",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{accessToken}}"
+                },
+                {
+                  "key": "Idempotency-Key",
+                  "value": "promotion-code-create-{{$guid}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"promotion_id\": \"{{promotionId}}\",\n  \"code\": \"OPENING10\",\n  \"label\": \"Festival early bird\",\n  \"redemption_limit\": 100,\n  \"active\": true\n}",
+                "options": {
+                  "raw": {
+                    "language": "json"
+                  }
+                }
+              },
+              "url": {
+                "raw": "{{baseUrl}}/catalog/promotion_codes",
+                "host": [ "{{baseUrl}}" ],
+                "path": [ "catalog", "promotion_codes" ]
+              },
+              "description": "Create an encrypted, event-scoped promotion code. Plaintext is returned only once."
+            },
+            "response": []
+          },
+          {
+            "name": "Reveal Promotion Code",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{accessToken}}"
+                },
+                {
+                  "key": "Idempotency-Key",
+                  "value": "promotion-code-reveal-{{$guid}}"
+                }
+              ],
+              "url": {
+                "raw": "{{baseUrl}}/catalog/promotion_codes/:id/reveal",
+                "host": [ "{{baseUrl}}" ],
+                "path": [ "catalog", "promotion_codes", ":id", "reveal" ],
+                "variable": [
+                  {
+                    "key": "id",
+                    "value": ""
+                  }
+                ]
+              },
+              "description": "Explicitly reveal a promotion code and record the audited reveal."
+            },
+            "response": []
+          }
+        ]
+      },
+      {
+         "name": "Product Inventories",
         "item": [
           {
             "name": "List All Product Inventories",
