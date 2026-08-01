@@ -116,6 +116,196 @@ module Catalog
         assert_equal "retired", draft.reload.status
       end
 
+      test "activation rejects a product with unzoned venue access when zones are enabled" do
+        draft = create_draft(event: @event, name: "Zoned Pass").value
+        Catalog::ProductPrice.create!(
+          event_product: draft,
+          type: "base",
+          currency: "ETB",
+          amount_minor: 1_000,
+          active_from: 1.hour.ago
+        )
+        date = Events::EventDate.create!(event: @event, starts_at: 1.day.from_now,
+                                         ends_at: 1.day.from_now + 4.hours)
+        Events::AccessZone.create!(event: @event, event_date: date, code: "MAIN",
+                                   name: "Main Gate", type: "venue", sort_order: 0)
+        draft.product_accesses.create!(event_date: date, type: "venue", usage_limit: 1)
+
+        result = Activate.call(product: draft, actor: @actor)
+
+        assert result.failure?
+        assert_match(/zone grant/i, result.error.message)
+        assert_equal "draft", draft.reload.status
+      end
+
+      test "activation succeeds when zoned venue access has an explicit zone grant" do
+        draft = create_draft(event: @event, name: "Granted Pass").value
+        Catalog::ProductPrice.create!(
+          event_product: draft,
+          type: "base",
+          currency: "ETB",
+          amount_minor: 1_000,
+          active_from: 1.hour.ago
+        )
+        date = Events::EventDate.create!(event: @event, starts_at: 1.day.from_now,
+                                         ends_at: 1.day.from_now + 4.hours)
+        zone = Events::AccessZone.create!(event: @event, event_date: date, code: "VIP",
+                                          name: "VIP Gate", type: "venue", sort_order: 0)
+        access = draft.product_accesses.create!(event_date: date, type: "venue", usage_limit: 1)
+        access.product_access_zones.create!(access_zone: zone)
+
+        result = Activate.call(product: draft, actor: @actor)
+
+        assert result.success?, result.error&.message
+        assert_equal "active", draft.reload.status
+      end
+
+      test "activation rejects a multi-date fixed product without date allocations" do
+        draft = create_draft(event: @event, name: "Alloc Gate Pass").value
+        Catalog::ProductPrice.create!(
+          event_product: draft,
+          type: "base",
+          currency: "ETB",
+          amount_minor: 1_000,
+          active_from: 1.hour.ago
+        )
+        date_one = Events::EventDate.create!(event: @event, starts_at: 1.day.from_now,
+                                             ends_at: 1.day.from_now + 4.hours)
+        date_two = Events::EventDate.create!(event: @event, starts_at: 2.days.from_now,
+                                             ends_at: 2.days.from_now + 4.hours)
+        draft.product_accesses.create!(event_date: date_one, type: "venue")
+        draft.product_accesses.create!(event_date: date_two, type: "venue")
+
+        result = Activate.call(product: draft, actor: @actor)
+
+        assert result.failure?
+        assert_match(/allocation/i, result.error.message)
+        assert_equal "draft", draft.reload.status
+      end
+
+      test "activation succeeds when allocations cover every granted date" do
+        draft = create_draft(event: @event, name: "Alloc Covered Pass").value
+        Catalog::ProductPrice.create!(
+          event_product: draft,
+          type: "base",
+          currency: "ETB",
+          amount_minor: 1_000,
+          active_from: 1.hour.ago
+        )
+        date_one = Events::EventDate.create!(event: @event, starts_at: 1.day.from_now,
+                                             ends_at: 1.day.from_now + 4.hours)
+        date_two = Events::EventDate.create!(event: @event, starts_at: 2.days.from_now,
+                                             ends_at: 2.days.from_now + 4.hours)
+        draft.product_accesses.create!(event_date: date_one, type: "venue")
+        draft.product_accesses.create!(event_date: date_two, type: "venue")
+        draft.product_date_allocations.create!(event_date: date_one, allocation_basis_points: 5_000)
+        draft.product_date_allocations.create!(event_date: date_two, allocation_basis_points: 5_000)
+
+        result = Activate.call(product: draft, actor: @actor)
+
+        assert result.success?, result.error&.message
+        assert_equal "active", draft.reload.status
+      end
+
+      test "activation rejects a multi-date product with partial allocation coverage" do
+        draft = create_draft(event: @event, name: "Partial Alloc Pass").value
+        Catalog::ProductPrice.create!(
+          event_product: draft,
+          type: "base",
+          currency: "ETB",
+          amount_minor: 1_000,
+          active_from: 1.hour.ago
+        )
+        date_one = Events::EventDate.create!(event: @event, starts_at: 1.day.from_now,
+                                             ends_at: 1.day.from_now + 4.hours)
+        date_two = Events::EventDate.create!(event: @event, starts_at: 2.days.from_now,
+                                             ends_at: 2.days.from_now + 4.hours)
+        date_three = Events::EventDate.create!(event: @event, starts_at: 3.days.from_now,
+                                               ends_at: 3.days.from_now + 4.hours)
+        draft.product_accesses.create!(event_date: date_one, type: "venue")
+        draft.product_accesses.create!(event_date: date_two, type: "venue")
+        draft.product_accesses.create!(event_date: date_three, type: "venue")
+        draft.product_date_allocations.create!(event_date: date_one, allocation_basis_points: 10_000)
+
+        result = Activate.call(product: draft, actor: @actor)
+
+        assert result.failure?
+        assert_match(/allocation/i, result.error.message)
+        assert_equal "draft", draft.reload.status
+      end
+
+      test "activation succeeds for a single-date product without allocations" do
+        draft = create_draft(event: @event, name: "Single Date Pass").value
+        Catalog::ProductPrice.create!(
+          event_product: draft,
+          type: "base",
+          currency: "ETB",
+          amount_minor: 1_000,
+          active_from: 1.hour.ago
+        )
+        date = Events::EventDate.create!(event: @event, starts_at: 1.day.from_now,
+                                         ends_at: 1.day.from_now + 4.hours)
+        draft.product_accesses.create!(event_date: date, type: "venue")
+
+        result = Activate.call(product: draft, actor: @actor)
+
+        assert result.success?, result.error&.message
+        assert_equal "active", draft.reload.status
+      end
+
+      test "activation succeeds for a choose_one ticket product without allocations" do
+        created = Catalog::Products::CreateDraft.call(
+          event: @event,
+          actor: @actor,
+          product_attributes: { name: "Pick A Day Pass", type: "ticket" },
+          ticket_type_attributes: {
+            audience: "public", approval_mode: "automatic", date_selection: "choose_one",
+            admissions_per_unit: 1
+          },
+          price_attributes: { currency: "ETB", amount_minor: 1_000, active_from: 1.hour.ago },
+          inventory_configuration: { mode: "unlimited" }
+        )
+        assert created.success?, created.error&.message
+        draft = created.value
+        date_one = Events::EventDate.create!(event: @event, starts_at: 1.day.from_now,
+                                             ends_at: 1.day.from_now + 4.hours)
+        date_two = Events::EventDate.create!(event: @event, starts_at: 2.days.from_now,
+                                             ends_at: 2.days.from_now + 4.hours)
+        draft.product_accesses.create!(event_date: date_one, type: "venue")
+        draft.product_accesses.create!(event_date: date_two, type: "venue")
+
+        result = Activate.call(product: draft, actor: @actor)
+
+        assert result.success?, result.error&.message
+        assert_equal "active", draft.reload.status
+      end
+
+      test "activation succeeds for a full_only multi-date product without allocations" do
+        draft = create_draft(
+          event: @event,
+          name: "Full Only Pass",
+          product_attributes: { schedule_change_refund_policy: "full_only" }
+        ).value
+        Catalog::ProductPrice.create!(
+          event_product: draft,
+          type: "base",
+          currency: "ETB",
+          amount_minor: 1_000,
+          active_from: 1.hour.ago
+        )
+        date_one = Events::EventDate.create!(event: @event, starts_at: 1.day.from_now,
+                                             ends_at: 1.day.from_now + 4.hours)
+        date_two = Events::EventDate.create!(event: @event, starts_at: 2.days.from_now,
+                                             ends_at: 2.days.from_now + 4.hours)
+        draft.product_accesses.create!(event_date: date_one, type: "venue")
+        draft.product_accesses.create!(event_date: date_two, type: "venue")
+
+        result = Activate.call(product: draft, actor: @actor)
+
+        assert result.success?, result.error&.message
+        assert_equal "active", draft.reload.status
+      end
+
       private
 
       def create_draft(event:, name:, idempotency_key: nil, product_attributes: {}, price_attributes: nil)
