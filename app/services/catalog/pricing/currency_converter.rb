@@ -2,6 +2,12 @@
 
 module Catalog
   module Pricing
+    # Converts minor-unit amounts between currencies while retaining the exact
+    # exchange-rate evidence used for the conversion.
+    #
+    # Fresh conversions use the server-side rate. Conversions supplied with an
+    # FX quote must match that stored rate exactly; client-provided evidence is
+    # never trusted without revalidation.
     class CurrencyConverter < Core::BaseService
       CURRENCY_MINOR_UNITS = {
         JPY: 1, KRW: 1, VND: 1, CLP: 1,
@@ -36,6 +42,7 @@ module Catalog
         Catalog::ExchangeRate.rate_for(from: @from_currency, to: @to_currency, at: @at)
       end
 
+      # Revalidate every field of supplied FX evidence before using its rate.
       def evidenced_rate
         rate_id = evidence_value(:exchange_rate_id)
         rate_value = evidence_value(:exchange_rate_value)
@@ -79,6 +86,8 @@ module Catalog
         )
       end
 
+      # Convert through major units so currencies with non-100 minor units
+      # round correctly before returning to the charge currency's minor units.
       def converted_amount(rate)
         from_per = minor_unit(@from_currency)
         to_per = minor_unit(@to_currency)
