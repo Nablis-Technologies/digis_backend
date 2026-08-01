@@ -160,6 +160,34 @@ module Catalog
         assert_equal "active", draft.reload.status
       end
 
+      test "activation batches active zone lookup for multiple accesses" do
+        draft = create_draft(event: @event, name: "Multi Access Pass").value
+        Catalog::ProductPrice.create!(
+          event_product: draft,
+          type: "base",
+          currency: "ETB",
+          amount_minor: 1_000,
+          active_from: 1.hour.ago
+        )
+        date = Events::EventDate.create!(event: @event, starts_at: 1.day.from_now,
+                                         ends_at: 1.day.from_now + 4.hours)
+        venue_zone = Events::AccessZone.create!(event: @event, event_date: date,
+                                                code: "VENUE", name: "Venue Gate",
+                                                type: "venue", sort_order: 0)
+        parking_zone = Events::AccessZone.create!(event: @event, event_date: date,
+                                                  code: "PARKING", name: "Parking",
+                                                  type: "parking", sort_order: 1)
+        venue_access = draft.product_accesses.create!(event_date: date, type: "venue")
+        parking_access = draft.product_accesses.create!(event_date: date, type: "parking")
+        venue_access.product_access_zones.create!(access_zone: venue_zone)
+        parking_access.product_access_zones.create!(access_zone: parking_zone)
+
+        result = Activate.call(product: draft, actor: @actor)
+
+        assert result.success?, result.error&.message
+        assert_equal "active", draft.reload.status
+      end
+
       test "activation rejects a multi-date fixed product without date allocations" do
         draft = create_draft(event: @event, name: "Alloc Gate Pass").value
         Catalog::ProductPrice.create!(
