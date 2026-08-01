@@ -487,6 +487,46 @@ end
 puts "✓ #{Catalog::ProductPrice.count} prices, #{Catalog::ExchangeRate.count} exchange rates"
 
 # ─────────────────────────────────────────────
+# 8. Catalog: product accesses, zone grants, and date allocations (Plan 2, Task 4)
+# ─────────────────────────────────────────────
+puts "\n🔄  Seeding product accesses + allocations..."
+
+# Seed fest_ticket accesses/allocation directly since it's already active
+fest_date = fest_event.event_dates.first!
+unless Catalog::ProductAccess.exists?(event_product: fest_ticket, type: "venue")
+  fest_ticket.product_accesses.create!(event_date: fest_date, type: "venue", usage_limit: 1)
+  zone = Events::AccessZone.find_by!(event: fest_event, code: "MAIN")
+  access = Catalog::ProductAccess.find_by!(event_product: fest_ticket, type: "venue")
+  access.product_access_zones.create!(access_zone: zone)
+  fest_ticket.product_date_allocations.create!(
+    event_date: fest_date, allocation_basis_points: 10_000
+  )
+end
+
+# Seed vip_ticket accesses/allocation directly since it's already active
+unless Catalog::ProductAccess.exists?(event_product: vip_ticket, type: "venue")
+  vip_ticket.product_accesses.create!(event_date: fest_date, type: "venue", usage_limit: nil)
+  vip_ticket.product_accesses.create!(event_date: fest_date, type: "stream", required_access_protection: "public")
+  backstage = Events::AccessZone.find_or_create_by!(
+    event: fest_event, code: "BACKSTAGE", type: "venue"
+  ) do |z|
+    z.name = "Backstage"
+    z.sort_order = 1
+  end
+  venue_access = Catalog::ProductAccess.find_by!(event_product: vip_ticket, type: "venue")
+  main_zone = Events::AccessZone.find_by!(event: fest_event, code: "MAIN")
+  venue_access.product_access_zones.create!(access_zone: main_zone)
+  venue_access.product_access_zones.create!(access_zone: backstage)
+  vip_ticket.product_date_allocations.create!(
+    event_date: fest_date, allocation_basis_points: 10_000
+  )
+end
+
+puts "✓ #{Catalog::ProductAccess.count} product accesses, " \
+     "#{Catalog::ProductAccessZone.count} access zone grants, " \
+     "#{Catalog::ProductDateAllocation.count} date allocations"
+
+# ─────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────
 puts "\n" + "=" * 60
@@ -498,6 +538,7 @@ puts "  Events:            #{Events::Event.count}"
 puts "  Consent docs:      #{Events::ConsentDocument.count} (#{Events::ConsentDocumentVersion.published.count} published)"
 puts "  Products:          #{Catalog::EventProduct.count} (#{Ticketing::TicketType.count} ticket types)"
 puts "  Pricing:           #{Catalog::ProductPrice.count} prices, #{Catalog::ExchangeRate.count} exchange rates"
+puts "  Accesses:          #{Catalog::ProductAccess.count} accesses (#{Catalog::ProductAccessZone.count} zone grants, #{Catalog::ProductDateAllocation.count} date allocations)"
 puts "  Legal docs:        #{Legal::LegalDocument.count} (#{Legal::LegalDocumentVersion.published.count} published)"
 puts "  Legal acceptances: #{Legal::LegalAcceptance.count}"
 puts "\n🔑 Auth (POST /core/auth/login):"
@@ -511,6 +552,7 @@ puts "  GET  /admin/legal_documents             (as Admin)"
 puts "  POST /admin/legal_documents/:id/publish"
 puts "  GET  /events/:id/consent_documents"
 puts "  GET  /organizations/owner              (owner orgs)"
-puts "  POST /catalog/product_quotes            { product_id, charge_currency: \"USD\" }"
-puts "  POST /catalog/product_prices            { product_id, type, currency, amount_minor, active_from }"
+puts "  POST /catalog/product_quotes           { product_id, charge_currency: \"USD\" }"
+puts "  GET  /events/:id/event_products/:id/product_accesses    (accesses + zone grants)"
+puts "  GET  /events/:id/event_products/:id/product_date_allocations (date allocations)"
 puts "=" * 60
