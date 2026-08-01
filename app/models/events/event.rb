@@ -44,6 +44,8 @@ module Events
              dependent: :destroy, inverse_of: :event
     has_many :event_products, class_name: "Catalog::EventProduct",
              dependent: :destroy, inverse_of: :event
+    has_many :promotions, class_name: "Catalog::Promotion",
+             dependent: :destroy, inverse_of: :event
 
     validates :title, presence: true
     validates :slug, presence: true,

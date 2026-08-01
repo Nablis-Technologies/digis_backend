@@ -396,6 +396,77 @@ CREATE TABLE public.catalog_product_prices (
 
 
 --
+-- Name: catalog_promotion_codes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.catalog_promotion_codes (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    promotion_id uuid NOT NULL,
+    code_digest character varying(64) NOT NULL,
+    code_ciphertext text NOT NULL,
+    label character varying,
+    redemption_limit integer,
+    starts_at timestamp with time zone,
+    ends_at timestamp with time zone,
+    active boolean DEFAULT true NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT catalog_promotion_codes_redemption_limit_check CHECK (((redemption_limit > 0) OR (redemption_limit IS NULL))),
+    CONSTRAINT catalog_promotion_codes_window_check CHECK (((ends_at IS NULL) OR (starts_at IS NULL) OR (ends_at > starts_at)))
+);
+
+
+--
+-- Name: catalog_promotion_products; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.catalog_promotion_products (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    promotion_id uuid NOT NULL,
+    event_product_id uuid NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL
+);
+
+
+--
+-- Name: catalog_promotions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.catalog_promotions (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    event_id uuid NOT NULL,
+    supersedes_promotion_id uuid,
+    version integer DEFAULT 1 NOT NULL,
+    name character varying NOT NULL,
+    type character varying NOT NULL,
+    percentage_basis_points integer,
+    fixed_amount_minor bigint,
+    currency character varying(3) NOT NULL,
+    minimum_subtotal_minor bigint,
+    maximum_discount_minor bigint,
+    redemption_limit integer,
+    per_user_limit integer DEFAULT 1 NOT NULL,
+    starts_at timestamp with time zone,
+    ends_at timestamp with time zone,
+    status character varying DEFAULT 'draft'::character varying NOT NULL,
+    lock_version integer DEFAULT 0 NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT catalog_promotions_calculation_check CHECK (((((type)::text = 'percentage'::text) AND (percentage_basis_points IS NOT NULL) AND (fixed_amount_minor IS NULL)) OR (((type)::text = 'fixed'::text) AND (fixed_amount_minor IS NOT NULL) AND (percentage_basis_points IS NULL)))),
+    CONSTRAINT catalog_promotions_fixed_amount_check CHECK (((fixed_amount_minor >= 0) OR (fixed_amount_minor IS NULL))),
+    CONSTRAINT catalog_promotions_maximum_discount_check CHECK (((maximum_discount_minor > 0) OR (maximum_discount_minor IS NULL))),
+    CONSTRAINT catalog_promotions_minimum_subtotal_check CHECK (((minimum_subtotal_minor >= 0) OR (minimum_subtotal_minor IS NULL))),
+    CONSTRAINT catalog_promotions_per_user_limit_check CHECK ((per_user_limit > 0)),
+    CONSTRAINT catalog_promotions_percentage_check CHECK ((((percentage_basis_points >= 1) AND (percentage_basis_points <= 10000)) OR (percentage_basis_points IS NULL))),
+    CONSTRAINT catalog_promotions_redemption_limit_check CHECK (((redemption_limit > 0) OR (redemption_limit IS NULL))),
+    CONSTRAINT catalog_promotions_status_check CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'active'::character varying, 'disabled'::character varying])::text[]))),
+    CONSTRAINT catalog_promotions_type_check CHECK (((type)::text = ANY ((ARRAY['percentage'::character varying, 'fixed'::character varying])::text[]))),
+    CONSTRAINT catalog_promotions_window_check CHECK (((ends_at IS NULL) OR (starts_at IS NULL) OR (ends_at > starts_at)))
+);
+
+
+--
 -- Name: catalog_venue_capacity_reservations; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1320,6 +1391,30 @@ ALTER TABLE ONLY public.catalog_product_prices
 
 
 --
+-- Name: catalog_promotion_codes catalog_promotion_codes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_promotion_codes
+    ADD CONSTRAINT catalog_promotion_codes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: catalog_promotion_products catalog_promotion_products_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_promotion_products
+    ADD CONSTRAINT catalog_promotion_products_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: catalog_promotions catalog_promotions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_promotions
+    ADD CONSTRAINT catalog_promotions_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: catalog_venue_capacity_reservations catalog_venue_capacity_reservations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1794,6 +1889,13 @@ CREATE UNIQUE INDEX idx_product_accesses_on_product_date_type ON public.catalog_
 
 
 --
+-- Name: idx_promotion_products_on_promotion_and_product; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_promotion_products_on_promotion_and_product ON public.catalog_promotion_products USING btree (promotion_id, event_product_id);
+
+
+--
 -- Name: idx_unique_legal_acceptance; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1945,6 +2047,62 @@ CREATE INDEX index_catalog_product_prices_on_event_product_id ON public.catalog_
 --
 
 CREATE INDEX index_catalog_product_prices_on_ticket_type_id ON public.catalog_product_prices USING btree (ticket_type_id);
+
+
+--
+-- Name: index_catalog_promotion_codes_on_code_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_catalog_promotion_codes_on_code_digest ON public.catalog_promotion_codes USING btree (code_digest);
+
+
+--
+-- Name: index_catalog_promotion_codes_on_promotion_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_catalog_promotion_codes_on_promotion_id ON public.catalog_promotion_codes USING btree (promotion_id);
+
+
+--
+-- Name: index_catalog_promotion_codes_on_promotion_id_and_active; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_catalog_promotion_codes_on_promotion_id_and_active ON public.catalog_promotion_codes USING btree (promotion_id, active);
+
+
+--
+-- Name: index_catalog_promotion_products_on_event_product_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_catalog_promotion_products_on_event_product_id ON public.catalog_promotion_products USING btree (event_product_id);
+
+
+--
+-- Name: index_catalog_promotions_on_event_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_catalog_promotions_on_event_id ON public.catalog_promotions USING btree (event_id);
+
+
+--
+-- Name: index_catalog_promotions_on_event_id_and_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_catalog_promotions_on_event_id_and_status ON public.catalog_promotions USING btree (event_id, status);
+
+
+--
+-- Name: index_catalog_promotions_on_event_id_and_version; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_catalog_promotions_on_event_id_and_version ON public.catalog_promotions USING btree (event_id, version);
+
+
+--
+-- Name: index_catalog_promotions_on_supersedes_promotion_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_catalog_promotions_on_supersedes_promotion_id ON public.catalog_promotions USING btree (supersedes_promotion_id);
 
 
 --
@@ -2715,6 +2873,14 @@ ALTER TABLE ONLY public.catalog_product_inventories
 
 
 --
+-- Name: catalog_promotions fk_rails_1f9d62eca8; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_promotions
+    ADD CONSTRAINT fk_rails_1f9d62eca8 FOREIGN KEY (event_id) REFERENCES public.events_events(id);
+
+
+--
 -- Name: events_consent_documents fk_rails_29adff7b26; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2768,6 +2934,14 @@ ALTER TABLE ONLY public.catalog_product_prices
 
 ALTER TABLE ONLY public.events_access_zones
     ADD CONSTRAINT fk_rails_3543c09254 FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE CASCADE;
+
+
+--
+-- Name: catalog_promotion_products fk_rails_3a174a3c7f; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_promotion_products
+    ADD CONSTRAINT fk_rails_3a174a3c7f FOREIGN KEY (event_product_id) REFERENCES public.catalog_event_products(id);
 
 
 --
@@ -2832,6 +3006,14 @@ ALTER TABLE ONLY public.catalog_inventory_reservations
 
 ALTER TABLE ONLY public.events_consent_document_products
     ADD CONSTRAINT fk_rails_520812941a FOREIGN KEY (consent_document_id) REFERENCES public.events_consent_documents(id);
+
+
+--
+-- Name: catalog_promotions fk_rails_56d77862e4; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_promotions
+    ADD CONSTRAINT fk_rails_56d77862e4 FOREIGN KEY (supersedes_promotion_id) REFERENCES public.catalog_promotions(id);
 
 
 --
@@ -2936,6 +3118,22 @@ ALTER TABLE ONLY public.events_events
 
 ALTER TABLE ONLY public.catalog_event_products
     ADD CONSTRAINT fk_rails_7bf2218d4e FOREIGN KEY (event_id) REFERENCES public.events_events(id);
+
+
+--
+-- Name: catalog_promotion_products fk_rails_7ef1b6f2d2; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_promotion_products
+    ADD CONSTRAINT fk_rails_7ef1b6f2d2 FOREIGN KEY (promotion_id) REFERENCES public.catalog_promotions(id);
+
+
+--
+-- Name: catalog_promotion_codes fk_rails_82ebe8867c; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_promotion_codes
+    ADD CONSTRAINT fk_rails_82ebe8867c FOREIGN KEY (promotion_id) REFERENCES public.catalog_promotions(id);
 
 
 --
@@ -3193,6 +3391,9 @@ ALTER TABLE ONLY public.catalog_product_access_zones
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260801010003'),
+('20260801010002'),
+('20260801010001'),
 ('20260730010004'),
 ('20260730010003'),
 ('20260730010002'),
