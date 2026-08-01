@@ -39,6 +39,27 @@ COMMENT ON EXTENSION pgcrypto IS 'cryptographic functions';
 
 
 --
+-- Name: catalog_date_allocations_sum_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.catalog_date_allocations_sum_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF (
+    SELECT COALESCE(SUM(allocation_basis_points), 0)
+    FROM catalog_product_date_allocations
+    WHERE event_product_id = NEW.event_product_id
+  ) <> 10000 THEN
+    RAISE EXCEPTION 'date allocations must sum to 10000 basis points for product %',
+      NEW.event_product_id USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: consent_version_delete_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2578,6 +2599,13 @@ CREATE TRIGGER trg_consent_version_nodelete BEFORE DELETE ON public.events_conse
 
 
 --
+-- Name: catalog_product_date_allocations trg_date_allocation_sum_check; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER trg_date_allocation_sum_check AFTER INSERT OR UPDATE OF allocation_basis_points, event_product_id ON public.catalog_product_date_allocations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.catalog_date_allocations_sum_guard();
+
+
+--
 -- Name: events_event_date_changes trg_event_date_change_immutable; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -3165,6 +3193,7 @@ ALTER TABLE ONLY public.catalog_product_access_zones
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260730010004'),
 ('20260730010003'),
 ('20260730010002'),
 ('20260730010001'),
