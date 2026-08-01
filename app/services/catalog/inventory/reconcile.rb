@@ -13,10 +13,20 @@ module Catalog
         discrepancies = []
         total_checked = 0
         total_discrepancies = 0
+        expected_inventory_held = Catalog::InventoryReservation.active
+          .group(:product_inventory_id)
+          .sum(:quantity)
+        expected_venue_held = Catalog::VenueCapacityReservation.active
+          .group(:event_date_id)
+          .sum(:quantity_people)
+        expected_venue_issued = Catalog::VenueCapacityReservation
+          .where(status: "committed")
+          .group(:event_date_id)
+          .sum(:quantity_people)
 
         Catalog::ProductInventory.find_each do |inv|
           total_checked += 1
-          expected_held = inv.inventory_reservations.active.sum(:quantity)
+          expected_held = expected_inventory_held.fetch(inv.id, 0)
 
           if (expected_held - inv.held_count).abs > @threshold
             discrepancies << {
@@ -44,8 +54,8 @@ module Catalog
 
         Events::EventDate.find_each do |event_date|
           total_checked += 1
-          expected_held = event_date.venue_capacity_reservations.active.sum(:quantity_people)
-          expected_issued = event_date.venue_capacity_reservations.where(status: "committed").sum(:quantity_people)
+          expected_held = expected_venue_held.fetch(event_date.id, 0)
+          expected_issued = expected_venue_issued.fetch(event_date.id, 0)
 
           total_discrepancies += append_discrepancy!(
             discrepancies,
