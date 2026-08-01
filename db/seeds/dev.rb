@@ -486,6 +486,73 @@ end
 
 puts "✓ #{Catalog::ProductPrice.count} prices, #{Catalog::ExchangeRate.count} exchange rates"
 
+# 7d. Catalog promotions: active event discount + encrypted code (Plan 2, Task 5)
+# ─────────────────────────────────────────────
+puts "\n🏷️  Seeding catalog promotions..."
+
+promotion_name = "Fest early bird"
+promotion_code = "OPENING10"
+fest_promotion = Catalog::Promotion.find_by(event: fest_event, name: promotion_name, status: "active")
+fest_promotion ||= Catalog::Promotion.find_by(event: fest_event, name: promotion_name, status: "draft")
+
+unless fest_promotion
+  result = Catalog::Promotions::Create.call(
+    event: fest_event,
+    actor: nil,
+    attributes: {
+      name: promotion_name,
+      type: "percentage",
+      percentage_basis_points: 1_000,
+      currency: "ETB",
+      minimum_subtotal_minor: 1_000,
+      maximum_discount_minor: 2_000,
+      redemption_limit: 100,
+      per_user_limit: 1,
+      starts_at: 1.week.ago,
+      ends_at: 1.month.from_now
+    },
+    product_ids: [ vip_ticket.id ],
+    idempotency_key: "dev-fest-early-bird-create-v1"
+  )
+  raise result.error.message unless result.success?
+
+  fest_promotion = result.value
+end
+
+if fest_promotion.draft?
+  result = Catalog::Promotions::PublishVersion.call(
+    promotion: fest_promotion,
+    actor: nil,
+    idempotency_key: "dev-fest-early-bird-publish-v1"
+  )
+  raise result.error.message unless result.success?
+
+  fest_promotion = result.value
+end
+
+promotion_code_digest = Catalog::PromotionCode.code_digest_for(
+  event_id: fest_event.id,
+  code: promotion_code
+)
+unless Catalog::PromotionCode.exists?(promotion: fest_promotion, code_digest: promotion_code_digest)
+  result = Catalog::Promotions::CreateCode.call(
+    promotion: fest_promotion,
+    actor: nil,
+    attributes: {
+      code: promotion_code,
+      label: "Festival early bird",
+      redemption_limit: 100,
+      active: true,
+      starts_at: fest_promotion.starts_at,
+      ends_at: fest_promotion.ends_at
+    },
+    idempotency_key: "dev-fest-early-bird-code-v1"
+  )
+  raise result.error.message unless result.success?
+end
+
+puts "✓ #{Catalog::Promotion.count} promotions, #{Catalog::PromotionCode.count} promotion codes"
+
 # ─────────────────────────────────────────────
 # 8. Catalog: product accesses, zone grants, and date allocations (Plan 2, Task 4)
 # ─────────────────────────────────────────────
@@ -538,6 +605,7 @@ puts "  Events:            #{Events::Event.count}"
 puts "  Consent docs:      #{Events::ConsentDocument.count} (#{Events::ConsentDocumentVersion.published.count} published)"
 puts "  Products:          #{Catalog::EventProduct.count} (#{Ticketing::TicketType.count} ticket types)"
 puts "  Pricing:           #{Catalog::ProductPrice.count} prices, #{Catalog::ExchangeRate.count} exchange rates"
+puts "  Promotions:        #{Catalog::Promotion.count} promotions, #{Catalog::PromotionCode.count} codes"
 puts "  Accesses:          #{Catalog::ProductAccess.count} accesses (#{Catalog::ProductAccessZone.count} zone grants, #{Catalog::ProductDateAllocation.count} date allocations)"
 puts "  Legal docs:        #{Legal::LegalDocument.count} (#{Legal::LegalDocumentVersion.published.count} published)"
 puts "  Legal acceptances: #{Legal::LegalAcceptance.count}"
@@ -553,6 +621,8 @@ puts "  POST /admin/legal_documents/:id/publish"
 puts "  GET  /events/:id/consent_documents"
 puts "  GET  /organizations/owner              (owner orgs)"
 puts "  POST /catalog/product_quotes           { product_id, charge_currency: \"USD\" }"
+puts "  POST /catalog/promotions/:id/quote     { code: \"OPENING10\", eligible_subtotal_minor: 10000, charge_currency: \"ETB\" }"
+puts "  Promotion test code: OPENING10"
 puts "  GET  /events/:id/event_products/:id/product_accesses    (accesses + zone grants)"
 puts "  GET  /events/:id/event_products/:id/product_date_allocations (date allocations)"
 puts "=" * 60
