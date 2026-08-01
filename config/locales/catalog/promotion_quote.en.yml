@@ -1,0 +1,17 @@
+# frozen_string_literal: true
+
+en:
+  catalog:
+    promotion_quote:
+      errors:
+        invalid_fx_quote: "invalid foreign exchange quote"
+        unsupported_currency: "unsupported currency conversion"
+        invalid_promotion: "promotion is not available"
+        invalid_code: "promotion code is invalid"
+        inactive_code: "promotion code is inactive"
+        code_outside_window: "promotion code is outside its active window"
+        promotion_outside_window: "promotion is outside its active window"
+        invalid_product_scope: "promotion product scope is invalid"
+        minimum_not_met: "eligible subtotal does not meet the promotion minimum"
+        invalid_subtotal: "eligible subtotal must be a nonnegative integer"
+        invalid_at: "at must be a valid ISO 8601 timestamp"
