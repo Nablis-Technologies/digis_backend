@@ -2,7 +2,10 @@
 
 module Catalog
   # Explicit zone grants for a venue or parking product access row.
-  # Stream access never has zone mappings.
+  # Stream access never has zone mappings. A grant is valid only when:
+  # - the access type is venue or parking (stream forbids zones);
+  # - the zone belongs to the same event as the product;
+  # - the zone's type matches the access's type (venue ↔ venue, parking ↔ parking).
   class ProductAccessZone < Catalog::ApplicationRecord
     self.table_name = "catalog_product_access_zones"
 

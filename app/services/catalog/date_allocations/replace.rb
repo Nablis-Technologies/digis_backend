@@ -27,6 +27,8 @@ module Catalog
           validate_draft_only!
           validate_no_reservations!
 
+          @allocations = default_allocations if @allocations.empty?
+
           # Preload all referenced dates once so row validation and insertion
           # never trigger a per-row `event_date` lookup (N+1).
           date_ids = @allocations.map { |a| a[:event_date_id] }
@@ -34,7 +36,7 @@ module Catalog
 
           validate_each_allocation!(dates_map)
           validate_access_on_each_date!
-          validate_total!
+          validate_total! unless @allocations.empty?
 
           @product.product_date_allocations.delete_all
           @allocations.each do |attrs|
@@ -68,6 +70,38 @@ module Catalog
         return unless has_inventory || has_venue
 
         raise Core::Error, I18n.t("catalog.product_date_allocation.errors.immutable")
+      end
+
+      # When the request omits allocations, default to an even split across
+      # every granted date so the organizer has a true no-effort path. Products
+      # that never need allocation rows (single-date, `choose_one`, `full_only`)
+      # resolve to an empty set.
+      def default_allocations
+        return [] unless eligible_for_equal_split?
+
+        date_ids = granted_date_ids.sort
+        base, remainder = TOTAL_BASIS_POINTS.divmod(date_ids.size)
+        date_ids.each_with_index.map do |date_id, index|
+          {
+            event_date_id: date_id,
+            allocation_basis_points: index < remainder ? base + 1 : base
+          }
+        end
+      end
+
+      def eligible_for_equal_split?
+        return false if choose_one_product?
+        return false if @product.schedule_change_refund_policy == "full_only"
+
+        granted_date_ids.size >= 2
+      end
+
+      def choose_one_product?
+        @product.ticket_type&.date_selection == "choose_one"
+      end
+
+      def granted_date_ids
+        @product.product_accesses.distinct.pluck(:event_date_id)
       end
 
       def validate_each_allocation!(dates_map)

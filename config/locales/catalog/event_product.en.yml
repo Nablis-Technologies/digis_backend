@@ -8,3 +8,5 @@ en:
         ticket_type_not_allowed: "must not be present for non-ticket products"
         invalid_status: "is not a valid status"
         invalid_inventory_mode: "is not a valid inventory mode"
+        zone_mapping_required: "requires at least one zone grant for %{type} access on date %{date}"
+        allocations_required: "requires a date allocation for every granted date before activation (missing: %{dates})"

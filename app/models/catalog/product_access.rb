@@ -5,7 +5,8 @@ module Catalog
   # access, or parking. Each row is keyed by (product, event_date, type).
   # Rows become immutable once the first inventory reservation exists for the
   # product. Stream rows require `required_access_protection`; venue and
-  # parking rows must leave it null.
+  # parking rows must leave it null. `type` is a business discriminator, not
+  # STI, so inheritance is explicitly disabled.
   class ProductAccess < Catalog::ApplicationRecord
     self.table_name = "catalog_product_accesses"
     self.inheritance_column = nil

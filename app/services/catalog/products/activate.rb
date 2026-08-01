@@ -20,6 +20,8 @@ module Catalog
 
           validate_inventory_configuration!
           validate_price_exists!
+          validate_zone_mappings!
+          validate_allocations!
 
           @product.status = "active"
           @product.save!
@@ -60,6 +62,49 @@ module Catalog
         return if @product.prices.active_at(readiness_at).exists?
 
         raise Core::Error, "Product must have a usable price when sales open"
+      end
+
+      # When zones are enabled for an event date + access type, every
+      # venue/parking access on that date must carry at least one explicit
+      # zone grant. An empty mapping would silently mean "all zones" at the
+      # gate (spec §7.6 / §2.32).
+      def validate_zone_mappings!
+        @product.product_accesses.includes(:product_access_zones, :event_date).each do |access|
+          next unless access.venue? || access.parking?
+          next unless zones_active_for?(access)
+
+          if access.product_access_zones.empty?
+            raise Core::Error,
+                  I18n.t("catalog.event_product.errors.zone_mapping_required",
+                         type: access.type, date: access.event_date_id)
+          end
+        end
+      end
+
+      # Multi-date `fixed` products with `full_or_partial` refunds must have a
+      # date allocation for every granted date before sales begin. Single-date
+      # and `choose_one` products implicitly allocate 100% to the buyer's date
+      # and need no rows (spec §7.7).
+      def validate_allocations!
+        return if @product.ticket_type&.date_selection == "choose_one"
+        return if @product.schedule_change_refund_policy == "full_only"
+
+        granted_ids = @product.product_accesses.distinct.pluck(:event_date_id)
+        return if granted_ids.size < 2
+
+        allocated_ids = @product.product_date_allocations.pluck(:event_date_id)
+        missing = granted_ids - allocated_ids
+        return if missing.empty?
+
+        raise Core::Error,
+              I18n.t("catalog.event_product.errors.allocations_required",
+                     dates: missing.sort.join(", "))
+      end
+
+      def zones_active_for?(access)
+        scope = Events::AccessZone.where(event: @product.event, type: access.type).active
+        scope = scope.where(event_date_id: [ nil, access.event_date_id ]) if access.event_date_id.present?
+        scope.exists?
       end
 
       def record_audit!
