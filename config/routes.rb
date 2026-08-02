@@ -56,6 +56,8 @@ Rails.application.routes.draw do
     resources :public_events, only: %i[index show], param: :slug, path: "public/events"
   end
 
+  get "public/events/:event_slug/products", to: "catalog/public_products#index"
+
   scope path: :catalog, module: :catalog do
     resources :product_prices, only: %i[index show create]
     resources :product_quotes, only: %i[create]
@@ -88,6 +90,17 @@ Rails.application.routes.draw do
       end
     end
   end
+
+  resources :events, only: [] do
+    resources :event_products, only: [] do
+      resource :ticket_type, only: %i[show create update destroy], controller: "ticketing/ticket_types" do
+        resources :access_codes, only: %i[index show create destroy], controller: "ticketing/access_codes"
+        resources :invitations, only: %i[index show create destroy], controller: "ticketing/invitations"
+      end
+    end
+  end
+
+  post "ticketing/audience_authorizations", to: "ticketing/audience_authorizations#create"
 
   namespace :admin do
     resources :users, except: %i[new edit] do

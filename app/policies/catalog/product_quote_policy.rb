@@ -2,19 +2,19 @@
 
 module Catalog
   class ProductQuotePolicy < Core::ApplicationPolicy
-    def create? = admin?
+    def create? = organizer?
 
     VISIBILITY = {
       create: {
-        default: { fields: [], include: [] },
+        default: { fields: :all, include: [] },
         admin: { include: :all, fields: :all }
       }
     }
 
     private
 
-    def admin?
-      user_role_key == :admin
+    def organizer?
+      record.present? && Events::AuthorizationResolver.can_manage_catalog?(user, record.event)
     end
   end
 end

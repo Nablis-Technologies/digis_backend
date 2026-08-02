@@ -48,6 +48,27 @@ class CatalogProductQuotesTest < ActionDispatch::IntegrationTest
     assert_equal "override", data["source_type"]
   end
 
+  test "event managers can request a product quote" do
+    Events::EventStaffAssignment.create!(
+      event: @event,
+      user: core_users(:attendee),
+      organization: @event.organization,
+      role: "manager",
+      status: "active"
+    )
+    Catalog::ProductPrice.create!(
+      event_product: @product, type: "override", currency: "USD",
+      amount_minor: 2500, active_from: 1.day.ago
+    )
+
+    post "/catalog/product_quotes",
+         params: { product_id: @product.id, charge_currency: "USD" }.to_json,
+         headers: user_headers.merge("Content-Type" => "application/json")
+
+    assert_response :success
+    assert_equal 2500, response.parsed_body.dig("data", "amount_minor")
+  end
+
   test "requires authentication" do
     post "/catalog/product_quotes",
          params: { product_id: @product.id, charge_currency: "USD" }.to_json,
