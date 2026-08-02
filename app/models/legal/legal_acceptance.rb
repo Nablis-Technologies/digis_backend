@@ -42,13 +42,13 @@ module Legal
       return if subject_type.blank? || subject_id.blank?
       subject
     rescue ActiveRecord::RecordNotFound
-      errors.add(:subject_id, "must reference an existing #{subject_type}")
+       errors.add(:subject_id, I18n.t("legal.acceptance.errors.subject_not_found", subject_type: subject_type))
     end
 
     def version_must_be_published
       return if legal_document_version_id.blank?
       return if legal_document_version&.published?
-      errors.add(:legal_document_version_id, "must be a published version")
+       errors.add(:legal_document_version_id, I18n.t("legal.acceptance.errors.version_not_published"))
     end
   end
 end

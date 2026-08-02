@@ -34,21 +34,21 @@ module Catalog
       return if product_access.blank?
       return if product_access.venue? || product_access.parking?
 
-      errors.add(:product_access, "stream access cannot have zone mappings")
+       errors.add(:product_access, I18n.t("catalog.product_access_zone.errors.stream_zones_forbidden"))
     end
 
     def zone_belongs_to_product_event
       return if access_zone.blank? || product_access.blank?
       return if access_zone.event_id == product_access.event_product.event_id
 
-      errors.add(:access_zone, "must belong to the same event as the product")
+       errors.add(:access_zone, I18n.t("catalog.product_access_zone.errors.event_mismatch"))
     end
 
     def zone_type_matches_access_type
       return if access_zone.blank? || product_access.blank?
       return if access_zone.type == product_access.type
 
-      errors.add(:access_zone, "zone type must match access type")
+       errors.add(:access_zone, I18n.t("catalog.product_access_zone.errors.type_mismatch"))
     end
   end
 end

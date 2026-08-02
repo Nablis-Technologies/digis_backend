@@ -60,7 +60,9 @@ module Catalog
       def validate_all_active!(reservations, target:)
         return if reservations.all?(&:active?)
 
-        raise Core::Error, "Reservation group cannot transition to #{target} from mixed or terminal states"
+        raise Core::Error, I18n.t(
+          "catalog.inventory.errors.reservation_group_invalid_transition", target: target
+        )
       end
 
       def inventory_quantities(reservations)

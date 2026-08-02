@@ -46,8 +46,8 @@ module Catalog
 
     def update
       authorize @obj
-      return render_error("Cannot modify an active product", status: :unprocessable_entity) if @obj.status == "active"
-      return render_error("Cannot modify a retired product", status: :unprocessable_entity) if @obj.status == "retired"
+      return render_error(:"catalog.event_product.errors.active_immutable", status: :unprocessable_entity) if @obj.status == "active"
+      return render_error(:"catalog.event_product.errors.retired_immutable", status: :unprocessable_entity) if @obj.status == "retired"
 
       permitted_updates = product_update_params
       previous_attributes = @obj.attributes.slice(*permitted_updates.keys.map(&:to_s))
@@ -64,8 +64,8 @@ module Catalog
 
     def destroy
       authorize @obj
-      return render_error("Only draft products can be destroyed", status: :unprocessable_entity) unless @obj.status == "draft"
-      return render_error("Cannot destroy product with inventory activity", status: :unprocessable_entity) if @obj.inventories.any? { |i| i.held_count.positive? || i.sold_count.positive? }
+      return render_error(:"catalog.event_product.errors.destroy_draft_required", status: :unprocessable_entity) unless @obj.status == "draft"
+      return render_error(:"catalog.event_product.errors.inventory_activity_destroy_forbidden", status: :unprocessable_entity) if @obj.inventories.any? { |i| i.held_count.positive? || i.sold_count.positive? }
 
       ActiveRecord::Base.transaction do
         record_product_audit!("catalog.product.destroyed", @obj.attributes)

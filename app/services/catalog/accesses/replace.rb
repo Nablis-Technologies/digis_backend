@@ -77,7 +77,11 @@ module Catalog
           date_id = attrs[:event_date_id].to_s
           type_val = attrs[:type].to_s
 
-          raise Core::Error, "Duplicate access for date_id=#{date_id} type=#{type_val} in request" unless seen.add?([ date_id, type_val ])
+          raise Core::Error, I18n.t(
+            "catalog.product_access.errors.duplicate",
+            date_id: date_id,
+            type: type_val
+          ) unless seen.add?([ date_id, type_val ])
 
           row = @product.product_accesses.new(access_attributes(attrs))
           row.event_date = dates_map[attrs[:event_date_id]] if dates_map.key?(attrs[:event_date_id])

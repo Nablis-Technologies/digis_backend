@@ -110,7 +110,9 @@ module Catalog
         seen = Set.new
         @allocations.each do |attrs|
           date_id = attrs[:event_date_id].to_s
-          raise Core::Error, "Duplicate allocation for date_id=#{date_id} in request" unless seen.add?(date_id)
+          raise Core::Error, I18n.t(
+            "catalog.product_date_allocation.errors.duplicate", date_id: date_id
+          ) unless seen.add?(date_id)
 
           row = @product.product_date_allocations.new(allocation_attributes(attrs))
           row.event_date = dates_map[attrs[:event_date_id]] if dates_map.key?(attrs[:event_date_id])

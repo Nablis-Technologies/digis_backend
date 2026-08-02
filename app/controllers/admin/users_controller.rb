@@ -16,7 +16,7 @@ module Admin
     def deactivate
       authorize @obj
 
-      raise Core::AuthenticationError.new("Cannot deactivate yourself", code: "self_deactivation") if @obj == current_user
+      raise Core::AuthenticationError.new(I18n.t("auth.errors.self_deactivation"), code: "self_deactivation") if @obj == current_user
 
       ActiveRecord::Base.transaction do
         @obj.update!(deactivated_at: Time.current, deactivated_reason: params[:deactivated_reason])

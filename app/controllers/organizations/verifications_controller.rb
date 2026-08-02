@@ -151,7 +151,7 @@ module Organizations
       @clazz = Organizations::Organization
       @organization = Organizations::Organization.find(params[:organization_id])
     rescue ActiveRecord::RecordNotFound
-      render_error("Organization not found", status: :not_found)
+      render_error(:"organization.errors.not_found", status: :not_found)
     end
 
     def model_params

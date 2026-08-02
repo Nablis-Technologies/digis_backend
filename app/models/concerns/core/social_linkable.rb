@@ -26,20 +26,20 @@ module Core
       return if social_links.blank?
 
       if social_links.size > MAX_SOCIAL_LINKS
-        errors.add(:social_links, "exceeds maximum of #{MAX_SOCIAL_LINKS} platforms")
+        errors.add(:social_links, I18n.t("social_link.errors.max_platforms", maximum: MAX_SOCIAL_LINKS))
         return
       end
 
       invalid_keys = social_links.keys - VALID_SOCIAL_PLATFORMS
       if invalid_keys.any?
-        errors.add(:social_links, "contains unsupported platforms: #{invalid_keys.join(', ')}")
+        errors.add(:social_links, I18n.t("social_link.errors.unsupported_platforms", platforms: invalid_keys.join(", ")))
         return
       end
 
       social_links.each do |platform, url|
         next if url.blank?
         unless valid_url?(url)
-          errors.add(:social_links, "#{platform} must be a valid URL")
+          errors.add(:social_links, I18n.t("social_link.errors.invalid_url", platform: platform))
         end
       end
     end

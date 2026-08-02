@@ -40,7 +40,7 @@ module Catalog
           resolve_inventory_mode!
 
           if @product.ticket?
-            return failure(Core::Error.new("ticket_type_attributes are required for ticket products")) if @ticket_type_attributes.blank?
+            return failure_i18n("catalog.event_product.errors.ticket_type_attributes_required") if @ticket_type_attributes.blank?
 
             @product.build_ticket_type(@ticket_type_attributes)
           end
@@ -89,7 +89,7 @@ module Catalog
         return nil unless product
         return product if product.creation_request_digest == @request_digest
 
-        raise Core::Error, "Idempotency key was already used for a different request"
+        raise Core::Error, I18n.t("catalog.event_product.errors.idempotency_conflict")
       end
 
       def lock_idempotency_scope!
@@ -105,13 +105,13 @@ module Catalog
       def validate_inventory_configuration_present!
         return if @inventory_configuration.is_a?(Hash)
 
-        raise Core::Error, "inventory_configuration is required (include at least { mode: 'unlimited' })"
+        raise Core::Error, I18n.t("catalog.event_product.errors.inventory_configuration_required")
       end
 
       def resolve_inventory_mode!
         mode = @inventory_configuration[:mode]
         unless mode.is_a?(String) && mode.in?(Catalog::EventProduct::INVENTORY_MODES)
-          raise Core::Error, "Invalid inventory mode: #{mode.inspect}"
+          raise Core::Error, I18n.t("catalog.event_product.errors.invalid_inventory_mode", mode: mode.inspect)
         end
 
         @product.inventory_mode = mode
@@ -143,7 +143,7 @@ module Catalog
       def validate_date_belongs_to_event!(date_id)
         return if @event.event_dates.exists?(id: date_id)
 
-        raise Core::Error, "Event date #{date_id} does not belong to the product's event"
+        raise Core::Error, I18n.t("catalog.event_product.errors.event_date_event_mismatch", date_id: date_id)
       end
 
       def provision_price!

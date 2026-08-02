@@ -17,12 +17,12 @@ module Catalog
         ActiveRecord::Base.transaction do
           @product.lock!
 
-          return failure(Core::Error.new("Cannot modify inventory of an active product")) if @product.status == "active"
-          return failure(Core::Error.new("Cannot modify inventory of a retired product")) if @product.status == "retired"
+            return failure_i18n("catalog.event_product.errors.active_immutable") if @product.status == "active"
+            return failure_i18n("catalog.event_product.errors.retired_immutable") if @product.status == "retired"
 
           mode = @inventory_configuration[:mode]
           unless mode.is_a?(String) && mode.in?(Catalog::EventProduct::INVENTORY_MODES)
-            raise Core::Error, "Invalid inventory mode: #{mode.inspect}"
+            raise Core::Error, I18n.t("catalog.event_product.errors.invalid_inventory_mode", mode: mode.inspect)
           end
 
           previous_mode = @product.inventory_mode
@@ -68,7 +68,7 @@ module Catalog
       def validate_date_belongs_to_event!(date_id)
         return if @product.event.event_dates.exists?(id: date_id)
 
-        raise Core::Error, "Event date #{date_id} does not belong to the product's event"
+          raise Core::Error, I18n.t("catalog.event_product.errors.event_date_event_mismatch", date_id: date_id)
       end
 
       def record_audit!(previous_mode)

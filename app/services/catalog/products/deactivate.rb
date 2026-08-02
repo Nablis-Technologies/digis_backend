@@ -14,7 +14,7 @@ module Catalog
         ActiveRecord::Base.transaction do
           @product.lock!
           return success(@product) if @product.status == "retired"
-          return failure(Core::Error.new("Only active products can be retired")) unless @product.status == "active"
+          return failure_i18n("catalog.event_product.errors.active_required_for_retirement") unless @product.status == "active"
 
           @product.status = "retired"
           @product.save!

@@ -47,21 +47,21 @@ module Events
     def cover_position_zero
       return unless type == "cover"
 
-      errors.add(:position, "must be 0 for a cover") if position != 0
+      errors.add(:position, I18n.t("events.event_media.errors.cover_position_zero")) if position != 0
     end
 
     def file_attached
-      errors.add(:file, "must have an attached image") unless file.attached?
+      errors.add(:file, I18n.t("events.event_media.errors.image_required")) unless file.attached?
     end
 
     def acceptable_image
       return unless file.attached?
 
       unless file.content_type.in?(IMAGE_CONTENT_TYPES)
-        errors.add(:file, "must be a JPEG, PNG, or WebP image")
+        errors.add(:file, I18n.t("events.event_media.errors.image_format"))
       end
       if file.byte_size > MAX_SIZE
-        errors.add(:file, "must be smaller than 15 MB")
+        errors.add(:file, I18n.t("events.event_media.errors.image_size"))
       end
     end
 
@@ -70,7 +70,7 @@ module Events
       return if persisted? && !type_changed?
 
       if event.event_media.cover.where.not(id: id).exists?
-        errors.add(:type, "already has a cover")
+        errors.add(:type, I18n.t("events.event_media.errors.cover_already_exists"))
       end
     end
 
@@ -79,7 +79,7 @@ module Events
 
       existing = event.event_media.gallery.where.not(id: id).count
       if existing >= MAX_GALLERY
-        errors.add(:base, "can have at most #{MAX_GALLERY} gallery images")
+        errors.add(:base, I18n.t("events.event_media.errors.gallery_limit", maximum: MAX_GALLERY))
       end
     end
   end

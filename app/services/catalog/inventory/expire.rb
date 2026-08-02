@@ -42,7 +42,9 @@ module Catalog
           next 0 if reservations.empty? || reservations.all?(&:expired?)
 
           unless reservations.all?(&:active?)
-            raise Core::Error, "Reservation group cannot expire from mixed or terminal states"
+            raise Core::Error, I18n.t(
+              "catalog.inventory.errors.reservation_group_invalid_transition", target: "expired"
+            )
           end
           next 0 unless reservations.all? { |reservation| reservation.expires_at.present? && reservation.expires_at < now }
 

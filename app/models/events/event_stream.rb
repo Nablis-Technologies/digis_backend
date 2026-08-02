@@ -33,7 +33,7 @@ module Events
     def live_requires_playback_id
       return unless status == "live"
 
-      errors.add(:provider_playback_id, "is required for a live stream") if provider_playback_id.blank?
+      errors.add(:provider_playback_id, I18n.t("events.event_stream.errors.playback_id_required")) if provider_playback_id.blank?
     end
   end
 end

@@ -36,7 +36,7 @@ module Events
       return if event_date_id.blank? || event_id.blank?
 
       unless event_date&.event_id == event_id
-        errors.add(:event_date, "must belong to the same event")
+         errors.add(:event_date, I18n.t("events.access_zone.errors.event_date_event_mismatch"))
       end
     end
   end

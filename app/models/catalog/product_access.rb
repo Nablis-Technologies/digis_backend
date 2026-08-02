@@ -68,19 +68,19 @@ module Catalog
       return if event_product.blank? || event_date.blank?
       return if event_product.event_id == event_date.event_id
 
-      errors.add(:event_date, "must belong to the same event as the product")
+       errors.add(:event_date, I18n.t("catalog.product_access.errors.event_date_event_mismatch"))
     end
 
     def stream_protection_required
       return unless type == "stream" && required_access_protection.blank?
 
-      errors.add(:required_access_protection, "must be set for stream access")
+       errors.add(:required_access_protection, I18n.t("catalog.product_access.errors.stream_protection_required"))
     end
 
     def non_stream_protection_must_be_blank
       return unless type != "stream" && required_access_protection.present?
 
-      errors.add(:required_access_protection, "must be blank for non-stream access")
+       errors.add(:required_access_protection, I18n.t("catalog.product_access.errors.non_stream_protection_blank"))
     end
   end
 end

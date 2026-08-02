@@ -37,15 +37,15 @@ module Events
       return if url.blank?
 
       uri = URI.parse(url)
-      return errors.add(:url, "must be a YouTube link") unless YOUTUBE_HOSTS.include?(uri.host)
+       return errors.add(:url, I18n.t("events.event_video_link.errors.youtube_link")) unless YOUTUBE_HOSTS.include?(uri.host)
 
       valid = case uri.host
       when "youtu.be" then uri.path.match?(%r{\A/[\w-]{6,}\z})
       else uri.path.match?(%r{\A/(watch|shorts)/}) || uri.query.to_s.match?(/v=/)
       end
-      errors.add(:url, "must be a YouTube video link") unless valid
+       errors.add(:url, I18n.t("events.event_video_link.errors.youtube_video_link")) unless valid
     rescue URI::InvalidURIError
-      errors.add(:url, "must be a valid URL")
+       errors.add(:url, I18n.t("events.event_video_link.errors.valid_url"))
     end
   end
 end

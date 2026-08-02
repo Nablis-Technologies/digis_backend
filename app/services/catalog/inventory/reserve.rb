@@ -56,20 +56,20 @@ module Catalog
       private
 
       def validate_product_active!
-        raise Core::Error, "Product is not active" unless @product.status == "active"
+        raise Core::Error, I18n.t("catalog.inventory.errors.product_not_active") unless @product.status == "active"
       end
 
       def validate_sales_window!
         now = Time.current
-        raise Core::Error, "Sales have not started yet" if @product.sales_start_at.present? && now < @product.sales_start_at
-        raise Core::Error, "Sales have ended" if @product.sales_end_at.present? && now > @product.sales_end_at
+        raise Core::Error, I18n.t("catalog.inventory.errors.sales_not_started") if @product.sales_start_at.present? && now < @product.sales_start_at
+        raise Core::Error, I18n.t("catalog.inventory.errors.sales_ended") if @product.sales_end_at.present? && now > @product.sales_end_at
       end
 
       def validate_dates_belong_to_event!
         requested_ids = (@request.event_date_ids + @request.venue_event_date_ids).uniq
         return if requested_ids.empty?
         unless (@request.venue_event_date_ids - @request.event_date_ids).empty?
-          raise Core::Error, "Venue dates must be included in the selected event dates"
+          raise Core::Error, I18n.t("catalog.inventory.errors.venue_dates_required")
         end
 
         event_date_ids = Events::EventDate
@@ -79,15 +79,15 @@ module Catalog
         missing = requested_ids - event_date_ids
         return if missing.empty?
 
-        raise Core::Error, "Event date(s) #{missing.join(', ')} do not belong to the product's event"
+        raise Core::Error, I18n.t("catalog.inventory.errors.event_dates_event_mismatch", dates: missing.join(", "))
       end
 
       def validate_request_values!
         unless @request.package_quantity.is_a?(Integer) && @request.package_quantity.positive?
-          raise Core::Error, "Package quantity must be a positive integer"
+          raise Core::Error, I18n.t("catalog.inventory.errors.package_quantity_positive")
         end
         unless @request.admissions_per_unit.is_a?(Integer) && @request.admissions_per_unit.positive?
-          raise Core::Error, "Admissions per unit must be a positive integer"
+          raise Core::Error, I18n.t("catalog.inventory.errors.admissions_per_unit_positive")
         end
       end
 
@@ -112,7 +112,7 @@ module Catalog
           raise_missing_inventory! if @request.event_date_ids.empty? || missing_date_ids.any?
           [ global, *dated ]
         else
-          raise Core::Error, "Unsupported inventory mode: #{@product.inventory_mode}"
+          raise Core::Error, I18n.t("catalog.inventory.errors.unsupported_inventory_mode", mode: @product.inventory_mode)
         end
       end
 
@@ -133,7 +133,7 @@ module Catalog
         if fingerprints == [ @request.fingerprint ] && product_ids.map(&:to_s).uniq == [ @product.id.to_s ]
           success(group.reservations)
         else
-          failure(Core::Error.new("Reservation group was already used for a different request"))
+          failure_i18n("catalog.inventory.errors.reservation_group_idempotency_conflict")
         end
       end
 

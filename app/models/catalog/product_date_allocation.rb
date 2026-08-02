@@ -35,7 +35,7 @@ module Catalog
       return if event_product.blank? || event_date.blank?
       return if event_product.event_id == event_date.event_id
 
-      errors.add(:event_date, "must belong to the same event as the product")
+       errors.add(:event_date, I18n.t("catalog.product_date_allocation.errors.event_date_event_mismatch"))
     end
   end
 end

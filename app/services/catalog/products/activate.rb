@@ -16,7 +16,7 @@ module Catalog
           @product.lock!
 
           return success(@product) if @product.status == "active"
-          return failure(Core::Error.new("Retired products cannot be reactivated")) if @product.status == "retired"
+          return failure_i18n("catalog.event_product.errors.retired_cannot_reactivate") if @product.status == "retired"
 
           validate_inventory_configuration!
           validate_price_exists!
@@ -49,11 +49,11 @@ module Catalog
         when "event_wide_and_per_date" then has_event_wide && has_per_date
         else false
         end
-        raise Core::Error, "Inventory records do not match #{@product.inventory_mode} mode" unless valid_shape
+          raise Core::Error, I18n.t("catalog.event_product.errors.inventory_shape_mismatch", mode: @product.inventory_mode) unless valid_shape
 
         @product.inventories.each do |inv|
           if inv.capacity.to_i < 0
-            raise Core::Error, "Inventory capacity must be non-negative"
+            raise Core::Error, I18n.t("catalog.event_product.errors.inventory_capacity_non_negative")
           end
         end
       end
@@ -62,7 +62,7 @@ module Catalog
         readiness_at = [ Time.current, @product.sales_start_at ].compact.max
         return if @product.prices.active_at(readiness_at).exists?
 
-        raise Core::Error, "Product must have a usable price when sales open"
+          raise Core::Error, I18n.t("catalog.event_product.errors.usable_price_required")
       end
 
       # When zones are enabled for an event date + access type, every

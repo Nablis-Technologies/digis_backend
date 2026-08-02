@@ -25,12 +25,12 @@ module Catalog
 
           inventory_quantities.each do |inventory_id, quantity|
             if inv_index.fetch(inventory_id).held_count < quantity
-              raise Core::Error, "Inventory held count drift detected"
+              raise Core::Error, I18n.t("catalog.inventory.errors.inventory_held_count_drift")
             end
           end
           venue_quantities.each do |event_date_id, quantity|
             if date_index.fetch(event_date_id).held_venue_count < quantity
-              raise Core::Error, "Venue held count drift detected"
+              raise Core::Error, I18n.t("catalog.inventory.errors.venue_held_count_drift")
             end
           end
         end

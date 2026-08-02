@@ -64,7 +64,7 @@ module Core
     def email_or_phone_present
       return unless email.blank? && phone.blank?
 
-      errors.add(:base, "Either email or phone must be provided")
+      errors.add(:base, I18n.t("user.errors.email_or_phone_required"))
     end
   end
 end

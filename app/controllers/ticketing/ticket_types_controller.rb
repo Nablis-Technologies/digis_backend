@@ -12,7 +12,7 @@ module Ticketing
     end
 
     def create
-      return render_error("ticket type already exists", status: :unprocessable_entity) if @product.ticket_type.present?
+      return render_error(:"ticketing.ticket_type.errors.already_exists", status: :unprocessable_entity) if @product.ticket_type.present?
 
       @ticket_type = @product.build_ticket_type(ticket_type_params)
       authorize @ticket_type

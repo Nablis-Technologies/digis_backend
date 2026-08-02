@@ -98,7 +98,7 @@ module Admin
           business_license_attachment: :blob, tin_certificate_attachment: :blob }
       ).find(params[:id])
     rescue ActiveRecord::RecordNotFound
-      render_error("Organization not found", status: :not_found)
+      render_error(:"organization.errors.not_found", status: :not_found)
     end
   end
 end
