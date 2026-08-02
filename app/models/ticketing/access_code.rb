@@ -1,12 +1,22 @@
 # frozen_string_literal: true
 
 module Ticketing
-  # Shared codes that authorize a ticket product. The raw code is normalized
-  # and hashed with a keyed event-namespaced digest; plaintext is never stored.
+  # Shared codes that authorize a ticket product. The raw code is normalized,
+  # encrypted at rest for idempotent replay, and hashed for lookup.
   class AccessCode < Ticketing::ApplicationRecord
     self.table_name = "ticketing_access_codes"
 
     belongs_to :ticket_type, class_name: "Ticketing::TicketType", inverse_of: :access_codes
+
+    encrypts :code_ciphertext
+
+    def code
+      code_ciphertext
+    end
+
+    def code=(value)
+      self.code_ciphertext = value
+    end
 
     validates :ticket_type, presence: true
     validates :code_digest, presence: true,
