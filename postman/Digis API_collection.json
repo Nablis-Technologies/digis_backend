@@ -857,6 +857,33 @@
               ]
             }
           ]
+        },
+        {
+          "name": "Public Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/events/:event_slug/products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "events",
+                ":event_slug",
+                "products"
+              ],
+              "variable": [
+                {
+                  "key": "event_slug",
+                  "value": "summer-music-festival"
+                }
+              ]
+            },
+            "description": "List active public products for an event slug. Draft and retired products are hidden, and operational counters are omitted."
+          },
+          "response": []
         }
       ]
     },
@@ -8259,6 +8286,86 @@
                 }
               }
             ]
+          }
+        ]
+      },
+      {
+        "name": "Ticketing",
+        "item": [
+          {
+            "name": "Show Ticket Type",
+            "request": {
+              "method": "GET",
+              "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+              "url": {
+                "raw": "{{baseUrl}}/events/:event_id/event_products/:event_product_id/ticket_type",
+                "host": ["{{baseUrl}}"],
+                "path": ["events", ":event_id", "event_products", ":event_product_id", "ticket_type"],
+                "variable": [{ "key": "event_id", "value": "" }, { "key": "event_product_id", "value": "" }]
+              }
+            },
+            "response": []
+          },
+          {
+            "name": "Create Access Code",
+            "request": {
+              "method": "POST",
+              "header": [
+                { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+                { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" },
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "url": {
+                "raw": "{{baseUrl}}/events/:event_id/event_products/:event_product_id/ticket_type/access_codes",
+                "host": ["{{baseUrl}}"],
+                "path": ["events", ":event_id", "event_products", ":event_product_id", "ticket_type", "access_codes"],
+                "variable": [{ "key": "event_id", "value": "" }, { "key": "event_product_id", "value": "" }]
+              },
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"code\": \"VIP-2026\",\n  \"max_uses\": 100,\n  \"max_quantity_per_use\": 1\n}"
+              }
+            },
+            "response": []
+          },
+          {
+            "name": "Create Invitation",
+            "request": {
+              "method": "POST",
+              "header": [
+                { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+                { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" },
+                { "key": "Content-Type", "value": "application/json" }
+              ],
+              "url": {
+                "raw": "{{baseUrl}}/events/:event_id/event_products/:event_product_id/ticket_type/invitations",
+                "host": ["{{baseUrl}}"],
+                "path": ["events", ":event_id", "event_products", ":event_product_id", "ticket_type", "invitations"],
+                "variable": [{ "key": "event_id", "value": "" }, { "key": "event_product_id", "value": "" }]
+              },
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"email\": \"guest@example.com\",\n  \"name\": \"Guest\",\n  \"allowed_quantity\": 1,\n  \"expires_at\": \"2026-12-31T23:59:59Z\"\n}"
+              }
+            },
+            "response": []
+          },
+          {
+            "name": "Authorize Audience",
+            "request": {
+              "method": "POST",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "url": {
+                "raw": "{{baseUrl}}/ticketing/audience_authorizations",
+                "host": ["{{baseUrl}}"],
+                "path": ["ticketing", "audience_authorizations"]
+              },
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"ticket_type_id\": \"<ticket_type_id>\",\n  \"access_code\": \"VIP-2026\"\n}"
+              }
+            },
+            "response": []
           }
         ]
       }
