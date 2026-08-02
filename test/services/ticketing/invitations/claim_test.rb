@@ -18,6 +18,7 @@ module Ticketing
             event_id: @event_id, contact: "guest@example.com"
           ),
           token_digest: Ticketing::Invitation.token_digest_for(event_id: @event_id, token: @raw),
+          token: @raw,
           allowed_quantity: 1,
           status: "pending"
         )

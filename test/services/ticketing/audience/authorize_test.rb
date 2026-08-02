@@ -121,6 +121,7 @@ module Ticketing
           email: "guest@example.com",
           contact_digest: Ticketing::Invitation.contact_digest_for(event_id:, contact: "guest@example.com"),
           token_digest: Ticketing::Invitation.token_digest_for(event_id:, token: raw),
+          token: raw,
           allowed_quantity: 1,
           status: "pending"
         ).tap { |i| i.update!(overrides) if overrides.any? }

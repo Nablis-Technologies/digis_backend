@@ -29,11 +29,18 @@ module Ticketing
         email: "Guest@example.com",
         contact_digest: Ticketing::Invitation.contact_digest_for(event_id:, contact: "Guest@example.com"),
         token_digest: Ticketing::Invitation.token_digest_for(event_id:, token: raw_token),
+        token: raw_token,
         allowed_quantity: 2
       )
 
       assert invitation.persisted?
       assert_equal "Guest@example.com", invitation.email
+      assert_equal raw_token, invitation.token
+      stored_token = Ticketing::Invitation.connection.select_value(
+        "SELECT token_ciphertext FROM ticketing_invitations WHERE id = '#{invitation.id}'"
+      )
+      refute_equal raw_token, stored_token
+      refute_includes stored_token, raw_token
       assert invitation.phone_ciphertext.blank?
 
       duplicate = Ticketing::Invitation.new(
