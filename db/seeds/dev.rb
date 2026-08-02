@@ -412,6 +412,7 @@ Ticketing::AccessCode.find_or_create_by!(
   ticket_type: vip_tt,
   code_digest: Ticketing::AccessCode.code_digest_for(event_id: fest_event.id, code: "VIP-2026")
 ) do |c|
+  c.code = "VIP-2026"
   c.label = "VIP early-bird"
   c.max_uses = 50
   c.max_quantity_per_use = 2
@@ -425,6 +426,7 @@ Ticketing::Invitation.find_or_create_by!(
 ) do |i|
   i.created_by = admin
   i.email = "vip.guest@example.com"
+  i.token = "vip-invite-0001"
   i.contact_digest = Ticketing::Invitation.contact_digest_for(event_id: fest_event.id, contact: "vip.guest@example.com")
   i.allowed_quantity = 1
   i.status = "pending"
