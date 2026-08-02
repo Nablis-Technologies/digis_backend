@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 module Ticketing
-  # Named guest-list invitations. Contact details are encrypted at rest and a
-  # searchable contact digest plus a unique link-token digest are stored.
-  # Raw tokens are never persisted.
+  # Named guest-list invitations. Contact details and the one-time link token
+  # are encrypted at rest; searchable digests support lookup without exposing
+  # either plaintext value.
   class Invitation < Ticketing::ApplicationRecord
     self.table_name = "ticketing_invitations"
 
@@ -22,7 +22,7 @@ module Ticketing
     # those columns directly and expose `email`/`phone` as plain-text accessors
     # so callers and validations see decrypted values while storage stays
     # ciphertext-only.
-    encrypts :email_ciphertext, :phone_ciphertext
+    encrypts :email_ciphertext, :phone_ciphertext, :token_ciphertext
 
     def email
       email_ciphertext
@@ -40,9 +40,18 @@ module Ticketing
       self.phone_ciphertext = value
     end
 
+    def token
+      token_ciphertext
+    end
+
+    def token=(value)
+      self.token_ciphertext = value
+    end
+
     validates :ticket_type, presence: true
     validates :created_by, presence: true
     validates :contact_digest, presence: true
+    validates :token_ciphertext, presence: true
     validates :token_digest, presence: true, uniqueness: true
     validates :allowed_quantity,
               numericality: { only_integer: true, greater_than_or_equal_to: 1 }
