@@ -26,6 +26,7 @@ module Catalog
           @product.status = "active"
           @product.save!
           record_audit!
+          publish_outbox!
 
           success(@product)
         end
@@ -130,6 +131,16 @@ module Catalog
           actor_id: @actor&.id,
           audited_changes: { status: [ "draft", "active" ] },
           metadata: { event_id: @product.event_id }
+        )
+      end
+
+      def publish_outbox!
+        Core::Outbox::Publish.call(
+          topic: "catalog",
+          event_type: "catalog.product.activated",
+          aggregate: @product,
+          payload: { product_id: @product.id, event_id: @product.event_id },
+          idempotency_key: "catalog-product-activated-#{@product.id}"
         )
       end
     end

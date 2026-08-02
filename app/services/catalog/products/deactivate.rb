@@ -19,6 +19,7 @@ module Catalog
           @product.status = "retired"
           @product.save!
           record_audit!
+          publish_outbox!
 
           success(@product)
         end
@@ -40,6 +41,16 @@ module Catalog
           actor_id: @actor&.id,
           audited_changes: { status: [ "active", "retired" ] },
           metadata: { event_id: @product.event_id }
+        )
+      end
+
+      def publish_outbox!
+        Core::Outbox::Publish.call(
+          topic: "catalog",
+          event_type: "catalog.product.retired",
+          aggregate: @product,
+          payload: { product_id: @product.id, event_id: @product.event_id },
+          idempotency_key: "catalog-product-retired-#{@product.id}"
         )
       end
     end

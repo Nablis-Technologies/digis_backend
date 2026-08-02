@@ -90,6 +90,9 @@ module Catalog
         assert first.success?
         assert replay.success?
         assert_equal "active", created.value.reload.status
+        assert_equal 1, Core::OutboxEvent.where(
+          event_type: "catalog.product.activated", aggregate_id: created.value.id
+        ).count
       end
 
       test "only active products can be retired and retirement is idempotent" do
@@ -114,6 +117,9 @@ module Catalog
         assert first.success?
         assert replay.success?
         assert_equal "retired", draft.reload.status
+        assert_equal 1, Core::OutboxEvent.where(
+          event_type: "catalog.product.retired", aggregate_id: draft.id
+        ).count
       end
 
       test "activation rejects a product with unzoned venue access when zones are enabled" do
