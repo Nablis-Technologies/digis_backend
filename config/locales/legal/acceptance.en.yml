@@ -1,0 +1,8 @@
+# frozen_string_literal: true
+
+en:
+  legal:
+    acceptance:
+      errors:
+        subject_not_found: "must reference an existing %{subject_type}"
+        version_not_published: "must be a published version"

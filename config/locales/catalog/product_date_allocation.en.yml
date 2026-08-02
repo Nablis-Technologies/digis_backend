@@ -6,3 +6,5 @@ en:
         immutable: "date allocations are immutable once reservations exist"
         sum_mismatch: "allocations must sum to 10,000 basis points (got %{total})"
         missing_access: "product has no access grant for date(s): %{dates}"
+        duplicate: "Duplicate allocation for date_id=%{date_id} in request"
+        event_date_event_mismatch: "must belong to the same event as the product"

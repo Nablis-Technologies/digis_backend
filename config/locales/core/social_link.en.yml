@@ -1,0 +1,8 @@
+# frozen_string_literal: true
+
+en:
+  social_link:
+    errors:
+      max_platforms: "exceeds maximum of %{maximum} platforms"
+      unsupported_platforms: "contains unsupported platforms: %{platforms}"
+      invalid_url: "%{platform} must be a valid URL"

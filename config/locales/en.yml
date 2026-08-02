@@ -12,6 +12,10 @@ en:
       account_deactivated: "Account has been deactivated"
       self_deactivation: "Cannot deactivate yourself"
       invalid_device: "Refresh token is not valid for this device"
+      token_expired: "Token has expired"
+      token_revoked: "Token has been revoked"
+      authentication_required: "Authentication required"
+      refresh_token_missing: "Refresh token missing"
       signup: "Signup failed"
 
   authorization:
@@ -43,4 +47,3 @@ en:
       from_status_mismatch: "Action '%{action}' can only be performed from: %{allowed}. Current status is '%{current_status}'"
       already_submitted: "Already submitted; use resubmit after rejection or modification request"
       model_updates_required: "Model updates are required for this action"
-

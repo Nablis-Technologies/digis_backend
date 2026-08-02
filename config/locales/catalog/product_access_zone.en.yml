@@ -4,3 +4,6 @@ en:
       errors:
         replace_forbidden: "zone grants can only be changed for draft products"
         zone_required: "at least one zone is required when zones are enabled"
+        stream_zones_forbidden: "stream access cannot have zone mappings"
+        event_mismatch: "must belong to the same event as the product"
+        type_mismatch: "zone type must match access type"

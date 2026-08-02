@@ -23,3 +23,4 @@ en:
       resubmit: "Failed to resubmit verification"
       request_modification: "Failed to request modification"
       documents: "Failed to attach: %{failed}"
+      not_found: "Organization not found"

@@ -12,3 +12,6 @@ en:
       destroy: "Failed to delete membership"
       owner_role_assignment: "Cannot assign owner role through membership management"
       transfer_ownership_required: "Transfer ownership before leaving the organization"
+      sole_owner_suspend: "Cannot suspend the sole owner. Transfer ownership first."
+      sole_owner_demotion: "Cannot demote the sole owner. Transfer ownership first."
+      sole_owner_removal: "Cannot remove the sole owner. Transfer ownership first."

@@ -1,0 +1,8 @@
+# frozen_string_literal: true
+
+en:
+  events:
+    venue:
+      errors:
+        profile_required: "must be attached"
+        photos_limit: "maximum %{maximum} photos allowed"

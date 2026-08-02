@@ -3,27 +3,21 @@
 en:
   event_media:
     success:
-      create: "Media added successfully"
-      update: "Media updated successfully"
-      destroy: "Media removed successfully"
-      reorder: "Media reordered successfully"
-    errors:
-      create: "Failed to add media"
-      update: "Failed to update media"
-      destroy: "Failed to remove media"
-      reorder: "Failed to reorder media"
-      not_ready: "Event needs an analyzed cover image with alt text before publish"
+      create: "Event media created successfully"
+      update: "Event media updated successfully"
+      destroy: "Event media deleted successfully"
+      reorder: "Event media reordered successfully"
   events:
     event_media:
       success:
-        create: "Media added successfully"
-        update: "Media updated successfully"
-        destroy: "Media removed successfully"
-        reorder: "Media reordered successfully"
+        create: "Event media created successfully"
+        update: "Event media updated successfully"
+        destroy: "Event media deleted successfully"
+        reorder: "Event media reordered successfully"
       errors:
-        create: "Failed to add media"
-        update: "Failed to update media"
-        destroy: "Failed to remove media"
-        reorder: "Failed to reorder media"
-        not_ready: "Event needs an analyzed cover image with alt text before publish"
-        reorder_partial: "All gallery media must be included in the reorder"
+        cover_position_zero: "must be 0 for a cover"
+        image_required: "must have an attached image"
+        image_format: "must be a JPEG, PNG, or WebP image"
+        image_size: "must be smaller than 15 MB"
+        cover_already_exists: "already has a cover"
+        gallery_limit: "can have at most %{maximum} gallery images"

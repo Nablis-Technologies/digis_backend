@@ -1,0 +1,10 @@
+# frozen_string_literal: true
+
+en:
+  legal:
+    document_version:
+      errors:
+        published_by_required: "is required when published"
+        published_at_required: "is required when published"
+        published_immutable: "cannot be changed on a published version"
+        document_immutable: "cannot be changed"

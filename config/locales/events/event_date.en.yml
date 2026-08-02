@@ -1,0 +1,9 @@
+# frozen_string_literal: true
+
+en:
+  events:
+    event_date:
+      errors:
+        ends_after_starts: "must be after starts_at"
+        doors_before_starts: "must be before or at starts_at"
+        venue_capacity_exceeded: "held plus issued venue count exceeds capacity"
