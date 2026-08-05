@@ -173,14 +173,14 @@ module Catalog
 
         groups = if defined?(Prosopite)
                     Prosopite.pause { Array.new(Expire::BATCH_SIZE + 1) { create_expired_unlimited_group } }
-                  else
+        else
                     Array.new(Expire::BATCH_SIZE + 1) { create_expired_unlimited_group }
-                  end
+        end
         result = if defined?(Prosopite)
                    Prosopite.pause { Expire.call }
-                 else
+        else
                    Expire.call
-                 end
+        end
 
         assert result.success?
         assert_equal groups.size, result.value
