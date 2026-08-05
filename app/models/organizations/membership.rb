@@ -33,7 +33,7 @@ module Organizations
       return unless status == "suspended"
       return if organization.memberships.active.owner.where.not(id: id).exists?
 
-      errors.add(:base, "Cannot suspend the sole owner. Transfer ownership first.")
+       errors.add(:base, I18n.t("membership.errors.sole_owner_suspend"))
       throw :abort
     end
 
@@ -41,7 +41,7 @@ module Organizations
       return unless role_was == "owner"
       return if organization.memberships.active.owner.where.not(id: id).exists?
 
-      errors.add(:base, "Cannot demote the sole owner. Transfer ownership first.")
+       errors.add(:base, I18n.t("membership.errors.sole_owner_demotion"))
       throw :abort
     end
 
@@ -49,7 +49,7 @@ module Organizations
       return unless active?
       return if organization.memberships.active.owner.where.not(id: id).exists?
 
-      errors.add(:base, "Cannot remove the sole owner. Transfer ownership first.")
+       errors.add(:base, I18n.t("membership.errors.sole_owner_removal"))
       throw :abort
     end
   end

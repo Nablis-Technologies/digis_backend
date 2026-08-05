@@ -1,0 +1,6 @@
+# frozen_string_literal: true
+
+en:
+  role_permission:
+    errors:
+      permission_already_assigned: "already assigned to this role"

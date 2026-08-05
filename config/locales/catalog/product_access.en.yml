@@ -1,0 +1,10 @@
+en:
+  catalog:
+    product_access:
+      errors:
+        replace_forbidden: "access can only be replaced for draft products"
+        immutable: "access is immutable once reservations exist"
+        duplicate: "Duplicate access for date_id=%{date_id} type=%{type} in request"
+        event_date_event_mismatch: "must belong to the same event as the product"
+        stream_protection_required: "must be set for stream access"
+        non_stream_protection_blank: "must be blank for non-stream access"

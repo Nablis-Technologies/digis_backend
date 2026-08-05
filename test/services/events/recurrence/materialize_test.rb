@@ -56,9 +56,15 @@ class Events::Recurrence::MaterializeTest < ActiveSupport::TestCase
     first_run = @event.event_dates.where("source_key LIKE ?", "recurrence-#{rule.id}-%")
                                 .pluck(:starts_at, :ends_at)
 
-    # Edit one generated date in place (simulating an organizer edit)
+    # Edit one generated date in place (simulating an organizer edit).
+    # Shift both timestamps by the same offset so the date stays valid
+    # (ends_at > starts_at) and the shifted start no longer collides with
+    # another daily occurrence's 19:00 start time.
     edited = @event.event_dates.where("source_key LIKE ?", "recurrence-#{rule.id}-%").first
-    edited.update!(starts_at: 2.days.from_now)
+    edited.update!(
+      starts_at: edited.starts_at + 1.hour,
+      ends_at: edited.ends_at + 1.hour
+    )
 
     Events::Recurrence::Materialize.call(rule:)
     second_run = @event.event_dates.where("source_key LIKE ?", "recurrence-#{rule.id}-%")

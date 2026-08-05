@@ -1,0 +1,7 @@
+# frozen_string_literal: true
+
+en:
+  events:
+    event_stream:
+      errors:
+        playback_id_required: "is required for a live stream"

@@ -16,6 +16,13 @@ module Events
             dependent: :destroy, inverse_of: :event_date
     has_many :access_zones, class_name: "Events::AccessZone",
              dependent: :destroy, inverse_of: :event_date
+    has_many :venue_capacity_reservations,
+             class_name: "Catalog::VenueCapacityReservation",
+             inverse_of: :event_date
+    has_many :product_accesses,
+             class_name: "Catalog::ProductAccess",
+             inverse_of: :event_date,
+             dependent: :delete_all
 
     validates :starts_at, :ends_at, presence: true
     validates :status, presence: true, inclusion: { in: STATUSES }
@@ -44,13 +51,13 @@ module Events
     def ends_at_after_starts_at
       return if ends_at.blank? || starts_at.blank?
 
-      errors.add(:ends_at, "must be after starts_at") if ends_at <= starts_at
+       errors.add(:ends_at, I18n.t("events.event_date.errors.ends_after_starts")) if ends_at <= starts_at
     end
 
     def doors_at_before_or_equal_starts_at
       return if doors_at.blank? || starts_at.blank?
 
-      errors.add(:doors_at, "must be before or at starts_at") if doors_at > starts_at
+       errors.add(:doors_at, I18n.t("events.event_date.errors.doors_before_starts")) if doors_at > starts_at
     end
 
     def venue_counts_within_capacity
@@ -58,7 +65,7 @@ module Events
 
       total = (held_venue_count || 0) + (issued_venue_count || 0)
       if total > venue_capacity
-        errors.add(:base, "held plus issued venue count exceeds capacity")
+         errors.add(:base, I18n.t("events.event_date.errors.venue_capacity_exceeded"))
       end
     end
   end

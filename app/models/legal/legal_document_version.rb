@@ -62,16 +62,16 @@ module Legal
     private
 
     def published_requires_metadata
-      errors.add(:published_by_id, "is required when published") if published_by_id.blank?
-      errors.add(:published_at, "is required when published") if published_at.blank?
+      errors.add(:published_by_id, I18n.t("legal.document_version.errors.published_by_required")) if published_by_id.blank?
+      errors.add(:published_at, I18n.t("legal.document_version.errors.published_at_required")) if published_at.blank?
     end
 
     def published_is_immutable
-      errors.add(:body, "cannot be changed on a published version") if body_changed?
-      errors.add(:content_sha256, "cannot be changed on a published version") if content_sha256_changed?
-      errors.add(:title, "cannot be changed on a published version") if title_changed?
-      errors.add(:version, "cannot be changed on a published version") if version_changed?
-      errors.add(:legal_document_id, "cannot be changed") if legal_document_id_changed?
+      errors.add(:body, I18n.t("legal.document_version.errors.published_immutable")) if body_changed?
+      errors.add(:content_sha256, I18n.t("legal.document_version.errors.published_immutable")) if content_sha256_changed?
+      errors.add(:title, I18n.t("legal.document_version.errors.published_immutable")) if title_changed?
+      errors.add(:version, I18n.t("legal.document_version.errors.published_immutable")) if version_changed?
+      errors.add(:legal_document_id, I18n.t("legal.document_version.errors.document_immutable")) if legal_document_id_changed?
     end
   end
 end

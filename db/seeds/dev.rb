@@ -345,6 +345,257 @@ end
 puts "✓ #{Core::Follow.count} follows"
 
 # ─────────────────────────────────────────────
+# 7. Catalog: products, ticket types, access codes, invitations (Plan 2, Task 1)
+# ─────────────────────────────────────────────
+puts "\n🎟️  Seeding catalog products + ticket audience policies..."
+
+fest_ticket = if fest_ticket = Catalog::EventProduct.find_by(event: fest_event, name: "Fest General Admission", type: "ticket")
+  unless fest_ticket.inventories.where(event_date_id: nil).exists?
+    fest_ticket.update!(inventory_mode: "event_wide")
+    fest_ticket.inventories.create!(event_date_id: nil, capacity: 500, held_count: 0, sold_count: 0)
+  end
+  fest_ticket
+else
+  Catalog::Products::CreateDraft.call(
+    event: fest_event,
+    actor: nil,
+    product_attributes: {
+      name: "Fest General Admission",
+      type: "ticket",
+      min_per_order: 1,
+      max_per_order: 6,
+      sales_start_at: 1.week.ago,
+      sales_end_at: 1.month.from_now
+    },
+    ticket_type_attributes: {
+      approval_mode: "automatic",
+      audience: "public",
+      date_selection: "fixed",
+      admissions_per_unit: 1,
+      transferable: true
+    },
+    inventory_configuration: { mode: "event_wide", capacity: 500 },
+    price_attributes: { currency: "ETB", amount_minor: 500_00, active_from: 1.week.ago }
+  ).value.tap { |p| Catalog::Products::Activate.call(product: p) }
+end
+
+vip_ticket = if vip_ticket = Catalog::EventProduct.find_by(event: fest_event, name: "Fest VIP Pass", type: "ticket")
+  unless vip_ticket.inventories.where(event_date_id: nil).exists?
+    vip_ticket.update!(inventory_mode: "event_wide")
+    vip_ticket.inventories.create!(event_date_id: nil, capacity: 200, held_count: 0, sold_count: 0)
+  end
+  vip_ticket
+else
+  Catalog::Products::CreateDraft.call(
+    event: fest_event,
+    actor: nil,
+    product_attributes: { name: "Fest VIP Pass", type: "ticket", min_per_order: 1, max_per_order: 2 },
+    price_attributes: { currency: "ETB", amount_minor: 1500_00, active_from: 1.week.ago },
+    ticket_type_attributes: {
+      approval_mode: "manual",
+      audience: "code_or_invitation",
+      date_selection: "choose_one",
+      admissions_per_unit: 1,
+      delegation_enabled: true,
+      resale_enabled: true,
+      resale_price_cap_type: "percentage",
+      resale_percentage_cap_bps: 10_000,
+      max_completed_resales: 1
+    },
+    inventory_configuration: { mode: "event_wide", capacity: 200 }
+  ).value.tap { |p| Catalog::Products::Activate.call(product: p) }
+end
+vip_tt = vip_ticket.ticket_type
+
+# Access code (raw value shown here only for local/dev testing — never log in prod).
+Ticketing::AccessCode.find_or_create_by!(
+  ticket_type: vip_tt,
+  code_digest: Ticketing::AccessCode.code_digest_for(event_id: fest_event.id, code: "VIP-2026")
+) do |c|
+  c.code = "VIP-2026"
+  c.label = "VIP early-bird"
+  c.max_uses = 50
+  c.max_quantity_per_use = 2
+  c.active = true
+end
+
+# Named guest invitation.
+Ticketing::Invitation.find_or_create_by!(
+  ticket_type: vip_tt,
+  token_digest: Ticketing::Invitation.token_digest_for(event_id: fest_event.id, token: "vip-invite-0001")
+) do |i|
+  i.created_by = admin
+  i.email = "vip.guest@example.com"
+  i.token = "vip-invite-0001"
+  i.contact_digest = Ticketing::Invitation.contact_digest_for(event_id: fest_event.id, contact: "vip.guest@example.com")
+  i.allowed_quantity = 1
+  i.status = "pending"
+end
+
+# Scope the fest terms consent document to the VIP ticket type (same-event).
+vip_consent_doc = Events::ConsentDocument.find_by(event: fest_event, type: "terms")
+Events::ConsentDocuments::ReplaceScope.call(
+  consent_document: vip_consent_doc, ticket_type_ids: [ vip_tt.id ]
+) if vip_consent_doc
+
+puts "✓ #{Catalog::EventProduct.count} products, " \
+     "#{Ticketing::TicketType.count} ticket types, " \
+     "#{Ticketing::AccessCode.count} access codes, " \
+     "#{Ticketing::Invitation.count} invitations"
+
+# 7b. Catalog inventory: product inventories (Plan 2, Task 3)
+# ─────────────────────────────────────────────
+puts "\n📦  Seeding catalog inventory..."
+# Products are created with event_wide inventory — ProductInventory rows are
+# created implicitly by CreateDraft via the inventory configuration.
+
+# 7c. Catalog pricing: product prices + exchange rates (Plan 2, Task 2)
+# ─────────────────────────────────────────────
+puts "\n💱  Seeding catalog pricing (prices + exchange rates)..."
+
+# General Admission: a fixed USD override price (quotes in USD return as-is).
+unless Catalog::ProductPrice.exists?(event_product: fest_ticket, currency: "USD", type: "override")
+  Catalog::Pricing::CreatePrice.call(
+    event_product: fest_ticket,
+    attributes: {
+      type: "override",
+      currency: "USD",
+      amount_minor: 2500,
+      active_from: 1.week.ago,
+      active_to: 1.month.from_now
+    }
+  ).value
+end
+
+# VIP Pass: a base EUR price, convertible to USD via an exchange rate.
+unless Catalog::ProductPrice.exists?(event_product: vip_ticket, currency: "EUR", type: "base")
+  Catalog::Pricing::CreatePrice.call(
+    event_product: vip_ticket,
+    attributes: {
+      type: "base",
+      currency: "EUR",
+      amount_minor: 2000,
+      active_from: 1.week.ago,
+      active_to: 1.month.from_now
+    }
+  ).value
+end
+
+# Applicable exchange rate EUR -> USD (latest per effective window wins).
+unless Catalog::ExchangeRate.exists?(from_currency: "EUR", to_currency: "USD")
+  Catalog::ExchangeRates::Record.call(from_currency: "EUR", to_currency: "USD", rate: 1.1)
+end
+
+puts "✓ #{Catalog::ProductPrice.count} prices, #{Catalog::ExchangeRate.count} exchange rates"
+
+# 7d. Catalog promotions: active event discount + encrypted code (Plan 2, Task 5)
+# ─────────────────────────────────────────────
+puts "\n🏷️  Seeding catalog promotions..."
+
+promotion_name = "Fest early bird"
+promotion_code = "OPENING10"
+fest_promotion = Catalog::Promotion.find_by(event: fest_event, name: promotion_name, status: "active")
+fest_promotion ||= Catalog::Promotion.find_by(event: fest_event, name: promotion_name, status: "draft")
+
+unless fest_promotion
+  result = Catalog::Promotions::Create.call(
+    event: fest_event,
+    actor: nil,
+    attributes: {
+      name: promotion_name,
+      type: "percentage",
+      percentage_basis_points: 1_000,
+      currency: "ETB",
+      minimum_subtotal_minor: 1_000,
+      maximum_discount_minor: 2_000,
+      redemption_limit: 100,
+      per_user_limit: 1,
+      starts_at: 1.week.ago,
+      ends_at: 1.month.from_now
+    },
+    product_ids: [ vip_ticket.id ],
+    idempotency_key: "dev-fest-early-bird-create-v1"
+  )
+  raise result.error.message unless result.success?
+
+  fest_promotion = result.value
+end
+
+if fest_promotion.draft?
+  result = Catalog::Promotions::PublishVersion.call(
+    promotion: fest_promotion,
+    actor: nil,
+    idempotency_key: "dev-fest-early-bird-publish-v1"
+  )
+  raise result.error.message unless result.success?
+
+  fest_promotion = result.value
+end
+
+promotion_code_digest = Catalog::PromotionCode.code_digest_for(
+  event_id: fest_event.id,
+  code: promotion_code
+)
+unless Catalog::PromotionCode.exists?(promotion: fest_promotion, code_digest: promotion_code_digest)
+  result = Catalog::Promotions::CreateCode.call(
+    promotion: fest_promotion,
+    actor: nil,
+    attributes: {
+      code: promotion_code,
+      label: "Festival early bird",
+      redemption_limit: 100,
+      active: true,
+      starts_at: fest_promotion.starts_at,
+      ends_at: fest_promotion.ends_at
+    },
+    idempotency_key: "dev-fest-early-bird-code-v1"
+  )
+  raise result.error.message unless result.success?
+end
+
+puts "✓ #{Catalog::Promotion.count} promotions, #{Catalog::PromotionCode.count} promotion codes"
+
+# ─────────────────────────────────────────────
+# 8. Catalog: product accesses, zone grants, and date allocations (Plan 2, Task 4)
+# ─────────────────────────────────────────────
+puts "\n🔄  Seeding product accesses + allocations..."
+
+# Seed fest_ticket accesses/allocation directly since it's already active
+fest_date = fest_event.event_dates.first!
+unless Catalog::ProductAccess.exists?(event_product: fest_ticket, type: "venue")
+  fest_ticket.product_accesses.create!(event_date: fest_date, type: "venue", usage_limit: 1)
+  zone = Events::AccessZone.find_by!(event: fest_event, code: "MAIN")
+  access = Catalog::ProductAccess.find_by!(event_product: fest_ticket, type: "venue")
+  access.product_access_zones.create!(access_zone: zone)
+  fest_ticket.product_date_allocations.create!(
+    event_date: fest_date, allocation_basis_points: 10_000
+  )
+end
+
+# Seed vip_ticket accesses/allocation directly since it's already active
+unless Catalog::ProductAccess.exists?(event_product: vip_ticket, type: "venue")
+  vip_ticket.product_accesses.create!(event_date: fest_date, type: "venue", usage_limit: nil)
+  vip_ticket.product_accesses.create!(event_date: fest_date, type: "stream", required_access_protection: "public")
+  backstage = Events::AccessZone.find_or_create_by!(
+    event: fest_event, code: "BACKSTAGE", type: "venue"
+  ) do |z|
+    z.name = "Backstage"
+    z.sort_order = 1
+  end
+  venue_access = Catalog::ProductAccess.find_by!(event_product: vip_ticket, type: "venue")
+  main_zone = Events::AccessZone.find_by!(event: fest_event, code: "MAIN")
+  venue_access.product_access_zones.create!(access_zone: main_zone)
+  venue_access.product_access_zones.create!(access_zone: backstage)
+  vip_ticket.product_date_allocations.create!(
+    event_date: fest_date, allocation_basis_points: 10_000
+  )
+end
+
+puts "✓ #{Catalog::ProductAccess.count} product accesses, " \
+     "#{Catalog::ProductAccessZone.count} access zone grants, " \
+     "#{Catalog::ProductDateAllocation.count} date allocations"
+
+# ─────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────
 puts "\n" + "=" * 60
@@ -354,6 +605,10 @@ puts "  Users (SUPER_ADMIN): #{Core::User.count}"
 puts "  Organizations:      #{Organizations::Organization.count}"
 puts "  Events:            #{Events::Event.count}"
 puts "  Consent docs:      #{Events::ConsentDocument.count} (#{Events::ConsentDocumentVersion.published.count} published)"
+puts "  Products:          #{Catalog::EventProduct.count} (#{Ticketing::TicketType.count} ticket types)"
+puts "  Pricing:           #{Catalog::ProductPrice.count} prices, #{Catalog::ExchangeRate.count} exchange rates"
+puts "  Promotions:        #{Catalog::Promotion.count} promotions, #{Catalog::PromotionCode.count} codes"
+puts "  Accesses:          #{Catalog::ProductAccess.count} accesses (#{Catalog::ProductAccessZone.count} zone grants, #{Catalog::ProductDateAllocation.count} date allocations)"
 puts "  Legal docs:        #{Legal::LegalDocument.count} (#{Legal::LegalDocumentVersion.published.count} published)"
 puts "  Legal acceptances: #{Legal::LegalAcceptance.count}"
 puts "\n🔑 Auth (POST /core/auth/login):"
@@ -367,4 +622,9 @@ puts "  GET  /admin/legal_documents             (as Admin)"
 puts "  POST /admin/legal_documents/:id/publish"
 puts "  GET  /events/:id/consent_documents"
 puts "  GET  /organizations/owner              (owner orgs)"
+puts "  POST /catalog/product_quotes           { product_id, charge_currency: \"USD\" }"
+puts "  POST /catalog/promotions/:id/quote     { code: \"OPENING10\", eligible_subtotal_minor: 10000, charge_currency: \"ETB\" }"
+puts "  Promotion test code: OPENING10"
+puts "  GET  /events/:id/event_products/:id/product_accesses    (accesses + zone grants)"
+puts "  GET  /events/:id/event_products/:id/product_date_allocations (date allocations)"
 puts "=" * 60

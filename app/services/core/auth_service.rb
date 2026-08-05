@@ -11,7 +11,7 @@ module Core
         user = self.class.authenticate_user(@params[:identifier], @params[:password])
         return Result.success(user) if user.present?
 
-        Result.failure(Core::AuthenticationError.new("Invalid credentials", code: "invalid_credentials"))
+        Result.failure(Core::AuthenticationError.new(I18n.t("auth.errors.invalid_credentials"), code: "invalid_credentials"))
       when :generate_auth_tokens
         Result.success(self.class.generate_auth_tokens(@params[:user], @params[:request]))
       when :refresh_access_token
@@ -51,10 +51,10 @@ module Core
 
       def refresh_access_token(refresh_token_value, request)
         refresh_token = Core::RefreshToken.find_valid(refresh_token_value)
-        raise Core::AuthenticationError.new("Invalid token", code: "invalid_token") unless refresh_token
+        raise Core::AuthenticationError.new(I18n.t("auth.errors.invalid_token"), code: "invalid_token") unless refresh_token
 
         user = refresh_token.user
-        raise Core::AuthenticationError.new("Account deactivated", code: "account_deactivated") if user.deactivated?
+        raise Core::AuthenticationError.new(I18n.t("auth.errors.account_deactivated"), code: "account_deactivated") if user.deactivated?
 
         validate_device!(refresh_token, request)
 
@@ -111,7 +111,7 @@ module Core
         # request omitted device_id which allowed replay from other devices.
         if refresh_token.device_id.present?
           unless requested_device_id.present? && requested_device_id.to_s == refresh_token.device_id.to_s
-            raise Core::AuthenticationError.new("Refresh token is not valid for this device", code: "invalid_device")
+            raise Core::AuthenticationError.new(I18n.t("auth.errors.invalid_device"), code: "invalid_device")
           end
         end
       end

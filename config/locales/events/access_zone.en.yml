@@ -1,0 +1,7 @@
+# frozen_string_literal: true
+
+en:
+  events:
+    access_zone:
+      errors:
+        event_date_event_mismatch: "must belong to the same event"

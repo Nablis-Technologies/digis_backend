@@ -32,11 +32,11 @@ module Events
     private
 
     def profile_must_be_attached
-      errors.add(:profile, "must be attached") unless profile.attached?
+       errors.add(:profile, I18n.t("events.venue.errors.profile_required")) unless profile.attached?
     end
 
     def photos_count_within_limit
-      errors.add(:photos, "maximum 10 photos allowed") if photos.count > 10
+       errors.add(:photos, I18n.t("events.venue.errors.photos_limit", maximum: 10)) if photos.count > 10
     end
   end
 end

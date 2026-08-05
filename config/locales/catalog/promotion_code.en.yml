@@ -1,0 +1,15 @@
+# frozen_string_literal: true
+
+en:
+  catalog:
+    promotion_code:
+      errors:
+        blank: "promotion code cannot be blank"
+        duplicate: "promotion code already exists"
+        promotion_unavailable: "promotion code cannot be changed for this promotion"
+        invalid_window: "promotion code end time must be after its start time"
+        invalid_redemption_limit: "code redemption limit must be a positive integer"
+        inactive: "promotion code is inactive"
+        outside_window: "promotion code is outside its active window"
+        not_found: "promotion code was not found"
+        reveal_forbidden: "promotion code reveal is not authorized"

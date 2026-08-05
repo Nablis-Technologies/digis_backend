@@ -8,3 +8,5 @@ en:
       destroy: "User deleted successfully"
       deactivate: "User deactivated successfully"
       reactivate: "User reactivated successfully"
+    errors:
+      email_or_phone_required: "Either email or phone must be provided"

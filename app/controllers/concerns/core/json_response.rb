@@ -176,6 +176,10 @@ module Core
       return nil if model_key.blank?
 
       segment = type == :success ? "success" : "errors"
+      namespace = @clazz.name.deconstantize.underscore
+      namespaced_key = [ namespace, model_key, segment, action_name ].join(".")
+      return namespaced_key if I18n.exists?(namespaced_key)
+
       "#{model_key}.#{segment}.#{action_name}"
     end
 

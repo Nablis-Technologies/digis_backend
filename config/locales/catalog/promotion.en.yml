@@ -1,0 +1,30 @@
+# frozen_string_literal: true
+
+en:
+  catalog:
+    promotion:
+      errors:
+        calculation_exclusive: "provide exactly one promotion calculation"
+        invalid_type: "promotion type is invalid"
+        invalid_status: "promotion status is invalid"
+        invalid_percentage_basis_points: "percentage must be between 1 and 10000 basis points"
+        invalid_fixed_amount: "fixed discount must be a nonnegative integer"
+        invalid_currency: "promotion currency must be a valid ISO-4217 currency"
+        invalid_minimum_subtotal: "minimum subtotal must be a nonnegative integer"
+        invalid_maximum_discount: "maximum discount must be a positive integer"
+        invalid_redemption_limit: "redemption limit must be a positive integer"
+        invalid_per_user_limit: "per-user limit must be a positive integer"
+        invalid_product_ids: "product_ids must be an array"
+        invalid_window: "promotion end time must be after its start time"
+        event_mismatch: "promotion and product must belong to the same event"
+        immutable: "published and disabled promotions cannot be changed"
+        update_forbidden: "only draft promotions can be updated"
+        delete_forbidden: "only draft promotions can be discarded"
+        publish_forbidden: "only draft promotions can be published"
+        disable_forbidden: "only active promotions can be disabled"
+        superseded_not_found: "the superseded promotion was not found"
+        invalid_version_lineage: "promotion version lineage is invalid"
+        idempotency_conflict: "idempotency key was already used for a different request"
+        idempotency_key_required: "Idempotency-Key is required for this operation"
+        replay_not_found: "the original promotion command result was not found"
+        not_found: "promotion was not found"

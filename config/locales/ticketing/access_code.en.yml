@@ -1,0 +1,16 @@
+# frozen_string_literal: true
+
+en:
+  ticketing:
+    access_code:
+      errors:
+        already_used: "already used for this ticket type"
+        expires_after_start: "must be after starts_at"
+        invalid: "invalid access code"
+        inactive: "access code inactive"
+        not_yet_valid: "access code not yet valid"
+        expired: "access code expired"
+        exhausted: "access code exhausted"
+        required: "access code required"
+        quantity_exceeds_per_use: "quantity exceeds per-use limit"
+        quantity_exceeds_remaining: "quantity exceeds remaining uses"

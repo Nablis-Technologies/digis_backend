@@ -11,7 +11,7 @@ module Core
     end
 
     def authenticate_user
-      raise Core::AuthenticationError.new("Authentication required", code: "authentication_required") unless current_user
+      raise Core::AuthenticationError.new(I18n.t("auth.errors.authentication_required"), code: "authentication_required") unless current_user
     end
 
     def sign_in(user, request)
@@ -30,7 +30,7 @@ module Core
 
     def refresh_token!
       refresh_token_value = extract_refresh_token_from_params
-      raise Core::AuthenticationError.new("Refresh token missing", code: "invalid_token") if refresh_token_value.blank?
+      raise Core::AuthenticationError.new(I18n.t("auth.errors.refresh_token_missing"), code: "invalid_token") if refresh_token_value.blank?
 
       result = Core::AuthService.call(
         operation: :refresh_access_token,

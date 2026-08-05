@@ -1,3 +1,5 @@
 en:
   idempotency:
     missing_key: "The Idempotency-Key request header is required to safely retry this request."
+    conflict: "Idempotency key was already used for a different request"
+    replay_not_found: "The original idempotent result could not be found"

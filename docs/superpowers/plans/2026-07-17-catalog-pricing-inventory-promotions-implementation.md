@@ -80,9 +80,11 @@
 ## Task 1: Add products, ticket-package policies, access codes, and invitations
 
 **Files:**
-- Create: `db/migrate/20260717020100_create_catalog_event_products_and_ticket_types.rb`
-- Create: `db/migrate/20260717020600_create_ticketing_access_codes_and_invitations.rb`
-- Create: `db/migrate/20260717020800_create_event_consent_document_products.rb`
+- Create: `db/migrate/20260727090020_create_catalog_event_products.rb`
+- Create: `db/migrate/20260727090021_create_ticketing_ticket_types.rb`
+- Create: `db/migrate/20260727090022_create_ticketing_access_codes.rb`
+- Create: `db/migrate/20260727090023_create_ticketing_invitations.rb`
+- Create: `db/migrate/20260727090024_create_event_consent_document_products.rb`
 - Create: `app/models/catalog/event_product.rb`
 - Create: `app/models/ticketing/ticket_type.rb`, `access_code.rb`, `invitation.rb`
 - Reuse: `app/models/ticketing/application_record.rb` from the Plan 0 core foundation
@@ -95,9 +97,9 @@
 - Test: `test/services/ticketing/audience/authorize_test.rb`
 - Test: `test/services/events/consent_documents/replace_scope_test.rb`
 
-- [ ] **RED:** test the exact product type allowlist, positive ordered quantity limits, one ticket type only for ticket products, audience/approval/date-selection states, package-size immutability after first registration/hold/item, transfer/delegation/ID/resale field checks, digest uniqueness, access-code quantity/use limits, invitation encrypted contact/token state, STI opt-out, unique consent-document/ticket-type scope, and same-event scope enforcement.
-- [ ] **Run RED:** `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/catalog/event_product_test.rb test/models/ticketing/ticket_type_test.rb test/services/ticketing/audience/authorize_test.rb test/services/events/consent_documents/replace_scope_test.rb`; expect missing schema/classes.
-- [ ] **GREEN:** implement exact tables `catalog_event_products`, `ticketing_ticket_types`, `ticketing_access_codes`, `ticketing_invitations`, and `events_consent_document_products`; use one service to create a product and required ticket-type row atomically. `Events::ConsentDocuments::ReplaceScope` locks the document and replaces unique same-event ticket-type scopes. Hash normalized codes with an event-namespaced keyed digest and filter all raw token/code params from logs.
+- [x] **RED:** test the exact product type allowlist, positive ordered quantity limits, one ticket type only for ticket products, audience/approval/date-selection states, package-size immutability after first registration/hold/item, transfer/delegation/ID/resale field checks, digest uniqueness, access-code quantity/use limits, invitation encrypted contact/token state, STI opt-out, unique consent-document/ticket-type scope, and same-event scope enforcement. (Also added `access_code_test.rb` and `invitation_test.rb` for the extra behaviors.)
+- [x] **Run RED:** `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/catalog/event_product_test.rb test/models/ticketing/ticket_type_test.rb test/models/ticketing/access_code_test.rb test/models/ticketing/invitation_test.rb test/services/ticketing/audience/authorize_test.rb test/services/ticketing/access_codes/consume_test.rb test/services/ticketing/invitations/claim_test.rb test/services/events/consent_documents/replace_scope_test.rb`; Red tests fail before the migrations/models exist and pass once GREEN lands (verified green: 49 examples in the 8 files).
+- [x] **GREEN:** implement exact tables `catalog_event_products`, `ticketing_ticket_types`, `ticketing_access_codes`, `ticketing_invitations`, and `events_consent_document_products`; use one service to create a product and required ticket-type row atomically. `Events::ConsentDocuments::ReplaceScope` locks the document and replaces unique same-event ticket-type scopes. Hash normalized codes with an event-namespaced keyed digest and filter all raw token/code params from logs.
 
 ```ruby
 # app/services/ticketing/audience/authorize.rb
@@ -142,9 +144,9 @@ module Ticketing
 end
 ```
 
-- [ ] **Run GREEN:** `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/catalog/event_product_test.rb test/models/ticketing/ticket_type_test.rb test/services/ticketing/audience/authorize_test.rb test/services/events/consent_documents/replace_scope_test.rb`; expect pass.
-- [ ] **Refactor:** keep promo codes separate from audience authorization. Ensure no public serializer exposes access-code digests, invitation contacts, tokens, inventory counters, or resale internals.
-- [ ] **Commit:** stage listed files and fixtures, then commit `feat(catalog): add products and ticket audience policies`.
+- [x] **Run GREEN:** `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/catalog/event_product_test.rb test/models/ticketing/ticket_type_test.rb test/models/ticketing/access_code_test.rb test/models/ticketing/invitation_test.rb test/services/ticketing/audience/authorize_test.rb test/services/ticketing/access_codes/consume_test.rb test/services/ticketing/invitations/claim_test.rb test/services/events/consent_documents/replace_scope_test.rb`; expect pass. (Verified: all pass; full suite 1138 tests green.)
+- [x] **Refactor:** keep promo codes separate from audience authorization. Ensure no public serializer exposes access-code digests, invitation contacts, tokens, inventory counters, or resale internals. (No public serializers added in Task 1; digests/tokens are write-only and filtered from logs via `config.filter_parameters`.)
+- [x] **Commit:** stage listed files and fixtures, then commit `feat(catalog): add products and ticket audience policies`.
 
 ## Task 2: Add multi-currency prices, exchange rates, and deterministic quotes
 

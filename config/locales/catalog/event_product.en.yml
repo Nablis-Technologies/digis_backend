@@ -1,0 +1,26 @@
+en:
+  catalog:
+    event_product:
+      errors:
+        max_per_order_gte_min: "must be greater than or equal to min_per_order"
+        sales_end_after_start: "must be after sales_start_at"
+        ticket_type_required: "must be present for ticket products"
+        ticket_type_not_allowed: "must not be present for non-ticket products"
+        invalid_status: "is not a valid status"
+        invalid_inventory_mode: "is not a valid inventory mode"
+        zone_mapping_required: "requires at least one zone grant for %{type} access on date %{date}"
+        allocations_required: "requires a date allocation for every granted date before activation (missing: %{dates})"
+        active_immutable: "Cannot modify an active product"
+        retired_immutable: "Cannot modify a retired product"
+        destroy_draft_required: "Only draft products can be destroyed"
+        inventory_activity_destroy_forbidden: "Cannot destroy product with inventory activity"
+        active_required_for_retirement: "Only active products can be retired"
+        retired_cannot_reactivate: "Retired products cannot be reactivated"
+        inventory_shape_mismatch: "Inventory records do not match %{mode} mode"
+        inventory_capacity_non_negative: "Inventory capacity must be non-negative"
+        usable_price_required: "Product must have a usable price when sales open"
+        ticket_type_attributes_required: "ticket_type_attributes are required for ticket products"
+        idempotency_conflict: "Idempotency key was already used for a different request"
+        inventory_configuration_required: "inventory_configuration is required (include at least { mode: 'unlimited' })"
+        invalid_inventory_mode: "Invalid inventory mode: %{mode}"
+        event_date_event_mismatch: "Event date %{date_id} does not belong to the product's event"

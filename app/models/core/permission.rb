@@ -20,7 +20,10 @@ module Core
     validates :resource, presence: true
     validates :action, presence: true
     validates :namespace, presence: true
-    validates :resource, uniqueness: { scope: %i[action namespace], message: "action and namespace combination already exists" }
+    validates :resource, uniqueness: {
+      scope: %i[action namespace],
+      message: ->(*_args) { I18n.t("permission.errors.action_namespace_already_exists") }
+    }
 
     def self.ransackable_attributes(_auth_object = nil)
       %w[id code resource action namespace active created_at updated_at]

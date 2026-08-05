@@ -1,0 +1,11 @@
+en:
+  catalog:
+    inventory_reservation:
+      errors:
+        invalid_status_transition: "status transition from %{from} to %{to} is not allowed"
+        already_committed: "reservation is already committed"
+        already_released: "reservation is already released"
+        must_be_held: "reservation must be in held state"
+        not_found: "inventory reservation not found"
+        owner_mutual_exclusion: "a reservation cannot belong to both a registration and an order item simultaneously"
+        duplicate_reservation: "a reservation for this inventory pool already exists in this group"

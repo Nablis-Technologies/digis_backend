@@ -14,9 +14,9 @@ module Core
         decoded = ::JWT.decode(token, key, true, algorithm: "HS256")
         decoded.first
       rescue ::JWT::ExpiredSignature
-        raise Core::AuthenticationError.new("Token has expired", code: "token_expired")
+        raise Core::AuthenticationError.new(I18n.t("auth.errors.token_expired"), code: "token_expired")
       rescue ::JWT::DecodeError
-        raise Core::AuthenticationError.new("Invalid token", code: "invalid_token")
+        raise Core::AuthenticationError.new(I18n.t("auth.errors.invalid_token"), code: "invalid_token")
       end
 
       def access_token_payload(user, jti: nil)
@@ -36,14 +36,14 @@ module Core
         payload = decoded.first
 
         if verify_revocation && payload["jti"]
-          raise Core::AuthenticationError.new("Token has been revoked", code: "token_revoked") if jti_revoked?(payload["jti"])
+          raise Core::AuthenticationError.new(I18n.t("auth.errors.token_revoked"), code: "token_revoked") if jti_revoked?(payload["jti"])
         end
 
         payload
       rescue ::JWT::ExpiredSignature
-        raise Core::AuthenticationError.new("Token has expired", code: "token_expired")
+        raise Core::AuthenticationError.new(I18n.t("auth.errors.token_expired"), code: "token_expired")
       rescue ::JWT::DecodeError
-        raise Core::AuthenticationError.new("Invalid token", code: "invalid_token")
+        raise Core::AuthenticationError.new(I18n.t("auth.errors.invalid_token"), code: "invalid_token")
       end
 
       def jti_revoked?(jti)

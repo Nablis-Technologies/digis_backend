@@ -1,22 +1,13 @@
 # frozen_string_literal: true
 
 en:
-  event_video_link:
-    success:
-      create: "Video link added successfully"
-      update: "Video link updated successfully"
-      destroy: "Video link removed successfully"
-    errors:
-      create: "Failed to add video link"
-      update: "Failed to update video link"
-      destroy: "Failed to remove video link"
   events:
     event_video_link:
       success:
-        create: "Video link added successfully"
-        update: "Video link updated successfully"
-        destroy: "Video link removed successfully"
+        create: "Event video link created successfully"
+        update: "Event video link updated successfully"
+        destroy: "Event video link deleted successfully"
       errors:
-        create: "Failed to add video link"
-        update: "Failed to update video link"
-        destroy: "Failed to remove video link"
+        youtube_link: "must be a YouTube link"
+        youtube_video_link: "must be a YouTube video link"
+        valid_url: "must be a valid URL"

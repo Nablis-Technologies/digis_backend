@@ -1274,6 +1274,25 @@ Pool counter change and reservation creation occur in one locked PostgreSQL tran
 
 `processing` means checkout has closed but the current payment attempt is still inside its bounded settlement grace. It continues to count against `held_count`; it is not sold. A status/expiry worker index on `(status, expires_at)` supports prompt transition or release.
 
+#### 7.5.1 `catalog_venue_capacity_reservations`
+
+Venue capacity is recorded independently from product inventory so event-wide and unlimited products can still reserve the correct physical event dates without inventing per-date product pools.
+
+| Column | Type | Rules |
+|---|---|---|
+| `reservation_group_id` | UUID | Required |
+| `event_date_id` | UUID | Required FK |
+| `event_product_id` | UUID | Required FK |
+| `registration_id` / `order_item_id` | UUID | Same owner as the product hold |
+| `quantity_people` | integer | Required, positive; packages multiplied by admissions per unit |
+| `status` | string | Same lifecycle as the inventory reservation |
+| `expires_at`, `committed_at`, `released_at` | timestamptz | Lifecycle timestamps |
+| `request_fingerprint` | string | Required SHA-256 digest |
+
+Unique `(reservation_group_id, event_date_id)`.
+
+The reserve command receives selected `event_date_ids` for product-pool selection and explicit `venue_event_date_ids` for physical admission. A stream-only ticket may select an event date while passing no venue dates, so it never consumes the in-person venue capacity. All rows in both reservation tables share one request fingerprint and transition as one advisory-locked group.
+
 ### 7.6 `catalog_product_accesses`
 
 Describes what a credential-bearing product grants.
@@ -1365,7 +1384,7 @@ A deliberately small buyer-discount definition. Platform commission promotions b
 | `minimum_subtotal_minor` | bigint | Optional nonnegative eligible subtotal threshold |
 | `maximum_discount_minor` | bigint | Optional positive cap, primarily for percentage discounts |
 | `redemption_limit` | integer | Optional positive total reservation/application limit |
-| `per_user_limit` | integer | Optional positive limit; default `1` |
+| `per_user_limit` | integer | Required positive limit; default `1` |
 | `starts_at` | timestamptz | Optional |
 | `ends_at` | timestamptz | Optional |
 | `status` | string | `draft`, `active`, `disabled` |
@@ -1386,7 +1405,7 @@ One promotion may have multiple campaign/influencer codes that share the same di
 |---|---|---|
 | `promotion_id` | UUID | Required FK |
 | `code_digest` | string | Required keyed digest of normalized `event_id:code` |
-| `encrypted_code` | text | Optional encrypted value when organizers must retrieve it later |
+| `code_ciphertext` | text | Required encrypted value for organizer retrieval |
 | `label` | string | Optional internal campaign label |
 | `redemption_limit` | integer | Optional positive limit for this particular code |
 | `starts_at` | timestamptz | Optional additional code window |

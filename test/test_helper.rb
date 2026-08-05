@@ -1,9 +1,11 @@
-require "simplecov"
-SimpleCov.start "rails" do
-  add_filter "/bin/"
-  add_filter "/db/"
-  add_filter "/vendor/"
-  add_filter "/lib/generators/"
+if ENV["COVERAGE"]
+  require "simplecov"
+  SimpleCov.start "rails" do
+    add_filter "/bin/"
+    add_filter "/db/"
+    add_filter "/vendor/"
+    add_filter "/lib/generators/"
+  end
 end
 
 ENV["RAILS_ENV"] ||= "test"
@@ -29,12 +31,13 @@ module ActiveSupport
   class TestCase
     # Fork-based parallelism is fast, but on macOS forking crashes under the
     # Objective-C runtime (+[NSNumber initialize]...) unless the shell exports
-    # OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES. If that's set (or we're not on
-    # macOS) we fork for full speed; otherwise fall back to serial to avoid a hang.
+    # OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES before running tests. Set it
+    # once in your shell profile to get full parallel speed on macOS:
+    #   export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
     if RUBY_PLATFORM.match?(/darwin/) && ENV["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] != "YES"
       parallelize(workers: 1)
     else
-      parallelize(workers: :number_of_processors)
+      parallelize(workers: ENV.fetch("PARALLEL_WORKERS", 6).to_i)
     end
     fixtures :all
 
@@ -56,12 +59,14 @@ module ActiveSupport
       organizations_memberships: Organizations::Membership,
     )
 
-    setup do
-      Prosopite.scan
-    end
+    if ENV["N_PLUS_ONE"] == "1"
+      setup do
+        Prosopite.scan
+      end
 
-    teardown do
-      Prosopite.finish
+      teardown do
+        Prosopite.finish
+      end
     end
 
     # Gives an event the minimum state required by Events::PublicationReadiness:

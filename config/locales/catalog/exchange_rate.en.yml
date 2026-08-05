@@ -1,0 +1,7 @@
+# frozen_string_literal: true
+
+en:
+  catalog:
+    exchange_rate:
+      errors:
+        currency_format: "must be a valid ISO 4217 code"

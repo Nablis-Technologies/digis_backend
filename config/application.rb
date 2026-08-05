@@ -46,10 +46,13 @@ module DigisBackend
       config.active_record.encryption.primary_key = ENV["CORE_ENCRYPTION_PRIMARY_KEY"]
       config.active_record.encryption.deterministic_key = ENV["CORE_ENCRYPTION_DETERMINISTIC_KEY"]
       config.active_record.encryption.key_derivation_salt = ENV["CORE_ENCRYPTION_KEY_DERIVATION_SALT"]
-    elsif Rails.env.test?
-      config.active_record.encryption.primary_key = "test_primary_key_1234567890abcdef1234567890abcdef"
-      config.active_record.encryption.deterministic_key = "test_deterministic_key_1234567890abcdef1"
-      config.active_record.encryption.key_derivation_salt = "test_key_derivation_salt_1234567890abc"
+    elsif Rails.env.test? || Rails.env.development?
+      # Stable non-production keys so the suite and local dev seed run without a
+      # real master key. Never use these in production.
+      prefix = Rails.env.test? ? "test" : "dev"
+      config.active_record.encryption.primary_key = "#{prefix}_primary_key_1234567890abcdef1234567890abcdef"
+      config.active_record.encryption.deterministic_key = "#{prefix}_deterministic_key_1234567890abcdef1"
+      config.active_record.encryption.key_derivation_salt = "#{prefix}_key_derivation_salt_1234567890abc"
     end
   end
 end

@@ -1,0 +1,11 @@
+# frozen_string_literal: true
+
+en:
+  ticketing:
+    invitation:
+      errors:
+        contact_required: "an email or phone contact is required"
+        token_required: "invitation token required"
+        invalid: "invalid invitation"
+        not_pending: "invitation not pending"
+        expired: "invitation expired"

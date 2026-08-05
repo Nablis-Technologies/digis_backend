@@ -1,0 +1,7 @@
+# frozen_string_literal: true
+
+en:
+  events:
+    consent_document_product:
+      errors:
+        ticket_type_event_mismatch: "must belong to the same event as the consent document"

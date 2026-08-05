@@ -13,6 +13,10 @@ module Events
              class_name: "Events::ConsentDocumentVersion",
              inverse_of: :consent_document,
              dependent: :destroy
+    has_many :consent_document_products,
+             class_name: "Events::ConsentDocumentProduct",
+             inverse_of: :consent_document,
+             dependent: :destroy
 
     validates :type, presence: true, inclusion: { in: TYPES }
     validates :name, presence: true

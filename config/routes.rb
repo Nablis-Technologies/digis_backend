@@ -56,6 +56,52 @@ Rails.application.routes.draw do
     resources :public_events, only: %i[index show], param: :slug, path: "public/events"
   end
 
+  get "public/events/:event_slug/products", to: "catalog/public_products#index"
+
+  scope path: :catalog, module: :catalog do
+    resources :product_prices, only: %i[index show create]
+    resources :product_quotes, only: %i[create]
+    resources :product_inventories, only: %i[index show]
+    resources :promotions, only: %i[index show create update destroy] do
+      post :publish, on: :member
+      post :disable, on: :member
+      post :quote, on: :member
+    end
+    resources :promotion_codes, only: %i[index show create] do
+      post :reveal, on: :member
+    end
+  end
+
+  resources :events, only: [] do
+    scope module: :catalog do
+      resources :event_products, only: %i[index show create update destroy] do
+        post :activate, on: :member
+        post :deactivate, on: :member
+        patch :update_inventory_configuration, on: :member
+        resources :product_accesses, only: %i[index] do
+          post :replace, on: :collection
+          resources :product_access_zones, only: %i[index] do
+            post :replace, on: :collection
+          end
+        end
+        resources :product_date_allocations, only: %i[index] do
+          post :replace, on: :collection
+        end
+      end
+    end
+  end
+
+  resources :events, only: [] do
+    resources :event_products, only: [] do
+      resource :ticket_type, only: %i[show create update destroy], controller: "ticketing/ticket_types" do
+        resources :access_codes, only: %i[index show create destroy], controller: "ticketing/access_codes"
+        resources :invitations, only: %i[index show create destroy], controller: "ticketing/invitations"
+      end
+    end
+  end
+
+  post "ticketing/audience_authorizations", to: "ticketing/audience_authorizations#create"
+
   namespace :admin do
     resources :users, except: %i[new edit] do
       member do

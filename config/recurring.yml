@@ -17,6 +17,18 @@ production:
     class: Events::CleanupUnattachedEventMediaJob
     queue: default
     schedule: every day at 3am
+  expire_inventory_reservations:
+    class: Catalog::ExpireInventoryReservationsJob
+    queue: default
+    schedule: every minute
+  reconcile_inventory:
+    class: Catalog::ReconcileInventoryJob
+    queue: default
+    schedule: every day at 3am
+  expire_invitations:
+    class: Ticketing::ExpireInvitationsJob
+    queue: default
+    schedule: every minute
   process_outbox:
     class: Core::ProcessOutboxJob
     queue: outbox
