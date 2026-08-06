@@ -5,3 +5,7 @@
   invitation ID through the outbox, and let a provider-injection job decrypt
   and delegate delivery. Do not build a mail/SMS adapter before Messaging owns
   that integration.
+
+- When verifying a merge, fetch the remote branch before comparing local
+  tracking refs. A stale local `origin/main` ref caused the merged `main`
+  commit to be reported as missing even though GitHub already had it.
