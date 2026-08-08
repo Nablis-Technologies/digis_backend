@@ -23,6 +23,8 @@ en:
       unauthorized: "You are not authorized to perform this action"
 
   errors:
+    messages:
+      immutable: "is immutable"
     not_found: "The requested %{model} was not found"
     not_unique: "A record with these details already exists"
     statement_invalid: "The operation could not be completed due to a database constraint"
@@ -47,3 +49,39 @@ en:
       from_status_mismatch: "Action '%{action}' can only be performed from: %{allowed}. Current status is '%{current_status}'"
       already_submitted: "Already submitted; use resubmit after rejection or modification request"
       model_updates_required: "Model updates are required for this action"
+
+  ticketing:
+    forms:
+      errors:
+        missing_published_version: "Active registration form '%{name}' has no published version"
+        no_draft: "No draft registration form version is available to publish"
+        invalid_form_version: "Registration form version is invalid and cannot be published"
+        invalid_schema: "Registration form schema is invalid"
+        invalid_submission: "Registration form submission is invalid"
+        unknown_question: "Submission contains an unknown question"
+        incomplete_slot_answers: "Every required admission slot must have an answer"
+        duplicate_question: "Registration form schema contains duplicate questions"
+        duplicate_answer: "Submission contains duplicate answers"
+        invalid_scope: "Answer coordinates do not match the question scope"
+        invalid_coordinates: "Answer coordinates are invalid"
+        invalid_type: "Answer has an invalid type"
+        invalid_choice: "Answer contains an invalid choice"
+        required_answer: "A required answer is missing"
+        invalid_validation_rules: "Registration form validation rules are invalid"
+        invalid_value: "Answer does not satisfy the validation rules"
+        stale_form_version: "The registration form version is no longer current"
+        version_not_found: "The registration form version was not found"
+        version_not_draft: "Only a draft registration form version can be published"
+        idempotency_conflict: "The form version publish request conflicts with an existing idempotency key"
+    answers:
+      errors:
+        answer_erased: "Erased answers cannot be revised"
+        revision_conflict: "The answer revision conflicts with an existing idempotency key"
+        invalid_answer_revision: "Answer revision is invalid"
+        retention_expired: "The answer retention deadline has passed"
+        correction_window_closed: "The answer correction window has closed"
+
+  core:
+    retention:
+      errors:
+        policy_not_found: "No active retention policy is configured"
