@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 module Ticketing
+  # Organizer endpoints for draft form schemas and their one-way publication.
+  # Publishing requires an Idempotency-Key because it retires the prior live
+  # version and writes audit evidence.
   class RegistrationFormVersionsController < Ticketing::ApplicationController
     include Core::CommandResponse
     include Core::IdempotencyKeyResolver

@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 module Ticketing
+  # One validated question in a form version. Configuration is deliberately a
+  # constrained JSON schema, never executable rules, and becomes immutable with
+  # its published version.
   class RegistrationQuestion < Ticketing::ApplicationRecord
     self.table_name = "ticketing_registration_questions"
     self.inheritance_column = nil
@@ -109,6 +112,8 @@ module Ticketing
     end
 
     def allowlisted_validation_rules
+      # Only declarative, type-specific rules are accepted; arbitrary patterns
+      # or executable expressions must never enter organizer-managed schemas.
       unless validation_rules.is_a?(Hash)
         errors.add(:validation_rules, :invalid)
         return

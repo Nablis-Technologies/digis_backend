@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 module Ticketing
+  # The durable registration commitment for a ticket type. It snapshots package
+  # sizing and source metadata at issuance so later product edits cannot change
+  # the attendee's recorded party or form-answer scope.
   class Registration < Ticketing::ApplicationRecord
     self.table_name = "ticketing_registrations"
 
@@ -152,6 +155,8 @@ module Ticketing
     end
 
     def scope_immutable_after_submission
+      # Form submissions are legal/audit evidence tied to these coordinates;
+      # changing them would make existing answers describe another registration.
       changed_fields = %i[
         event_id ticket_type_id selected_event_date_id package_quantity
         admissions_per_unit_snapshot party_size

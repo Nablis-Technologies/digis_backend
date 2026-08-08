@@ -4,6 +4,9 @@ require "digest"
 
 module Ticketing
   module Answers
+    # Appends a corrected answer without overwriting the original response.
+    # A locked answer plus idempotency/request digests serialize revisions and
+    # make a client retry return its original correction evidence.
     class Revise < Core::BaseService
       def initialize(answer:, revised_by:, value:, source:, reason_code: nil, idempotency_key:)
         @answer = answer
@@ -43,6 +46,8 @@ module Ticketing
           normalized_value = validation.value.first&.fetch(:value, nil)
           @request_digest = request_digest_for(normalized_value)
 
+          # Check the idempotency boundary before mutable business windows so a
+          # valid retry remains successful after the correction window closes.
           existing = Ticketing::RegistrationAnswerRevision
             .where(idempotency_key_digest: idempotency_key_digest)
             .lock

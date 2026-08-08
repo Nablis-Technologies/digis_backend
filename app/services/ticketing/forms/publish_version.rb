@@ -4,6 +4,9 @@ require "digest"
 
 module Ticketing
   module Forms
+    # Publishes one validated draft and retires its prior published sibling in a
+    # single transaction. The audit key and request digest make retried publish
+    # requests idempotent without accepting a different request under one key.
     class PublishVersion < Core::BaseService
       def initialize(version:, actor:, idempotency_key: nil)
         @version = version
@@ -38,6 +41,8 @@ module Ticketing
           validation_error = question_validation_error(draft)
           return failure(validation_error) if validation_error
 
+          # A form has one live schema: retire the old version before exposing
+          # the new immutable version.
           published.update!(status: "retired") if published && published.id != draft.id
           draft.update!(
             status: "published",

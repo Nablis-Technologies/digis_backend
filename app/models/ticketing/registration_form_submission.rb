@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 module Ticketing
+  # An append-only record that a registration submitted one published form
+  # version. Its event and ticket scope must match the registration, preventing
+  # cross-event answers from being attached as evidence.
   class RegistrationFormSubmission < Ticketing::ApplicationRecord
     self.table_name = "ticketing_registration_form_submissions"
 
@@ -58,6 +61,7 @@ module Ticketing
     end
 
     def prevent_update
+      # Answers and their schema snapshots rely on this row as immutable evidence.
       raise ActiveRecord::ReadOnlyRecord, "Registration form submissions are immutable"
     end
 

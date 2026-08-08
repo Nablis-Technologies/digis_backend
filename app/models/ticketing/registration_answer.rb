@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 module Ticketing
+  # An encrypted answer snapshot tied to the exact submitted question. Original
+  # values are never overwritten: revisions provide corrections, while erasure
+  # removes ciphertext but preserves the evidence that the answer once existed.
   class RegistrationAnswer < Ticketing::ApplicationRecord
     self.table_name = "ticketing_registration_answers"
 
@@ -37,6 +40,8 @@ module Ticketing
     end
 
     def effective_answer
+      # Consumers see only a retained value; expired or erased payloads remain
+      # represented by their evidence row but never expose plaintext.
       return if erased? || retention_expired?
 
       revision = effective_revision
@@ -86,6 +91,8 @@ module Ticketing
     end
 
     def self.canonical_value(value)
+      # Stable key ordering gives encrypted JSON a deterministic logical form for
+      # request digests, even when callers supply Hash keys in a different order.
       case value
       when Hash
         value.each_with_object({}) do |(key, child), result|

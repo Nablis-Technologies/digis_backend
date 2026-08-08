@@ -2,6 +2,9 @@
 
 module Ticketing
   module Forms
+    # Persists an immutable snapshot of each applicable form and its encrypted
+    # answers. The client-provided schema must match the currently locked
+    # versions, preventing a stale form from being recorded as current evidence.
     class PersistSubmission < Core::BaseService
       TEXT_TYPES = %w[short_text long_text].freeze
 
@@ -84,6 +87,8 @@ module Ticketing
         categories = stored_question_keys.map { |question| retention_category(question) }.uniq
         selected = {}
 
+        # Retention is selected at submission time and stored on every answer,
+        # so later policy changes never rewrite the original retention decision.
         categories.each do |category|
           result = Core::Retention::SelectPolicy.call(category:, jurisdiction_code: nil)
           return result if result.failure?

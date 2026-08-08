@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 module Ticketing
+  # A versioned registration schema. Drafts remain editable; published and
+  # retired versions are immutable so submissions always retain their exact
+  # questionnaire definition.
   class RegistrationFormVersion < Ticketing::ApplicationRecord
     self.table_name = "ticketing_registration_form_versions"
 

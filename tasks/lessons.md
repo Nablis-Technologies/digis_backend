@@ -9,3 +9,9 @@
 - When verifying a merge, fetch the remote branch before comparing local
   tracking refs. A stale local `origin/main` ref caused the merged `main`
   commit to be reported as missing even though GitHub already had it.
+
+- New domain services, models, and API controllers need concise comments that
+  explain their responsibility and non-obvious invariants (privacy, retention,
+  idempotency, immutability, or authorization boundaries). Avoid restating
+  obvious code; add method comments only where the implementation rationale is
+  not self-evident.

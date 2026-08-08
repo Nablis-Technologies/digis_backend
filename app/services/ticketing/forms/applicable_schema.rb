@@ -2,6 +2,9 @@
 
 module Ticketing
   module Forms
+    # Loads the published event-wide and ticket-type form versions a registrant
+    # must complete. Locks the form set so a publish cannot change the schema
+    # halfway through a registration workflow.
     class ApplicableSchema < Core::BaseService
       def initialize(event:, ticket_type:)
         @event = event

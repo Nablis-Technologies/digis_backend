@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 module Ticketing
+  # A named event-wide or ticket-type registration form. The form selects which
+  # version applies; versions, rather than the form itself, contain the mutable
+  # draft schema and immutable published evidence.
   class RegistrationForm < Ticketing::ApplicationRecord
     self.table_name = "ticketing_registration_forms"
 

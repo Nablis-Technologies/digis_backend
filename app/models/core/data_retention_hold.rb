@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 module Core
+  # A time-bounded legal or operational hold that suspends retention processing
+  # for exactly one event, registration, or user. Holds are idempotent by their
+  # client-supplied key so repeated commands do not create duplicate overrides.
   class DataRetentionHold < Core::ApplicationRecord
     self.table_name = "core_data_retention_holds"
 

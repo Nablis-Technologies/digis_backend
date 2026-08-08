@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 module Ticketing
+  # An append-only correction to a registration answer. It inherits the source
+  # answer's retention deadline so a correction can never extend the lifetime of
+  # sensitive attendee data.
   class RegistrationAnswerRevision < Ticketing::ApplicationRecord
     self.table_name = "ticketing_registration_answer_revisions"
 
@@ -69,6 +72,7 @@ module Ticketing
     private
 
     def inherit_retention_deadline
+      # Do not accept a caller-supplied deadline on a correction.
       self.retain_until = registration_answer.retain_until if registration_answer
     end
 

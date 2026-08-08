@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 module Ticketing
+  # Shows an authorized answer and appends attendee or organizer corrections.
+  # It delegates mutation rules, retention checks, and replay protection to the
+  # revision command instead of exposing direct answer updates.
   class RegistrationAnswersController < Ticketing::ApplicationController
     include Core::CommandResponse
     include Core::IdempotencyKeyResolver

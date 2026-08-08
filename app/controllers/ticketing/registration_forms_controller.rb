@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 module Ticketing
+  # Organizer CRUD surface for event-scoped form definitions. Version authoring
+  # remains under the nested version endpoint so published schemas are managed
+  # separately from form applicability.
   class RegistrationFormsController < Ticketing::ApplicationController
     include Core::Common
 

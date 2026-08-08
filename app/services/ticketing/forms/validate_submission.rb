@@ -2,6 +2,9 @@
 
 module Ticketing
   module Forms
+    # Validates untrusted form payloads against a published question schema and
+    # returns canonical answer values. It supports both registration-wide and
+    # per-admission answers while rejecting ambiguous question coordinates.
     class ValidateSubmission < Core::BaseService
       QUESTION_TYPES = Ticketing::RegistrationQuestion::TYPES
       RESPONSE_SCOPES = Ticketing::RegistrationQuestion::RESPONSE_SCOPES
@@ -67,6 +70,8 @@ module Ticketing
         return error if error
 
         values = normalized.map(&:first)
+        # A key may recur across form versions, but never inside the same
+        # version: otherwise a submitted answer would not identify one question.
         schema_keys = values.map { |question| [ question[:form_version_id], question[:key] ] }
         return failure_for("duplicate_question") unless schema_keys.uniq.length == schema_keys.length
 

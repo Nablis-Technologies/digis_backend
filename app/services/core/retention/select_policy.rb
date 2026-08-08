@@ -2,6 +2,9 @@
 
 module Core
   module Retention
+    # Resolves the policy in force for a data category at a point in time.
+    # Jurisdiction-specific policies take precedence over the default policy;
+    # selecting the newest version preserves the policy evidence used later.
     class SelectPolicy < Core::BaseService
       def initialize(category:, jurisdiction_code: nil, at: Time.current)
         @category = category
@@ -10,6 +13,8 @@ module Core
       end
 
       def call
+        # NULL sorts last here so a matching jurisdiction wins before version
+        # ordering chooses the newest policy within the applicable scope.
         policy = scoped_policies
           .order(Arel.sql("(jurisdiction_code IS NULL) ASC"), version: :desc)
           .first

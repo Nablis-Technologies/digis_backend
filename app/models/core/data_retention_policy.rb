@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 module Core
+  # Versioned, append-only retention rules for sensitive platform data. Once a
+  # policy is active its payload is immutable; it may only be retired so stored
+  # evidence can always identify the governing policy.
   class DataRetentionPolicy < Core::ApplicationRecord
     self.table_name = "core_data_retention_policies"
 
@@ -80,6 +83,7 @@ module Core
 
       case status_in_database
       when "active"
+        # Active policy content cannot be edited or reactivated after retirement.
         errors.add(:status, :invalid) unless status == "retired"
       when "retired"
         errors.add(:status, :invalid)
