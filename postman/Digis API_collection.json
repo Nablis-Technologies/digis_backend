@@ -29,6 +29,11 @@
       "key": "refreshToken",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "idempotencyKey",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -3016,6 +3021,419 @@
               "variable": [
                 {
                   "key": "productId",
+                  "value": "",
+                  "type": "string"
+                }
+              ]
+            },
+            {
+              "name": "Registration Forms",
+              "item": [
+                {
+                  "name": "List Registration Forms",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{accessToken}}",
+                        "type": "text"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/events/{{eventId}}/registration_forms",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "events",
+                        "{{eventId}}",
+                        "registration_forms"
+                      ]
+                    },
+                    "description": "List registration forms for an event."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Get Registration Form",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{accessToken}}",
+                        "type": "text"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/events/{{eventId}}/registration_forms/{{registrationFormId}}",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "events",
+                        "{{eventId}}",
+                        "registration_forms",
+                        "{{registrationFormId}}"
+                      ]
+                    },
+                    "description": "Get a registration form and its versions."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Create Registration Form",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{accessToken}}",
+                        "type": "text"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"Attendee details\",\n  \"active\": true\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/events/{{eventId}}/registration_forms",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "events",
+                        "{{eventId}}",
+                        "registration_forms"
+                      ]
+                    },
+                    "description": "Create an active event-wide registration form."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Update Registration Form",
+                  "request": {
+                    "method": "PATCH",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{accessToken}}",
+                        "type": "text"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"Updated attendee details\",\n  \"active\": true\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/events/{{eventId}}/registration_forms/{{registrationFormId}}",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "events",
+                        "{{eventId}}",
+                        "registration_forms",
+                        "{{registrationFormId}}"
+                      ]
+                    },
+                    "description": "Update a registration form's name or active state."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Delete Registration Form",
+                  "request": {
+                    "method": "DELETE",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{accessToken}}",
+                        "type": "text"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/events/{{eventId}}/registration_forms/{{registrationFormId}}",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "events",
+                        "{{eventId}}",
+                        "registration_forms",
+                        "{{registrationFormId}}"
+                      ]
+                    },
+                    "description": "Delete a registration form."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Versions",
+                  "item": [
+                    {
+                      "name": "List Registration Form Versions",
+                      "request": {
+                        "method": "GET",
+                        "header": [
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          }
+                        ],
+                        "url": {
+                          "raw": "{{baseUrl}}/events/{{eventId}}/registration_forms/{{registrationFormId}}/versions",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "events",
+                            "{{eventId}}",
+                            "registration_forms",
+                            "{{registrationFormId}}",
+                            "versions"
+                          ]
+                        },
+                        "description": "List all versions of a registration form."
+                      },
+                      "response": []
+                    },
+                    {
+                      "name": "Get Registration Form Version",
+                      "request": {
+                        "method": "GET",
+                        "header": [
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          }
+                        ],
+                        "url": {
+                          "raw": "{{baseUrl}}/events/{{eventId}}/registration_forms/{{registrationFormId}}/versions/{{registrationFormVersionId}}",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "events",
+                            "{{eventId}}",
+                            "registration_forms",
+                            "{{registrationFormId}}",
+                            "versions",
+                            "{{registrationFormVersionId}}"
+                          ]
+                        },
+                        "description": "Get a registration form version and its questions."
+                      },
+                      "response": []
+                    },
+                    {
+                      "name": "Create Registration Form Version",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"version\": 1,\n  \"questions\": [\n    {\n      \"key\": \"full_name\",\n      \"type\": \"short_text\",\n      \"response_scope\": \"registration\",\n      \"sensitivity\": \"standard\",\n      \"label\": \"Full name\",\n      \"help_text\": \"Enter the attendee's full name.\",\n      \"required\": true,\n      \"position\": 0,\n      \"options\": [],\n      \"validation_rules\": {\n        \"min_length\": 2\n      }\n    }\n  ]\n}",
+                          "options": {
+                            "raw": {
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/events/{{eventId}}/registration_forms/{{registrationFormId}}/versions",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "events",
+                            "{{eventId}}",
+                            "registration_forms",
+                            "{{registrationFormId}}",
+                            "versions"
+                          ]
+                        },
+                        "description": "Create a draft version with its questions."
+                      },
+                      "response": []
+                    },
+                    {
+                      "name": "Publish Registration Form Version",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Idempotency-Key",
+                            "value": "{{idempotencyKey}}",
+                            "type": "text"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{}",
+                          "options": {
+                            "raw": {
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/events/{{eventId}}/registration_forms/{{registrationFormId}}/versions/{{registrationFormVersionId}}/publish",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "events",
+                            "{{eventId}}",
+                            "registration_forms",
+                            "{{registrationFormId}}",
+                            "versions",
+                            "{{registrationFormVersionId}}",
+                            "publish"
+                          ]
+                        },
+                        "description": "Publish a draft registration form version. Replays are safe with the same Idempotency-Key."
+                      },
+                      "response": []
+                    }
+                  ]
+                }
+              ],
+              "variable": [
+                {
+                  "key": "registrationFormId",
+                  "value": "",
+                  "type": "string"
+                },
+                {
+                  "key": "registrationFormVersionId",
+                  "value": "",
+                  "type": "string"
+                }
+              ]
+            },
+            {
+              "name": "Registration Answers",
+              "item": [
+                {
+                  "name": "Get Registration Answer",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{accessToken}}",
+                        "type": "text"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/registration_answers/{{registrationAnswerId}}",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "registration_answers",
+                        "{{registrationAnswerId}}"
+                      ]
+                    },
+                    "description": "Get safe registration answer metadata. RegistrationAnswerSerializer never exposes answer ciphertext or raw answer values."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Revise Registration Answer",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{accessToken}}",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Idempotency-Key",
+                        "value": "{{idempotencyKey}}",
+                        "type": "text"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"value\": \"Corrected attendee name\",\n  \"source\": \"manager_correction\",\n  \"reason_code\": \"data_quality\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/registration_answers/{{registrationAnswerId}}/revise",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "registration_answers",
+                        "{{registrationAnswerId}}",
+                        "revise"
+                      ]
+                    },
+                    "description": "Append a validated answer revision. The response uses RegistrationAnswerRevisionSerializer and does not expose ciphertext or raw answer values."
+                  },
+                  "response": []
+                }
+              ],
+              "variable": [
+                {
+                  "key": "registrationAnswerId",
                   "value": "",
                   "type": "string"
                 }
