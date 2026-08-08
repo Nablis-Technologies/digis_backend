@@ -77,6 +77,97 @@ $$;
 
 
 --
+-- Name: core_retention_policy_active_insert_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.core_retention_policy_active_insert_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF NEW.status = 'active' AND NEW.version <= (
+    SELECT COALESCE(MAX(version), 0)
+      FROM core_data_retention_policies
+     WHERE category = NEW.category
+       AND jurisdiction_code IS NOT DISTINCT FROM NEW.jurisdiction_code
+  ) THEN
+    RAISE EXCEPTION 'active retention policy versions must be monotonic'
+      USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: core_retention_policy_delete_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.core_retention_policy_delete_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF OLD.status = 'draft' THEN
+    RETURN OLD;
+  END IF;
+  RAISE EXCEPTION 'active or retired retention policies cannot be deleted'
+    USING ERRCODE = '40001';
+END;
+$$;
+
+
+--
+-- Name: core_retention_policy_immutable(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.core_retention_policy_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF OLD.status = 'draft' AND NEW.status = 'active' THEN
+    IF NEW.version <= (
+      SELECT COALESCE(MAX(version), 0)
+        FROM core_data_retention_policies
+       WHERE category = NEW.category
+         AND jurisdiction_code IS NOT DISTINCT FROM NEW.jurisdiction_code
+         AND id <> NEW.id
+    ) THEN
+      RAISE EXCEPTION 'active retention policy versions must be monotonic'
+        USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF OLD.status = 'draft' THEN
+    RETURN NEW;
+  END IF;
+
+  IF OLD.status = 'active' AND NEW.status = 'retired' THEN
+    IF ROW(OLD.category, OLD.jurisdiction_code, OLD.version, OLD.retention_days,
+           OLD.action, OLD.effective_at, OLD.created_by_id)
+       IS DISTINCT FROM
+       ROW(NEW.category, NEW.jurisdiction_code, NEW.version, NEW.retention_days,
+           NEW.action, NEW.effective_at, NEW.created_by_id) THEN
+      RAISE EXCEPTION 'active retention policies are immutable'
+        USING ERRCODE = '40001';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF NEW.status <> OLD.status OR
+     ROW(OLD.category, OLD.jurisdiction_code, OLD.version, OLD.retention_days,
+         OLD.action, OLD.effective_at, OLD.created_by_id)
+     IS DISTINCT FROM
+     ROW(NEW.category, NEW.jurisdiction_code, NEW.version, NEW.retention_days,
+         NEW.action, NEW.effective_at, NEW.created_by_id) THEN
+    RAISE EXCEPTION 'active or retired retention policies are immutable'
+      USING ERRCODE = '40001';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: event_date_change_immutable(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -154,6 +245,599 @@ BEGIN
     RAISE EXCEPTION 'published or retired legal versions are immutable'
       USING ERRCODE = '40001';
   END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: registration_answer_append_only(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.registration_answer_append_only() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF OLD.erased_at IS NOT NULL THEN
+    IF ROW(OLD.registration_form_submission_id, OLD.registration_question_id,
+           OLD.question_key_snapshot, OLD.question_type_snapshot,
+           OLD.response_scope_snapshot, OLD.question_label_snapshot,
+           OLD.package_unit_number, OLD.admission_position, OLD.admission_slot_id,
+           OLD.answer_ciphertext, OLD.retention_policy_id, OLD.retain_until,
+           OLD.answered_at, OLD.erased_at, OLD.erasure_reason)
+       IS DISTINCT FROM
+       ROW(NEW.registration_form_submission_id, NEW.registration_question_id,
+           NEW.question_key_snapshot, NEW.question_type_snapshot,
+           NEW.response_scope_snapshot, NEW.question_label_snapshot,
+           NEW.package_unit_number, NEW.admission_position, NEW.admission_slot_id,
+           NEW.answer_ciphertext, NEW.retention_policy_id, NEW.retain_until,
+           NEW.answered_at, NEW.erased_at, NEW.erasure_reason) THEN
+      RAISE EXCEPTION 'erased registration answers are immutable'
+        USING ERRCODE = '40001';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF NEW.erased_at IS NULL AND NEW.erasure_reason IS NULL AND
+     NEW.answer_ciphertext IS NOT DISTINCT FROM OLD.answer_ciphertext AND
+     (OLD.admission_slot_id IS NULL OR
+      NEW.admission_slot_id IS NOT DISTINCT FROM OLD.admission_slot_id) AND
+     ROW(OLD.registration_form_submission_id, OLD.registration_question_id,
+         OLD.question_key_snapshot, OLD.question_type_snapshot,
+         OLD.response_scope_snapshot, OLD.question_label_snapshot,
+         OLD.package_unit_number, OLD.admission_position, OLD.retention_policy_id,
+         OLD.retain_until, OLD.answered_at, OLD.erased_at, OLD.erasure_reason)
+     IS NOT DISTINCT FROM
+     ROW(NEW.registration_form_submission_id, NEW.registration_question_id,
+         NEW.question_key_snapshot, NEW.question_type_snapshot,
+         NEW.response_scope_snapshot, NEW.question_label_snapshot,
+         NEW.package_unit_number, NEW.admission_position, NEW.retention_policy_id,
+         NEW.retain_until, NEW.answered_at, NEW.erased_at, NEW.erasure_reason) THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.erased_at IS NOT NULL AND NEW.erasure_reason IS NOT NULL AND
+     NEW.answer_ciphertext IS NULL AND
+     (OLD.admission_slot_id IS NULL OR
+      NEW.admission_slot_id IS NOT DISTINCT FROM OLD.admission_slot_id) AND
+     ROW(OLD.registration_form_submission_id, OLD.registration_question_id,
+         OLD.question_key_snapshot, OLD.question_type_snapshot,
+         OLD.response_scope_snapshot, OLD.question_label_snapshot,
+         OLD.package_unit_number, OLD.admission_position, OLD.retention_policy_id,
+         OLD.retain_until, OLD.answered_at)
+     IS NOT DISTINCT FROM
+     ROW(NEW.registration_form_submission_id, NEW.registration_question_id,
+         NEW.question_key_snapshot, NEW.question_type_snapshot,
+         NEW.response_scope_snapshot, NEW.question_label_snapshot,
+         NEW.package_unit_number, NEW.admission_position, NEW.retention_policy_id,
+         NEW.retain_until, NEW.answered_at) THEN
+    RETURN NEW;
+  END IF;
+
+  RAISE EXCEPTION 'registration answers are append-only except issuance and erasure'
+    USING ERRCODE = '40001';
+END;
+$$;
+
+
+--
+-- Name: registration_answer_delete_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.registration_answer_delete_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  RAISE EXCEPTION 'registration answers cannot be deleted'
+    USING ERRCODE = '40001';
+END;
+$$;
+
+
+--
+-- Name: registration_answer_revision_append_only(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.registration_answer_revision_append_only() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF OLD.erased_at IS NOT NULL THEN
+     IF ROW(OLD.registration_answer_id, OLD.revision_number, OLD.answer_ciphertext,
+            OLD.revised_by_id, OLD.source, OLD.reason_code, OLD.idempotency_key_digest,
+            OLD.request_digest, OLD.revised_at, OLD.retain_until, OLD.erased_at)
+        IS DISTINCT FROM
+        ROW(NEW.registration_answer_id, NEW.revision_number, NEW.answer_ciphertext,
+            NEW.revised_by_id, NEW.source, NEW.reason_code, NEW.idempotency_key_digest,
+            NEW.request_digest, NEW.revised_at, NEW.retain_until, NEW.erased_at) THEN
+      RAISE EXCEPTION 'erased answer revisions are immutable'
+        USING ERRCODE = '40001';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF NEW.erased_at IS NULL AND NEW.answer_ciphertext IS NOT DISTINCT FROM OLD.answer_ciphertext AND
+     ROW(OLD.registration_answer_id, OLD.revision_number, OLD.revised_by_id,
+          OLD.source, OLD.reason_code, OLD.idempotency_key_digest, OLD.request_digest,
+          OLD.revised_at, OLD.retain_until, OLD.erased_at)
+      IS NOT DISTINCT FROM
+      ROW(NEW.registration_answer_id, NEW.revision_number, NEW.revised_by_id,
+          NEW.source, NEW.reason_code, NEW.idempotency_key_digest, NEW.request_digest,
+          NEW.revised_at, NEW.retain_until, NEW.erased_at) THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.erased_at IS NOT NULL AND NEW.answer_ciphertext IS NULL AND
+     ROW(OLD.registration_answer_id, OLD.revision_number, OLD.revised_by_id,
+          OLD.source, OLD.reason_code, OLD.idempotency_key_digest, OLD.request_digest,
+          OLD.revised_at, OLD.retain_until)
+      IS NOT DISTINCT FROM
+      ROW(NEW.registration_answer_id, NEW.revision_number, NEW.revised_by_id,
+          NEW.source, NEW.reason_code, NEW.idempotency_key_digest, NEW.request_digest,
+          NEW.revised_at, NEW.retain_until) THEN
+    RETURN NEW;
+  END IF;
+
+  RAISE EXCEPTION 'answer revisions are append-only except erasure'
+    USING ERRCODE = '40001';
+END;
+$$;
+
+
+--
+-- Name: registration_answer_revision_delete_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.registration_answer_revision_delete_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  RAISE EXCEPTION 'answer revisions cannot be deleted'
+    USING ERRCODE = '40001';
+END;
+$$;
+
+
+--
+-- Name: registration_answer_revision_sequence(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.registration_answer_revision_sequence() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  expected_revision integer;
+BEGIN
+  SELECT COALESCE(MAX(revision_number), 0) + 1
+    INTO expected_revision
+    FROM ticketing_registration_answer_revisions
+    WHERE registration_answer_id = NEW.registration_answer_id;
+  IF NEW.revision_number <> expected_revision THEN
+    RAISE EXCEPTION 'answer revisions must be appended in order'
+      USING ERRCODE = '40001';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: registration_form_version_delete_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.registration_form_version_delete_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF OLD.status = 'draft' THEN
+    RETURN OLD;
+  END IF;
+  RAISE EXCEPTION 'published or retired registration form versions cannot be deleted'
+    USING ERRCODE = '40001';
+END;
+$$;
+
+
+--
+-- Name: registration_form_version_immutable(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.registration_form_version_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF OLD.status = 'draft' THEN
+    RETURN NEW;
+  END IF;
+
+  IF OLD.status = 'published' AND NEW.status = 'retired' THEN
+    IF ROW(OLD.registration_form_id, OLD.version, OLD.published_by_id, OLD.published_at)
+       IS DISTINCT FROM
+       ROW(NEW.registration_form_id, NEW.version, NEW.published_by_id, NEW.published_at) THEN
+      RAISE EXCEPTION 'published registration form versions are immutable'
+        USING ERRCODE = '40001';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF NEW.status <> OLD.status OR
+     ROW(OLD.registration_form_id, OLD.version, OLD.published_by_id, OLD.published_at)
+     IS DISTINCT FROM
+     ROW(NEW.registration_form_id, NEW.version, NEW.published_by_id, NEW.published_at) THEN
+    RAISE EXCEPTION 'published or retired registration form versions are immutable'
+      USING ERRCODE = '40001';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: registration_question_delete_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.registration_question_delete_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  version_status text;
+BEGIN
+  SELECT status INTO version_status
+    FROM ticketing_registration_form_versions
+    WHERE id = OLD.registration_form_version_id
+    FOR UPDATE;
+  IF version_status = 'draft' THEN
+    RETURN OLD;
+  END IF;
+  RAISE EXCEPTION 'questions in published or retired versions cannot be deleted'
+    USING ERRCODE = '40001';
+END;
+$$;
+
+
+--
+-- Name: registration_question_immutable(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.registration_question_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  version_status text;
+  new_version_status text;
+BEGIN
+  SELECT status INTO version_status
+    FROM ticketing_registration_form_versions
+    WHERE id = OLD.registration_form_version_id
+    FOR UPDATE;
+  SELECT status INTO new_version_status
+    FROM ticketing_registration_form_versions
+    WHERE id = NEW.registration_form_version_id
+    FOR UPDATE;
+  IF COALESCE(version_status, '') <> 'draft' THEN
+    RAISE EXCEPTION 'questions in published or retired versions are immutable'
+      USING ERRCODE = '40001';
+  END IF;
+  IF COALESCE(new_version_status, '') <> 'draft' THEN
+    RAISE EXCEPTION 'questions cannot move into published or retired versions'
+      USING ERRCODE = '40001';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: registration_question_insert_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.registration_question_insert_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  version_status text;
+BEGIN
+  SELECT status INTO version_status
+    FROM ticketing_registration_form_versions
+    WHERE id = NEW.registration_form_version_id
+    FOR UPDATE;
+  IF version_status = 'draft' THEN
+    RETURN NEW;
+  END IF;
+  RAISE EXCEPTION 'questions cannot be added to published or retired versions'
+    USING ERRCODE = '40001';
+END;
+$$;
+
+
+--
+-- Name: registration_source_immutable(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.registration_source_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF OLD.submitted_at IS NOT NULL AND NEW.source IS DISTINCT FROM OLD.source THEN
+    RAISE EXCEPTION 'registration source is immutable after submission'
+      USING ERRCODE = '40001';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: ticketing_registration_answer_integrity_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_registration_answer_integrity_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  question_version_id uuid;
+  question_key text;
+  question_type text;
+  question_scope text;
+  question_label text;
+  submission_version_id uuid;
+  package_quantity integer;
+  admissions_per_unit integer;
+  retention_days integer;
+  policy_category text;
+  policy_status text;
+  policy_effective_at timestamptz;
+BEGIN
+  SELECT question.registration_form_version_id, question.key, question.type,
+         question.response_scope, question.label,
+         submission.registration_form_version_id,
+         registration.package_quantity, registration.admissions_per_unit_snapshot
+    INTO question_version_id, question_key, question_type, question_scope, question_label,
+         submission_version_id, package_quantity, admissions_per_unit
+    FROM ticketing_registration_questions question
+    JOIN ticketing_registration_form_submissions submission
+      ON submission.id = NEW.registration_form_submission_id
+    JOIN ticketing_registrations registration
+      ON registration.id = submission.registration_id
+   WHERE question.id = NEW.registration_question_id;
+
+  IF question_version_id IS NULL OR question_version_id IS DISTINCT FROM submission_version_id OR
+     NEW.question_key_snapshot IS DISTINCT FROM question_key OR
+     NEW.question_type_snapshot IS DISTINCT FROM question_type OR
+     NEW.response_scope_snapshot IS DISTINCT FROM question_scope OR
+     NEW.question_label_snapshot IS DISTINCT FROM question_label THEN
+    RAISE EXCEPTION 'registration answers must match their submission question and version'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.response_scope_snapshot = 'registration' THEN
+    IF NEW.package_unit_number IS NOT NULL OR NEW.admission_position IS NOT NULL OR
+       NEW.admission_slot_id IS NOT NULL THEN
+      RAISE EXCEPTION 'registration-scoped answers cannot have admission coordinates'
+        USING ERRCODE = '23514';
+    END IF;
+  ELSIF NEW.response_scope_snapshot = 'admission_slot' THEN
+    IF NEW.package_unit_number IS NULL OR NEW.package_unit_number <= 0 OR
+       NEW.package_unit_number > package_quantity OR
+       NEW.admission_position IS NULL OR NEW.admission_position <= 0 OR
+       NEW.admission_position > admissions_per_unit THEN
+      RAISE EXCEPTION 'admission-slot answer coordinates are outside the registration bounds'
+        USING ERRCODE = '23514';
+    END IF;
+  ELSE
+    RAISE EXCEPTION 'registration answer response scope is invalid'
+      USING ERRCODE = '23514';
+  END IF;
+
+  SELECT policy.retention_days, policy.category, policy.status, policy.effective_at
+    INTO retention_days, policy_category, policy_status, policy_effective_at
+    FROM core_data_retention_policies policy
+   WHERE policy.id = NEW.retention_policy_id;
+  IF policy_status IS DISTINCT FROM 'active' OR
+     policy_effective_at IS NULL OR policy_effective_at > NEW.answered_at OR
+     policy_category IS DISTINCT FROM (CASE
+       WHEN question_type IN ('short_text', 'long_text') THEN 'registration_free_text'
+       ELSE 'registration_structured'
+     END) THEN
+    RAISE EXCEPTION 'registration answers must use an active matching retention policy'
+      USING ERRCODE = '23514';
+  END IF;
+  IF retention_days IS NULL AND NEW.retain_until IS NOT NULL THEN
+    RAISE EXCEPTION 'answers with indefinite retention cannot have a deadline'
+      USING ERRCODE = '23514';
+  ELSIF retention_days IS NOT NULL AND
+        NEW.retain_until IS DISTINCT FROM NEW.answered_at + retention_days * interval '1 day' THEN
+    RAISE EXCEPTION 'registration answer retention deadlines must match the policy'
+      USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: ticketing_registration_answer_revision_retention_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_registration_answer_revision_retention_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  answer_retain_until timestamptz;
+BEGIN
+  SELECT retain_until INTO answer_retain_until
+    FROM ticketing_registration_answers
+   WHERE id = NEW.registration_answer_id;
+  IF NEW.retain_until IS DISTINCT FROM answer_retain_until THEN
+    RAISE EXCEPTION 'answer revisions must inherit the original retention deadline'
+      USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: ticketing_registration_form_scope_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_registration_form_scope_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  ticket_event_id uuid;
+BEGIN
+  IF TG_OP = 'UPDATE' AND
+     (NEW.event_id IS DISTINCT FROM OLD.event_id OR
+      NEW.ticket_type_id IS DISTINCT FROM OLD.ticket_type_id) AND
+     EXISTS (
+       SELECT 1
+         FROM ticketing_registration_form_versions
+        WHERE registration_form_id = OLD.id
+          AND status <> 'draft'
+     ) THEN
+    RAISE EXCEPTION 'published registration form scopes are immutable'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.ticket_type_id IS NOT NULL THEN
+    SELECT event_product.event_id INTO ticket_event_id
+      FROM ticketing_ticket_types ticket_type
+      JOIN catalog_event_products event_product ON event_product.id = ticket_type.event_product_id
+      WHERE ticket_type.id = NEW.ticket_type_id;
+    IF ticket_event_id IS DISTINCT FROM NEW.event_id THEN
+      RAISE EXCEPTION 'registration forms must reference a ticket type from the same event'
+        USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: ticketing_registration_same_event_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_registration_same_event_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  ticket_event_id uuid;
+  related_event_id uuid;
+BEGIN
+  IF TG_OP = 'UPDATE' AND
+     (NEW.event_id IS DISTINCT FROM OLD.event_id OR
+      NEW.ticket_type_id IS DISTINCT FROM OLD.ticket_type_id OR
+      NEW.selected_event_date_id IS DISTINCT FROM OLD.selected_event_date_id OR
+      NEW.package_quantity IS DISTINCT FROM OLD.package_quantity OR
+      NEW.admissions_per_unit_snapshot IS DISTINCT FROM OLD.admissions_per_unit_snapshot OR
+      NEW.party_size IS DISTINCT FROM OLD.party_size) AND
+     EXISTS (
+       SELECT 1
+         FROM ticketing_registration_form_submissions
+        WHERE registration_id = OLD.id
+     ) THEN
+     RAISE EXCEPTION 'registration scopes and snapshots are immutable after form submission'
+       USING ERRCODE = '23514';
+  END IF;
+
+  SELECT event_product.event_id INTO ticket_event_id
+    FROM ticketing_ticket_types ticket_type
+    JOIN catalog_event_products event_product ON event_product.id = ticket_type.event_product_id
+    WHERE ticket_type.id = NEW.ticket_type_id;
+  IF ticket_event_id IS DISTINCT FROM NEW.event_id THEN
+    RAISE EXCEPTION 'registrations must reference a ticket type from the same event'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.selected_event_date_id IS NOT NULL THEN
+    SELECT event_id INTO related_event_id
+      FROM events_event_dates
+      WHERE id = NEW.selected_event_date_id;
+    IF related_event_id IS DISTINCT FROM NEW.event_id THEN
+      RAISE EXCEPTION 'registrations must reference an event date from the same event'
+        USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  IF NEW.access_code_id IS NOT NULL THEN
+    SELECT event_product.event_id INTO related_event_id
+      FROM ticketing_access_codes access_code
+      JOIN ticketing_ticket_types ticket_type ON ticket_type.id = access_code.ticket_type_id
+      JOIN catalog_event_products event_product ON event_product.id = ticket_type.event_product_id
+      WHERE access_code.id = NEW.access_code_id;
+    IF related_event_id IS DISTINCT FROM NEW.event_id THEN
+      RAISE EXCEPTION 'registrations must reference an access code from the same event'
+        USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  IF NEW.invitation_id IS NOT NULL THEN
+    SELECT event_product.event_id INTO related_event_id
+      FROM ticketing_invitations invitation
+      JOIN ticketing_ticket_types ticket_type ON ticket_type.id = invitation.ticket_type_id
+      JOIN catalog_event_products event_product ON event_product.id = ticket_type.event_product_id
+      WHERE invitation.id = NEW.invitation_id;
+    IF related_event_id IS DISTINCT FROM NEW.event_id THEN
+      RAISE EXCEPTION 'registrations must reference an invitation from the same event'
+        USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: ticketing_registration_submission_immutable(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_registration_submission_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  RAISE EXCEPTION 'registration form submissions are immutable'
+    USING ERRCODE = '40001';
+END;
+$$;
+
+
+--
+-- Name: ticketing_registration_submission_scope_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_registration_submission_scope_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  registration_event_id uuid;
+  registration_ticket_type_id uuid;
+  form_event_id uuid;
+  form_ticket_type_id uuid;
+BEGIN
+  SELECT registration.event_id, registration.ticket_type_id,
+         form.event_id, form.ticket_type_id
+    INTO registration_event_id, registration_ticket_type_id,
+         form_event_id, form_ticket_type_id
+    FROM ticketing_registrations registration
+    JOIN ticketing_registration_form_versions version
+      ON version.id = NEW.registration_form_version_id
+    JOIN ticketing_registration_forms form
+      ON form.id = version.registration_form_id
+   WHERE registration.id = NEW.registration_id;
+
+  IF registration_event_id IS DISTINCT FROM form_event_id OR
+     (form_ticket_type_id IS NOT NULL AND
+      form_ticket_type_id IS DISTINCT FROM registration_ticket_type_id) THEN
+    RAISE EXCEPTION 'registration submissions must reference a form from the same event and product scope'
+      USING ERRCODE = '23514';
+  END IF;
+
   RETURN NEW;
 END;
 $$;
@@ -330,9 +1014,9 @@ CREATE TABLE public.catalog_product_accesses (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT catalog_product_accesses_offset_check CHECK (((opens_offset_seconds IS NULL) OR (closes_offset_seconds IS NULL) OR ((closes_offset_seconds - opens_offset_seconds) > 0))),
-    CONSTRAINT catalog_product_accesses_protection_check CHECK (((required_access_protection IS NULL) OR ((required_access_protection)::text = ANY ((ARRAY['public'::character varying, 'soft_gated'::character varying, 'signed'::character varying])::text[])))),
+    CONSTRAINT catalog_product_accesses_protection_check CHECK (((required_access_protection IS NULL) OR ((required_access_protection)::text = ANY (ARRAY[('public'::character varying)::text, ('soft_gated'::character varying)::text, ('signed'::character varying)::text])))),
     CONSTRAINT catalog_product_accesses_protection_stream_check CHECK ((((required_access_protection IS NULL) AND ((type)::text <> 'stream'::text)) OR ((required_access_protection IS NOT NULL) AND ((type)::text = 'stream'::text)))),
-    CONSTRAINT catalog_product_accesses_type_check CHECK (((type)::text = ANY ((ARRAY['venue'::character varying, 'stream'::character varying, 'parking'::character varying])::text[]))),
+    CONSTRAINT catalog_product_accesses_type_check CHECK (((type)::text = ANY (ARRAY[('venue'::character varying)::text, ('stream'::character varying)::text, ('parking'::character varying)::text]))),
     CONSTRAINT catalog_product_accesses_usage_limit_check CHECK (((usage_limit > 0) OR (usage_limit IS NULL)))
 );
 
@@ -460,8 +1144,8 @@ CREATE TABLE public.catalog_promotions (
     CONSTRAINT catalog_promotions_per_user_limit_check CHECK ((per_user_limit > 0)),
     CONSTRAINT catalog_promotions_percentage_check CHECK ((((percentage_basis_points >= 1) AND (percentage_basis_points <= 10000)) OR (percentage_basis_points IS NULL))),
     CONSTRAINT catalog_promotions_redemption_limit_check CHECK (((redemption_limit > 0) OR (redemption_limit IS NULL))),
-    CONSTRAINT catalog_promotions_status_check CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'active'::character varying, 'disabled'::character varying])::text[]))),
-    CONSTRAINT catalog_promotions_type_check CHECK (((type)::text = ANY ((ARRAY['percentage'::character varying, 'fixed'::character varying])::text[]))),
+    CONSTRAINT catalog_promotions_status_check CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('active'::character varying)::text, ('disabled'::character varying)::text]))),
+    CONSTRAINT catalog_promotions_type_check CHECK (((type)::text = ANY (ARRAY[('percentage'::character varying)::text, ('fixed'::character varying)::text]))),
     CONSTRAINT catalog_promotions_window_check CHECK (((ends_at IS NULL) OR (starts_at IS NULL) OR (ends_at > starts_at)))
 );
 
@@ -512,6 +1196,59 @@ CREATE TABLE public.core_audit_logs (
     audit_key character varying NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL
+);
+
+
+--
+-- Name: core_data_retention_holds; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.core_data_retention_holds (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    event_id uuid,
+    registration_id uuid,
+    user_id uuid,
+    category character varying,
+    reason_code character varying NOT NULL,
+    placed_by_id uuid NOT NULL,
+    starts_at timestamp with time zone NOT NULL,
+    expires_at timestamp with time zone,
+    released_by_id uuid,
+    released_at timestamp with time zone,
+    idempotency_key character varying NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT core_retention_holds_category_check CHECK (((category IS NULL) OR ((category)::text = ANY (ARRAY[('registration_free_text'::character varying)::text, ('registration_structured'::character varying)::text, ('consent_evidence'::character varying)::text, ('security_audit'::character varying)::text, ('financial_record'::character varying)::text])))),
+    CONSTRAINT core_retention_holds_one_scope_check CHECK ((num_nonnulls(event_id, registration_id, user_id) = 1)),
+    CONSTRAINT core_retention_holds_reason_check CHECK (((reason_code)::text = ANY (ARRAY[('legal_hold'::character varying)::text, ('litigation'::character varying)::text, ('regulatory_investigation'::character varying)::text, ('security_incident'::character varying)::text, ('security_hold'::character varying)::text, ('fraud_investigation'::character varying)::text, ('law_enforcement_request'::character varying)::text]))),
+    CONSTRAINT core_retention_holds_release_pair_check CHECK ((((released_at IS NULL) AND (released_by_id IS NULL)) OR ((released_at IS NOT NULL) AND (released_by_id IS NOT NULL)))),
+    CONSTRAINT core_retention_holds_release_time_check CHECK (((released_at IS NULL) OR (released_at >= starts_at))),
+    CONSTRAINT core_retention_holds_window_check CHECK (((expires_at IS NULL) OR (expires_at > starts_at)))
+);
+
+
+--
+-- Name: core_data_retention_policies; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.core_data_retention_policies (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    category character varying NOT NULL,
+    jurisdiction_code character varying,
+    version integer NOT NULL,
+    retention_days integer,
+    action character varying NOT NULL,
+    status character varying DEFAULT 'draft'::character varying NOT NULL,
+    effective_at timestamp with time zone,
+    created_by_id uuid NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT core_retention_policies_action_check CHECK (((action)::text = ANY (ARRAY[('erase_payload'::character varying)::text, ('retain'::character varying)::text]))),
+    CONSTRAINT core_retention_policies_category_check CHECK (((category)::text = ANY (ARRAY[('registration_free_text'::character varying)::text, ('registration_structured'::character varying)::text, ('consent_evidence'::character varying)::text, ('security_audit'::character varying)::text, ('financial_record'::character varying)::text]))),
+    CONSTRAINT core_retention_policies_configuration_check CHECK (((((action)::text = 'retain'::text) OR (retention_days IS NOT NULL)) AND (((status)::text <> 'active'::text) OR (effective_at IS NOT NULL)))),
+    CONSTRAINT core_retention_policies_days_check CHECK (((retention_days IS NULL) OR (retention_days > 0))),
+    CONSTRAINT core_retention_policies_status_check CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('active'::character varying)::text, ('retired'::character varying)::text]))),
+    CONSTRAINT core_retention_policies_version_check CHECK ((version > 0))
 );
 
 
@@ -1254,6 +1991,187 @@ CREATE TABLE public.ticketing_invitations (
 
 
 --
+-- Name: ticketing_registration_answer_revisions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_registration_answer_revisions (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    registration_answer_id uuid CONSTRAINT ticketing_registration_answer_r_registration_answer_id_not_null NOT NULL,
+    revision_number integer CONSTRAINT ticketing_registration_answer_revision_revision_number_not_null NOT NULL,
+    answer_ciphertext text,
+    revised_by_id uuid NOT NULL,
+    source character varying NOT NULL,
+    reason_code character varying,
+    revised_at timestamp with time zone NOT NULL,
+    erased_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    idempotency_key_digest character varying(64) CONSTRAINT ticketing_registration_answer_r_idempotency_key_digest_not_null NOT NULL,
+    request_digest character varying(64) NOT NULL,
+    retain_until timestamp with time zone,
+    CONSTRAINT ticketing_registration_answer_revisions_digest_check CHECK ((((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((request_digest)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT ticketing_registration_answer_revisions_erasure_check CHECK ((((erased_at IS NULL) AND (answer_ciphertext IS NOT NULL)) OR ((erased_at IS NOT NULL) AND (answer_ciphertext IS NULL)))),
+    CONSTRAINT ticketing_registration_answer_revisions_manager_reason_check CHECK ((((source)::text <> 'manager_correction'::text) OR (reason_code IS NOT NULL))),
+    CONSTRAINT ticketing_registration_answer_revisions_positive_number_check CHECK ((revision_number > 0)),
+    CONSTRAINT ticketing_registration_answer_revisions_reason_code_check CHECK (((reason_code IS NULL) OR ((reason_code)::text = ANY (ARRAY[('attendee_request'::character varying)::text, ('data_quality'::character varying)::text, ('legal_requirement'::character varying)::text, ('accessibility_correction'::character varying)::text])))),
+    CONSTRAINT ticketing_registration_answer_revisions_source_check CHECK (((source)::text = ANY (ARRAY[('attendee_correction'::character varying)::text, ('manager_correction'::character varying)::text])))
+);
+
+
+--
+-- Name: ticketing_registration_answers; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_registration_answers (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    registration_form_submission_id uuid CONSTRAINT ticketing_registration_answ_registration_form_submissi_not_null NOT NULL,
+    registration_question_id uuid CONSTRAINT ticketing_registration_answer_registration_question_id_not_null NOT NULL,
+    question_key_snapshot character varying NOT NULL,
+    question_type_snapshot character varying NOT NULL,
+    response_scope_snapshot character varying NOT NULL,
+    question_label_snapshot character varying NOT NULL,
+    package_unit_number integer,
+    admission_position smallint,
+    admission_slot_id uuid,
+    answer_ciphertext text,
+    retention_policy_id uuid NOT NULL,
+    retain_until timestamp with time zone,
+    answered_at timestamp with time zone NOT NULL,
+    erased_at timestamp with time zone,
+    erasure_reason character varying,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_registration_answers_erasure_check CHECK ((((erased_at IS NULL) AND (erasure_reason IS NULL) AND (answer_ciphertext IS NOT NULL)) OR ((erased_at IS NOT NULL) AND (erasure_reason IS NOT NULL) AND (answer_ciphertext IS NULL)))),
+    CONSTRAINT ticketing_registration_answers_erasure_reason_check CHECK (((erasure_reason IS NULL) OR ((erasure_reason)::text = ANY (ARRAY[('legal_request'::character varying)::text, ('policy_expiry'::character varying)::text, ('privacy_request'::character varying)::text, ('security_incident'::character varying)::text])))),
+    CONSTRAINT ticketing_registration_answers_question_type_check CHECK (((question_type_snapshot)::text = ANY (ARRAY[('short_text'::character varying)::text, ('long_text'::character varying)::text, ('single_choice'::character varying)::text, ('multiple_choice'::character varying)::text, ('checkbox'::character varying)::text, ('date'::character varying)::text]))),
+    CONSTRAINT ticketing_registration_answers_response_scope_check CHECK (((response_scope_snapshot)::text = ANY (ARRAY[('registration'::character varying)::text, ('admission_slot'::character varying)::text]))),
+    CONSTRAINT ticketing_registration_answers_scope_coordinates_check CHECK (((((response_scope_snapshot)::text = 'registration'::text) AND (package_unit_number IS NULL) AND (admission_position IS NULL) AND (admission_slot_id IS NULL)) OR (((response_scope_snapshot)::text = 'admission_slot'::text) AND (package_unit_number > 0) AND (admission_position > 0))))
+);
+
+
+--
+-- Name: ticketing_registration_form_submissions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_registration_form_submissions (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    registration_id uuid CONSTRAINT ticketing_registration_form_submission_registration_id_not_null NOT NULL,
+    registration_form_version_id uuid CONSTRAINT ticketing_registration_form_registration_form_version__not_null NOT NULL,
+    submitted_by_user_id uuid CONSTRAINT ticketing_registration_form_submi_submitted_by_user_id_not_null NOT NULL,
+    submitted_at timestamp with time zone NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL
+);
+
+
+--
+-- Name: ticketing_registration_form_versions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_registration_form_versions (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    registration_form_id uuid CONSTRAINT ticketing_registration_form_versi_registration_form_id_not_null NOT NULL,
+    version integer NOT NULL,
+    status character varying DEFAULT 'draft'::character varying NOT NULL,
+    published_by_id uuid,
+    published_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_registration_form_versions_positive_version_check CHECK ((version > 0)),
+    CONSTRAINT ticketing_registration_form_versions_publish_metadata_check CHECK (((((status)::text = 'draft'::text) AND (published_by_id IS NULL) AND (published_at IS NULL)) OR (((status)::text = ANY (ARRAY[('published'::character varying)::text, ('retired'::character varying)::text])) AND (published_by_id IS NOT NULL) AND (published_at IS NOT NULL)))),
+    CONSTRAINT ticketing_registration_form_versions_status_check CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('published'::character varying)::text, ('retired'::character varying)::text])))
+);
+
+
+--
+-- Name: ticketing_registration_forms; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_registration_forms (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    event_id uuid NOT NULL,
+    ticket_type_id uuid,
+    name character varying NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL
+);
+
+
+--
+-- Name: ticketing_registration_questions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_registration_questions (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    registration_form_version_id uuid CONSTRAINT ticketing_registration_ques_registration_form_version__not_null NOT NULL,
+    key character varying NOT NULL,
+    type character varying NOT NULL,
+    response_scope character varying NOT NULL,
+    sensitivity character varying NOT NULL,
+    label character varying NOT NULL,
+    help_text text,
+    required boolean DEFAULT false NOT NULL,
+    "position" integer DEFAULT 0 NOT NULL,
+    options jsonb DEFAULT '[]'::jsonb NOT NULL,
+    validation_rules jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_registration_questions_json_shape_check CHECK (((jsonb_typeof(options) = 'array'::text) AND (jsonb_typeof(validation_rules) = 'object'::text))),
+    CONSTRAINT ticketing_registration_questions_position_check CHECK (("position" >= 0)),
+    CONSTRAINT ticketing_registration_questions_response_scope_check CHECK (((response_scope)::text = ANY (ARRAY[('registration'::character varying)::text, ('admission_slot'::character varying)::text]))),
+    CONSTRAINT ticketing_registration_questions_sensitivity_check CHECK (((sensitivity)::text = ANY (ARRAY[('standard'::character varying)::text, ('dietary'::character varying)::text, ('accessibility'::character varying)::text]))),
+    CONSTRAINT ticketing_registration_questions_type_check CHECK (((type)::text = ANY (ARRAY[('short_text'::character varying)::text, ('long_text'::character varying)::text, ('single_choice'::character varying)::text, ('multiple_choice'::character varying)::text, ('checkbox'::character varying)::text, ('date'::character varying)::text])))
+);
+
+
+--
+-- Name: ticketing_registrations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_registrations (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    event_id uuid NOT NULL,
+    ticket_type_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    selected_event_date_id uuid,
+    access_code_id uuid,
+    invitation_id uuid,
+    source character varying NOT NULL,
+    created_by_id uuid NOT NULL,
+    issuance_idempotency_key character varying,
+    complimentary_reason character varying,
+    identity_digest character varying(64) NOT NULL,
+    package_quantity integer DEFAULT 1 NOT NULL,
+    admissions_per_unit_snapshot smallint NOT NULL,
+    party_size integer NOT NULL,
+    status character varying DEFAULT 'pending_payment'::character varying NOT NULL,
+    submitted_at timestamp with time zone NOT NULL,
+    waitlisted_at timestamp with time zone,
+    offered_at timestamp with time zone,
+    offer_expires_at timestamp with time zone,
+    reviewed_by_id uuid,
+    approved_at timestamp with time zone,
+    rejected_at timestamp with time zone,
+    decision_reason text,
+    confirmed_at timestamp with time zone,
+    cancelled_at timestamp with time zone,
+    lock_version integer DEFAULT 0 NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_registrations_complimentary_reason_check CHECK (((complimentary_reason IS NULL) OR ((complimentary_reason)::text = ANY (ARRAY[('accessibility'::character varying)::text, ('accommodation'::character varying)::text, ('community_partner'::character varying)::text, ('service_recovery'::character varying)::text, ('sponsor_guest'::character varying)::text, ('staff_guest'::character varying)::text])))),
+    CONSTRAINT ticketing_registrations_decision_exclusive_check CHECK ((NOT ((approved_at IS NOT NULL) AND (rejected_at IS NOT NULL)))),
+    CONSTRAINT ticketing_registrations_identity_digest_check CHECK (((identity_digest)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT ticketing_registrations_party_size_check CHECK ((party_size = (package_quantity * admissions_per_unit_snapshot))),
+    CONSTRAINT ticketing_registrations_quantities_positive_check CHECK (((package_quantity > 0) AND (admissions_per_unit_snapshot > 0) AND (party_size > 0))),
+    CONSTRAINT ticketing_registrations_source_check CHECK (((source)::text = ANY (ARRAY[('self_service'::character varying)::text, ('organizer_complimentary'::character varying)::text, ('walk_up'::character varying)::text]))),
+    CONSTRAINT ticketing_registrations_source_metadata_check CHECK (((((source)::text = 'organizer_complimentary'::text) AND (complimentary_reason IS NOT NULL) AND ((complimentary_reason)::text <> ''::text) AND (issuance_idempotency_key IS NOT NULL) AND ((issuance_idempotency_key)::text <> ''::text)) OR (((source)::text <> 'organizer_complimentary'::text) AND (complimentary_reason IS NULL)))),
+    CONSTRAINT ticketing_registrations_state_timestamps_check CHECK ((((((status)::text = 'waitlisted'::text) AND (waitlisted_at IS NOT NULL)) OR (((status)::text <> 'waitlisted'::text) AND (waitlisted_at IS NULL))) AND ((((status)::text = 'offered'::text) AND (offered_at IS NOT NULL) AND (offer_expires_at IS NOT NULL) AND (offer_expires_at > offered_at)) OR (((status)::text <> 'offered'::text) AND (offered_at IS NULL) AND (offer_expires_at IS NULL))))),
+    CONSTRAINT ticketing_registrations_status_check CHECK (((status)::text = ANY (ARRAY[('pending_payment'::character varying)::text, ('pending_approval'::character varying)::text, ('waitlisted'::character varying)::text, ('offered'::character varying)::text, ('confirmed'::character varying)::text, ('rejected'::character varying)::text, ('cancelled'::character varying)::text, ('expired'::character varying)::text])))
+);
+
+
+--
 -- Name: ticketing_ticket_types; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1436,6 +2354,22 @@ ALTER TABLE ONLY public.catalog_venue_capacity_reservations
 
 ALTER TABLE ONLY public.core_audit_logs
     ADD CONSTRAINT core_audit_logs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: core_data_retention_holds core_data_retention_holds_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.core_data_retention_holds
+    ADD CONSTRAINT core_data_retention_holds_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: core_data_retention_policies core_data_retention_policies_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.core_data_retention_policies
+    ADD CONSTRAINT core_data_retention_policies_pkey PRIMARY KEY (id);
 
 
 --
@@ -1735,6 +2669,62 @@ ALTER TABLE ONLY public.ticketing_invitations
 
 
 --
+-- Name: ticketing_registration_answer_revisions ticketing_registration_answer_revisions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_answer_revisions
+    ADD CONSTRAINT ticketing_registration_answer_revisions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_registration_answers ticketing_registration_answers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_answers
+    ADD CONSTRAINT ticketing_registration_answers_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_registration_form_submissions ticketing_registration_form_submissions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_form_submissions
+    ADD CONSTRAINT ticketing_registration_form_submissions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_registration_form_versions ticketing_registration_form_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_form_versions
+    ADD CONSTRAINT ticketing_registration_form_versions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_registration_forms ticketing_registration_forms_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_forms
+    ADD CONSTRAINT ticketing_registration_forms_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_registration_questions ticketing_registration_questions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_questions
+    ADD CONSTRAINT ticketing_registration_questions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_registrations ticketing_registrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registrations
+    ADD CONSTRAINT ticketing_registrations_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: ticketing_ticket_types ticketing_ticket_types_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1761,6 +2751,20 @@ CREATE UNIQUE INDEX idx_catalog_event_products_on_idempotency_key ON public.cata
 --
 
 CREATE UNIQUE INDEX idx_catalog_event_products_on_idempotency_key_digest ON public.catalog_event_products USING btree (event_id, idempotency_key_digest) WHERE (idempotency_key_digest IS NOT NULL);
+
+
+--
+-- Name: idx_core_retention_policies_one_active; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_core_retention_policies_one_active ON public.core_data_retention_policies USING btree (category, COALESCE(jurisdiction_code, ''::character varying)) WHERE ((status)::text = 'active'::text);
+
+
+--
+-- Name: idx_core_retention_policies_scope_version; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_core_retention_policies_scope_version ON public.core_data_retention_policies USING btree (category, COALESCE(jurisdiction_code, ''::character varying), version);
 
 
 --
@@ -1834,6 +2838,13 @@ CREATE INDEX idx_on_aggregate_type_aggregate_id_occurred_at_dc800603ae ON public
 
 
 --
+-- Name: idx_on_category_jurisdiction_code_status_effective__957fab264b; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_category_jurisdiction_code_status_effective__957fab264b ON public.core_data_retention_policies USING btree (category, jurisdiction_code, status, effective_at);
+
+
+--
 -- Name: idx_on_consent_document_id_ticket_type_id_73d6f9f9f0; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1841,10 +2852,24 @@ CREATE UNIQUE INDEX idx_on_consent_document_id_ticket_type_id_73d6f9f9f0 ON publ
 
 
 --
+-- Name: idx_on_event_id_category_released_at_73cc832cb9; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_event_id_category_released_at_73cc832cb9 ON public.core_data_retention_holds USING btree (event_id, category, released_at);
+
+
+--
 -- Name: idx_on_event_id_organization_id_ee33770ea4; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX idx_on_event_id_organization_id_ee33770ea4 ON public.events_event_organizations USING btree (event_id, organization_id);
+
+
+--
+-- Name: idx_on_event_id_status_created_at_96db20f4f7; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_event_id_status_created_at_96db20f4f7 ON public.ticketing_registrations USING btree (event_id, status, created_at);
 
 
 --
@@ -1869,10 +2894,73 @@ CREATE INDEX idx_on_published_at_available_at_id_30dbfe6ec6 ON public.core_outbo
 
 
 --
+-- Name: idx_on_registration_answer_id_revised_at_ad59af8066; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_registration_answer_id_revised_at_ad59af8066 ON public.ticketing_registration_answer_revisions USING btree (registration_answer_id, revised_at);
+
+
+--
+-- Name: idx_on_registration_form_id_status_6425f53474; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_registration_form_id_status_6425f53474 ON public.ticketing_registration_form_versions USING btree (registration_form_id, status);
+
+
+--
+-- Name: idx_on_registration_form_version_id_6f595c3c6c; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_registration_form_version_id_6f595c3c6c ON public.ticketing_registration_form_submissions USING btree (registration_form_version_id);
+
+
+--
+-- Name: idx_on_registration_id_category_released_at_2a21aa5a70; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_registration_id_category_released_at_2a21aa5a70 ON public.core_data_retention_holds USING btree (registration_id, category, released_at);
+
+
+--
+-- Name: idx_on_retention_policy_id_retain_until_39a1821c75; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_retention_policy_id_retain_until_39a1821c75 ON public.ticketing_registration_answers USING btree (retention_policy_id, retain_until);
+
+
+--
+-- Name: idx_on_submitted_by_user_id_b8cd03fa99; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_submitted_by_user_id_b8cd03fa99 ON public.ticketing_registration_form_submissions USING btree (submitted_by_user_id);
+
+
+--
 -- Name: idx_on_ticket_type_id_contact_digest_bd3fd90acf; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_on_ticket_type_id_contact_digest_bd3fd90acf ON public.ticketing_invitations USING btree (ticket_type_id, contact_digest);
+
+
+--
+-- Name: idx_on_ticket_type_id_identity_digest_6b56f9450e; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_ticket_type_id_identity_digest_6b56f9450e ON public.ticketing_registrations USING btree (ticket_type_id, identity_digest);
+
+
+--
+-- Name: idx_on_ticket_type_id_user_id_selected_event_date_i_7da88dda27; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_ticket_type_id_user_id_selected_event_date_i_7da88dda27 ON public.ticketing_registrations USING btree (ticket_type_id, user_id, selected_event_date_id);
+
+
+--
+-- Name: idx_on_user_id_category_released_at_516f0054eb; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_user_id_category_released_at_516f0054eb ON public.core_data_retention_holds USING btree (user_id, category, released_at);
 
 
 --
@@ -1904,6 +2992,83 @@ CREATE UNIQUE INDEX idx_promotion_products_on_promotion_and_product ON public.ca
 
 
 --
+-- Name: idx_registration_answer_revisions_answer_number; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_registration_answer_revisions_answer_number ON public.ticketing_registration_answer_revisions USING btree (registration_answer_id, revision_number);
+
+
+--
+-- Name: idx_registration_answer_revisions_idempotency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_registration_answer_revisions_idempotency ON public.ticketing_registration_answer_revisions USING btree (idempotency_key_digest);
+
+
+--
+-- Name: idx_registration_answers_admission_scope; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_registration_answers_admission_scope ON public.ticketing_registration_answers USING btree (registration_form_submission_id, registration_question_id, package_unit_number, admission_position) WHERE ((response_scope_snapshot)::text = 'admission_slot'::text);
+
+
+--
+-- Name: idx_registration_answers_registration_scope; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_registration_answers_registration_scope ON public.ticketing_registration_answers USING btree (registration_form_submission_id, registration_question_id) WHERE ((response_scope_snapshot)::text = 'registration'::text);
+
+
+--
+-- Name: idx_registration_form_versions_form_version; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_registration_form_versions_form_version ON public.ticketing_registration_form_versions USING btree (registration_form_id, version);
+
+
+--
+-- Name: idx_registration_form_versions_one_published; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_registration_form_versions_one_published ON public.ticketing_registration_form_versions USING btree (registration_form_id) WHERE ((status)::text = 'published'::text);
+
+
+--
+-- Name: idx_registration_forms_event_name; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_registration_forms_event_name ON public.ticketing_registration_forms USING btree (event_id, lower((name)::text)) WHERE (ticket_type_id IS NULL);
+
+
+--
+-- Name: idx_registration_forms_product_name; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_registration_forms_product_name ON public.ticketing_registration_forms USING btree (ticket_type_id, lower((name)::text)) WHERE (ticket_type_id IS NOT NULL);
+
+
+--
+-- Name: idx_registration_questions_version_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_registration_questions_version_key ON public.ticketing_registration_questions USING btree (registration_form_version_id, key);
+
+
+--
+-- Name: idx_registration_questions_version_position; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_registration_questions_version_position ON public.ticketing_registration_questions USING btree (registration_form_version_id, "position");
+
+
+--
+-- Name: idx_registration_submissions_registration_version; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_registration_submissions_registration_version ON public.ticketing_registration_form_submissions USING btree (registration_id, registration_form_version_id);
+
+
+--
 -- Name: idx_ticketing_access_codes_on_ticket_type_and_idempotency; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1915,6 +3080,27 @@ CREATE UNIQUE INDEX idx_ticketing_access_codes_on_ticket_type_and_idempotency ON
 --
 
 CREATE UNIQUE INDEX idx_ticketing_invitations_on_ticket_type_and_idempotency ON public.ticketing_invitations USING btree (ticket_type_id, idempotency_key_digest) WHERE (idempotency_key_digest IS NOT NULL);
+
+
+--
+-- Name: idx_ticketing_registrations_active_identity; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_ticketing_registrations_active_identity ON public.ticketing_registrations USING btree (ticket_type_id, identity_digest, COALESCE(selected_event_date_id, '00000000-0000-0000-0000-000000000000'::uuid)) WHERE ((status)::text = ANY (ARRAY[('pending_payment'::character varying)::text, ('pending_approval'::character varying)::text, ('waitlisted'::character varying)::text, ('offered'::character varying)::text, ('confirmed'::character varying)::text]));
+
+
+--
+-- Name: idx_ticketing_registrations_issuance_idempotency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_ticketing_registrations_issuance_idempotency ON public.ticketing_registrations USING btree (issuance_idempotency_key) WHERE (issuance_idempotency_key IS NOT NULL);
+
+
+--
+-- Name: idx_ticketing_registrations_queue; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ticketing_registrations_queue ON public.ticketing_registrations USING btree (ticket_type_id, selected_event_date_id, status, waitlisted_at, id);
 
 
 --
@@ -2209,6 +3395,13 @@ CREATE INDEX index_core_audit_logs_on_created_at ON public.core_audit_logs USING
 --
 
 CREATE INDEX index_core_audit_logs_on_request_uuid ON public.core_audit_logs USING btree (request_uuid);
+
+
+--
+-- Name: index_core_data_retention_holds_on_idempotency_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_core_data_retention_holds_on_idempotency_key ON public.core_data_retention_holds USING btree (idempotency_key);
 
 
 --
@@ -2758,6 +3951,20 @@ CREATE UNIQUE INDEX index_ticketing_invitations_on_token_digest ON public.ticket
 
 
 --
+-- Name: index_ticketing_registration_answers_on_admission_slot_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_ticketing_registration_answers_on_admission_slot_id ON public.ticketing_registration_answers USING btree (admission_slot_id);
+
+
+--
+-- Name: index_ticketing_registration_forms_on_event_id_and_active; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_ticketing_registration_forms_on_event_id_and_active ON public.ticketing_registration_forms USING btree (event_id, active);
+
+
+--
 -- Name: index_ticketing_ticket_types_on_event_product_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -2776,6 +3983,27 @@ CREATE TRIGGER trg_consent_version_locked BEFORE UPDATE ON public.events_consent
 --
 
 CREATE TRIGGER trg_consent_version_nodelete BEFORE DELETE ON public.events_consent_document_versions FOR EACH ROW EXECUTE FUNCTION public.consent_version_delete_guard();
+
+
+--
+-- Name: core_data_retention_policies trg_core_retention_policy_active_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_core_retention_policy_active_insert BEFORE INSERT ON public.core_data_retention_policies FOR EACH ROW EXECUTE FUNCTION public.core_retention_policy_active_insert_guard();
+
+
+--
+-- Name: core_data_retention_policies trg_core_retention_policy_locked; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_core_retention_policy_locked BEFORE UPDATE ON public.core_data_retention_policies FOR EACH ROW EXECUTE FUNCTION public.core_retention_policy_immutable();
+
+
+--
+-- Name: core_data_retention_policies trg_core_retention_policy_nodelete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_core_retention_policy_nodelete BEFORE DELETE ON public.core_data_retention_policies FOR EACH ROW EXECUTE FUNCTION public.core_retention_policy_delete_guard();
 
 
 --
@@ -2804,6 +4032,149 @@ CREATE TRIGGER trg_legal_version_locked BEFORE UPDATE ON public.legal_document_v
 --
 
 CREATE TRIGGER trg_legal_version_nodelete BEFORE DELETE ON public.legal_document_versions FOR EACH ROW EXECUTE FUNCTION public.legal_version_delete_guard();
+
+
+--
+-- Name: ticketing_registration_answers trg_registration_answer_append_only; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_registration_answer_append_only BEFORE UPDATE ON public.ticketing_registration_answers FOR EACH ROW EXECUTE FUNCTION public.registration_answer_append_only();
+
+
+--
+-- Name: ticketing_registration_answers trg_registration_answer_nodelete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_registration_answer_nodelete BEFORE DELETE ON public.ticketing_registration_answers FOR EACH ROW EXECUTE FUNCTION public.registration_answer_delete_guard();
+
+
+--
+-- Name: ticketing_registration_answer_revisions trg_registration_answer_revision_append_only; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_registration_answer_revision_append_only BEFORE UPDATE ON public.ticketing_registration_answer_revisions FOR EACH ROW EXECUTE FUNCTION public.registration_answer_revision_append_only();
+
+
+--
+-- Name: ticketing_registration_answer_revisions trg_registration_answer_revision_nodelete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_registration_answer_revision_nodelete BEFORE DELETE ON public.ticketing_registration_answer_revisions FOR EACH ROW EXECUTE FUNCTION public.registration_answer_revision_delete_guard();
+
+
+--
+-- Name: ticketing_registration_answer_revisions trg_registration_answer_revision_sequence; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_registration_answer_revision_sequence BEFORE INSERT ON public.ticketing_registration_answer_revisions FOR EACH ROW EXECUTE FUNCTION public.registration_answer_revision_sequence();
+
+
+--
+-- Name: ticketing_registration_form_versions trg_registration_form_version_locked; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_registration_form_version_locked BEFORE UPDATE ON public.ticketing_registration_form_versions FOR EACH ROW EXECUTE FUNCTION public.registration_form_version_immutable();
+
+
+--
+-- Name: ticketing_registration_form_versions trg_registration_form_version_nodelete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_registration_form_version_nodelete BEFORE DELETE ON public.ticketing_registration_form_versions FOR EACH ROW EXECUTE FUNCTION public.registration_form_version_delete_guard();
+
+
+--
+-- Name: ticketing_registration_questions trg_registration_question_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_registration_question_insert BEFORE INSERT ON public.ticketing_registration_questions FOR EACH ROW EXECUTE FUNCTION public.registration_question_insert_guard();
+
+
+--
+-- Name: ticketing_registration_questions trg_registration_question_locked; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_registration_question_locked BEFORE UPDATE ON public.ticketing_registration_questions FOR EACH ROW EXECUTE FUNCTION public.registration_question_immutable();
+
+
+--
+-- Name: ticketing_registration_questions trg_registration_question_nodelete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_registration_question_nodelete BEFORE DELETE ON public.ticketing_registration_questions FOR EACH ROW EXECUTE FUNCTION public.registration_question_delete_guard();
+
+
+--
+-- Name: ticketing_registrations trg_registration_source_locked; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_registration_source_locked BEFORE UPDATE ON public.ticketing_registrations FOR EACH ROW EXECUTE FUNCTION public.registration_source_immutable();
+
+
+--
+-- Name: ticketing_registration_answers trg_ticketing_registration_answer_integrity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_ticketing_registration_answer_integrity BEFORE INSERT OR UPDATE ON public.ticketing_registration_answers FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_answer_integrity_guard();
+
+
+--
+-- Name: ticketing_registration_answer_revisions trg_ticketing_registration_answer_revision_retention; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_ticketing_registration_answer_revision_retention BEFORE INSERT OR UPDATE ON public.ticketing_registration_answer_revisions FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_answer_revision_retention_guard();
+
+
+--
+-- Name: ticketing_registration_forms trg_ticketing_registration_form_scope; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_ticketing_registration_form_scope BEFORE INSERT OR UPDATE ON public.ticketing_registration_forms FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_form_scope_guard();
+
+
+--
+-- Name: ticketing_registrations trg_ticketing_registration_same_event; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_ticketing_registration_same_event BEFORE INSERT OR UPDATE ON public.ticketing_registrations FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_same_event_guard();
+
+
+--
+-- Name: ticketing_registration_form_submissions trg_ticketing_registration_submission_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_ticketing_registration_submission_immutable BEFORE DELETE OR UPDATE ON public.ticketing_registration_form_submissions FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_submission_immutable();
+
+
+--
+-- Name: ticketing_registration_form_submissions trg_ticketing_registration_submission_scope; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_ticketing_registration_submission_scope BEFORE INSERT OR UPDATE ON public.ticketing_registration_form_submissions FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_submission_scope_guard();
+
+
+--
+-- Name: catalog_inventory_reservations fk_catalog_inventory_reservations_registration; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_inventory_reservations
+    ADD CONSTRAINT fk_catalog_inventory_reservations_registration FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id);
+
+
+--
+-- Name: catalog_venue_capacity_reservations fk_catalog_venue_capacity_reservations_registration; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_venue_capacity_reservations
+    ADD CONSTRAINT fk_catalog_venue_capacity_reservations_registration FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id);
+
+
+--
+-- Name: ticketing_registration_answers fk_rails_017cdf08f2; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_answers
+    ADD CONSTRAINT fk_rails_017cdf08f2 FOREIGN KEY (registration_form_submission_id) REFERENCES public.ticketing_registration_form_submissions(id);
 
 
 --
@@ -2844,6 +4215,14 @@ ALTER TABLE ONLY public.events_events
 
 ALTER TABLE ONLY public.organizations_memberships
     ADD CONSTRAINT fk_rails_0becb5aad6 FOREIGN KEY (user_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: ticketing_registrations fk_rails_0e3316ecf7; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registrations
+    ADD CONSTRAINT fk_rails_0e3316ecf7 FOREIGN KEY (user_id) REFERENCES public.core_users(id);
 
 
 --
@@ -2943,6 +4322,30 @@ ALTER TABLE ONLY public.events_access_zones
 
 
 --
+-- Name: ticketing_registrations fk_rails_31b1d71371; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registrations
+    ADD CONSTRAINT fk_rails_31b1d71371 FOREIGN KEY (reviewed_by_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: ticketing_registrations fk_rails_31e8de71c0; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registrations
+    ADD CONSTRAINT fk_rails_31e8de71c0 FOREIGN KEY (selected_event_date_id) REFERENCES public.events_event_dates(id);
+
+
+--
+-- Name: core_data_retention_holds fk_rails_320f1e5fba; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.core_data_retention_holds
+    ADD CONSTRAINT fk_rails_320f1e5fba FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id);
+
+
+--
 -- Name: catalog_product_prices fk_rails_34242da597; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2956,6 +4359,14 @@ ALTER TABLE ONLY public.catalog_product_prices
 
 ALTER TABLE ONLY public.events_access_zones
     ADD CONSTRAINT fk_rails_3543c09254 FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE CASCADE;
+
+
+--
+-- Name: core_data_retention_holds fk_rails_3662b882d2; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.core_data_retention_holds
+    ADD CONSTRAINT fk_rails_3662b882d2 FOREIGN KEY (event_id) REFERENCES public.events_events(id);
 
 
 --
@@ -2991,6 +4402,14 @@ ALTER TABLE ONLY public.ticketing_access_codes
 
 
 --
+-- Name: ticketing_registration_answer_revisions fk_rails_48da8f5fe7; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_answer_revisions
+    ADD CONSTRAINT fk_rails_48da8f5fe7 FOREIGN KEY (revised_by_id) REFERENCES public.core_users(id);
+
+
+--
 -- Name: legal_document_versions fk_rails_49e0e9421c; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3004,6 +4423,14 @@ ALTER TABLE ONLY public.legal_document_versions
 
 ALTER TABLE ONLY public.events_consent_documents
     ADD CONSTRAINT fk_rails_4ad8f14bf8 FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ticketing_registrations fk_rails_4bd767e905; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registrations
+    ADD CONSTRAINT fk_rails_4bd767e905 FOREIGN KEY (event_id) REFERENCES public.events_events(id);
 
 
 --
@@ -3031,11 +4458,43 @@ ALTER TABLE ONLY public.events_consent_document_products
 
 
 --
+-- Name: ticketing_registrations fk_rails_55788dc7bd; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registrations
+    ADD CONSTRAINT fk_rails_55788dc7bd FOREIGN KEY (created_by_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: ticketing_registration_answers fk_rails_56b2f6051e; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_answers
+    ADD CONSTRAINT fk_rails_56b2f6051e FOREIGN KEY (registration_question_id) REFERENCES public.ticketing_registration_questions(id);
+
+
+--
 -- Name: catalog_promotions fk_rails_56d77862e4; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.catalog_promotions
     ADD CONSTRAINT fk_rails_56d77862e4 FOREIGN KEY (supersedes_promotion_id) REFERENCES public.catalog_promotions(id);
+
+
+--
+-- Name: ticketing_registration_form_submissions fk_rails_586686e549; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_form_submissions
+    ADD CONSTRAINT fk_rails_586686e549 FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id);
+
+
+--
+-- Name: core_data_retention_policies fk_rails_590ed696c0; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.core_data_retention_policies
+    ADD CONSTRAINT fk_rails_590ed696c0 FOREIGN KEY (created_by_id) REFERENCES public.core_users(id);
 
 
 --
@@ -3052,6 +4511,14 @@ ALTER TABLE ONLY public.ticketing_invitations
 
 ALTER TABLE ONLY public.core_follows
     ADD CONSTRAINT fk_rails_5acb788933 FOREIGN KEY (follower_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: core_data_retention_holds fk_rails_5ae600f1b0; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.core_data_retention_holds
+    ADD CONSTRAINT fk_rails_5ae600f1b0 FOREIGN KEY (placed_by_id) REFERENCES public.core_users(id);
 
 
 --
@@ -3079,11 +4546,35 @@ ALTER TABLE ONLY public.events_event_streams
 
 
 --
+-- Name: ticketing_registration_questions fk_rails_605ad621df; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_questions
+    ADD CONSTRAINT fk_rails_605ad621df FOREIGN KEY (registration_form_version_id) REFERENCES public.ticketing_registration_form_versions(id);
+
+
+--
 -- Name: catalog_venue_capacity_reservations fk_rails_644ded3b72; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.catalog_venue_capacity_reservations
     ADD CONSTRAINT fk_rails_644ded3b72 FOREIGN KEY (event_date_id) REFERENCES public.events_event_dates(id);
+
+
+--
+-- Name: ticketing_registration_forms fk_rails_65c10bc3a2; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_forms
+    ADD CONSTRAINT fk_rails_65c10bc3a2 FOREIGN KEY (event_id) REFERENCES public.events_events(id);
+
+
+--
+-- Name: ticketing_registration_form_submissions fk_rails_675921f9b9; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_form_submissions
+    ADD CONSTRAINT fk_rails_675921f9b9 FOREIGN KEY (submitted_by_user_id) REFERENCES public.core_users(id);
 
 
 --
@@ -3143,11 +4634,35 @@ ALTER TABLE ONLY public.catalog_event_products
 
 
 --
+-- Name: ticketing_registrations fk_rails_7eab353b39; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registrations
+    ADD CONSTRAINT fk_rails_7eab353b39 FOREIGN KEY (ticket_type_id) REFERENCES public.ticketing_ticket_types(id);
+
+
+--
 -- Name: catalog_promotion_products fk_rails_7ef1b6f2d2; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.catalog_promotion_products
     ADD CONSTRAINT fk_rails_7ef1b6f2d2 FOREIGN KEY (promotion_id) REFERENCES public.catalog_promotions(id);
+
+
+--
+-- Name: ticketing_registration_form_versions fk_rails_815a640636; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_form_versions
+    ADD CONSTRAINT fk_rails_815a640636 FOREIGN KEY (registration_form_id) REFERENCES public.ticketing_registration_forms(id);
+
+
+--
+-- Name: ticketing_registration_answers fk_rails_81e7027ae5; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_answers
+    ADD CONSTRAINT fk_rails_81e7027ae5 FOREIGN KEY (retention_policy_id) REFERENCES public.core_data_retention_policies(id);
 
 
 --
@@ -3199,6 +4714,14 @@ ALTER TABLE ONLY public.events_event_dates
 
 
 --
+-- Name: ticketing_registration_answer_revisions fk_rails_92c24f7cf5; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_answer_revisions
+    ADD CONSTRAINT fk_rails_92c24f7cf5 FOREIGN KEY (registration_answer_id) REFERENCES public.ticketing_registration_answers(id);
+
+
+--
 -- Name: active_storage_variant_records fk_rails_993965df05; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3212,6 +4735,22 @@ ALTER TABLE ONLY public.active_storage_variant_records
 
 ALTER TABLE ONLY public.events_consent_document_versions
     ADD CONSTRAINT fk_rails_9b125d6d31 FOREIGN KEY (created_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: ticketing_registration_forms fk_rails_9bc07d0d34; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_forms
+    ADD CONSTRAINT fk_rails_9bc07d0d34 FOREIGN KEY (ticket_type_id) REFERENCES public.ticketing_ticket_types(id);
+
+
+--
+-- Name: ticketing_registration_form_versions fk_rails_9d857dc56a; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_form_versions
+    ADD CONSTRAINT fk_rails_9d857dc56a FOREIGN KEY (published_by_id) REFERENCES public.core_users(id);
 
 
 --
@@ -3260,6 +4799,14 @@ ALTER TABLE ONLY public.events_event_video_links
 
 ALTER TABLE ONLY public.events_event_organizations
     ADD CONSTRAINT fk_rails_ae4b4ed0bd FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: core_data_retention_holds fk_rails_b1e315a8f5; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.core_data_retention_holds
+    ADD CONSTRAINT fk_rails_b1e315a8f5 FOREIGN KEY (released_by_id) REFERENCES public.core_users(id);
 
 
 --
@@ -3327,6 +4874,14 @@ ALTER TABLE ONLY public.events_event_organizations
 
 
 --
+-- Name: ticketing_registration_form_submissions fk_rails_cad9e55600; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_form_submissions
+    ADD CONSTRAINT fk_rails_cad9e55600 FOREIGN KEY (registration_form_version_id) REFERENCES public.ticketing_registration_form_versions(id);
+
+
+--
 -- Name: ticketing_invitations fk_rails_cc4a24abb3; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3351,6 +4906,14 @@ ALTER TABLE ONLY public.events_event_date_changes
 
 
 --
+-- Name: ticketing_registrations fk_rails_de5c6ebe08; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registrations
+    ADD CONSTRAINT fk_rails_de5c6ebe08 FOREIGN KEY (access_code_id) REFERENCES public.ticketing_access_codes(id);
+
+
+--
 -- Name: core_user_roles fk_rails_e001d60739; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3364,6 +4927,14 @@ ALTER TABLE ONLY public.core_user_roles
 
 ALTER TABLE ONLY public.events_event_date_changes
     ADD CONSTRAINT fk_rails_e0d0c7b105 FOREIGN KEY (event_date_id) REFERENCES public.events_event_dates(id) ON DELETE CASCADE;
+
+
+--
+-- Name: core_data_retention_holds fk_rails_e0e7ef8f82; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.core_data_retention_holds
+    ADD CONSTRAINT fk_rails_e0e7ef8f82 FOREIGN KEY (user_id) REFERENCES public.core_users(id);
 
 
 --
@@ -3399,6 +4970,14 @@ ALTER TABLE ONLY public.events_event_categories
 
 
 --
+-- Name: ticketing_registrations fk_rails_f0bde43d6c; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registrations
+    ADD CONSTRAINT fk_rails_f0bde43d6c FOREIGN KEY (invitation_id) REFERENCES public.ticketing_invitations(id);
+
+
+--
 -- Name: catalog_product_access_zones fk_rails_ffe7c83358; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3425,6 +5004,16 @@ INSERT INTO "schema_migrations" (version) VALUES
 ('20260728000003'),
 ('20260728000002'),
 ('20260728000001'),
+('20260727090113'),
+('20260727090108'),
+('20260727090107'),
+('20260727090106'),
+('20260727090105'),
+('20260727090104'),
+('20260727090103'),
+('20260727090102'),
+('20260727090101'),
+('20260727090100'),
 ('20260727090024'),
 ('20260727090023'),
 ('20260727090022'),
