@@ -92,6 +92,18 @@ Rails.application.routes.draw do
   end
 
   resources :events, only: [] do
+    resources :registration_forms, controller: "ticketing/registration_forms", only: %i[index show create update destroy] do
+      resources :versions, controller: "ticketing/registration_form_versions", only: %i[index show create] do
+        post :publish, on: :member
+      end
+    end
+  end
+
+  resources :registration_answers, only: %i[show], controller: "ticketing/registration_answers" do
+    post :revise, on: :member
+  end
+
+  resources :events, only: [] do
     resources :event_products, only: [] do
       resource :ticket_type, only: %i[show create update destroy], controller: "ticketing/ticket_types" do
         resources :access_codes, only: %i[index show create destroy], controller: "ticketing/access_codes"
