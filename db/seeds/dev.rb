@@ -39,6 +39,37 @@ def stable_uuid(seed)
   [ hex[0, 8], hex[8, 4], "4#{hex[12, 3]}", "8#{hex[16, 3]}", hex[20, 12] ].join("-")
 end
 
+def seed_questions_match?(version, question_specs)
+  fields = %w[key type response_scope sensitivity label help_text required position options validation_rules]
+  actual = version.questions.order(:position).map do |question|
+    fields.index_with { |field| question.public_send(field) }
+  end
+  expected = question_specs.map do |question|
+    fields.index_with { |field| question[field.to_sym] }
+  end
+  actual == expected
+end
+
+def seed_registration_form_version(form, question_specs, actor)
+  published = form.versions.published.order(version: :desc).first
+  version = form.versions.draft.order(version: :desc).first
+  version = nil if version && published && version.version <= published.version
+  if version.nil?
+    return published if published && seed_questions_match?(published, question_specs)
+
+    version = form.versions.create!(version: form.versions.maximum(:version).to_i + 1, status: "draft")
+  end
+
+  version.questions.destroy_all
+  question_specs.each { |question| version.questions.create!(question) }
+  result = Ticketing::Forms::PublishVersion.call(
+    version:, actor:, idempotency_key: "dev-registration-form-publish-#{version.id}"
+  )
+  raise result.error.message unless result.success?
+
+  version
+end
+
 # ─────────────────────────────────────────────
 # 1. Users + Super Admin role (reuses main seed credentials)
 # ─────────────────────────────────────────────
@@ -487,6 +518,76 @@ unless Catalog::ExchangeRate.exists?(from_currency: "EUR", to_currency: "USD")
 end
 
 puts "✓ #{Catalog::ProductPrice.count} prices, #{Catalog::ExchangeRate.count} exchange rates"
+
+# ─────────────────────────────────────────────
+# 7c. Registration forms + platform retention policies (Plan 3, Task 1)
+# ─────────────────────────────────────────────
+puts "\n📝  Seeding registration forms + retention policies..."
+
+retention_policies = [
+  {
+    category: "registration_free_text",
+    retention_days: 90,
+    action: "erase_payload"
+  },
+  {
+    category: "registration_structured",
+    retention_days: 365,
+    action: "erase_payload"
+  }
+]
+retention_policies.each do |attributes|
+  scope = Core::DataRetentionPolicy.where(category: attributes[:category], jurisdiction_code: nil)
+  policy = scope.active.first
+  unless policy
+    version = scope.maximum(:version).to_i
+    policy = scope.find_by(version:) if version.positive?
+    policy = scope.new(version: version + 1) if policy&.status == "retired"
+    policy ||= scope.new(version: [ version, 1 ].max)
+    policy.retention_days = attributes[:retention_days]
+    policy.action = attributes[:action]
+    policy.status = "active"
+    policy.effective_at = 1.day.ago
+    policy.created_by = admin
+    policy.save!
+  end
+end
+
+registration_forms = [
+  {
+    name: "Attendee details",
+    ticket_type: nil,
+    questions: [
+      {
+        key: "full_name", type: "short_text", response_scope: "registration",
+        sensitivity: "standard", label: "Full name", required: true, position: 0,
+        options: [], validation_rules: { "min_length" => 2 }
+      }
+    ]
+  },
+  {
+    name: "VIP attendee details",
+    ticket_type: vip_tt,
+    questions: [
+      {
+        key: "accessibility", type: "short_text", response_scope: "admission_slot",
+        sensitivity: "accessibility", label: "Accessibility needs", required: false, position: 0,
+        options: [], validation_rules: {}
+      }
+    ]
+  }
+]
+registration_forms.each do |spec|
+  form = Ticketing::RegistrationForm.find_or_create_by!(
+    event: fest_event, ticket_type: spec[:ticket_type], name: spec[:name]
+  ) { |record| record.active = true }
+  form.update!(active: true) unless form.active?
+  seed_registration_form_version(form, spec[:questions], admin)
+end
+
+puts "✓ #{Core::DataRetentionPolicy.count} retention policies, " \
+     "#{Ticketing::RegistrationForm.count} registration forms, " \
+     "#{Ticketing::RegistrationFormVersion.published.count} published versions"
 
 # 7d. Catalog promotions: active event discount + encrypted code (Plan 2, Task 5)
 # ─────────────────────────────────────────────
