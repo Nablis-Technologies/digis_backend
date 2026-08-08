@@ -19,19 +19,32 @@
 - Introduce a shared command concern only after three commands prove the same transaction/idempotency contract. Do not add a generic workflow engine, form expression language, medical-data module, configurable retention engine, or customer identity table.
 - Expected domain failures call the Plan 0 `failure Core::BusinessError.new(...)` helper; tests inspect `result.error.code/status/errors`. New exceptions represent programmer/infrastructure errors and use `fail`, while `raise` only re-raises.
 - Add log filters for all answer, invitation, token, consent, contact, export-filter, and code parameters before exposing endpoints.
-- The registration migrations create nullable indexed UUID columns `ticketing_registration_answers.admission_slot_id`, `ticketing_registration_consent_requirements.admission_slot_id`, and `ticketing_purchase_limit_allocations.ticket_id` without foreign keys because their target tables intentionally arrive in the later ticket-package phase. These columns stay null throughout this phase. `db/migrate/20260717210001_create_ticketing_packages_and_credentials.rb` must add the three foreign keys immediately after it creates `ticketing_admission_slots` and `ticketing_tickets`; this is dependency ordering within one clean pre-launch implementation, not a compatibility path.
+- The registration migrations create nullable indexed UUID columns `ticketing_registration_answers.admission_slot_id`, `ticketing_registration_consent_requirements.admission_slot_id`, and `ticketing_purchase_limit_allocations.ticket_id` without foreign keys because their target tables intentionally arrive in the later ticket-package phase. These columns stay null throughout this phase. The future ticket-package migration, timestamped after this plan's migrations, must add the three foreign keys immediately after it creates `ticketing_admission_slots` and `ticketing_tickets`; this is dependency ordering within one clean pre-launch implementation, not a compatibility path.
 - Run commands with `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test ...`.
 
 ## File map
 
 **Create migrations**
 
-- `db/migrate/20260717030100_create_core_data_retention.rb`
-- `db/migrate/20260717030200_create_ticketing_registrations.rb`
-- `db/migrate/20260717030300_create_ticketing_registration_forms_and_answers.rb`
-- `db/migrate/20260717030400_create_ticketing_registration_consents.rb`
-- `db/migrate/20260717030500_create_ticketing_purchase_limits.rb`
-- `db/migrate/20260717030600_create_ticketing_attendee_exports.rb`
+The migration order follows the repository's one-table-per-migration rule and
+places registration tables after the existing ticketing parent tables but
+before the existing catalog reservation migrations. The `202607270901xx`
+timestamps are intentionally between the existing `20260727090024` ticketing
+migration and the `20260728000001` catalog migration.
+
+- `db/migrate/20260727090100_create_core_data_retention_policies.rb`
+- `db/migrate/20260727090101_create_ticketing_registrations.rb`
+- `db/migrate/20260727090102_create_core_data_retention_holds.rb`
+- `db/migrate/20260727090103_create_ticketing_registration_forms.rb`
+- `db/migrate/20260727090104_create_ticketing_registration_form_versions.rb`
+- `db/migrate/20260727090105_create_ticketing_registration_questions.rb`
+- `db/migrate/20260727090106_create_ticketing_registration_form_submissions.rb`
+- `db/migrate/20260727090107_create_ticketing_registration_answers.rb`
+- `db/migrate/20260727090108_create_ticketing_registration_answer_revisions.rb`
+- `db/migrate/20260727090113_add_registration_immutability_triggers.rb`
+- `db/migrate/20260727090109_create_ticketing_registration_consents.rb`
+- `db/migrate/20260727090110_create_ticketing_purchase_limits.rb`
+- `db/migrate/20260727090111_create_ticketing_attendee_exports.rb`
 
 **Create models**
 
@@ -67,6 +80,8 @@
 
 **Modify**
 
+- `db/migrate/20260728000004_create_catalog_inventory_reservations.rb`
+- `db/migrate/20260729000001_create_catalog_venue_capacity_reservations.rb`
 - `config/routes.rb`
 - `config/recurring.yml`
 - `config/initializers/filter_parameter_logging.rb`
@@ -85,21 +100,32 @@
 This task owns `ticketing_registration_forms`, `ticketing_registration_form_versions`, `ticketing_registration_questions`, `ticketing_registration_form_submissions`, `ticketing_registration_answers`, and `ticketing_registration_answer_revisions`, plus the platform retention tables named below.
 
 **Files:**
-- Create: `db/migrate/20260717030100_create_core_data_retention.rb`
-- Create: `db/migrate/20260717030200_create_ticketing_registrations.rb`
-- Create: `db/migrate/20260717030300_create_ticketing_registration_forms_and_answers.rb`
+- Create: `db/migrate/20260727090100_create_core_data_retention_policies.rb`
+- Create: `db/migrate/20260727090101_create_ticketing_registrations.rb`
+- Create: `db/migrate/20260727090102_create_core_data_retention_holds.rb`
+- Create: `db/migrate/20260727090103_create_ticketing_registration_forms.rb`
+- Create: `db/migrate/20260727090104_create_ticketing_registration_form_versions.rb`
+- Create: `db/migrate/20260727090105_create_ticketing_registration_questions.rb`
+- Create: `db/migrate/20260727090106_create_ticketing_registration_form_submissions.rb`
+- Create: `db/migrate/20260727090107_create_ticketing_registration_answers.rb`
+- Create: `db/migrate/20260727090108_create_ticketing_registration_answer_revisions.rb`
+- Create: `db/migrate/20260727090113_add_registration_immutability_triggers.rb`
 - Create: `app/models/core/data_retention_policy.rb`, `data_retention_hold.rb`
 - Create: `app/models/ticketing/registration.rb`
 - Create: `app/services/core/retention/select_policy.rb`
 - Create: `app/models/ticketing/registration_form.rb`, `registration_form_version.rb`, `registration_question.rb`, `registration_form_submission.rb`, `registration_answer.rb`, `registration_answer_revision.rb`
 - Create: `app/controllers/ticketing/registration_forms_controller.rb`, `registration_form_versions_controller.rb`, `registration_answers_controller.rb`
 - Create: `app/services/ticketing/forms/publish_version.rb`, `applicable_schema.rb`, `validate_submission.rb`
+- Create: `app/services/ticketing/forms/persist_submission.rb`
 - Create: `app/services/ticketing/answers/revise.rb`
-- Create: `app/policies/ticketing/registration_form_policy.rb`, `registration_answer_policy.rb`
+- Create: `app/policies/ticketing/registration_form_policy.rb`, `registration_form_version_policy.rb`, `registration_answer_policy.rb`, `registration_answer_revision_policy.rb`
+- Create: `app/serializers/ticketing/registration_form_serializer.rb`, `registration_form_version_serializer.rb`, `registration_question_serializer.rb`, `registration_schema_serializer.rb`, `registration_answer_serializer.rb`, `registration_answer_revision_serializer.rb`
 - Test: `test/services/ticketing/forms/publish_version_test.rb`
+- Test: `test/services/ticketing/forms/applicable_schema_test.rb`, `persist_submission_test.rb`
 - Test: `test/services/ticketing/forms/validate_submission_test.rb`
 - Test: `test/services/ticketing/answers/revise_test.rb`
 - Test: `test/services/core/retention/select_policy_test.rb`
+- Test: `test/integration/ticketing/registration_forms_test.rb`, `registration_answers_test.rb`
 
 - [ ] **RED:** test retention policy null-safe version uniqueness and one active version/category/jurisdiction; registration event/ticket/date/package checks; one published version/form; immutable published versions/questions; same-event product form; unique keys/positions; exact question/sensitivity/response-scope allowlists; rejection of HTML/executable rules/arbitrary regex/medical fields/uploads; complete registration and package-unit/admission-position matrices; ciphertext-only storage; scoped partial uniqueness; slot coordinate bounds; and append-only ordered revisions inheriting the original deadline.
 
@@ -249,7 +275,7 @@ end
 This task owns `ticketing_registration_consent_requirements`, `ticketing_registration_consents`, and `ticketing_registration_consent_withdrawals`.
 
 **Files:**
-- Create: `db/migrate/20260717030400_create_ticketing_registration_consents.rb`
+- Create: `db/migrate/20260727090109_create_ticketing_registration_consents.rb`
 - Create: `app/models/ticketing/registration_consent_requirement.rb`, `registration_consent.rb`, `registration_consent_withdrawal.rb`
 - Create: `app/services/ticketing/consent/build_requirements.rb`, `accept.rb`, `withdraw.rb`, `supersede_for_reassignment.rb`, `credential_requirement_status.rb`
 - Create: `app/controllers/ticketing/registration_consents_controller.rb`, `registration_consent_withdrawals_controller.rb`
@@ -272,7 +298,7 @@ This task owns `ticketing_registration_consent_requirements`, `ticketing_registr
 This task owns `ticketing_purchase_limit_allocations` and `ticketing_purchase_limit_overrides`.
 
 **Files:**
-- Create: `db/migrate/20260717030500_create_ticketing_purchase_limits.rb`
+- Create: `db/migrate/20260727090110_create_ticketing_purchase_limits.rb`
 - Create: `app/models/ticketing/purchase_limit_allocation.rb`, `purchase_limit_override.rb`
 - Create: `app/services/ticketing/purchase_limits/reserve.rb`, `commit.rb`, `release.rb`, `grant_override.rb`, `availability.rb`
 - Create: `app/controllers/ticketing/purchase_limit_overrides_controller.rb`
@@ -351,7 +377,7 @@ end
 ## Task 7: Add field-authorized, audited, expiring attendee exports
 
 **Files:**
-- Create: `db/migrate/20260717030600_create_ticketing_attendee_exports.rb`
+- Create: `db/migrate/20260727090111_create_ticketing_attendee_exports.rb`
 - Create: `app/models/ticketing/attendee_export.rb`
 - Create: `app/services/ticketing/exports/request.rb`, `generate.rb`, `authorize_download.rb`, `expire.rb`
 - Create: `app/controllers/ticketing/attendee_exports_controller.rb`
