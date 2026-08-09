@@ -5,6 +5,7 @@ require "test_helper"
 module Ticketing
   class RegistrationsTest < ActionDispatch::IntegrationTest
     include Core::AuthTestHelpers
+    include Ticketing::ConsentTestHelpers
 
     setup do
       @event = events_events(:ready_listing)
@@ -36,6 +37,39 @@ module Ticketing
       assert_equal "requires_confirmation", data.dig("next_action", "type")
       assert_equal "pending_payment", data.dig("registration", "status")
       assert_not data.fetch("registration").key?("identity_digest")
+    end
+
+    test "registration submission snapshots and accepts supplied buyer consent" do
+      _document, version = create_consent_document(scope: "buyer", name: "API registration terms")
+      Core::DataRetentionPolicy.create!(
+        category: "consent_evidence",
+        version: 1,
+        retention_days: 30,
+        action: "erase_payload",
+        status: "active",
+        effective_at: 1.minute.ago,
+        created_by: core_users(:super_admin)
+      )
+
+      post "/ticket_types/#{@ticket_type.id}/registrations",
+           params: registration_params.merge(
+             consents: [
+               {
+                  consent_document_version_id: version.id,
+                  request_uuid: SecureRandom.uuid,
+                  idempotency_key: "registration-consent-accept-1",
+                  acceptance_method: "otp",
+                 content_sha256: version.content_sha256
+               }
+             ]
+           ),
+           headers: submission_headers("registration-consent-1"),
+           as: :json
+
+      assert_response :created
+      registration = Registration.find(response.parsed_body.dig("data", "registration", "id"))
+      assert_equal "accepted", registration.consent_requirements.first.status
+      assert_not response.parsed_body.fetch("data").key?("evidence_digest")
     end
 
     test "registration submission without an idempotency key returns bad request" do

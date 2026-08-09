@@ -5,6 +5,8 @@ require "test_helper"
 module Ticketing
   module Registrations
     class SubmitTest < ActiveSupport::TestCase
+      include Ticketing::ConsentTestHelpers
+
       setup do
         @event = events_events(:ready_listing)
         @actor = core_users(:attendee)
@@ -140,6 +142,187 @@ module Ticketing
         assert_equal @retention_policy, persisted_answer.retention_policy
       end
 
+      test "builds and accepts supplied buyer consent in the registration transaction" do
+        _document, version = create_consent_document(scope: "buyer", name: "Registration terms")
+        Core::DataRetentionPolicy.create!(
+          category: "consent_evidence",
+          version: 1,
+          retention_days: 30,
+          action: "erase_payload",
+          status: "active",
+          effective_at: 1.minute.ago,
+          created_by: core_users(:super_admin)
+        )
+
+        result = submit(consents: [
+          {
+            consent_document_version_id: version.id,
+            request_uuid: SecureRandom.uuid,
+            idempotency_key: "registration-buyer-consent",
+            acceptance_method: "otp",
+            content_sha256: version.content_sha256
+          }
+        ])
+
+        assert_predicate result, :success?
+        requirement = result.value.registration.consent_requirements.first
+        assert_equal "accepted", requirement.status
+        assert_equal version.content_sha256, requirement.registration_consent.content_sha256
+      end
+
+      test "rolls back when required buyer consent is missing" do
+        create_consent_document(scope: "buyer", required: true, name: "Required registration terms")
+
+        result = submit
+
+        assert_predicate result, :failure?
+        assert_equal "missing_required_buyer_consent", result.error.code
+        assert_equal 0, Registration.count
+        assert_equal 0, RegistrationFormSubmission.count
+        assert_equal 0, RegistrationConsentRequirement.count
+        assert_equal 0, RegistrationConsent.count
+      end
+
+      test "rolls back all registration evidence for duplicate buyer acceptance" do
+        _document, version = create_consent_document(scope: "buyer", required: true, name: "Duplicate terms")
+        create_consent_retention_policy
+        acceptance = buyer_acceptance(version)
+
+        result = submit(consents: [ acceptance, acceptance ])
+
+        assert_predicate result, :failure?
+        assert_equal "invalid_submission_consent", result.error.code
+        assert_no_registration_evidence
+      end
+
+      test "rolls back all registration evidence for an unknown buyer consent version" do
+        _document, version = create_consent_document(scope: "buyer", required: true, name: "Unknown terms")
+        create_consent_retention_policy
+
+        result = submit(consents: [ buyer_acceptance(version).merge(consent_document_version_id: SecureRandom.uuid) ])
+
+        assert_predicate result, :failure?
+        assert_equal "invalid_submission_consent", result.error.code
+        assert_no_registration_evidence
+      end
+
+      test "rolls back all registration evidence for slot-scoped buyer acceptance" do
+        _document, version = create_consent_document(scope: "buyer", required: true, name: "Slot terms")
+        create_consent_retention_policy
+
+        result = submit(consents: [ buyer_acceptance(version).merge(package_unit_number: 1, admission_position: 1) ])
+
+        assert_predicate result, :failure?
+        assert_equal "invalid_submission_consent", result.error.code
+        assert_no_registration_evidence
+      end
+
+      test "rolls back all registration evidence for malformed nested buyer acceptance" do
+        create_consent_document(scope: "buyer", required: true, name: "Malformed terms")
+
+        result = submit(consents: [ "not-a-consent" ])
+
+        assert_predicate result, :failure?
+        assert_equal "invalid_submission_consent", result.error.code
+        assert_no_registration_evidence
+      end
+
+      test "accepts every required buyer consent while leaving optional buyer consent pending" do
+        _required_document, required_version = create_consent_document(
+          scope: "buyer", required: true, name: "Required registration terms"
+        )
+        create_consent_document(scope: "buyer", required: false, name: "Optional registration terms")
+        create_consent_retention_policy
+
+        result = submit(consents: [ buyer_acceptance(required_version) ])
+
+        assert_predicate result, :success?
+        requirements = result.value.registration.consent_requirements.order(:required)
+        assert_equal %w[pending accepted], requirements.map(&:status)
+        assert_equal [ false, true ], requirements.map(&:required)
+      end
+
+      test "rolls back when nested buyer consent omits its request UUID" do
+        _document, version = create_consent_document(scope: "buyer", required: true, name: "UUID terms")
+        create_consent_retention_policy
+
+        result = submit(consents: [ buyer_acceptance(version).except(:request_uuid) ])
+
+        assert_predicate result, :failure?
+        assert_equal "invalid_request_uuid", result.error.code
+        assert_equal 0, Registration.count
+      end
+
+      test "rolls back when nested buyer consent omits its idempotency key" do
+        _document, version = create_consent_document(scope: "buyer", required: true, name: "Key terms")
+        create_consent_retention_policy
+
+        result = submit(consents: [ buyer_acceptance(version).except(:idempotency_key) ])
+
+        assert_predicate result, :failure?
+        assert_equal "missing_idempotency_key", result.error.code
+        assert_equal 0, Registration.count
+      end
+
+      test "rolls back form evidence when supplied consent cannot be accepted" do
+        _document, version = create_consent_document(scope: "buyer", name: "Invalid terms")
+        Core::DataRetentionPolicy.create!(
+          category: "consent_evidence",
+          version: 1,
+          retention_days: 30,
+          action: "erase_payload",
+          status: "active",
+          effective_at: 1.minute.ago,
+          created_by: core_users(:super_admin)
+        )
+
+        result = submit(consents: [
+          {
+            consent_document_version_id: version.id,
+            request_uuid: SecureRandom.uuid,
+            idempotency_key: "invalid-registration-buyer-consent",
+            acceptance_method: "otp",
+            content_sha256: "0" * 64
+          }
+        ])
+
+        assert_predicate result, :failure?
+        assert_equal "consent_content_mismatch", result.error.code
+        assert_equal 0, Registration.count
+        assert_equal 0, RegistrationFormSubmission.count
+        assert_equal 0, RegistrationConsentRequirement.count
+        assert_equal 0, RegistrationConsent.count
+      end
+
+      test "includes consents in the request fingerprint" do
+        _document, version = create_consent_document(scope: "buyer", name: "Fingerprint terms")
+        Core::DataRetentionPolicy.create!(
+          category: "consent_evidence",
+          version: 1,
+          retention_days: 30,
+          action: "erase_payload",
+          status: "active",
+          effective_at: 1.minute.ago,
+          created_by: core_users(:super_admin)
+        )
+        consent = {
+          consent_document_version_id: version.id,
+          request_uuid: SecureRandom.uuid,
+          idempotency_key: "fingerprint-registration-buyer-consent",
+          acceptance_method: "otp",
+          content_sha256: version.content_sha256
+        }
+
+        first = submit(consents: [ consent ], idempotency_key: "consent-fingerprint-key")
+        changed = submit(consents: [], idempotency_key: "consent-fingerprint-key")
+
+        assert_predicate first, :success?
+        assert_predicate changed, :failure?
+        assert_equal "idempotency_conflict", changed.error.code
+        assert_equal 1, Registration.count
+        assert_equal 1, RegistrationConsent.count
+      end
+
       test "returns the existing active registration for a safe retry and rejects a conflicting replay" do
         assert_idempotent(-> { submit }, counter: -> { Registration.count })
         first = submit
@@ -166,6 +349,7 @@ module Ticketing
           "admissions_per_unit" => 1,
           "answers" => [ { "question_key" => "name", "value" => "Ada" } ],
           "audience_proof" => { "access_code" => "code-1", "invitation_token" => "token-1" },
+          "consents" => [],
           "identity_digest" => identity.digest,
           "package_quantity" => 1,
           "selected_event_date_id" => nil,
@@ -227,18 +411,23 @@ module Ticketing
       private
 
       def submit(ticket_type: @ticket_type, actor: @actor, phone: @actor.phone, package_quantity: 1,
-                 selected_event_date_id: nil, answers: default_answers, audience_proof: {})
+                 selected_event_date_id: nil, answers: default_answers, consents: [], audience_proof: {},
+                 idempotency_key: nil)
         assert defined?(Ticketing::Registrations::Submit), "expected registration submission command"
 
         submission = Ticketing::RegistrationSubmission.new(
           package_quantity:,
           selected_event_date_id:,
-          answers:
+          answers:,
+          consents:
         )
-        Ticketing::Registrations::Submit.call(ticket_type:, actor:, phone:, submission:, audience_proof:)
+        Ticketing::Registrations::Submit.call(
+          ticket_type:, actor:, phone:, submission:, audience_proof:,
+          idempotency_key: idempotency_key || ("test-registration-consent" if consents.present?)
+        )
       end
 
-      def submission_command(answers:, audience_proof:)
+      def submission_command(answers:, audience_proof:, consents: [])
         Ticketing::Registrations::Submit.new(
           ticket_type: @ticket_type,
           actor: @actor,
@@ -246,7 +435,8 @@ module Ticketing
           submission: Ticketing::RegistrationSubmission.new(
             package_quantity: 1,
             selected_event_date_id: nil,
-            answers:
+            answers:,
+            consents:
           ),
           audience_proof:
         )
@@ -289,6 +479,36 @@ module Ticketing
           amount_minor:,
           active_from: 1.minute.ago
         )
+      end
+
+      def buyer_acceptance(version)
+        {
+          consent_document_version_id: version.id,
+          request_uuid: SecureRandom.uuid,
+          idempotency_key: "registration-consent-#{SecureRandom.uuid}",
+          acceptance_method: "otp",
+          content_sha256: version.content_sha256
+        }
+      end
+
+      def create_consent_retention_policy
+        Core::DataRetentionPolicy.create!(
+          category: "consent_evidence",
+          version: Core::DataRetentionPolicy.where(category: "consent_evidence").maximum(:version).to_i + 1,
+          retention_days: 30,
+          action: "erase_payload",
+          status: "active",
+          effective_at: 1.minute.ago,
+          created_by: core_users(:super_admin)
+        )
+      end
+
+      def assert_no_registration_evidence
+        assert_equal 0, Registration.count
+        assert_equal 0, RegistrationFormSubmission.count
+        assert_equal 0, RegistrationAnswer.count
+        assert_equal 0, RegistrationConsentRequirement.count
+        assert_equal 0, RegistrationConsent.count
       end
 
       def default_answers
