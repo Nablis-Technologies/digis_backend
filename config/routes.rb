@@ -119,7 +119,25 @@ Rails.application.routes.draw do
   resources :ticket_types, only: [] do
     resources :registrations, only: :create, controller: "ticketing/registrations"
   end
+
+  # Workflow endpoints delegate all state transitions to idempotent commands.
   resources :registrations, only: :show, controller: "ticketing/registrations"
+
+  resources :registrations, only: [] do
+    member do
+      post :approve, controller: "ticketing/registration_decisions"
+      post :reject, controller: "ticketing/registration_decisions"
+      post :reconsider, controller: "ticketing/registration_decisions"
+      post :enqueue_waitlist, controller: "ticketing/waitlist_offers", action: :enqueue
+      post :accept_waitlist_offer, controller: "ticketing/waitlist_offers", action: :accept
+    end
+  end
+
+  resources :ticket_types, only: [] do
+    post :offer_next, on: :member, controller: "ticketing/waitlist_offers"
+  end
+
+  post "events/:event_id/complimentary_tickets", to: "ticketing/complimentary_tickets#create"
 
   resources :events, only: [] do
     resources :event_products, only: [] do
