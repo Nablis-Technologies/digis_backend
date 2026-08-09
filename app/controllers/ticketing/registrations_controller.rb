@@ -10,12 +10,14 @@ module Ticketing
       authorize Registration.new(user: current_user), :create?
       answers = normalized_answers
       return render_invalid_submission if answers.nil?
+      consents = normalized_consents
+      return render_invalid_submission if consents.nil?
 
       result = Ticketing::Registrations::Submit.call(
         ticket_type:,
         actor: current_user,
         phone: params.require(:phone),
-        submission: registration_submission(answers),
+        submission: registration_submission(answers, consents),
         audience_proof: { access_code: params[:access_code], invitation: params[:invitation_token] },
         idempotency_key:
       )
@@ -39,11 +41,12 @@ module Ticketing
 
     private
 
-    def registration_submission(answers)
+    def registration_submission(answers, consents)
       Ticketing::RegistrationSubmission.new(
         package_quantity: params[:package_quantity],
         selected_event_date_id: params[:selected_event_date_id],
-        answers:
+        answers:,
+        consents:
       )
     end
 
@@ -58,6 +61,22 @@ module Ticketing
 
         attributes.slice(
           "form_version_id", "question_key", "package_unit_number", "admission_position", "value"
+        ).symbolize_keys
+      end
+    end
+
+    def normalized_consents
+      raw_consents = params[:consents]
+      return [] if raw_consents.nil?
+      return unless raw_consents.is_a?(Array)
+
+      raw_consents.map do |consent|
+        attributes = consent.respond_to?(:to_unsafe_h) ? consent.to_unsafe_h : consent
+        return unless attributes.is_a?(Hash)
+
+        attributes.slice(
+          "consent_document_version_id", "request_uuid", "acceptance_method", "content_sha256",
+          "package_unit_number", "admission_position", "idempotency_key"
         ).symbolize_keys
       end
     end
