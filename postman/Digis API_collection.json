@@ -8462,6 +8462,245 @@
           ]
         },
         {
+          "name": "Data Retention Policies",
+          "item": [
+            {
+              "name": "List Data Retention Policies",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/data_retention_policies",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "data_retention_policies"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Data Retention Policy",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/data_retention_policies/{{dataRetentionPolicyId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "data_retention_policies",
+                    "{{dataRetentionPolicyId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Create Data Retention Policy",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"data_retention_policy\": {\n    \"category\": \"registration_free_text\",\n    \"version\": 1,\n    \"retention_days\": 30,\n    \"action\": \"erase_payload\",\n    \"status\": \"active\",\n    \"effective_at\": \"2026-01-01T00:00:00Z\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/data_retention_policies",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "data_retention_policies"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Data Retention Policy",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"data_retention_policy\": {\n    \"status\": \"retired\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/data_retention_policies/{{dataRetentionPolicyId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "data_retention_policies",
+                    "{{dataRetentionPolicyId}}"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ],
+          "variable": [
+            {
+              "key": "dataRetentionPolicyId",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        {
+          "name": "Data Retention Holds",
+          "item": [
+            {
+              "name": "List Data Retention Holds",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/data_retention_holds",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "data_retention_holds"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Data Retention Hold",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/data_retention_holds/{{dataRetentionHoldId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "data_retention_holds",
+                    "{{dataRetentionHoldId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Place Data Retention Hold",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{retentionHoldKey}}",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"data_retention_hold\": {\n    \"event_id\": \"{{eventId}}\",\n    \"category\": \"registration_free_text\",\n    \"reason_code\": \"legal_hold\",\n    \"starts_at\": \"2026-01-01T00:00:00Z\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/data_retention_holds",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "data_retention_holds"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Release Data Retention Hold",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{retentionReleaseKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/data_retention_holds/{{dataRetentionHoldId}}/release",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "data_retention_holds",
+                    "{{dataRetentionHoldId}}",
+                    "release"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ],
+          "variable": [
+            {
+              "key": "dataRetentionHoldId",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "key": "retentionHoldKey",
+              "value": "retention-hold-example",
+              "type": "string"
+            },
+            {
+              "key": "retentionReleaseKey",
+              "value": "retention-release-example",
+              "type": "string"
+            }
+          ]
+        },
+        {
           "name": "Permissions",
           "item": [
             {

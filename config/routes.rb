@@ -183,6 +183,12 @@ Rails.application.routes.draw do
         post :deactivate
       end
     end
+    resources :data_retention_policies, except: %i[new edit destroy]
+    resources :data_retention_holds, only: %i[index show create] do
+      member do
+        post :release
+      end
+    end
 
     post "organizations/:id/verification/approve",              to: "verifications#approve"
     post "organizations/:id/verification/reject",               to: "verifications#reject"

@@ -22,6 +22,16 @@ en:
     errors:
       unauthorized: "You are not authorized to perform this action"
 
+  core:
+    retention:
+      errors:
+        unauthorized: "Only platform administrators may manage retention controls"
+        invalid_idempotency_key: "The idempotency key is invalid"
+        idempotency_conflict: "The idempotency key conflicts with an existing hold request"
+        hold_conflict: "The retention hold conflicts with another request"
+        invalid_hold: "The retention hold is invalid"
+        policy_not_found: "No active retention policy is configured"
+
   errors:
     messages:
       immutable: "is immutable"
@@ -130,8 +140,3 @@ en:
         override_invalid: "The purchase-limit override is invalid"
         reason_invalid: "The purchase-limit override reason is invalid"
         idempotency_conflict: "The purchase-limit request conflicts with an existing idempotency key"
-
-  core:
-    retention:
-      errors:
-        policy_not_found: "No active retention policy is configured"
