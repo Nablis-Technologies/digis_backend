@@ -12,12 +12,14 @@ class CreateTicketingRegistrations < ActiveRecord::Migration[8.1]
       t.string :source, null: false
       t.uuid :created_by_id, null: false
       t.string :issuance_idempotency_key
+      t.string :idempotency_request_digest, limit: 64
       t.string :complimentary_reason
       t.string :identity_digest, null: false, limit: 64
       t.integer :package_quantity, null: false, default: 1
       t.integer :admissions_per_unit_snapshot, null: false, limit: 2
       t.integer :party_size, null: false
       t.string :status, null: false, default: "pending_payment"
+      t.string :next_action_snapshot
       t.timestamptz :submitted_at, null: false
       t.timestamptz :waitlisted_at
       t.timestamptz :offered_at
@@ -40,6 +42,10 @@ class CreateTicketingRegistrations < ActiveRecord::Migration[8.1]
       "status IN ('pending_payment','pending_approval','waitlisted','offered','confirmed','rejected','cancelled','expired')",
       name: "ticketing_registrations_status_check"
     add_check_constraint :ticketing_registrations,
+      "next_action_snapshot IS NULL OR next_action_snapshot IN " \
+        "('requires_confirmation','requires_order','awaiting_approval')",
+      name: "ticketing_registrations_next_action_snapshot_check"
+    add_check_constraint :ticketing_registrations,
       "package_quantity > 0 AND admissions_per_unit_snapshot > 0 AND party_size > 0",
       name: "ticketing_registrations_quantities_positive_check"
     add_check_constraint :ticketing_registrations,
@@ -48,6 +54,9 @@ class CreateTicketingRegistrations < ActiveRecord::Migration[8.1]
     add_check_constraint :ticketing_registrations,
       "identity_digest ~ '^[0-9a-f]{64}$'",
       name: "ticketing_registrations_identity_digest_check"
+    add_check_constraint :ticketing_registrations,
+      "idempotency_request_digest IS NULL OR idempotency_request_digest ~ '^[0-9a-f]{64}$'",
+      name: "ticketing_registrations_idempotency_request_digest_check"
     add_check_constraint :ticketing_registrations,
       "(source = 'organizer_complimentary' AND complimentary_reason IS NOT NULL " \
         "AND complimentary_reason <> '' AND issuance_idempotency_key IS NOT NULL " \

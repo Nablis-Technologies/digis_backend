@@ -14,6 +14,7 @@ module Ticketing
     COMPLIMENTARY_REASONS = %w[
       accessibility accommodation community_partner service_recovery sponsor_guest staff_guest
     ].freeze
+    NEXT_ACTION_SNAPSHOTS = %w[requires_confirmation requires_order awaiting_approval].freeze
 
     belongs_to :event, class_name: "Events::Event"
     belongs_to :ticket_type, class_name: "Ticketing::TicketType"
@@ -38,6 +39,8 @@ module Ticketing
               numericality: { only_integer: true, greater_than: 0 }
     validates :submitted_at, presence: true
     validates :issuance_idempotency_key, uniqueness: true, allow_blank: true
+    validates :idempotency_request_digest, format: { with: /\A[0-9a-f]{64}\z/ }, allow_blank: true
+    validates :next_action_snapshot, inclusion: { in: NEXT_ACTION_SNAPSHOTS }, allow_blank: true
 
     validate :source_metadata
     validate :party_size_matches_snapshot
@@ -62,8 +65,8 @@ module Ticketing
     def self.ransackable_attributes(_auth_object = nil)
       %w[
         id event_id ticket_type_id user_id selected_event_date_id access_code_id invitation_id
-        source created_by_id issuance_idempotency_key complimentary_reason identity_digest
-        package_quantity admissions_per_unit_snapshot party_size status submitted_at waitlisted_at
+        source created_by_id issuance_idempotency_key idempotency_request_digest complimentary_reason identity_digest
+        package_quantity admissions_per_unit_snapshot party_size status next_action_snapshot submitted_at waitlisted_at
         offered_at offer_expires_at reviewed_by_id approved_at rejected_at confirmed_at cancelled_at
         lock_version created_at updated_at
       ]
