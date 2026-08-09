@@ -64,6 +64,15 @@ module Ticketing
     scope :with_invitation, -> { where(audience: %w[invitation code_or_invitation]) }
     scope :transferable, -> { where(transferable: true) }
 
+    def covered_date_ids(registration)
+      return [ registration.selected_event_date_id ].compact if date_selection == "choose_one"
+
+      event_product.product_accesses
+        .where(type: %w[venue parking])
+        .distinct
+        .pluck(:event_date_id)
+    end
+
     def self.ransackable_attributes(_auth_object = nil)
       %w[
         id event_product_id approval_mode audience date_selection waitlist_enabled
