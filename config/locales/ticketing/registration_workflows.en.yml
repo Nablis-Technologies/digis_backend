@@ -1,0 +1,24 @@
+en:
+  ticketing:
+    registration_workflows:
+      errors:
+        invalid_idempotency_key: "The Idempotency-Key value is invalid"
+        idempotency_conflict: "The request conflicts with an existing idempotency key"
+        invalid_registration: "The registration is invalid"
+        reviewer_unauthorized: "Only an authorized event manager may decide this registration"
+        reviewer_required: "A manual registration decision requires an authorized reviewer"
+        registration_not_approvable: "This registration cannot be approved in its current state"
+        registration_not_rejectable: "Only a pending approval may be rejected"
+        registration_not_reconsiderable: "Only a rejected registration may be reconsidered"
+        invalid_reconsideration_decision: "The reconsideration decision is invalid"
+        waitlist_disabled: "Waitlisting is not enabled for this ticket type"
+        registration_not_waitlistable: "This registration cannot enter the waitlist"
+        offer_acceptance_unauthorized: "Only the verified registrant may accept this offer"
+        registration_not_offered: "This registration has no active waitlist offer"
+        offer_expired: "The waitlist offer has expired"
+        offer_not_expired: "The waitlist offer has not expired"
+        required_buyer_consent_missing: "Required buyer consent must be accepted first"
+        registration_not_confirmable: "This registration cannot be confirmed"
+        complimentary_unauthorized: "Only an authorized event manager may issue complimentary tickets"
+        complimentary_reason_invalid: "A valid complimentary issuance reason is required"
+        package_quantity_invalid: "Package quantity must be positive"
