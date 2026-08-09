@@ -636,6 +636,7 @@ DECLARE
   admissions_per_unit integer;
   retention_days integer;
   policy_category text;
+  policy_action text;
   policy_status text;
   policy_effective_at timestamptz;
 BEGIN
@@ -680,11 +681,16 @@ BEGIN
       USING ERRCODE = '23514';
   END IF;
 
-  SELECT policy.retention_days, policy.category, policy.status, policy.effective_at
-    INTO retention_days, policy_category, policy_status, policy_effective_at
+  SELECT policy.retention_days, policy.category, policy.action, policy.status, policy.effective_at
+    INTO retention_days, policy_category, policy_action, policy_status, policy_effective_at
     FROM core_data_retention_policies policy
    WHERE policy.id = NEW.retention_policy_id;
-  IF policy_status IS DISTINCT FROM 'active' OR
+  IF policy_status IS NULL OR
+     (policy_status NOT IN ('active', 'retired') OR
+      (policy_status = 'retired' AND NOT (
+        TG_OP = 'UPDATE' AND OLD.erased_at IS NULL AND NEW.erased_at IS NOT NULL AND
+        NEW.answer_ciphertext IS NULL AND policy_action = 'erase_payload'
+      ))) OR
      policy_effective_at IS NULL OR policy_effective_at > NEW.answered_at OR
      policy_category IS DISTINCT FROM (CASE
        WHEN question_type IN ('short_text', 'long_text') THEN 'registration_free_text'

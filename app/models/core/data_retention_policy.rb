@@ -21,10 +21,12 @@ module Core
     scope :effective_at, ->(time) { where(effective_at: ..time) }
 
     validates :category, presence: true, inclusion: { in: CATEGORIES }
-    validates :version, numericality: { only_integer: true, greater_than: 0 }
+    validates :version, numericality: { only_integer: true, greater_than: 0 },
+                       uniqueness: { scope: %i[category jurisdiction_code] }
     validates :retention_days, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
     validates :action, presence: true, inclusion: { in: ACTIONS }
-    validates :status, presence: true, inclusion: { in: STATUSES }
+    validates :status, presence: true, inclusion: { in: STATUSES },
+                      uniqueness: { scope: %i[category jurisdiction_code], if: :active? }
     validates :effective_at, presence: true, if: :active?
     validate :retention_days_required_for_erasure
     validate :version_is_monotonic

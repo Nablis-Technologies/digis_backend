@@ -32,6 +32,51 @@ module Core
       assert_equal "ET", policy.jurisdiction_code
     end
 
+    test "rejects duplicate policy versions when jurisdiction is null" do
+      DataRetentionPolicy.create!(
+        category: "registration_free_text",
+        version: 1,
+        action: "retain",
+        status: "draft",
+        created_by: core_users(:super_admin)
+      )
+      duplicate = DataRetentionPolicy.new(
+        category: "registration_free_text",
+        version: 1,
+        action: "retain",
+        status: "draft",
+        created_by: core_users(:super_admin)
+      )
+
+      assert_not duplicate.valid?
+      assert duplicate.errors.key?(:version)
+    end
+
+    test "rejects a second active policy for the same category and jurisdiction" do
+      DataRetentionPolicy.create!(
+        category: "registration_free_text",
+        version: 1,
+        retention_days: 30,
+        action: "erase_payload",
+        status: "active",
+        effective_at: 1.day.ago,
+        created_by: core_users(:super_admin)
+      )
+      duplicate = DataRetentionPolicy.new(
+        category: "registration_free_text",
+        jurisdiction_code: nil,
+        version: 2,
+        retention_days: 60,
+        action: "erase_payload",
+        status: "active",
+        effective_at: 1.hour.ago,
+        created_by: core_users(:super_admin)
+      )
+
+      assert_not duplicate.valid?
+      assert duplicate.errors.key?(:status)
+    end
+
     test "active policy payload cannot be changed through bulk updates" do
       policy = DataRetentionPolicy.create!(
         category: "registration_free_text",

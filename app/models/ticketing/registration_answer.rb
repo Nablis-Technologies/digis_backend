@@ -168,7 +168,8 @@ module Ticketing
 
       expected_category = TEXT_TYPES.include?(question_type_snapshot) ?
         "registration_free_text" : "registration_structured"
-      return if retention_policy.status == "active" &&
+      allowed_statuses = persisted? && erased? ? %w[active retired] : [ "active" ]
+      return if allowed_statuses.include?(retention_policy.status) &&
                 retention_policy.category == expected_category &&
                 retention_policy.effective_at.present? &&
                 retention_policy.effective_at <= answered_at
