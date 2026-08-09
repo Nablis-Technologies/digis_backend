@@ -103,6 +103,11 @@ Rails.application.routes.draw do
     post :revise, on: :member
   end
 
+  resources :ticket_types, only: [] do
+    resources :registrations, only: :create, controller: "ticketing/registrations"
+  end
+  resources :registrations, only: :show, controller: "ticketing/registrations"
+
   resources :events, only: [] do
     resources :event_products, only: [] do
       resource :ticket_type, only: %i[show create update destroy], controller: "ticketing/ticket_types" do
