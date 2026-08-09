@@ -33,3 +33,7 @@ production:
     class: Core::ProcessOutboxJob
     queue: outbox
     schedule: every minute
+  remind_pending_consents:
+    class: Ticketing::ConsentReminderJob
+    queue: default
+    schedule: every day at 9am

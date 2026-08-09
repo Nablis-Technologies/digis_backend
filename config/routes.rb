@@ -57,6 +57,8 @@ Rails.application.routes.draw do
   end
 
   get "public/events/:event_slug/products", to: "catalog/public_products#index"
+  get "public/events/:event_slug/ticket_types/:ticket_type_id/consent_requirements",
+      to: "ticketing/public_consent_requirements#index"
 
   scope path: :catalog, module: :catalog do
     resources :product_prices, only: %i[index show create]
@@ -101,6 +103,16 @@ Rails.application.routes.draw do
 
   resources :registration_answers, only: %i[show], controller: "ticketing/registration_answers" do
     post :revise, on: :member
+  end
+
+  resources :registrations, only: [] do
+    resources :consents, only: :index, controller: "ticketing/registration_consents" do
+      post :accept, on: :member
+    end
+  end
+
+  resources :registration_consents, only: [] do
+    resource :withdrawal, only: :create, controller: "ticketing/registration_consent_withdrawals"
   end
 
   resources :ticket_types, only: [] do

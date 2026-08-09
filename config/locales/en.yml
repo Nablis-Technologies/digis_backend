@@ -87,6 +87,33 @@ en:
         phone_identity_mismatch: "The submitted phone must match the authenticated phone identity"
         invalid_registration: "Registration is invalid"
         active_registration_conflict: "An active registration already exists with different submission details"
+    consents:
+      errors:
+        invalid_requirement: "The consent requirement is invalid"
+        invalid_acceptance: "The consent acceptance is invalid"
+        invalid_withdrawal: "The consent withdrawal is invalid"
+        consent_requirement_conflict: "The consent requirement conflicts with an existing requirement"
+        invalid_submission_consent: "The submitted consent does not match a buyer requirement"
+        missing_required_buyer_consent: "Every required buyer consent must be accepted"
+        consent_subject_unverified: "The accepting subject must have a verified OTP identity"
+        consent_subject_unassigned: "The admission slot has no assigned subject"
+        consent_subject_mismatch: "The authenticated subject does not match the consent requirement"
+        missing_idempotency_key: "The Idempotency-Key request header is required for this consent operation"
+        consent_version_not_current: "The consent requirement must reference an active published or retired version"
+        consent_content_mismatch: "The consent content digest does not match the published version"
+        invalid_request_uuid: "A valid request UUID is required"
+        invalid_idempotency_key: "The Idempotency-Key value is invalid"
+        acceptance_conflict: "The consent requirement already has a different acceptance"
+        consent_requirement_not_pending: "Only a pending consent requirement may be accepted"
+        buyer_consent_withdrawal_forbidden: "Completed buyer consent cannot be withdrawn here"
+        consent_withdrawal_subject_mismatch: "Only the original verified signer may withdraw this consent"
+        consent_requirement_not_accepted: "Only an accepted consent may be withdrawn"
+        consent_withdrawal_conflict: "The consent withdrawal conflicts with an existing idempotency key"
+        consent_reassignment_forbidden: "The registration owner or event organizer must reassign this consent"
+        consent_replacement_required: "A replacement subject is required"
+        consent_replacement_subject_conflict: "The replacement subject is already assigned to this consent coordinate"
+        consent_requirement_not_found: "No current admission-slot consent requirement was found"
+        consent_reassignment_conflict: "The consent reassignment conflicts with an existing request"
 
   core:
     retention:
