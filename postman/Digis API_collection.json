@@ -3603,6 +3603,50 @@
                       "type": "string"
                     }
                   ]
+                },
+                {
+                  "name": "Grant Purchase Limit Override",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{accessToken}}",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Idempotency-Key",
+                        "value": "{{idempotencyKey}}",
+                        "type": "text"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"additional_packages\": 1,\n  \"reason_code\": \"accessibility\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/registrations/{{registrationId}}/purchase_limit_override",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "registrations",
+                        "{{registrationId}}",
+                        "purchase_limit_override"
+                      ]
+                    }
+                  },
+                  "description": "Grant one immutable, audited exception to the registration user's purchase limit. Platform admins and event catalogue managers only. Reuse the same Idempotency-Key only for the identical request."
                 }
               ],
               "variable": [

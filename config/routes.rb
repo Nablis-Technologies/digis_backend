@@ -109,6 +109,7 @@ Rails.application.routes.draw do
     resources :consents, only: :index, controller: "ticketing/registration_consents" do
       post :accept, on: :member
     end
+    resource :purchase_limit_override, only: :create, controller: "ticketing/purchase_limit_overrides"
   end
 
   resources :registration_consents, only: [] do

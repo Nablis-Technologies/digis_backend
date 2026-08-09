@@ -114,6 +114,22 @@ en:
         consent_replacement_subject_conflict: "The replacement subject is already assigned to this consent coordinate"
         consent_requirement_not_found: "No current admission-slot consent requirement was found"
         consent_reassignment_conflict: "The consent reassignment conflicts with an existing request"
+    purchase_limits:
+      errors:
+        user_mismatch: "The purchase-limit user does not own the registration"
+        date_required: "A selected event date is required for this ticket type"
+        quantity_invalid: "Purchase-limit quantity must be positive"
+        expiry_invalid: "Purchase-limit reservation expiry must be in the future"
+        exceeded: "The purchase limit would be exceeded"
+        invalid_allocation: "The purchase-limit allocation is invalid"
+        allocations_missing: "No purchase-limit allocations were found"
+        allocation_not_reservable: "The purchase-limit allocation cannot be committed"
+        reservation_expired: "The purchase-limit reservation has expired"
+        release_reason_invalid: "The purchase-limit release reason is invalid"
+        override_forbidden: "You are not authorized to grant a purchase-limit override"
+        override_invalid: "The purchase-limit override is invalid"
+        reason_invalid: "The purchase-limit override reason is invalid"
+        idempotency_conflict: "The purchase-limit request conflicts with an existing idempotency key"
 
   core:
     retention:
