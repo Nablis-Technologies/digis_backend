@@ -1,8 +1,10 @@
-# frozen_string_literal: true
+  # frozen_string_literal: true
 
-module Ticketing
-  module Registrations
-    class ConfirmFree < Core::BaseService
+  module Ticketing
+    module Registrations
+      # Commits already-reserved capacity for a free registration and publishes
+      # the privacy-safe issuance handoff only after confirmation is durable.
+      class ConfirmFree < Core::BaseService
       include Support
 
       def initialize(registration:, actor: nil, idempotency_key: nil)
@@ -62,6 +64,6 @@ module Ticketing
           idempotency_key: "ticketing-registration-issuance-ready-#{registration.id}"
         ))
       end
+      end
     end
   end
-end

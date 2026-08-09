@@ -2,6 +2,9 @@
 
 module Ticketing
   module RegistrationDecisions
+    # Applies an approval under the registration lock. Automatic products do
+    # not need a reviewer; manual products retain the reviewer on the current
+    # decision, and free approvals continue through the normal confirmation path.
     class Approve < Core::BaseService
       include Support
 

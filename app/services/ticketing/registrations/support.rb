@@ -1,8 +1,10 @@
-# frozen_string_literal: true
+  # frozen_string_literal: true
 
-module Ticketing
-  module Registrations
-    module Support
+  module Ticketing
+    module Registrations
+      # Shared capacity primitives. Every reservation, commit, and release keeps
+      # purchase-limit rows and inventory rows in the same transaction boundary.
+      module Support
       class Halt < StandardError
         attr_reader :result
 
@@ -16,6 +18,7 @@ module Ticketing
 
       def reserve_capacity!(registration, idempotency_key:, expires_at: 10.minutes.from_now,
         reservation_group_id: registration.id)
+        # Roll back purchase-limit rows if inventory rejects the same request.
         ActiveRecord::Base.transaction do
           purchase_limit = Ticketing::PurchaseLimits::Reserve.call(
             registration:,
@@ -42,6 +45,8 @@ module Ticketing
       end
 
       def commit_capacity!(registration, idempotency_key:)
+        # A registration may have multiple historical offer groups; commit only
+        # groups that still have active holds and leave released history intact.
         group_ids = Catalog::InventoryReservation
           .where(registration_id: registration.id, status: %w[held processing])
           .distinct
@@ -70,6 +75,8 @@ module Ticketing
       end
 
       def release_capacity!(registration, idempotency_key:, reason: "expired")
+        # Release every active offer group before releasing its purchase-limit
+        # allocation, preserving both histories for later reconciliation.
         group_ids = Catalog::InventoryReservation
           .where(registration_id: registration.id, status: %w[held processing])
           .distinct
@@ -122,6 +129,6 @@ module Ticketing
 
         fail Support::Halt, result
       end
+      end
     end
   end
-end

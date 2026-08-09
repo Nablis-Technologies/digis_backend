@@ -1,8 +1,9 @@
-# frozen_string_literal: true
+  # frozen_string_literal: true
 
-module Ticketing
-  module RegistrationDecisions
-    module Support
+  module Ticketing
+    module RegistrationDecisions
+      # Shared authorization, audit, and replay boundaries for decision commands.
+      module Support
       include Ticketing::Registrations::Support
 
       private
@@ -43,6 +44,6 @@ module Ticketing
       def halt(code)
         fail Ticketing::Registrations::Support::Halt, Core::BaseService::Result.failure(decision_error(code))
       end
+      end
     end
   end
-end

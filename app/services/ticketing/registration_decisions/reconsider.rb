@@ -2,6 +2,9 @@
 
 module Ticketing
   module RegistrationDecisions
+    # Reopens a rejected registration through one locked and audited decision.
+    # Reconsideration replaces the effective decision fields but preserves the
+    # prior rejection in the audit trail.
     class Reconsider < Core::BaseService
       include Support
 

@@ -2,6 +2,8 @@
 
 module Ticketing
   module RegistrationDecisions
+    # Replaces a pending approval with a reasoned, auditable rejection. The
+    # effective approval and rejection timestamps remain mutually exclusive.
     class Reject < Core::BaseService
       include Support
 
