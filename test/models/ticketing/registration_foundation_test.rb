@@ -4,6 +4,15 @@ require "test_helper"
 
 module Ticketing
   class RegistrationFoundationTest < ActiveSupport::TestCase
+    test "validates a persisted next action snapshot" do
+      assert_includes Registration.column_names, "next_action_snapshot"
+
+      registration = Registration.new(next_action_snapshot: "invalid")
+
+      assert_not registration.valid?
+      assert registration.errors.key?(:next_action_snapshot)
+    end
+
     test "requires a positive party snapshot matching the package equation" do
       registration = Registration.new(
         event: events_events(:ready_listing),
