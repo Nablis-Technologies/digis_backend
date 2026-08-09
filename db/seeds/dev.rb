@@ -534,6 +534,11 @@ retention_policies = [
     category: "registration_structured",
     retention_days: 365,
     action: "erase_payload"
+  },
+  {
+    category: "consent_evidence",
+    retention_days: 730,
+    action: "erase_payload"
   }
 ]
 retention_policies.each do |attributes|
