@@ -24,3 +24,8 @@
 - Do not infer completion of a phase from a similarly numbered subtask or
   hardening plan. Re-check the canonical plan's full task list and acceptance
   gate before advancing to the next phase.
+
+- When adding a workflow family, review every new public service, support
+  module, controller, and job for a class-level responsibility comment and
+  comments around non-obvious locking, idempotency, privacy, or state rules
+  before considering the task review-ready.
