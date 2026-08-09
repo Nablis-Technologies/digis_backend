@@ -65,6 +65,8 @@ module Ticketing
     scope :transferable, -> { where(transferable: true) }
 
     def covered_date_ids(registration)
+      # Inventory and venue holds use the selected date for choose-one products
+      # and every venue/parking date for fixed products.
       return [ registration.selected_event_date_id ].compact if date_selection == "choose_one"
 
       event_product.product_accesses

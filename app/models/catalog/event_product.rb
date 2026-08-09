@@ -67,6 +67,8 @@ module Catalog
     end
 
     def free?
+      # Free means every currently active price is zero; no active price is not
+      # a free product because it is not yet sellable.
       active_prices = prices.active_at(Time.current)
       active_prices.exists? && active_prices.where.not(amount_minor: 0).none?
     end
