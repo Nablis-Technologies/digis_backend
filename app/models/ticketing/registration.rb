@@ -34,6 +34,12 @@ module Ticketing
     has_many :consents,
              class_name: "Ticketing::RegistrationConsent",
              dependent: :restrict_with_exception
+    has_many :purchase_limit_allocations,
+             class_name: "Ticketing::PurchaseLimitAllocation",
+             dependent: :restrict_with_exception
+    has_one :purchase_limit_override,
+            class_name: "Ticketing::PurchaseLimitOverride",
+            dependent: :restrict_with_exception
     has_many :retention_holds,
              class_name: "Core::DataRetentionHold",
              dependent: :restrict_with_exception

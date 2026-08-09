@@ -31,6 +31,12 @@ module Ticketing
              class_name: "Events::ConsentDocumentProduct",
              inverse_of: :ticket_type,
              dependent: :destroy
+    has_many :purchase_limit_allocations,
+             class_name: "Ticketing::PurchaseLimitAllocation",
+             dependent: :restrict_with_exception
+    has_many :purchase_limit_overrides,
+             class_name: "Ticketing::PurchaseLimitOverride",
+             dependent: :restrict_with_exception
 
     validates :approval_mode, presence: true, inclusion: { in: APPROVAL_MODES }
     validates :audience, presence: true, inclusion: { in: AUDIENCES }

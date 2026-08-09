@@ -2461,6 +2461,54 @@ CREATE TABLE public.ticketing_invitations (
 
 
 --
+-- Name: ticketing_purchase_limit_allocations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_purchase_limit_allocations (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    ticket_type_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    scope_event_date_id uuid,
+    registration_id uuid NOT NULL,
+    unit_number integer NOT NULL,
+    ticket_id uuid,
+    status character varying NOT NULL,
+    expires_at timestamp with time zone,
+    committed_at timestamp with time zone,
+    released_at timestamp with time zone,
+    release_reason character varying,
+    idempotency_key character varying NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_purchase_limit_allocations_release_reason_check CHECK (((release_reason IS NULL) OR ((release_reason)::text = ANY (ARRAY['expired'::text, 'checkout_expired'::text, 'cancelled'::text, 'refunded'::text, 'void'::text, 'resale_replaced'::text])))),
+    CONSTRAINT ticketing_purchase_limit_allocations_state_check CHECK (((((status)::text = 'reserved'::text) AND (expires_at IS NOT NULL) AND (committed_at IS NULL) AND (released_at IS NULL) AND (release_reason IS NULL)) OR (((status)::text = 'committed'::text) AND (expires_at IS NULL) AND (committed_at IS NOT NULL) AND (released_at IS NULL) AND (release_reason IS NULL)) OR (((status)::text = 'released'::text) AND (expires_at IS NULL) AND (committed_at IS NULL) AND (released_at IS NOT NULL) AND (release_reason IS NOT NULL) AND ((release_reason)::text <> ''::text)))),
+    CONSTRAINT ticketing_purchase_limit_allocations_status_check CHECK (((status)::text = ANY (ARRAY[('reserved'::character varying)::text, ('committed'::character varying)::text, ('released'::character varying)::text]))),
+    CONSTRAINT ticketing_purchase_limit_allocations_unit_check CHECK ((unit_number > 0))
+);
+
+
+--
+-- Name: ticketing_purchase_limit_overrides; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_purchase_limit_overrides (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    registration_id uuid NOT NULL,
+    ticket_type_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    scope_event_date_id uuid,
+    additional_packages integer NOT NULL,
+    approved_by_id uuid NOT NULL,
+    reason_code character varying NOT NULL,
+    idempotency_key character varying NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_purchase_limit_overrides_packages_check CHECK ((additional_packages > 0)),
+    CONSTRAINT ticketing_purchase_limit_overrides_reason_check CHECK (((reason_code)::text = ANY (ARRAY[('accessibility'::character varying)::text, ('accommodation'::character varying)::text, ('community_partner'::character varying)::text, ('service_recovery'::character varying)::text, ('sponsor_guest'::character varying)::text, ('staff_guest'::character varying)::text, ('organizer_exception'::character varying)::text])))
+);
+
+
+--
 -- Name: ticketing_registration_answer_revisions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3225,6 +3273,22 @@ ALTER TABLE ONLY public.ticketing_invitations
 
 
 --
+-- Name: ticketing_purchase_limit_allocations ticketing_purchase_limit_allocations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_purchase_limit_allocations
+    ADD CONSTRAINT ticketing_purchase_limit_allocations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_purchase_limit_overrides ticketing_purchase_limit_overrides_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_purchase_limit_overrides
+    ADD CONSTRAINT ticketing_purchase_limit_overrides_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: ticketing_registration_answer_revisions ticketing_registration_answer_revisions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3758,6 +3822,48 @@ CREATE UNIQUE INDEX idx_ticketing_access_codes_on_ticket_type_and_idempotency ON
 --
 
 CREATE UNIQUE INDEX idx_ticketing_invitations_on_ticket_type_and_idempotency ON public.ticketing_invitations USING btree (ticket_type_id, idempotency_key_digest) WHERE (idempotency_key_digest IS NOT NULL);
+
+
+--
+-- Name: idx_ticketing_purchase_limit_allocations_count; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ticketing_purchase_limit_allocations_count ON public.ticketing_purchase_limit_allocations USING btree (ticket_type_id, scope_event_date_id, user_id, status, expires_at);
+
+
+--
+-- Name: idx_ticketing_purchase_limit_allocations_idempotency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_ticketing_purchase_limit_allocations_idempotency ON public.ticketing_purchase_limit_allocations USING btree (idempotency_key);
+
+
+--
+-- Name: idx_ticketing_purchase_limit_allocations_registration_ticket; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_ticketing_purchase_limit_allocations_registration_ticket ON public.ticketing_purchase_limit_allocations USING btree (registration_id, ticket_id) WHERE (ticket_id IS NOT NULL);
+
+
+--
+-- Name: idx_ticketing_purchase_limit_allocations_registration_unit; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_ticketing_purchase_limit_allocations_registration_unit ON public.ticketing_purchase_limit_allocations USING btree (registration_id, unit_number);
+
+
+--
+-- Name: idx_ticketing_purchase_limit_overrides_idempotency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_ticketing_purchase_limit_overrides_idempotency ON public.ticketing_purchase_limit_overrides USING btree (idempotency_key);
+
+
+--
+-- Name: idx_ticketing_purchase_limit_overrides_registration; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_ticketing_purchase_limit_overrides_registration ON public.ticketing_purchase_limit_overrides USING btree (registration_id);
 
 
 --
@@ -4924,6 +5030,14 @@ ALTER TABLE ONLY public.ticketing_registration_answers
 
 
 --
+-- Name: ticketing_purchase_limit_overrides fk_rails_02b34260ba; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_purchase_limit_overrides
+    ADD CONSTRAINT fk_rails_02b34260ba FOREIGN KEY (ticket_type_id) REFERENCES public.ticketing_ticket_types(id);
+
+
+--
 -- Name: events_recurrence_rules fk_rails_0311e23a95; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4985,6 +5099,14 @@ ALTER TABLE ONLY public.legal_document_versions
 
 ALTER TABLE ONLY public.events_event_date_changes
     ADD CONSTRAINT fk_rails_116ec6066e FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ticketing_purchase_limit_allocations fk_rails_150f196df3; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_purchase_limit_allocations
+    ADD CONSTRAINT fk_rails_150f196df3 FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id);
 
 
 --
@@ -5161,6 +5283,14 @@ ALTER TABLE ONLY public.catalog_venue_capacity_reservations
 
 ALTER TABLE ONLY public.core_refresh_tokens
     ADD CONSTRAINT fk_rails_3ed4f2d68b FOREIGN KEY (user_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: ticketing_purchase_limit_overrides fk_rails_41f5759f50; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_purchase_limit_overrides
+    ADD CONSTRAINT fk_rails_41f5759f50 FOREIGN KEY (scope_event_date_id) REFERENCES public.events_event_dates(id);
 
 
 --
@@ -5468,6 +5598,14 @@ ALTER TABLE ONLY public.catalog_promotion_codes
 
 
 --
+-- Name: ticketing_purchase_limit_allocations fk_rails_847accfc31; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_purchase_limit_allocations
+    ADD CONSTRAINT fk_rails_847accfc31 FOREIGN KEY (ticket_type_id) REFERENCES public.ticketing_ticket_types(id);
+
+
+--
 -- Name: organizations_memberships fk_rails_84f4e71154; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5524,6 +5662,14 @@ ALTER TABLE ONLY public.ticketing_registration_answer_revisions
 
 
 --
+-- Name: ticketing_purchase_limit_overrides fk_rails_97aeb24d0e; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_purchase_limit_overrides
+    ADD CONSTRAINT fk_rails_97aeb24d0e FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id);
+
+
+--
 -- Name: active_storage_variant_records fk_rails_993965df05; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5577,6 +5723,22 @@ ALTER TABLE ONLY public.events_event_media
 
 ALTER TABLE ONLY public.core_role_permissions
     ADD CONSTRAINT fk_rails_a1c6bb9a00 FOREIGN KEY (role_id) REFERENCES public.core_roles(id);
+
+
+--
+-- Name: ticketing_purchase_limit_allocations fk_rails_a3b4e1fe0e; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_purchase_limit_allocations
+    ADD CONSTRAINT fk_rails_a3b4e1fe0e FOREIGN KEY (scope_event_date_id) REFERENCES public.events_event_dates(id);
+
+
+--
+-- Name: ticketing_purchase_limit_allocations fk_rails_a6be58a1a3; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_purchase_limit_allocations
+    ADD CONSTRAINT fk_rails_a6be58a1a3 FOREIGN KEY (user_id) REFERENCES public.core_users(id);
 
 
 --
@@ -5732,6 +5894,14 @@ ALTER TABLE ONLY public.ticketing_registration_consent_requirements
 
 
 --
+-- Name: ticketing_purchase_limit_overrides fk_rails_dc9ec42e25; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_purchase_limit_overrides
+    ADD CONSTRAINT fk_rails_dc9ec42e25 FOREIGN KEY (approved_by_id) REFERENCES public.core_users(id);
+
+
+--
 -- Name: ticketing_registrations fk_rails_de5c6ebe08; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5812,6 +5982,14 @@ ALTER TABLE ONLY public.ticketing_registration_consents
 
 
 --
+-- Name: ticketing_purchase_limit_overrides fk_rails_f9406187b7; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_purchase_limit_overrides
+    ADD CONSTRAINT fk_rails_f9406187b7 FOREIGN KEY (user_id) REFERENCES public.core_users(id);
+
+
+--
 -- Name: ticketing_registration_consents fk_rails_fb9e57a5c9; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5862,6 +6040,8 @@ INSERT INTO "schema_migrations" (version) VALUES
 ('20260728000003'),
 ('20260728000002'),
 ('20260728000001'),
+('20260727090115'),
+('20260727090114'),
 ('20260727090113'),
 ('20260727090111'),
 ('20260727090110'),
