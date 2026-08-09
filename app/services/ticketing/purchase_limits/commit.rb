@@ -49,6 +49,7 @@ module Ticketing
       def scoped_allocations(scope_event_date_id)
         scope = PurchaseLimitAllocation
           .where(registration:, user:, scope_event_date_id:)
+          .where(status: %w[reserved committed])
           .includes(:registration, :ticket_type)
         scope = scope.where(unit_number: Array(unit_numbers)) if unit_numbers.present?
         scope
