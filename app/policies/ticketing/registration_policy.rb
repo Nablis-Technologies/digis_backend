@@ -13,10 +13,24 @@ module Ticketing
 
     def show? = organizer? || registrant?
     def create? = user.present? && record.user_id == user.id
+    def approve? = organizer?
+    def reject? = organizer?
+    def reconsider? = organizer?
+    def offer_next? = organizer?
+    def enqueue_waitlist? = organizer? || registrant?
+    def accept_waitlist_offer? = registrant?
+    def complimentary? = organizer?
 
     VISIBILITY = {
       show: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
-      create: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } }
+      create: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
+      approve: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
+      reject: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
+      reconsider: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
+      offer_next: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
+      enqueue_waitlist: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
+      accept_waitlist_offer: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
+      complimentary: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } }
     }.freeze
 
     class Scope < Core::ApplicationPolicy::Scope
