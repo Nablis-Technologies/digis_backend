@@ -4,21 +4,22 @@
 
 **Goal:** Build an event-scoped, multi-currency order aggregate with immutable pricing, bounded inventory holds, sequential provider retries, durable webhook processing, and exactly-once fulfillment.
 
-**Architecture:** HTTP routes remain under `/api/v1`, while controllers live in domain namespaces under `app/controllers/orders/`. Each mutating endpoint authorizes with Pundit and invokes exactly one `Core::BaseService` command. Commands own transactions and deterministic lock order; provider adapters normalize external APIs; `Core::Outbox::Publish` isolates post-commit effects. Financial calculation uses integer minor units, `Core::Money`, and `BigDecimal`; orchestration never lives in callbacks.
+**Architecture:** HTTP routes remain at the root pre-launch, while controllers live in domain namespaces under `app/controllers/orders/`. Each mutating endpoint authorizes with Pundit and invokes exactly one `Core::BaseService` command. Commands own transactions and deterministic lock order; `Commercial::ResolveCharges` provides the only platform-fee calculation evidence; provider adapters normalize external APIs; `Core::Outbox::Publish` isolates post-commit effects. Financial calculation uses integer minor units, `Core::Money`, and `BigDecimal`; orchestration never lives in callbacks.
 
 **Tech Stack:** Ruby 3.4, Rails 8.1 API-only, PostgreSQL UUIDs/check constraints/partial indexes/advisory locks, Pundit, ActiveModelSerializers, Solid Queue, Minitest fixtures.
 
-**Approved sources:** `docs/COMPOSABLE_EVENT_PLATFORM_DATABASE_DESIGN.md` and `docs/TICKET QR CODE AND OFFLINE SCANNING ARCHITECTURE v3.md`.
+**Approved sources:** `docs/COMPOSABLE_EVENT_PLATFORM_DATABASE_DESIGN.md`, `docs/TICKET QR CODE AND OFFLINE SCANNING ARCHITECTURE v3.md`, and `docs/superpowers/specs/2026-08-08-commercial-agreements-platform-pricing-design.md`.
 
 ---
 
 ## Delivery gate and invariants
 
-Start after event, catalog pricing/inventory/promotions, registration, and purchase-limit foundations pass. Reuse Phase 0 `Core::Money`, `Core::BaseService::Result`, `Core::BusinessError`, `Core::CommandResponse`, `Core::Audit::Record`, and `Core::Outbox::Publish`. Reuse Phase 2 `catalog_exchange_rates` and `Catalog::ExchangeRate`; do not recreate them. Remove inferior development-only order/payment structures rather than dual-writing.
+Start after event, catalog pricing/inventory/promotions, registration/purchase-limit, and Commercial foundations pass. Reuse Phase 0 `Core::Money`, `Core::BaseService::Result`, `Core::BusinessError`, `Core::CommandResponse`, `Core::Audit::Record`, and `Core::Outbox::Publish`. Reuse Phase 2 `catalog_exchange_rates` and `Catalog::ExchangeRate`; do not recreate them. Consume `Commercial::ResolveCharges`, immutable component evidence, payer selections, volume usage, entitlement, and subsidy-budget contracts; do not recreate platform-fee calculation in Orders. Remove inferior development-only order/payment structures rather than dual-writing.
 
 - One order has one event and one buyer.
 - Charge currency is selected before persistence and never changes.
 - Price, FX, fee, adjustment, and refund-policy snapshots become immutable at `pending_payment`.
+- Every platform/service/processing/subsidy/resale fee adjustment references the exact immutable Commercial component/version; configuration failure never becomes an implicit zero fee.
 - Checkout expires ten minutes after creation; refresh/retry/provider switching never extends it.
 - At most three sequential attempts and exactly one current attempt per order.
 - At most one succeeded payment is accepted; every other succeeded charge is fully reversed.
@@ -42,7 +43,6 @@ Start after event, catalog pricing/inventory/promotions, registration, and purch
 
 - Create `app/services/orders/quote.rb`
 - Create `app/services/orders/largest_remainder_allocator.rb`
-- Create `app/services/orders/processing_fee_calculator.rb`
 - Create `app/services/orders/build_quote.rb`
 - Create `app/services/orders/create_checkout.rb`
 - Create `app/services/orders/restart_checkout.rb`
@@ -66,7 +66,7 @@ Start after event, catalog pricing/inventory/promotions, registration, and purch
 - Create `app/policies/orders/order_policy.rb`
 - Create serializers under `app/serializers/orders/`
 - Create jobs under `app/jobs/orders/`: `process_payment_event_job.rb`, `enter_settlement_grace_job.rb`, `expire_settlement_grace_job.rb`, `reconcile_payment_job.rb`
-- Modify `config/routes.rb` with `/api/v1` scope mapped to domain controllers
+- Modify `config/routes.rb` with root routes mapped to domain controllers; URL versioning remains deferred by the master roadmap
 
 ### Tests
 
@@ -77,39 +77,46 @@ Start after event, catalog pricing/inventory/promotions, registration, and purch
 - Create job tests under `test/jobs/orders/`
 - Create concurrency tests under `test/integration/orders/`
 
-## Task 1: Add deterministic quote and fee primitives
+## Task 1: Add deterministic order-quote and allocation primitives
 
 **Files:**
 - Create: `app/services/orders/quote.rb`
 - Create: `app/services/orders/largest_remainder_allocator.rb`
-- Create: `app/services/orders/processing_fee_calculator.rb`
-- Test: `test/services/orders/processing_fee_calculator_test.rb`
+- Test: `test/services/orders/quote_test.rb`
 - Test: `test/services/orders/largest_remainder_allocator_test.rb`
 
-- [ ] **Step 1: RED — write fee rounding and allocation tests**
+- [ ] **Step 1: RED — write immutable Commercial-evidence and allocation tests**
 
 ```ruby
 # frozen_string_literal: true
 
 require "test_helper"
 
-class Orders::ProcessingFeeCalculatorTest < ActiveSupport::TestCase
-  test "calculates fixed plus percentage with half-up rounding" do
-    result = Orders::ProcessingFeeCalculator.call(
-      basis_minor: 1_005, fixed_amount_minor: 20, rate_bps: 250,
-      minimum_minor: nil, maximum_minor: nil
+class Orders::QuoteTest < ActiveSupport::TestCase
+  test "preserves exact immutable commercial results without recalculating them" do
+    commercial_result = Commercial::ChargeResult.new(
+      component_id: SecureRandom.uuid,
+      schedule_version_id: SecureRandom.uuid,
+      component_type: "platform_commission",
+      calculation_type: "percentage",
+      charged_to: "organizer",
+      funded_by: "organizer",
+      currency: "ETB",
+      amount_minor: 250,
+      basis_type: "eligible_order_subtotal",
+      basis_minor: 10_000,
+      rate_bps: 250,
+      fixed_amount_minor: nil,
+      minimum_minor: nil,
+      maximum_minor: nil,
+      refund_policy: "nonrefundable",
+      evidence: { resolution_layer: "platform_default" }.freeze
     )
 
-    assert_equal 45, result.amount_minor
-    assert_equal 1_005, result.basis_minor
-  end
+    quote = Orders::Quote.new(commercial_results: [ commercial_result ], expires_at: 10.minutes.from_now)
 
-  test "clamps optional bounds" do
-    result = Orders::ProcessingFeeCalculator.call(
-      basis_minor: 100_000, fixed_amount_minor: 0, rate_bps: 100,
-      minimum_minor: 10, maximum_minor: 50
-    )
-    assert_equal 50, result.amount_minor
+    assert_same commercial_result, quote.commercial_results.first
+    assert quote.commercial_results.frozen?
   end
 end
 ```
@@ -117,43 +124,27 @@ end
 - [ ] **Step 2: Run tests and verify RED**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/orders/processing_fee_calculator_test.rb test/services/orders/largest_remainder_allocator_test.rb
+PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/orders/quote_test.rb test/services/orders/largest_remainder_allocator_test.rb
 ```
 
-Expected: FAIL because the calculation classes do not exist.
+Expected: FAIL because the Orders quote/allocation values do not exist. Commercial calculation already passes its own phase gate.
 
-- [ ] **Step 3: GREEN — implement narrow immutable results and reuse `Core::Money`**
+- [ ] **Step 3: GREEN — implement narrow immutable Orders results and reuse `Core::Money`**
 
 ```ruby
 # frozen_string_literal: true
 
 module Orders
-  class ProcessingFeeCalculator
-    Result = Data.define(:amount_minor, :basis_minor, :fixed_amount_minor, :rate_bps, :minimum_minor, :maximum_minor)
-
-    def self.call(...) = new(...).call
-
-    def initialize(basis_minor:, fixed_amount_minor:, rate_bps:, minimum_minor:, maximum_minor:)
-      @basis = Integer(basis_minor)
-      @fixed = Integer(fixed_amount_minor)
-      @bps = Integer(rate_bps)
-      @minimum = minimum_minor&.then { Integer(_1) }
-      @maximum = maximum_minor&.then { Integer(_1) }
-    end
-
-    def call
-      percentage = (BigDecimal(@basis.to_s) * @bps / 10_000).round(0, :half_up).to_i
-      amount = @fixed + percentage
-      amount = [amount, @minimum].max if @minimum
-      amount = [amount, @maximum].min if @maximum
-      Result.new(amount_minor: amount, basis_minor: @basis, fixed_amount_minor: @fixed,
-        rate_bps: @bps, minimum_minor: @minimum, maximum_minor: @maximum)
+  Quote = Data.define(:commercial_results, :expires_at) do
+    def initialize(commercial_results:, expires_at:)
+      super(commercial_results: commercial_results.to_a.freeze, expires_at:)
+      freeze
     end
   end
 end
 ```
 
-Implement largest-remainder allocation with rational shares, floor, then remaining units by descending remainder and ascending stable ID. `Orders::Quote` composes `Core::Money` values with product/FX/fee-source/expiry evidence and does not duplicate currency arithmetic.
+Implement largest-remainder allocation with rational shares, floor, then remaining units by descending remainder and ascending stable ID. `Orders::Quote` composes `Core::Money` values with product/FX/Commercial/expiry evidence and does not duplicate currency or fee calculation.
 
 - [ ] **Step 4: Run tests and verify GREEN**
 
@@ -183,7 +174,7 @@ git commit -m "feat(orders): add deterministic pricing primitives"
 
 - [ ] **Step 1: RED — write model and direct PostgreSQL constraint tests**
 
-Prove total reconciliation, nonnegative caches, item/event ownership, adjustment/order ownership, allowlisted statuses/types/refund policies, paired source fields, currency consistency, immutable snapshots, and STI-disabled `type` behavior.
+Prove total reconciliation, nonnegative caches, item/event ownership, adjustment/order ownership, Commercial `subsidy`/`resale_platform_fee` types, allowlisted statuses/refund policies/calculation types/bases/funding sources, exact immutable component/version evidence, paired source fields, currency consistency, immutable snapshots, and STI-disabled `type` behavior.
 
 - [ ] **Step 2: Run tests and verify RED**
 
@@ -202,14 +193,14 @@ add_index :orders_orders, %i[buyer_user_id event_id], unique: true,
 add_index :orders_orders, :replaces_order_id, unique: true,
   where: "replaces_order_id IS NOT NULL"
 add_check_constraint :orders_orders,
-  "total_minor = subtotal_minor - discount_minor + fee_minor + tax_minor + adjustment_minor",
+  "total_minor = subtotal_minor - discount_minor - subsidy_minor + fee_minor + tax_minor + adjustment_minor",
   name: "orders_total_reconciles"
 add_check_constraint :orders_order_items, "quantity > 0", name: "order_item_quantity_positive"
 add_check_constraint :orders_order_adjustments,
   "(source_type IS NULL) = (source_id IS NULL)", name: "order_adjustment_source_pair"
 ```
 
-Use composite `(id,order_id)` uniqueness and a composite FK for item-scoped adjustments. Add sign/type/refund/currency/fee-bound checks. `Orders::OrderAdjustment` sets `self.inheritance_column = nil`. Do not recreate catalog FX tables.
+Use composite `(id,order_id)` uniqueness and a composite FK for item-scoped adjustments. Add sign/type/refund/currency/fee-bound checks plus `calculation_type`, `basis_type`, `funded_by`, and allowlisted `resolution_evidence`; Commercial sources reference the exact immutable component/version contract, never a mutable schedule identity. Subsidies are explicit negative platform-funded offsets. `Orders::OrderAdjustment` sets `self.inheritance_column = nil`. Do not recreate catalog FX or Commercial tables.
 
 - [ ] **Step 4: Run tests and verify GREEN**
 
@@ -227,7 +218,7 @@ Expected: PASS and named constraints appear in schema.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add db/migrate db/schema.rb app/models/orders test/models/orders test/fixtures/orders
+git add db/migrate db/structure.sql app/models/orders test/models/orders test/fixtures/orders
 git commit -m "feat(orders): add immutable order aggregate"
 ```
 
@@ -242,7 +233,7 @@ git commit -m "feat(orders): add immutable order aggregate"
 
 - [ ] **Step 1: RED — test multi-currency snapshots and last-unit concurrency**
 
-Cover fixed override, Phase 2 automatic FX conversion, expired quote, unsupported currency, immutable order/item FX evidence, shared ten-minute holds, package versus admission capacity, promotion reservation, zero-total fulfillment, and two buyers racing for the last unit.
+Cover fixed price override, Phase 2 automatic FX conversion, expired quote, unsupported currency, immutable order/item FX evidence, Commercial event/organization/program/default component inheritance, allowed payer selection, explicit zero versus failure, exact Commercial source snapshots, shared ten-minute inventory/promotion/subsidy holds, package versus admission capacity, promotion reservation, zero-total fulfillment, and two buyers racing for the last inventory or subsidy-budget unit.
 
 - [ ] **Step 2: Run tests and verify RED**
 
@@ -254,7 +245,7 @@ Expected: FAIL because commands do not exist.
 
 - [ ] **Step 3: GREEN — implement one locked transaction**
 
-`Orders::CreateCheckout < Core::BaseService` validates quote/provider-compatible currency, locks inventories then physical dates by sorted UUID, creates order/items/adjustments, reserves package stock and attendee capacity, reserves promotion, reconciles totals, and calls `Core::Outbox::Publish` for durable effects. Return `success(order)`. Expected failures use:
+`Orders::CreateCheckout < Core::BaseService` validates quote/provider-compatible currency, locks inventories then physical dates and Commercial subsidy budgets by the shared deterministic order, calls `Commercial::ResolveCharges`, creates order/items/exact commercial adjustments, reserves package stock, attendee capacity, promotion, and subsidy funding, reconciles buyer totals plus organizer settlement evidence, and calls `Core::Outbox::Publish` for durable effects. Return `success(order)`. Expected failures use:
 
 ```ruby
 failure Core::BusinessError.new(
@@ -265,7 +256,7 @@ failure Core::BusinessError.new(
 )
 ```
 
-Use the same typed contract for stale quote, unsupported currency, promotion unavailable, and active checkout. Do not rescue broken database invariants.
+Use the same typed contract for stale quote, unsupported currency, promotion unavailable, active checkout, missing/ambiguous commercial configuration, forbidden payer selection, and exhausted subsidy funding. Do not rescue broken database invariants and never convert commercial resolution failure into zero fees.
 
 - [ ] **Step 4: Run tests and verify GREEN**
 
@@ -340,7 +331,7 @@ module Orders
 end
 ```
 
-Routes use `scope "/api/v1", module: :orders`. Restart takes `pg_advisory_xact_lock(buyer_user_id,event_id)`, locks old order/inventory, checks rolling count, and atomically releases/replaces. Pass every `Core::BaseService::Result` to foundation `render_service_result`; do not create a second renderer.
+Routes remain at the root and map to `Orders::` controllers; URL versioning is deferred by the master roadmap. Restart takes `pg_advisory_xact_lock(buyer_user_id,event_id)`, locks old order/inventory/commercial reservations in the shared order, checks rolling count, and atomically releases/replaces. Pass every `Core::BaseService::Result` to foundation `render_service_result`; do not create a second renderer.
 
 - [ ] **Step 4: Run tests and verify GREEN**
 
@@ -370,7 +361,7 @@ git commit -m "feat(api): expose authorized checkout commands"
 
 - [ ] **Step 1: RED — test database and adapter invariants**
 
-Test attempt 1..3, unique attempt/provider keys/reference, one current attempt, one accepted payment, amount/currency equality, fee triple, grace 3..15 minutes, event dedupe, and canonical success/failure/cancelled/unknown/timeout responses.
+Test attempt 1..3, unique attempt/provider keys/reference, one current attempt, one accepted payment, amount/currency equality, immutable Commercial signature equality, same-signature cross-provider retry, `commercial_requote_required` when provider/method would change any buyer/organizer fee, subsidy, payer, currency, or refund policy, fee triple, grace 3..15 minutes, event dedupe, and canonical success/failure/cancelled/unknown/timeout responses.
 
 - [ ] **Step 2: Run tests and verify RED**
 
@@ -412,7 +403,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add db/migrate db/schema.rb app/models/orders app/services/payments test/models/orders test/services/payments test/fixtures/orders
+git add db/migrate db/structure.sql app/models/orders app/services/payments test/models/orders test/services/payments test/fixtures/orders
 git commit -m "feat(payments): add canonical payment attempts"
 ```
 
