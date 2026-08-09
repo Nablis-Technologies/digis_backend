@@ -15,3 +15,8 @@
   idempotency, immutability, or authorization boundaries). Avoid restating
   obvious code; add method comments only where the implementation rationale is
   not self-evident.
+
+- Before starting a planned task, use the approved canonical plan under
+  `docs/superpowers/plans/` as the specification. Do not create a duplicate
+  design or implementation plan when that task already has clear scope and
+  acceptance criteria; resolve only genuine dependency ambiguities.
