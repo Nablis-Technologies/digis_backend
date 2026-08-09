@@ -37,3 +37,11 @@ production:
     class: Ticketing::ConsentReminderJob
     queue: default
     schedule: every day at 9am
+  offer_waitlisted_registrations:
+    class: Ticketing::OfferWaitlistJob
+    queue: default
+    schedule: every minute
+  expire_waitlist_offers:
+    class: Ticketing::ExpireWaitlistOffersJob
+    queue: default
+    schedule: every minute
