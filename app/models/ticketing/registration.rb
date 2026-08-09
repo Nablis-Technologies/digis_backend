@@ -28,6 +28,12 @@ module Ticketing
     has_many :form_submissions,
              class_name: "Ticketing::RegistrationFormSubmission",
              dependent: :restrict_with_exception
+    has_many :consent_requirements,
+             class_name: "Ticketing::RegistrationConsentRequirement",
+             dependent: :restrict_with_exception
+    has_many :consents,
+             class_name: "Ticketing::RegistrationConsent",
+             dependent: :restrict_with_exception
     has_many :retention_holds,
              class_name: "Core::DataRetentionHold",
              dependent: :restrict_with_exception

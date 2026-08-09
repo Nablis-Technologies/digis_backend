@@ -2,8 +2,8 @@
 
 module Ticketing
   module Registrations
-    # Atomically records a validated registration and its immutable form
-    # evidence. It intentionally stops before consent, inventory, or issuance.
+    # Atomically records a validated registration, immutable form evidence, and
+    # exact-version consent requirements. Inventory and issuance remain downstream.
     class Submit < Core::BaseService
       class Halt < StandardError
         attr_reader :result
@@ -115,6 +115,11 @@ module Ticketing
           submitted_at: Time.current
         )
         unwrap(Ticketing::Forms::PersistSubmission.call(registration:, schema:, submission: submission.to_h, actor:))
+        unwrap(Ticketing::Consent::BuildRequirements.call(
+          registration:,
+          acceptances: submission.consents,
+          actor: identity.user
+        ))
         registration
       end
 
@@ -154,6 +159,7 @@ module Ticketing
           admissions_per_unit: locked_ticket_type.admissions_per_unit,
           selected_event_date_id: submission.selected_event_date_id.to_s.presence,
           answers: canonical_value(Array(submission.answers)),
+          consents: canonical_value(Array(submission.consents)),
           audience_proof: canonical_value(audience_proof.compact_blank)
         }
 
