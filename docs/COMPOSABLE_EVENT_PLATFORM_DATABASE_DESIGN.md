@@ -420,7 +420,7 @@ Launch forms may collect encrypted dietary and accessibility information with sh
 
 Only primary-organization owners/admins, active event managers, and platform administrators may view authorized answer fields. Event staff and scanners never receive registration answers or consent evidence. Dietary/accessibility fields require the narrower operational permission defined for that event.
 
-Exports are field-allowlisted, audited, encrypted at rest, short-lived, and deleted automatically. The export request row remains as a payload-free audit tombstone after the file expires. Organizers cannot export erased fields, hidden consent evidence, or data outside the platform retention policy.
+Exports use a server-owned field registry, explicit registration/admission row modes, session-bound reauthentication, retention-capped expiry, encrypted private storage, and source-erasure invalidation. Purge clears selectors and filters and retains only digest/audit evidence as a payload-free tombstone. Organizers cannot export erased fields, hidden consent evidence, or data outside the platform retention policy.
 
 ### 2.48 Resale is an organizer-controlled marketplace, not a paid transfer
 
@@ -1783,27 +1783,143 @@ Exactly one of event, registration, or user scope is present. An active hold has
 
 Retention never rewrites commercial truth. Orders, payments, refunds, ledger records, consent evidence, and security logs follow their own policy/legal categories; erasing an ordinary answer does not delete a registration, ticket, scan, or financial record.
 
-### 8.4.4 `ticketing_attendee_exports`
+### 8.4.4 `core_reauthentication_proofs`
 
-Audited request for a temporary generated attendee-data file.
+One short-lived, single-use proof that the currently authenticated user recently
+completed a purpose-specific factor.
+
+| Column | Type | Rules |
+|---|---|---|
+| `user_id` | UUID | Required FK to current authenticated user |
+| `session_jti_digest` | char(64) | Required HMAC-SHA-256 binding to current access session |
+| `purpose` | string | `attendee_export_request` or `attendee_export_download` |
+| `factor_type` | string | Launch value `password` |
+| `token_digest` | char(64) | Required unique HMAC-SHA-256 digest; raw proof returned once |
+| `issued_at` | timestamptz | Required |
+| `expires_at` | timestamptz | Required, exactly five minutes after issue |
+| `consumed_at` | timestamptz | Optional, written by one atomic consume operation |
+| timestamps | timestamptz | Required |
+
+Issuance is authenticated, verifies `current_user.authenticate(password)`, and
+binds to the memoized decoded JWT JTI. Consumption rechecks active user/session,
+purpose, expiry, and unused state under one conditional update. Invalid, expired,
+wrong-session, and consumed proofs share one non-oracular error. Raw passwords,
+proofs, session JTIs, and their digests never enter logs, audits, exports, or URLs.
+Cache-backed throttling allows five failed checks per user/session per 15 minutes
+and 30 issuance attempts per IP per hour, using purpose-separated HMAC counter
+keys and no attacker-triggerable global account lockout.
+
+### 8.4.5 `ticketing_attendee_exports`
+
+Audited request for one temporary generated attendee-data file. The canonical
+workflow and fixed limits are defined in
+`docs/superpowers/specs/2026-08-09-private-attendee-exports-design.md`.
 
 | Column | Type | Rules |
 |---|---|---|
 | `event_id` | UUID | Required FK |
-| `requested_by_id` | UUID | Required FK to primary-org owner/admin, event manager, or platform administrator |
-| `status` | string | `pending`, `processing`, `ready`, `expired`, or `failed` |
-| `field_keys` | jsonb | Required allowlisted field/question keys authorized for this requester |
-| `filters` | jsonb | Required allowlisted event/product/date/status filters; default `{}` |
-| `row_count` | integer | Optional nonnegative result count |
-| `file_sha256` | char(64) | Optional; required while ready |
-| `expires_at` | timestamptz | Required short platform-controlled expiry |
-| `completed_at` | timestamptz | Optional |
-| `last_downloaded_at` | timestamptz | Optional audit projection |
-| `idempotency_key` | string | Required unique request key |
-| `failure_code` | string | Optional scrubbed controlled code |
+| `requested_by_id` | UUID | Required FK to authorized requester |
+| `status` | string | `pending`, `processing`, `ready`, `failed`, `expiring`, or `expired` |
+| `row_mode` | string | `registration` or `admission` |
+| `format_version` | string | Launch value `csv_v1` |
+| `field_keys` | jsonb | Normalized selector array, max 100; required before and null after tombstoning |
+| `filters` | jsonb | Bounded ticket-type/date/status object; required before and null after tombstoning |
+| `field_set_digest`, `filter_digest` | char(64) | Required versioned HMAC-SHA-256 request evidence retained after expiry |
+| `reason_code` | string | Required controlled audit reason |
+| `data_cutoff_at` | timestamptz | Required immutable upper bound for source-row existence |
+| `row_count` | integer | Optional nonnegative; required while ready/after completion |
+| `file_sha256` | char(64) | Optional; required while ready and retained in tombstone |
+| `idempotency_key_digest` | char(64) | Required unique HMAC of operation namespace, requester, and HTTP idempotency key |
+| `request_fingerprint` | char(64) | Required canonical HMAC of actor/event/mode/fields/filters/reason |
+| `digest_key_version` | string | Required platform HMAC-key version for retained request digests |
+| `processing_started_at` | timestamptz | Required only while processing |
+| `attempt_count` | integer | Required `0..3` |
+| `ready_at`, `failed_at`, `expiring_at`, `expired_at` | timestamptz | State-coupled lifecycle evidence |
+| `expires_at` | timestamptz | Required; max request + 24 hours and capped to earliest included retention deadline |
+| `last_download_authorized_at` | timestamptz | Optional URL-issuance projection, not completed-download proof |
+| `failure_code` | string | Optional scrubbed controlled code; cleared in tombstone |
+| `lock_version` | integer | Required optimistic lock counter |
 | timestamps | timestamptz | Required |
 
-The model has one private Active Storage attachment encrypted at rest. Generation reauthorizes every requested field, excludes erased/expired data, and applies sensitivity-specific permissions. Download reauthorizes again and writes `Core::AuditLog`; signed download URLs are short-lived. Expiry purges the blob and leaves this payload-free row. Event staff/scanners cannot request, view, or download exports.
+`registration` mode emits one row per registration and forbids slot fields.
+`admission` mode emits one row per immutable package-unit/admission-position and
+may repeat registration fields. Built-ins come only from a server registry;
+question selectors use `question:<registration_form_id>:<question_key>` and may
+merge historical versions only when a canonical semantic fingerprint matches.
+That fingerprint covers key, type, response scope, sensitivity, normalized
+label/help text, requiredness, canonically ordered option keys/labels, and
+canonically ordered validation rules; it excludes position, timestamps, row IDs,
+and version IDs. Contact, dietary, and accessibility fields have independent
+permissions.
+
+Launch contact selectors are `registration_user_email` and
+`registration_user_phone`, sourced from the canonical `registration.user` when
+generation runs. Admission rows repeat those registration-user values and never
+represent a companion or assigned slot subject. Assigned-attendee contact fields
+are deferred until admission-slot assignment exists with separate authorization,
+retention, and semantic rules.
+
+Fingerprint normalization uses Unicode NFC, trims/collapses whitespace, sorts
+options by immutable key, recursively sorts validation-object keys, and preserves
+semantically meaningful array order while sorting set-like
+`allowed_option_keys`. Reordering options or questions alone is compatible;
+changing wording, option meaning, requiredness, or validation is not.
+Default role grants give all export permissions to `SUPER_ADMIN`/`ADMIN`,
+request/contact to `ORGANIZER`, and none to `CORE_ADMIN`/`SUPPORT`/`USER`;
+dietary/accessibility require an explicit narrow grant. Event manageability and
+permission are both required and never widen one another.
+
+Launch filters are bounded arrays of at most 100 event-owned ticket-type IDs,
+at most 100 event-owned access-date IDs, and registration statuses from the
+canonical registration state set. Access-date matching includes choose-one
+selected dates and fixed/multi-day product-access intersections. Values within a
+filter use OR; different filter keys use AND. Controlled reasons are `event_operations`,
+`attendee_communication`, `dietary_accommodation`,
+`accessibility_accommodation`, `customer_support`, and `legal_compliance`;
+selecting a reason never grants permission to its corresponding data.
+
+The model has `has_one_attached :file, service: :private_exports`. Generation is
+outbox-triggered, lease/retry safe, bounded, deterministic `csv_v1`, and protects
+spreadsheet formula prefixes. Exact idempotent replay returns the existing row
+after current authentication/authorization and fingerprint comparison, without
+requiring, reading, validating, or consuming another proof. Controllers therefore
+pass proof as optional input instead of requiring it before idempotency resolution.
+A genuinely new request requires and consumes its session-bound proof, then
+creates the row, audit, and outbox event in one transaction.
+
+`data_cutoff_at` bounds registration creation and append-only answer/revision
+content; it is not an impossible long-lived database snapshot. Mutable
+registration state, canonical registration-user contact, and current
+authorization are evaluated when generation runs.
+Plain SHA-256 is used for file integrity only; low-entropy selectors, filters,
+idempotency keys, and request fingerprints use purpose-separated, versioned
+platform HMAC keys. Referenced historical key versions remain available for the
+retention life of their tombstones.
+
+Every answer-erasure transaction first changes the event's pending, processing,
+ready, or failed exports to `expiring` and publishes one idempotent
+`ticketing.attendee_export.purge_requested` outbox event per export. New download
+authorization is therefore blocked before ciphertext removal commits. The purge
+worker removes the blob, clears selectors/filters, and then leaves an `expired`
+digest-only tombstone. Download authorization is a POST command requiring a fresh
+proof; it audits issuance and returns a bearer URL capped to two minutes and the
+remaining artifact lifetime. An already-issued provider URL has the documented
+bounded bearer/deletion-propagation limitation.
+
+Export request/replay, claim/reclaim, finalization, download authorization,
+invalidation, expiry transitions, and source-answer erasure all acquire the same
+transaction-scoped advisory lock derived from
+`("registration-privacy-event", event_id)` before any export row lock. Retention
+also keeps its existing scope locks for legal-hold/erasure races. Multi-event
+erasure acquires event locks in ascending event-ID order; invalidation then locks
+exports in ascending export-ID order. CSV generation/upload runs outside locks.
+ID-driven workers may read immutable `event_id` first, then acquire the event
+lock and lock/reload the export; they never hold an export row lock while waiting
+for the event lock.
+This closes the late-request invalidation gap: a request either commits before
+erasure and is invalidated, or waits and sees post-erasure data. Per-export states
+still decide finalization-first versus invalidation-first races. Independent-
+connection tests enforce both directions and the global lock order.
 
 ### 8.5 `ticketing_tickets`
 
@@ -3411,7 +3527,7 @@ At minimum:
 - Per-slot personal consent links to canonical/shadow users and stable slot coordinates; only completion state—not answers or document content—may influence credential activation.
 - Retention purge jobs use bounded batches, row locks, legal-hold rechecks, and payload-free audit/metrics; organizers cannot override platform retention or legal holds.
 - Answer revisions and consent withdrawals receive the same encryption, retention, legal-hold, and authorization controls as their originals; correction never becomes a retention-extension mechanism.
-- Attendee exports require recent reauthentication, field-level authorization, reason/audit metadata, short expiry, encrypted private storage, and deterministic artifact deletion. Export URLs are never public or reusable after expiry.
+- Attendee exports require session-bound recent reauthentication, explicit row mode, registry-owned field authorization, reason/digest audit evidence, retention-capped expiry, encrypted private storage, source-erasure invalidation, and deterministic tombstoning. Newly issued URLs are private bearer capabilities capped to two minutes and never beyond export expiry; an already-issued provider URL retains the documented bounded deletion-propagation limitation.
 - Store separate keyed digests only for necessary lookup/deduplication.
 - Access-code and invitation tokens are never logged in plaintext.
 - Promo codes use event-namespaced keyed digests, are never logged in plaintext, and are not treated as admission authorization.
