@@ -3468,6 +3468,193 @@
                   "response": []
                 },
                 {
+                  "name": "Registration Workflows",
+                  "item": [
+                    {
+                      "name": "Approve Registration",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Idempotency-Key",
+                            "value": "{{idempotencyKey}}",
+                            "type": "text"
+                          }
+                        ],
+                        "url": "{{baseUrl}}/registrations/{{registrationId}}/approve"
+                      },
+                      "description": "Approve a pending manual registration as an authorized event manager. Automatic approval may also be recorded by the internal workflow. Reuse the same Idempotency-Key only for the identical decision."
+                    },
+                    {
+                      "name": "Reject Registration",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Idempotency-Key",
+                            "value": "{{idempotencyKey}}",
+                            "type": "text"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"reason\": \"Capacity review\"\n}",
+                          "options": {
+                            "raw": {
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": "{{baseUrl}}/registrations/{{registrationId}}/reject"
+                      },
+                      "description": "Reject a pending manual registration with an optional attendee-visible reason."
+                    },
+                    {
+                      "name": "Reconsider Registration",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Idempotency-Key",
+                            "value": "{{idempotencyKey}}",
+                            "type": "text"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"decision\": \"approve\",\n  \"reason\": \"Capacity restored\"\n}",
+                          "options": {
+                            "raw": {
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": "{{baseUrl}}/registrations/{{registrationId}}/reconsider"
+                      },
+                      "description": "Replace a rejected registration's effective decision through an audited manager-only reconsideration."
+                    },
+                    {
+                      "name": "Enqueue Registration On Waitlist",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Idempotency-Key",
+                            "value": "{{idempotencyKey}}",
+                            "type": "text"
+                          }
+                        ],
+                        "url": "{{baseUrl}}/registrations/{{registrationId}}/enqueue_waitlist"
+                      },
+                      "description": "Keep the registration as the queue entry when waitlisting is enabled. Registrants may enqueue their own registration; organizers may enqueue within their event scope."
+                    },
+                    {
+                      "name": "Accept Waitlist Offer",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Idempotency-Key",
+                            "value": "{{idempotencyKey}}",
+                            "type": "text"
+                          }
+                        ],
+                        "url": "{{baseUrl}}/registrations/{{registrationId}}/accept_waitlist_offer"
+                      },
+                      "description": "Accept an active offer as the verified registrant. Free offers confirm immediately; paid offers return to the ordinary payment-order action."
+                    },
+                    {
+                      "name": "Offer Next Waitlisted Registration",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Idempotency-Key",
+                            "value": "{{idempotencyKey}}",
+                            "type": "text"
+                          }
+                        ],
+                        "url": "{{baseUrl}}/ticket_types/{{ticketTypeId}}/offer_next"
+                      },
+                      "description": "Promote the oldest complete waitlisted party that fits available inventory. Concurrent workers use row locking and do not split a party."
+                    }
+                  ]
+                },
+                {
+                  "name": "Issue Complimentary Ticket",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{accessToken}}",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Idempotency-Key",
+                        "value": "{{idempotencyKey}}",
+                        "type": "text"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"ticket_type_id\": \"{{ticketTypeId}}\",\n  \"phone\": \"251911000003\",\n  \"package_quantity\": 1,\n  \"reason\": \"accessibility\",\n  \"answers\": []\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{baseUrl}}/events/{{eventId}}/complimentary_tickets"
+                  },
+                  "description": "Issue a normal confirmed zero-charge registration to a phone identity. Authorized event managers must provide a controlled reason and idempotency key. The command consumes ordinary package limits, inventory, venue capacity, forms, and consent gates, and creates no order or financial rows."
+                },
+                {
                   "name": "Registration Consents",
                   "item": [
                     {
@@ -3662,6 +3849,11 @@
                 },
                 {
                   "key": "registrationId",
+                  "value": "",
+                  "type": "string"
+                },
+                {
+                  "key": "eventId",
                   "value": "",
                   "type": "string"
                 }
