@@ -20,3 +20,7 @@
   `docs/superpowers/plans/` as the specification. Do not create a duplicate
   design or implementation plan when that task already has clear scope and
   acceptance criteria; resolve only genuine dependency ambiguities.
+
+- Do not infer completion of a phase from a similarly numbered subtask or
+  hardening plan. Re-check the canonical plan's full task list and acceptance
+  gate before advancing to the next phase.
