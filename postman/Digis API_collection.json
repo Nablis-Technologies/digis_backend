@@ -3358,6 +3358,93 @@
               ]
             },
             {
+              "name": "Registrations",
+              "item": [
+                {
+                  "name": "Submit Registration",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{accessToken}}",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Idempotency-Key",
+                        "value": "{{idempotencyKey}}",
+                        "type": "text"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"phone\": \"251911000003\",\n  \"package_quantity\": 1,\n  \"answers\": [\n    {\n      \"question_key\": \"name\",\n      \"value\": \"Ada\"\n    }\n  ]\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/ticket_types/{{ticketTypeId}}/registrations",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "ticket_types",
+                        "{{ticketTypeId}}",
+                        "registrations"
+                      ]
+                    },
+                    "description": "Submit current registration-form answers for the authenticated, verified phone identity. Reuse the same Idempotency-Key only when retrying this exact submission. Automatic free submissions return requires_confirmation; no credential or inventory allocation is created here."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Get Registration",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{accessToken}}",
+                        "type": "text"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/registrations/{{registrationId}}",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "registrations",
+                        "{{registrationId}}"
+                      ]
+                    },
+                    "description": "Get a registration visible to its registrant or an authorized event organizer. Phone-derived identity data and form answers are excluded."
+                  },
+                  "response": []
+                }
+              ],
+              "variable": [
+                {
+                  "key": "ticketTypeId",
+                  "value": "",
+                  "type": "string"
+                },
+                {
+                  "key": "registrationId",
+                  "value": "",
+                  "type": "string"
+                }
+              ]
+            },
+            {
               "name": "Registration Answers",
               "item": [
                 {
