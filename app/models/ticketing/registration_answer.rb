@@ -168,6 +168,8 @@ module Ticketing
 
       expected_category = TEXT_TYPES.include?(question_type_snapshot) ?
         "registration_free_text" : "registration_structured"
+      # Retired policies remain valid only while their existing payload is being
+      # erased; new or live answers must always snapshot an active policy.
       allowed_statuses = persisted? && erased? ? %w[active retired] : [ "active" ]
       return if allowed_statuses.include?(retention_policy.status) &&
                 retention_policy.category == expected_category &&

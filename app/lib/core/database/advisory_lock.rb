@@ -2,13 +2,18 @@
 
 module Core
   module Database
+    # Transaction-scoped PostgreSQL locks used to serialize cross-row commands.
+    # Callers own the global ordering of lock keys; this helper preserves it.
     module AdvisoryLock
       module_function
 
+      # Keep the single-lock API as a shorthand for the ordered multi-lock path.
       def acquire!(*parts)
         acquire_all!(parts)
       end
 
+      # Acquire every key in one statement so no caller can observe a partially
+      # acquired lock set. PostgreSQL releases these locks at transaction end.
       def acquire_all!(*parts_list)
         connection = Core::ApplicationRecord.connection
         raise ArgumentError, "advisory lock requires an open transaction" unless connection.transaction_open?

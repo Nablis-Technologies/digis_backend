@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 module Admin
+  # Holds can pause platform erasure only through platform-admin authority.
   class DataRetentionHoldPolicy < Core::ApplicationPolicy
     def index? = platform_admin?
     def show? = platform_admin?

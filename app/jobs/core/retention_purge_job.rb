@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 module Core
+  # Runs bounded retention batches and gives the scheduler a deterministic
+  # stopping point when fewer than one full batch remains.
   class RetentionPurgeJob < ApplicationJob
     queue_as :default
 
@@ -12,6 +14,8 @@ module Core
       totals = { answers: 0, revisions: 0, consents: 0, skipped: 0, errors: 0, processed: 0 }
 
       MAX_BATCHES.times do
+        # Keep each service call small; the batch command owns row locking and
+        # returns counts that remain safe to aggregate across retries.
         result = Core::Retention::EraseEligibleBatch.call(limit: batch_limit)
         return result if result.failure?
 

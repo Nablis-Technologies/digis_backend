@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 module Admin
+  # Administrative boundary for legal-hold lifecycle commands. Validation,
+  # idempotency, locking, and audit evidence remain in the retention services.
   class DataRetentionHoldsController < Admin::ApplicationController
     include Core::Common
     include Core::CommandResponse

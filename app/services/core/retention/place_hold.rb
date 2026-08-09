@@ -2,6 +2,8 @@
 
 module Core
   module Retention
+    # Places one immutable legal hold and records it exactly once for a retry key.
+    # The scope lock makes placement serialize with purge and release commands.
     class PlaceHold < Core::BaseService
       def initialize(actor:, scope:, category: nil, reason_code:, starts_at:, expires_at: nil, idempotency_key:)
         @actor = actor
@@ -18,6 +20,8 @@ module Core
         return failure(unauthorized) unless platform_admin?
 
         DataRetentionHold.transaction do
+          # Lock the affected event, registration, and user scopes before the
+          # idempotency lookup so concurrent commands share one ordering.
           lock_scope!
           existing = DataRetentionHold.lock.find_by(idempotency_key: key)
           return existing_result(existing, key) if existing
@@ -93,6 +97,8 @@ module Core
       end
 
       def lock_scope!
+        # Sorting scope types prevents two commands from acquiring shared locks
+        # in opposite orders when a hold targets multiple scopes.
         keys = scope.sort_by { |type, _id| type.to_s }
           .map { |type, id| [ "retention-scope", type, id ] }
         Core::Database::AdvisoryLock.acquire_all!(*keys)

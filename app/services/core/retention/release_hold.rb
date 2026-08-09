@@ -2,6 +2,8 @@
 
 module Core
   module Retention
+    # Releases a hold without rewriting its placement evidence. Replays are
+    # identified by the audit key rather than by creating another transition.
     class ReleaseHold < Core::BaseService
       def initialize(hold:, actor:, idempotency_key:)
         @hold = hold
@@ -15,6 +17,8 @@ module Core
 
         DataRetentionHold.transaction do
           requested_hold = DataRetentionHold.find(hold.id)
+          # Re-resolve and lock the row after acquiring its shared scope locks;
+          # callers may have supplied a stale hold instance.
           lock_scope!(requested_hold)
           locked_hold = DataRetentionHold.lock.find(requested_hold.id)
           release_audit = ensure_release_key_available!(locked_hold, key)
@@ -74,6 +78,7 @@ module Core
       end
 
       def lock_scope!(locked_hold)
+        # Keep the same scope-type order used by placement and purge commands.
         keys = {
           event: locked_hold.event_id,
           registration: locked_hold.registration_id,

@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 module Admin
+  # Retention policy configuration is platform administration, not organizer
+  # configuration, because it controls deletion of sensitive data.
   class DataRetentionPolicyPolicy < Core::ApplicationPolicy
     def index? = platform_admin?
     def show? = platform_admin?

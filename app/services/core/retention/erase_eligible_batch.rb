@@ -2,6 +2,8 @@
 
 module Core
   module Retention
+    # Erases only due payloads, while preserving structural rows and respecting
+    # legal holds. The batch is bounded so one purge run cannot monopolize locks.
     class EraseEligibleBatch < Core::BaseService
       DEFAULT_BATCH_SIZE = 100
       MAX_BATCH_SIZE = 100
@@ -15,6 +17,8 @@ module Core
         summary = { answers: 0, revisions: 0, consents: 0, skipped: 0, errors: 0, processed: 0 }
 
         ActiveRecord::Base.transaction do
+          # Select candidates with row locks first, then hold the shared scopes
+          # while rechecking and erasing each payload.
           answers = locked_answers
           remaining = @limit - answers.length
           consents = remaining.positive? ? locked_consents(remaining) : []
@@ -30,6 +34,8 @@ module Core
       private
 
       def locked_answers
+        # SKIP LOCKED lets concurrent purge workers make progress without
+        # duplicating work or waiting behind a slow row.
         ids = Ticketing::RegistrationAnswer
           .joins(:retention_policy, registration_form_submission: :registration)
           .where(erased_at: nil, core_data_retention_policies: { action: "erase_payload" })
@@ -65,6 +71,8 @@ module Core
 
       def process_answer(answer, summary)
         summary[:processed] += 1
+        # A bad row rolls back to its savepoint and is counted without aborting
+        # the rest of the bounded batch.
         ActiveRecord::Base.transaction(requires_new: true) do
           registration = answer.registration_form_submission.registration
           if held?(registration, answer.retention_policy.category)
@@ -111,6 +119,8 @@ module Core
       end
 
       def held?(registration, category, user_ids: [ registration.user_id ])
+        # Recheck inside the write transaction because a hold may be placed after
+        # the candidate query but before the payload update.
         DataRetentionHold
           .where(released_at: nil)
           .where("starts_at <= ?", @at)
@@ -163,6 +173,8 @@ module Core
       end
 
       def lock_candidate_scopes!(records)
+        # Acquire every scope in a stable order before processing candidates to
+        # prevent two purge/hold commands from deadlocking across shared scopes.
         keys = records.flat_map do |record|
            registration = record.is_a?(Ticketing::RegistrationConsent) ? record.registration :
             record.registration_form_submission.registration

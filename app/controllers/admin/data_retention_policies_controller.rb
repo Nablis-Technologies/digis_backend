@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 module Admin
+  # CRUD boundary for versioned platform retention policies. Active policy
+  # immutability and uniqueness are enforced by the model and database.
   class DataRetentionPoliciesController < Admin::ApplicationController
     include Core::Common
     include Core::AuditableController
