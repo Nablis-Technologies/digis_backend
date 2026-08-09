@@ -3361,6 +3361,43 @@
               "name": "Registrations",
               "item": [
                 {
+                  "name": "Discover Registration Consent Requirements",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/public/events/{{eventSlug}}/ticket_types/{{ticketTypeId}}/consent_requirements",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "public",
+                        "events",
+                        "{{eventSlug}}",
+                        "ticket_types",
+                        "{{ticketTypeId}}",
+                        "consent_requirements"
+                      ]
+                    },
+                    "description": "Run before Submit Registration. It records the first required buyer consent's exact version ID and content hash for the seeded registration request. Set ticketTypeId to the seeded Fest General Admission ticket type."
+                  },
+                  "response": [],
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "exec": [
+                          "const requirement = pm.response.json().data.find((item) => item.required && item.acceptance_scope === \"buyer\");",
+                          "pm.expect(requirement, \"required buyer consent\").to.exist;",
+                          "pm.collectionVariables.set(\"consentDocumentVersionId\", requirement.consent_document_version_id);",
+                          "pm.collectionVariables.set(\"consentContentSha256\", requirement.content_sha256);"
+                        ],
+                        "type": "text/javascript"
+                      }
+                    }
+                  ]
+                },
+                {
                   "name": "Submit Registration",
                   "request": {
                     "method": "POST",
@@ -3383,7 +3420,7 @@
                     ],
                     "body": {
                       "mode": "raw",
-                      "raw": "{\n  \"phone\": \"251911000003\",\n  \"package_quantity\": 1,\n  \"answers\": [\n    {\n      \"question_key\": \"name\",\n      \"value\": \"Ada\"\n    }\n  ]\n}",
+                      "raw": "{\n  \"phone\": \"251911000003\",\n  \"package_quantity\": 1,\n  \"answers\": [\n    {\n      \"question_key\": \"name\",\n      \"value\": \"Ada\"\n    }\n  ],\n  \"consents\": [\n    {\n      \"consent_document_version_id\": \"{{consentDocumentVersionId}}\",\n      \"request_uuid\": \"{{$guid}}\",\n      \"idempotency_key\": \"registration-consent-{{$guid}}\",\n      \"acceptance_method\": \"otp\",\n      \"content_sha256\": \"{{consentContentSha256}}\"\n    }\n  ]\n}",
                       "options": {
                         "raw": {
                           "language": "json"
@@ -3401,7 +3438,7 @@
                         "registrations"
                       ]
                     },
-                    "description": "Submit current registration-form answers for the authenticated, verified phone identity. Reuse the same Idempotency-Key only when retrying this exact submission. Automatic free submissions return requires_confirmation; no credential or inventory allocation is created here."
+                    "description": "Run Discover Registration Consent Requirements first to populate the exact required buyer consent fields for the seeded Fest General Admission flow. Submit current registration-form answers for the authenticated, verified phone identity. Reuse the same Idempotency-Key only when retrying this exact submission. Automatic free submissions return requires_confirmation; no credential or inventory allocation is created here."
                   },
                   "response": []
                 },
@@ -3429,12 +3466,154 @@
                     "description": "Get a registration visible to its registrant or an authorized event organizer. Phone-derived identity data and form answers are excluded."
                   },
                   "response": []
+                },
+                {
+                  "name": "Registration Consents",
+                  "item": [
+                    {
+                      "name": "List Registration Consent Requirements",
+                      "request": {
+                        "method": "GET",
+                        "header": [
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          }
+                        ],
+                        "url": {
+                          "raw": "{{baseUrl}}/registrations/{{registrationId}}/consents",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "registrations",
+                            "{{registrationId}}",
+                            "consents"
+                          ]
+                        }
+                      },
+                      "description": "List privacy-safe exact-version consent requirements. Document bodies, hashes, subject IDs, and acceptance evidence are excluded."
+                    },
+                    {
+                      "name": "Accept Registration Consent",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Idempotency-Key",
+                            "value": "{{idempotencyKey}}",
+                            "type": "text"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"request_uuid\": \"{{$guid}}\",\n  \"acceptance_method\": \"otp\",\n  \"content_sha256\": \"{{consentContentSha256}}\"\n}",
+                          "options": {
+                            "raw": {
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/registrations/{{registrationId}}/consents/{{consentRequirementId}}/accept",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "registrations",
+                            "{{registrationId}}",
+                            "consents",
+                            "{{consentRequirementId}}",
+                            "accept"
+                          ]
+                        }
+                      },
+                      "description": "Accept the exact published-or-retired snapshot requirement as the authenticated verified subject. Reuse the same request_uuid and Idempotency-Key only for the identical request."
+                    },
+                    {
+                      "name": "Withdraw Registration Consent",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Idempotency-Key",
+                            "value": "{{idempotencyKey}}",
+                            "type": "text"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"reason_code\": \"attendee_request\"\n}",
+                          "options": {
+                            "raw": {
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/registration_consents/{{registrationConsentId}}/withdrawal",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "registration_consents",
+                            "{{registrationConsentId}}",
+                            "withdrawal"
+                          ]
+                        }
+                      },
+                      "description": "Withdraw optional or required personal consent as the original verified signer. Buyer contract withdrawal is rejected. The response contains completion state only."
+                    }
+                  ],
+                  "variable": [
+                    {
+                      "key": "consentRequirementId",
+                      "value": "",
+                      "type": "string"
+                    },
+                    {
+                      "key": "registrationConsentId",
+                      "value": "",
+                      "type": "string"
+                    },
+                    {
+                      "key": "consentContentSha256",
+                      "value": "",
+                      "type": "string"
+                    }
+                  ]
                 }
               ],
               "variable": [
                 {
                   "key": "ticketTypeId",
                   "value": "",
+                  "type": "string"
+                },
+                {
+                  "key": "eventSlug",
+                  "value": "addis-music-fest-2026",
                   "type": "string"
                 },
                 {
