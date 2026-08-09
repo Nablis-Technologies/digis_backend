@@ -35,6 +35,21 @@ class AddImmutabilityTriggers < ActiveRecord::Migration[8.1]
       LANGUAGE plpgsql
       AS $$
       BEGIN
+        IF TG_OP = 'INSERT' THEN
+          IF NEW.status = 'published' AND (NEW.published_by_id IS NULL OR NEW.published_at IS NULL) THEN
+            RAISE EXCEPTION 'published consent versions require publication metadata'
+              USING ERRCODE = '40001';
+          END IF;
+          IF NEW.status = 'draft' AND (NEW.published_by_id IS NOT NULL OR NEW.published_at IS NOT NULL) THEN
+            RAISE EXCEPTION 'draft consent versions cannot have publication metadata'
+              USING ERRCODE = '40001';
+          END IF;
+          IF NEW.status = 'retired' THEN
+            RAISE EXCEPTION 'consent versions must be published before retirement'
+              USING ERRCODE = '40001';
+          END IF;
+          RETURN NEW;
+        END IF;
         IF OLD.status = 'draft' THEN
           RETURN OLD;
         END IF;
@@ -51,10 +66,39 @@ class AddImmutabilityTriggers < ActiveRecord::Migration[8.1]
       LANGUAGE plpgsql
       AS $$
       BEGIN
-        IF OLD.status = 'draft' THEN
+        IF TG_OP = 'INSERT' THEN
+          IF NEW.status = 'published' AND (NEW.published_by_id IS NULL OR NEW.published_at IS NULL) THEN
+            RAISE EXCEPTION 'published consent versions require publication metadata'
+              USING ERRCODE = '40001';
+          END IF;
+          IF NEW.status = 'draft' AND (NEW.published_by_id IS NOT NULL OR NEW.published_at IS NOT NULL) THEN
+            RAISE EXCEPTION 'draft consent versions cannot have publication metadata'
+              USING ERRCODE = '40001';
+          END IF;
+          IF NEW.status = 'retired' THEN
+            RAISE EXCEPTION 'consent versions must be published before retirement'
+              USING ERRCODE = '40001';
+          END IF;
           RETURN NEW;
         END IF;
-        IF (OLD.body, OLD.content_sha256, OLD.title, OLD.required,
+        IF OLD.status = 'draft' THEN
+          IF NEW.status NOT IN ('draft', 'published') THEN
+            RAISE EXCEPTION 'consent version status must advance from draft to published'
+              USING ERRCODE = '40001';
+          END IF;
+          IF NEW.status = 'published' AND (NEW.published_by_id IS NULL OR NEW.published_at IS NULL) THEN
+            RAISE EXCEPTION 'published consent versions require publication metadata'
+              USING ERRCODE = '40001';
+          END IF;
+          IF NEW.status = 'draft' AND (NEW.published_by_id IS NOT NULL OR NEW.published_at IS NOT NULL) THEN
+            RAISE EXCEPTION 'draft consent versions cannot have publication metadata'
+              USING ERRCODE = '40001';
+          END IF;
+          RETURN NEW;
+        END IF;
+        IF (OLD.status = 'published' AND NEW.status NOT IN ('published', 'retired')) OR
+           (OLD.status = 'retired' AND NEW.status <> 'retired') OR
+           (OLD.body, OLD.content_sha256, OLD.title, OLD.required,
             OLD.acceptance_scope, OLD.consent_document_id, OLD.created_by_id,
             OLD.version, OLD.published_at, OLD.published_by_id)
            IS DISTINCT FROM
@@ -110,7 +154,7 @@ class AddImmutabilityTriggers < ActiveRecord::Migration[8.1]
     execute <<~SQL
       DROP TRIGGER IF EXISTS trg_consent_version_locked ON events_consent_document_versions;
       CREATE TRIGGER trg_consent_version_locked
-        BEFORE UPDATE ON events_consent_document_versions
+        BEFORE INSERT OR UPDATE ON events_consent_document_versions
         FOR EACH ROW EXECUTE FUNCTION lock_consent_version_on_update();
 
       DROP TRIGGER IF EXISTS trg_consent_version_nodelete ON events_consent_document_versions;

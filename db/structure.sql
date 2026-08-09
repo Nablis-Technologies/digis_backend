@@ -11,6 +11,13 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
+-- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: -
+--
+
+COMMENT ON SCHEMA public IS '';
+
+
+--
 -- Name: btree_gist; Type: EXTENSION; Schema: -; Owner: -
 --
 
@@ -189,6 +196,21 @@ CREATE FUNCTION public.legal_version_delete_guard() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.status = 'published' AND (NEW.published_by_id IS NULL OR NEW.published_at IS NULL) THEN
+      RAISE EXCEPTION 'published consent versions require publication metadata'
+        USING ERRCODE = '40001';
+    END IF;
+    IF NEW.status = 'draft' AND (NEW.published_by_id IS NOT NULL OR NEW.published_at IS NOT NULL) THEN
+      RAISE EXCEPTION 'draft consent versions cannot have publication metadata'
+        USING ERRCODE = '40001';
+    END IF;
+    IF NEW.status = 'retired' THEN
+      RAISE EXCEPTION 'consent versions must be published before retirement'
+        USING ERRCODE = '40001';
+    END IF;
+    RETURN NEW;
+  END IF;
   IF OLD.status = 'draft' THEN
     RETURN OLD;
   END IF;
@@ -206,10 +228,39 @@ CREATE FUNCTION public.lock_consent_version_on_update() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-  IF OLD.status = 'draft' THEN
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.status = 'published' AND (NEW.published_by_id IS NULL OR NEW.published_at IS NULL) THEN
+      RAISE EXCEPTION 'published consent versions require publication metadata'
+        USING ERRCODE = '40001';
+    END IF;
+    IF NEW.status = 'draft' AND (NEW.published_by_id IS NOT NULL OR NEW.published_at IS NOT NULL) THEN
+      RAISE EXCEPTION 'draft consent versions cannot have publication metadata'
+        USING ERRCODE = '40001';
+    END IF;
+    IF NEW.status = 'retired' THEN
+      RAISE EXCEPTION 'consent versions must be published before retirement'
+        USING ERRCODE = '40001';
+    END IF;
     RETURN NEW;
   END IF;
-  IF (OLD.body, OLD.content_sha256, OLD.title, OLD.required,
+  IF OLD.status = 'draft' THEN
+    IF NEW.status NOT IN ('draft', 'published') THEN
+      RAISE EXCEPTION 'consent version status must advance from draft to published'
+        USING ERRCODE = '40001';
+    END IF;
+    IF NEW.status = 'published' AND (NEW.published_by_id IS NULL OR NEW.published_at IS NULL) THEN
+      RAISE EXCEPTION 'published consent versions require publication metadata'
+        USING ERRCODE = '40001';
+    END IF;
+    IF NEW.status = 'draft' AND (NEW.published_by_id IS NOT NULL OR NEW.published_at IS NOT NULL) THEN
+      RAISE EXCEPTION 'draft consent versions cannot have publication metadata'
+        USING ERRCODE = '40001';
+    END IF;
+    RETURN NEW;
+  END IF;
+  IF (OLD.status = 'published' AND NEW.status NOT IN ('published', 'retired')) OR
+     (OLD.status = 'retired' AND NEW.status <> 'retired') OR
+     (OLD.body, OLD.content_sha256, OLD.title, OLD.required,
       OLD.acceptance_scope, OLD.consent_document_id, OLD.created_by_id,
       OLD.version, OLD.published_at, OLD.published_by_id)
      IS DISTINCT FROM
@@ -680,6 +731,425 @@ $$;
 
 
 --
+-- Name: ticketing_registration_consent_append_only(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_registration_consent_append_only() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  retention_action text;
+BEGIN
+  IF TG_OP = 'DELETE' OR OLD.erased_at IS NOT NULL OR NEW.erased_at IS NULL OR
+     NEW.erased_at < OLD.accepted_at OR NEW.accepted_by_user_id IS NOT NULL OR
+     NEW.evidence_digest IS NOT NULL OR NEW.idempotency_key_digest IS NOT NULL OR
+     NEW.request_uuid IS NOT NULL OR
+     (NEW.registration_consent_requirement_id, NEW.registration_id, NEW.signer_role,
+      NEW.acceptance_method, NEW.content_sha256, NEW.retention_policy_id,
+      NEW.retain_until, NEW.accepted_at)
+     IS DISTINCT FROM
+     (OLD.registration_consent_requirement_id, OLD.registration_id, OLD.signer_role,
+      OLD.acceptance_method, OLD.content_sha256, OLD.retention_policy_id,
+      OLD.retain_until, OLD.accepted_at) THEN
+    RAISE EXCEPTION 'registration consent evidence is immutable except for payload erasure'
+      USING ERRCODE = '40001';
+  END IF;
+
+  SELECT action INTO retention_action
+    FROM core_data_retention_policies
+   WHERE id = OLD.retention_policy_id;
+  IF retention_action IS DISTINCT FROM 'erase_payload' OR OLD.retain_until IS NULL OR
+     OLD.retain_until > clock_timestamp() THEN
+    RAISE EXCEPTION 'registration consent evidence cannot be erased before its retention policy permits it'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+     FROM core_data_retention_holds hold
+     JOIN ticketing_registrations registration ON registration.id = OLD.registration_id
+     WHERE hold.released_at IS NULL
+        AND hold.starts_at <= clock_timestamp()
+        AND (hold.expires_at IS NULL OR hold.expires_at > clock_timestamp())
+       AND (hold.category IS NULL OR hold.category = 'consent_evidence')
+       AND (hold.registration_id = OLD.registration_id OR
+            hold.event_id = registration.event_id OR
+            hold.user_id = OLD.accepted_by_user_id)
+  ) THEN
+    RAISE EXCEPTION 'registration consent evidence cannot be erased while a retention hold is active'
+      USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: ticketing_registration_consent_evidence_requirement_accepted(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_registration_consent_evidence_requirement_accepted() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+      FROM ticketing_registration_consent_requirements requirement
+     WHERE requirement.id = NEW.registration_consent_requirement_id
+       AND requirement.status = 'accepted'
+  ) THEN
+    RAISE EXCEPTION 'consent evidence requires an accepted consent requirement by transaction commit'
+      USING ERRCODE = '23514';
+  END IF;
+  RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: ticketing_registration_consent_integrity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_registration_consent_integrity() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  requirement_registration_id uuid;
+  requirement_scope text;
+  requirement_subject_id uuid;
+  requirement_status text;
+  requirement_version_id uuid;
+  version_digest text;
+  registration_user_id uuid;
+  signer_verified_at timestamptz;
+  retention_days integer;
+  expected_evidence_digest text;
+BEGIN
+  SELECT requirement.registration_id, requirement.acceptance_scope,
+         requirement.subject_user_id, requirement.status,
+         requirement.consent_document_version_id,
+         registration.user_id, signer.verified_at
+    INTO requirement_registration_id, requirement_scope, requirement_subject_id,
+         requirement_status, requirement_version_id, registration_user_id, signer_verified_at
+    FROM ticketing_registration_consent_requirements requirement
+    JOIN ticketing_registrations registration ON registration.id = requirement.registration_id
+    JOIN core_users signer ON signer.id = NEW.accepted_by_user_id
+   WHERE requirement.id = NEW.registration_consent_requirement_id;
+  SELECT content_sha256 INTO version_digest
+    FROM events_consent_document_versions
+   WHERE id = requirement_version_id;
+
+  IF requirement_registration_id IS DISTINCT FROM NEW.registration_id OR
+     requirement_status IS DISTINCT FROM 'pending' OR
+     version_digest IS DISTINCT FROM NEW.content_sha256 THEN
+    RAISE EXCEPTION 'consent evidence must match one pending exact-version requirement'
+      USING ERRCODE = '23514';
+  END IF;
+  IF (requirement_scope = 'buyer' AND
+      (NEW.signer_role IS DISTINCT FROM 'buyer' OR
+       NEW.accepted_by_user_id IS DISTINCT FROM registration_user_id OR
+       requirement_subject_id IS DISTINCT FROM registration_user_id)) OR
+     (requirement_scope = 'admission_slot' AND
+      (NEW.signer_role IS DISTINCT FROM 'attendee' OR
+       requirement_subject_id IS DISTINCT FROM NEW.accepted_by_user_id)) THEN
+    RAISE EXCEPTION 'consent evidence signer does not match the requirement subject'
+      USING ERRCODE = '23514';
+  END IF;
+  IF signer_verified_at IS NULL THEN
+    RAISE EXCEPTION 'consent evidence signer must have verified OTP identity'
+      USING ERRCODE = '23514';
+  END IF;
+  SELECT policy.retention_days
+    INTO retention_days
+    FROM core_data_retention_policies policy
+   WHERE policy.id = NEW.retention_policy_id
+     AND policy.status = 'active'
+     AND policy.category = 'consent_evidence'
+     AND policy.effective_at <= NEW.accepted_at;
+  IF NOT FOUND OR NEW.retain_until IS DISTINCT FROM (
+    CASE WHEN retention_days IS NULL THEN NULL
+         ELSE NEW.accepted_at + make_interval(days => retention_days)
+    END
+  ) THEN
+    RAISE EXCEPTION 'consent evidence must retain the active effective policy snapshot'
+      USING ERRCODE = '23514';
+  END IF;
+  expected_evidence_digest := encode(digest(
+    '{"registration_id":"' || NEW.registration_id::text ||
+    '","subject_user_id":"' || requirement_subject_id::text ||
+    '","accepted_by_user_id":"' || NEW.accepted_by_user_id::text ||
+    '","version_id":"' || requirement_version_id::text ||
+    '","content_sha256":"' || NEW.content_sha256 ||
+    '","signer_role":"' || NEW.signer_role ||
+    '","acceptance_method":"' || NEW.acceptance_method ||
+    '","accepted_at":"' || to_char(NEW.accepted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') ||
+    '","request_uuid":"' || NEW.request_uuid::text || '"}',
+    'sha256'
+  ), 'hex');
+  IF NEW.evidence_digest IS DISTINCT FROM expected_evidence_digest THEN
+    RAISE EXCEPTION 'consent evidence digest must be derived from the exact acceptance event'
+      USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: ticketing_registration_consent_requirement_acceptance_evidence(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_registration_consent_requirement_acceptance_evidence() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF NEW.status = 'accepted' AND NOT EXISTS (
+    SELECT 1
+      FROM ticketing_registration_consents consent
+     WHERE consent.registration_consent_requirement_id = NEW.id
+  ) THEN
+    RAISE EXCEPTION 'accepted consent requirements require acceptance evidence'
+      USING ERRCODE = '23514';
+  END IF;
+  RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: ticketing_registration_consent_requirement_integrity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_registration_consent_requirement_integrity() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  registration_event_id uuid;
+  registration_ticket_type_id uuid;
+  document_event_id uuid;
+  document_active boolean;
+  version_status text;
+  version_scope text;
+  version_required boolean;
+  ticket_event_id uuid;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'registration consent requirements are historical evidence'
+      USING ERRCODE = '40001';
+  END IF;
+
+  IF TG_OP = 'INSERT' AND NEW.status IS DISTINCT FROM 'pending' THEN
+    RAISE EXCEPTION 'new consent requirements must start pending'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    IF NEW.registration_id IS DISTINCT FROM OLD.registration_id OR
+       NEW.consent_document_version_id IS DISTINCT FROM OLD.consent_document_version_id OR
+       NEW.required IS DISTINCT FROM OLD.required OR
+       NEW.acceptance_scope IS DISTINCT FROM OLD.acceptance_scope OR
+       NEW.package_unit_number IS DISTINCT FROM OLD.package_unit_number OR
+       NEW.admission_position IS DISTINCT FROM OLD.admission_position OR
+       NEW.admission_slot_id IS DISTINCT FROM OLD.admission_slot_id OR
+       NEW.required_reason IS DISTINCT FROM OLD.required_reason OR
+       NEW.required_by_id IS DISTINCT FROM OLD.required_by_id OR
+       NEW.required_at IS DISTINCT FROM OLD.required_at OR
+       NEW.supersedes_requirement_id IS DISTINCT FROM OLD.supersedes_requirement_id THEN
+      RAISE EXCEPTION 'consent requirement snapshots and lineage are immutable'
+        USING ERRCODE = '23514';
+    END IF;
+
+     IF NEW.subject_user_id IS DISTINCT FROM OLD.subject_user_id AND OLD.status <> 'pending' THEN
+      RAISE EXCEPTION 'consent requirement subjects are immutable after acceptance begins'
+        USING ERRCODE = '23514';
+     END IF;
+
+     IF OLD.superseded_at IS NOT NULL AND NEW.superseded_at IS DISTINCT FROM OLD.superseded_at THEN
+       RAISE EXCEPTION 'superseded consent requirement timestamps are immutable'
+         USING ERRCODE = '23514';
+     END IF;
+
+    IF NEW.status IS DISTINCT FROM OLD.status AND NOT (
+      (OLD.status = 'pending' AND NEW.status IN ('pending','accepted','withdrawn','superseded')) OR
+      (OLD.status = 'accepted' AND NEW.status IN ('accepted','withdrawn','superseded')) OR
+      (OLD.status = 'withdrawn' AND NEW.status = 'withdrawn') OR
+      (OLD.status = 'superseded' AND NEW.status = 'superseded')
+    ) THEN
+      RAISE EXCEPTION 'invalid consent requirement status transition'
+        USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  SELECT registration.event_id, registration.ticket_type_id
+    INTO registration_event_id, registration_ticket_type_id
+    FROM ticketing_registrations registration
+   WHERE registration.id = NEW.registration_id;
+
+  SELECT document.event_id, document.active, version.status,
+         version.acceptance_scope, version.required
+    INTO document_event_id, document_active, version_status,
+         version_scope, version_required
+    FROM events_consent_document_versions version
+    JOIN events_consent_documents document
+      ON document.id = version.consent_document_id
+   WHERE version.id = NEW.consent_document_version_id;
+
+  IF registration_event_id IS DISTINCT FROM document_event_id THEN
+    RAISE EXCEPTION 'consent requirements must reference one event'
+      USING ERRCODE = '23514';
+  END IF;
+  IF TG_OP = 'INSERT' THEN
+    IF document_active IS DISTINCT FROM TRUE OR version_status IS DISTINCT FROM 'published' OR EXISTS (
+      SELECT 1
+        FROM events_consent_document_versions newer_version
+       WHERE newer_version.consent_document_id = (
+         SELECT consent_document_id
+           FROM events_consent_document_versions
+          WHERE id = NEW.consent_document_version_id
+       )
+         AND newer_version.status = 'published'
+         AND newer_version.id <> NEW.consent_document_version_id
+    ) THEN
+      RAISE EXCEPTION 'new consent requirements must use the current published active version'
+        USING ERRCODE = '23514';
+    END IF;
+  ELSIF document_active IS DISTINCT FROM TRUE OR version_status IS NULL OR
+        version_status NOT IN ('published','retired') THEN
+    RAISE EXCEPTION 'existing consent requirements must retain a published or retired version'
+      USING ERRCODE = '23514';
+  END IF;
+  IF version_scope IS DISTINCT FROM NEW.acceptance_scope OR
+     version_required IS DISTINCT FROM NEW.required THEN
+    RAISE EXCEPTION 'consent requirement snapshots must match the document version'
+      USING ERRCODE = '23514';
+  END IF;
+
+  SELECT product.event_id
+    INTO ticket_event_id
+    FROM ticketing_ticket_types ticket_type
+    JOIN catalog_event_products product ON product.id = ticket_type.event_product_id
+   WHERE ticket_type.id = registration_ticket_type_id;
+  IF ticket_event_id IS DISTINCT FROM registration_event_id THEN
+    RAISE EXCEPTION 'consent requirements must use a ticket type from the registration event'
+      USING ERRCODE = '23514';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+      FROM events_consent_document_products scoped_product
+     WHERE scoped_product.consent_document_id = (
+       SELECT consent_document_id
+         FROM events_consent_document_versions
+        WHERE id = NEW.consent_document_version_id
+     )
+  ) AND NOT EXISTS (
+    SELECT 1
+      FROM events_consent_document_products scoped_product
+     WHERE scoped_product.consent_document_id = (
+       SELECT consent_document_id
+         FROM events_consent_document_versions
+        WHERE id = NEW.consent_document_version_id
+     )
+       AND scoped_product.ticket_type_id = registration_ticket_type_id
+  ) THEN
+    RAISE EXCEPTION 'consent requirements must match the document ticket-product scope'
+      USING ERRCODE = '23514';
+  END IF;
+  IF NEW.acceptance_scope = 'buyer' THEN
+    IF NEW.subject_user_id IS DISTINCT FROM (
+      SELECT user_id FROM ticketing_registrations WHERE id = NEW.registration_id
+    ) THEN
+      RAISE EXCEPTION 'buyer consent requirements must belong to the registration user'
+        USING ERRCODE = '23514';
+    END IF;
+  ELSE
+    IF NEW.package_unit_number > (
+      SELECT package_quantity FROM ticketing_registrations WHERE id = NEW.registration_id
+    ) OR NEW.admission_position > (
+      SELECT admissions_per_unit_snapshot FROM ticketing_registrations WHERE id = NEW.registration_id
+    ) THEN
+      RAISE EXCEPTION 'consent requirement coordinates exceed the registration snapshot'
+        USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: ticketing_registration_consent_requirement_withdrawal_evidence(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_registration_consent_requirement_withdrawal_evidence() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF NEW.status = 'withdrawn' AND NOT EXISTS (
+    SELECT 1
+      FROM ticketing_registration_consents consent
+      JOIN ticketing_registration_consent_withdrawals withdrawal
+        ON withdrawal.registration_consent_id = consent.id
+     WHERE consent.registration_consent_requirement_id = NEW.id
+  ) THEN
+    RAISE EXCEPTION 'withdrawn consent requirements require withdrawal evidence'
+      USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: ticketing_registration_consent_withdrawal_append_only(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_registration_consent_withdrawal_append_only() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  RAISE EXCEPTION 'registration consent withdrawals are immutable and append-only'
+    USING ERRCODE = '40001';
+END;
+$$;
+
+
+--
+-- Name: ticketing_registration_consent_withdrawal_integrity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_registration_consent_withdrawal_integrity() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  consent_registration_id uuid;
+  consent_signer_id uuid;
+  requirement_scope text;
+  requirement_status text;
+BEGIN
+  SELECT consent.registration_id, consent.accepted_by_user_id,
+         requirement.acceptance_scope, requirement.status
+    INTO consent_registration_id, consent_signer_id,
+         requirement_scope, requirement_status
+    FROM ticketing_registration_consents consent
+    JOIN ticketing_registration_consent_requirements requirement
+      ON requirement.id = consent.registration_consent_requirement_id
+   WHERE consent.id = NEW.registration_consent_id;
+  IF consent_registration_id IS DISTINCT FROM NEW.registration_id OR
+     consent_signer_id IS DISTINCT FROM NEW.withdrawn_by_user_id OR
+     requirement_scope IS DISTINCT FROM 'admission_slot' OR
+     requirement_status IS DISTINCT FROM 'accepted' THEN
+    RAISE EXCEPTION 'consent withdrawal must target the original signer''s accepted personal consent'
+      USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: ticketing_registration_form_scope_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -911,6 +1381,8 @@ CREATE TABLE public.catalog_event_products (
     name character varying NOT NULL,
     description text,
     type character varying NOT NULL,
+    status character varying DEFAULT 'draft'::character varying NOT NULL,
+    inventory_mode character varying DEFAULT 'unlimited'::character varying NOT NULL,
     allow_custom_price boolean DEFAULT false NOT NULL,
     sales_start_at timestamp with time zone,
     sales_end_at timestamp with time zone,
@@ -920,13 +1392,10 @@ CREATE TABLE public.catalog_event_products (
     sort_order integer DEFAULT 0 NOT NULL,
     metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
     lock_version integer DEFAULT 0 NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    updated_at timestamp(6) with time zone NOT NULL,
-    status character varying DEFAULT 'draft'::character varying NOT NULL,
-    inventory_mode character varying DEFAULT 'unlimited'::character varying NOT NULL,
-    idempotency_key character varying,
     idempotency_key_digest character varying(64),
     creation_request_digest character varying(64),
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT catalog_event_products_creation_digests_check CHECK ((((idempotency_key_digest IS NULL) AND (creation_request_digest IS NULL)) OR (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((creation_request_digest)::text ~ '^[0-9a-f]{64}$'::text)))),
     CONSTRAINT catalog_event_products_inventory_mode_check CHECK (((inventory_mode)::text = ANY (ARRAY[('unlimited'::character varying)::text, ('event_wide'::character varying)::text, ('per_date'::character varying)::text, ('event_wide_and_per_date'::character varying)::text]))),
     CONSTRAINT catalog_event_products_max_per_order_check CHECK (((max_per_order IS NULL) OR (max_per_order >= min_per_order))),
@@ -974,10 +1443,11 @@ CREATE TABLE public.catalog_inventory_reservations (
     expires_at timestamp with time zone,
     committed_at timestamp with time zone,
     released_at timestamp with time zone,
+    request_fingerprint character varying(64) NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    request_fingerprint character varying(64) NOT NULL,
     CONSTRAINT catalog_inventory_reservations_admissions_check CHECK ((admissions_per_unit >= 1)),
+    CONSTRAINT catalog_inventory_reservations_expiry_check CHECK ((((status)::text = ANY (ARRAY[('committed'::character varying)::text, ('released'::character varying)::text, ('expired'::character varying)::text])) OR (expires_at IS NOT NULL))),
     CONSTRAINT catalog_inventory_reservations_fingerprint_check CHECK (((request_fingerprint)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT catalog_inventory_reservations_owner_check CHECK ((NOT ((registration_id IS NOT NULL) AND (order_item_id IS NOT NULL)))),
     CONSTRAINT catalog_inventory_reservations_quantity_check CHECK ((quantity > 0)),
@@ -1941,6 +2411,9 @@ CREATE TABLE public.ticketing_access_codes (
     id uuid DEFAULT uuidv7() NOT NULL,
     ticket_type_id uuid NOT NULL,
     code_digest character varying NOT NULL,
+    code_ciphertext text,
+    idempotency_key_digest character varying(64),
+    creation_request_digest character varying(64),
     label character varying,
     max_uses integer,
     used_count integer DEFAULT 0 NOT NULL,
@@ -1950,9 +2423,6 @@ CREATE TABLE public.ticketing_access_codes (
     active boolean DEFAULT true NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    code_ciphertext text,
-    idempotency_key_digest character varying(64),
-    creation_request_digest character varying(64),
     CONSTRAINT ticketing_access_codes_idempotency_digests_check CHECK ((((idempotency_key_digest IS NULL) AND (creation_request_digest IS NULL)) OR (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((creation_request_digest)::text ~ '^[0-9a-f]{64}$'::text)))),
     CONSTRAINT ticketing_access_codes_max_quantity_check CHECK ((max_quantity_per_use >= 1)),
     CONSTRAINT ticketing_access_codes_max_uses_check CHECK (((max_uses IS NULL) OR (max_uses >= 1))),
@@ -1972,8 +2442,11 @@ CREATE TABLE public.ticketing_invitations (
     name character varying,
     email_ciphertext text,
     phone_ciphertext text,
+    token_ciphertext text NOT NULL,
     contact_digest character varying NOT NULL,
     token_digest character varying NOT NULL,
+    idempotency_key_digest character varying(64),
+    creation_request_digest character varying(64),
     allowed_quantity integer DEFAULT 1 NOT NULL,
     status character varying DEFAULT 'pending'::character varying NOT NULL,
     expires_at timestamp with time zone,
@@ -1981,9 +2454,6 @@ CREATE TABLE public.ticketing_invitations (
     created_by_id uuid NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    token_ciphertext text NOT NULL,
-    idempotency_key_digest character varying(64),
-    creation_request_digest character varying(64),
     CONSTRAINT ticketing_invitations_allowed_quantity_check CHECK ((allowed_quantity >= 1)),
     CONSTRAINT ticketing_invitations_idempotency_digests_check CHECK ((((idempotency_key_digest IS NULL) AND (creation_request_digest IS NULL)) OR (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((creation_request_digest)::text ~ '^[0-9a-f]{64}$'::text)))),
     CONSTRAINT ticketing_invitations_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('accepted'::character varying)::text, ('revoked'::character varying)::text, ('expired'::character varying)::text])))
@@ -2002,13 +2472,13 @@ CREATE TABLE public.ticketing_registration_answer_revisions (
     revised_by_id uuid NOT NULL,
     source character varying NOT NULL,
     reason_code character varying,
+    idempotency_key_digest character varying(64) CONSTRAINT ticketing_registration_answer_r_idempotency_key_digest_not_null NOT NULL,
+    request_digest character varying(64) NOT NULL,
     revised_at timestamp with time zone NOT NULL,
+    retain_until timestamp with time zone,
     erased_at timestamp with time zone,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    idempotency_key_digest character varying(64) CONSTRAINT ticketing_registration_answer_r_idempotency_key_digest_not_null NOT NULL,
-    request_digest character varying(64) NOT NULL,
-    retain_until timestamp with time zone,
     CONSTRAINT ticketing_registration_answer_revisions_digest_check CHECK ((((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((request_digest)::text ~ '^[0-9a-f]{64}$'::text))),
     CONSTRAINT ticketing_registration_answer_revisions_erasure_check CHECK ((((erased_at IS NULL) AND (answer_ciphertext IS NOT NULL)) OR ((erased_at IS NOT NULL) AND (answer_ciphertext IS NULL)))),
     CONSTRAINT ticketing_registration_answer_revisions_manager_reason_check CHECK ((((source)::text <> 'manager_correction'::text) OR (reason_code IS NOT NULL))),
@@ -2046,6 +2516,88 @@ CREATE TABLE public.ticketing_registration_answers (
     CONSTRAINT ticketing_registration_answers_question_type_check CHECK (((question_type_snapshot)::text = ANY (ARRAY[('short_text'::character varying)::text, ('long_text'::character varying)::text, ('single_choice'::character varying)::text, ('multiple_choice'::character varying)::text, ('checkbox'::character varying)::text, ('date'::character varying)::text]))),
     CONSTRAINT ticketing_registration_answers_response_scope_check CHECK (((response_scope_snapshot)::text = ANY (ARRAY[('registration'::character varying)::text, ('admission_slot'::character varying)::text]))),
     CONSTRAINT ticketing_registration_answers_scope_coordinates_check CHECK (((((response_scope_snapshot)::text = 'registration'::text) AND (package_unit_number IS NULL) AND (admission_position IS NULL) AND (admission_slot_id IS NULL)) OR (((response_scope_snapshot)::text = 'admission_slot'::text) AND (package_unit_number > 0) AND (admission_position > 0))))
+);
+
+
+--
+-- Name: ticketing_registration_consent_requirements; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_registration_consent_requirements (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    registration_id uuid CONSTRAINT ticketing_registration_consent_require_registration_id_not_null NOT NULL,
+    consent_document_version_id uuid CONSTRAINT ticketing_registration_cons_consent_document_version_i_not_null NOT NULL,
+    required boolean DEFAULT true NOT NULL,
+    acceptance_scope character varying CONSTRAINT ticketing_registration_consent_requir_acceptance_scope_not_null NOT NULL,
+    package_unit_number integer,
+    admission_position smallint,
+    admission_slot_id uuid,
+    subject_user_id uuid,
+    status character varying DEFAULT 'pending'::character varying NOT NULL,
+    supersedes_requirement_id uuid,
+    required_reason character varying DEFAULT 'initial_submission'::character varying CONSTRAINT ticketing_registration_consent_require_required_reason_not_null NOT NULL,
+    required_by_id uuid,
+    required_at timestamp with time zone CONSTRAINT ticketing_registration_consent_requirement_required_at_not_null NOT NULL,
+    superseded_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_consent_requirements_coordinate_check CHECK (((((acceptance_scope)::text = 'buyer'::text) AND (package_unit_number IS NULL) AND (admission_position IS NULL) AND (admission_slot_id IS NULL) AND (subject_user_id IS NOT NULL)) OR (((acceptance_scope)::text = 'admission_slot'::text) AND (package_unit_number IS NOT NULL) AND (package_unit_number > 0) AND (admission_position IS NOT NULL) AND (admission_position > 0) AND (admission_slot_id IS NULL)))),
+    CONSTRAINT ticketing_consent_requirements_reason_check CHECK (((required_reason)::text = ANY (ARRAY[('initial_submission'::character varying)::text, ('reconsent'::character varying)::text]))),
+    CONSTRAINT ticketing_consent_requirements_required_by_check CHECK ((((required_reason)::text = 'initial_submission'::text) OR (required_by_id IS NOT NULL))),
+    CONSTRAINT ticketing_consent_requirements_scope_check CHECK (((acceptance_scope)::text = ANY (ARRAY[('buyer'::character varying)::text, ('admission_slot'::character varying)::text]))),
+    CONSTRAINT ticketing_consent_requirements_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('accepted'::character varying)::text, ('withdrawn'::character varying)::text, ('superseded'::character varying)::text]))),
+    CONSTRAINT ticketing_consent_requirements_subject_check CHECK ((((status)::text <> ALL (ARRAY[('accepted'::character varying)::text, ('withdrawn'::character varying)::text])) OR (subject_user_id IS NOT NULL))),
+    CONSTRAINT ticketing_consent_requirements_superseded_at_check CHECK (((((status)::text = 'superseded'::text) AND (superseded_at IS NOT NULL)) OR (((status)::text <> 'superseded'::text) AND (superseded_at IS NULL))))
+);
+
+
+--
+-- Name: ticketing_registration_consent_withdrawals; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_registration_consent_withdrawals (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    registration_consent_id uuid CONSTRAINT ticketing_registration_consent_registration_consent_id_not_null NOT NULL,
+    registration_id uuid CONSTRAINT ticketing_registration_consent_withdra_registration_id_not_null NOT NULL,
+    withdrawn_by_user_id uuid CONSTRAINT ticketing_registration_consent_wi_withdrawn_by_user_id_not_null NOT NULL,
+    reason_code character varying,
+    idempotency_key character varying(64) CONSTRAINT ticketing_registration_consent_withdra_idempotency_key_not_null NOT NULL,
+    withdrawn_at timestamp with time zone CONSTRAINT ticketing_registration_consent_withdrawal_withdrawn_at_not_null NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_consent_withdrawals_idempotency_digest_check CHECK (((idempotency_key)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT ticketing_consent_withdrawals_reason_check CHECK (((reason_code IS NULL) OR ((reason_code)::text = ANY (ARRAY[('attendee_request'::character varying)::text, ('privacy_request'::character varying)::text, ('legal_request'::character varying)::text, ('changed_mind'::character varying)::text]))))
+);
+
+
+--
+-- Name: ticketing_registration_consents; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_registration_consents (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    registration_consent_requirement_id uuid CONSTRAINT ticketing_registration_cons_registration_consent_requi_not_null NOT NULL,
+    registration_id uuid NOT NULL,
+    accepted_by_user_id uuid,
+    signer_role character varying NOT NULL,
+    acceptance_method character varying DEFAULT 'otp'::character varying NOT NULL,
+    content_sha256 character varying(64) NOT NULL,
+    evidence_digest character varying(64),
+    idempotency_key_digest character varying(64),
+    request_uuid uuid,
+    retention_policy_id uuid NOT NULL,
+    retain_until timestamp with time zone,
+    accepted_at timestamp with time zone NOT NULL,
+    erased_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_registration_consents_acceptance_method_check CHECK (((acceptance_method)::text = ANY (ARRAY[('checkbox'::character varying)::text, ('otp'::character varying)::text]))),
+    CONSTRAINT ticketing_registration_consents_digest_check CHECK ((((content_sha256)::text ~ '^[0-9a-f]{64}$'::text) AND ((evidence_digest IS NULL) OR ((evidence_digest)::text ~ '^[0-9a-f]{64}$'::text)))),
+    CONSTRAINT ticketing_registration_consents_erasure_payload_check CHECK ((((erased_at IS NULL) AND (accepted_by_user_id IS NOT NULL) AND (evidence_digest IS NOT NULL) AND (idempotency_key_digest IS NOT NULL) AND (request_uuid IS NOT NULL)) OR ((erased_at IS NOT NULL) AND (accepted_by_user_id IS NULL) AND (evidence_digest IS NULL) AND (idempotency_key_digest IS NULL) AND (request_uuid IS NULL)))),
+    CONSTRAINT ticketing_registration_consents_erasure_time_check CHECK (((erased_at IS NULL) OR (erased_at >= accepted_at))),
+    CONSTRAINT ticketing_registration_consents_idempotency_digest_check CHECK (((idempotency_key_digest IS NULL) OR ((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT ticketing_registration_consents_retention_window_check CHECK (((retain_until IS NULL) OR (retain_until > accepted_at))),
+    CONSTRAINT ticketing_registration_consents_signer_role_check CHECK (((signer_role)::text = ANY (ARRAY[('buyer'::character varying)::text, ('attendee'::character varying)::text])))
 );
 
 
@@ -2163,11 +2715,11 @@ CREATE TABLE public.ticketing_registrations (
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_registrations_complimentary_reason_check CHECK (((complimentary_reason IS NULL) OR ((complimentary_reason)::text = ANY (ARRAY[('accessibility'::character varying)::text, ('accommodation'::character varying)::text, ('community_partner'::character varying)::text, ('service_recovery'::character varying)::text, ('sponsor_guest'::character varying)::text, ('staff_guest'::character varying)::text])))),
     CONSTRAINT ticketing_registrations_decision_exclusive_check CHECK ((NOT ((approved_at IS NOT NULL) AND (rejected_at IS NOT NULL)))),
-    CONSTRAINT ticketing_registrations_identity_digest_check CHECK (((identity_digest)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT ticketing_registrations_idempotency_request_digest_check CHECK (((idempotency_request_digest IS NULL) OR ((idempotency_request_digest)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT ticketing_registrations_identity_digest_check CHECK (((identity_digest)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT ticketing_registrations_next_action_snapshot_check CHECK (((next_action_snapshot IS NULL) OR ((next_action_snapshot)::text = ANY (ARRAY[('requires_confirmation'::character varying)::text, ('requires_order'::character varying)::text, ('awaiting_approval'::character varying)::text])))),
     CONSTRAINT ticketing_registrations_party_size_check CHECK ((party_size = (package_quantity * admissions_per_unit_snapshot))),
     CONSTRAINT ticketing_registrations_quantities_positive_check CHECK (((package_quantity > 0) AND (admissions_per_unit_snapshot > 0) AND (party_size > 0))),
-    CONSTRAINT ticketing_registrations_next_action_snapshot_check CHECK (((next_action_snapshot IS NULL) OR ((next_action_snapshot)::text = ANY (ARRAY[('requires_confirmation'::character varying)::text, ('requires_order'::character varying)::text, ('awaiting_approval'::character varying)::text])))),
     CONSTRAINT ticketing_registrations_source_check CHECK (((source)::text = ANY (ARRAY[('self_service'::character varying)::text, ('organizer_complimentary'::character varying)::text, ('walk_up'::character varying)::text]))),
     CONSTRAINT ticketing_registrations_source_metadata_check CHECK (((((source)::text = 'organizer_complimentary'::text) AND (complimentary_reason IS NOT NULL) AND ((complimentary_reason)::text <> ''::text) AND (issuance_idempotency_key IS NOT NULL) AND ((issuance_idempotency_key)::text <> ''::text)) OR (((source)::text <> 'organizer_complimentary'::text) AND (complimentary_reason IS NULL)))),
     CONSTRAINT ticketing_registrations_state_timestamps_check CHECK ((((((status)::text = 'waitlisted'::text) AND (waitlisted_at IS NOT NULL)) OR (((status)::text <> 'waitlisted'::text) AND (waitlisted_at IS NULL))) AND ((((status)::text = 'offered'::text) AND (offered_at IS NOT NULL) AND (offer_expires_at IS NOT NULL) AND (offer_expires_at > offered_at)) OR (((status)::text <> 'offered'::text) AND (offered_at IS NULL) AND (offer_expires_at IS NULL))))),
@@ -2689,6 +3241,30 @@ ALTER TABLE ONLY public.ticketing_registration_answers
 
 
 --
+-- Name: ticketing_registration_consent_requirements ticketing_registration_consent_requirements_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_consent_requirements
+    ADD CONSTRAINT ticketing_registration_consent_requirements_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_registration_consent_withdrawals ticketing_registration_consent_withdrawals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_consent_withdrawals
+    ADD CONSTRAINT ticketing_registration_consent_withdrawals_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_registration_consents ticketing_registration_consents_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_consents
+    ADD CONSTRAINT ticketing_registration_consents_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: ticketing_registration_form_submissions ticketing_registration_form_submissions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2744,17 +3320,66 @@ CREATE UNIQUE INDEX idx_access_zones_on_product_and_zone ON public.catalog_produ
 
 
 --
--- Name: idx_catalog_event_products_on_idempotency_key; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_catalog_products_on_event_and_idempotency; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_catalog_event_products_on_idempotency_key ON public.catalog_event_products USING btree (idempotency_key) WHERE (idempotency_key IS NOT NULL);
+CREATE UNIQUE INDEX idx_catalog_products_on_event_and_idempotency ON public.catalog_event_products USING btree (event_id, idempotency_key_digest) WHERE (idempotency_key_digest IS NOT NULL);
 
 
 --
--- Name: idx_catalog_event_products_on_idempotency_key_digest; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_consent_requirements_admission_slot; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_catalog_event_products_on_idempotency_key_digest ON public.catalog_event_products USING btree (event_id, idempotency_key_digest) WHERE (idempotency_key_digest IS NOT NULL);
+CREATE INDEX idx_consent_requirements_admission_slot ON public.ticketing_registration_consent_requirements USING btree (admission_slot_id);
+
+
+--
+-- Name: idx_consent_requirements_due; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_consent_requirements_due ON public.ticketing_registration_consent_requirements USING btree (status, required_at);
+
+
+--
+-- Name: idx_consent_requirements_registration; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_consent_requirements_registration ON public.ticketing_registration_consent_requirements USING btree (registration_id);
+
+
+--
+-- Name: idx_consent_requirements_subject; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_consent_requirements_subject ON public.ticketing_registration_consent_requirements USING btree (subject_user_id);
+
+
+--
+-- Name: idx_consent_requirements_supersedes; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_consent_requirements_supersedes ON public.ticketing_registration_consent_requirements USING btree (supersedes_requirement_id);
+
+
+--
+-- Name: idx_consent_requirements_version; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_consent_requirements_version ON public.ticketing_registration_consent_requirements USING btree (consent_document_version_id);
+
+
+--
+-- Name: idx_consent_withdrawals_by_registration; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_consent_withdrawals_by_registration ON public.ticketing_registration_consent_withdrawals USING btree (registration_id, withdrawn_at);
+
+
+--
+-- Name: idx_consent_withdrawals_by_signer; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_consent_withdrawals_by_signer ON public.ticketing_registration_consent_withdrawals USING btree (withdrawn_by_user_id, withdrawn_at);
 
 
 --
@@ -2783,6 +3408,20 @@ CREATE INDEX idx_core_reviews_resource_context ON public.core_reviews USING btre
 --
 
 CREATE INDEX idx_core_reviews_reviewer ON public.core_reviews USING btree (reviewed_by_type, reviewed_by_id);
+
+
+--
+-- Name: idx_current_buyer_consent_requirement; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_current_buyer_consent_requirement ON public.ticketing_registration_consent_requirements USING btree (registration_id, consent_document_version_id) WHERE (((acceptance_scope)::text = 'buyer'::text) AND ((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('accepted'::character varying)::text])));
+
+
+--
+-- Name: idx_current_slot_consent_requirement; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_current_slot_consent_requirement ON public.ticketing_registration_consent_requirements USING btree (registration_id, consent_document_version_id, package_unit_number, admission_position) WHERE (((acceptance_scope)::text = 'admission_slot'::text) AND ((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('accepted'::character varying)::text])));
 
 
 --
@@ -2968,10 +3607,24 @@ CREATE INDEX idx_on_user_id_category_released_at_516f0054eb ON public.core_data_
 
 
 --
+-- Name: idx_one_consent_acceptance_per_requirement; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_one_consent_acceptance_per_requirement ON public.ticketing_registration_consents USING btree (registration_consent_requirement_id);
+
+
+--
 -- Name: idx_one_owner_per_org; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX idx_one_owner_per_org ON public.organizations_memberships USING btree (organization_id) WHERE ((role)::text = 'owner'::text);
+
+
+--
+-- Name: idx_one_withdrawal_per_registration_consent; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_one_withdrawal_per_registration_consent ON public.ticketing_registration_consent_withdrawals USING btree (registration_consent_id);
 
 
 --
@@ -3021,6 +3674,27 @@ CREATE UNIQUE INDEX idx_registration_answers_admission_scope ON public.ticketing
 --
 
 CREATE UNIQUE INDEX idx_registration_answers_registration_scope ON public.ticketing_registration_answers USING btree (registration_form_submission_id, registration_question_id) WHERE ((response_scope_snapshot)::text = 'registration'::text);
+
+
+--
+-- Name: idx_registration_consents_by_registration; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_registration_consents_by_registration ON public.ticketing_registration_consents USING btree (registration_id, accepted_at);
+
+
+--
+-- Name: idx_registration_consents_by_signer; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_registration_consents_by_signer ON public.ticketing_registration_consents USING btree (accepted_by_user_id, accepted_at);
+
+
+--
+-- Name: idx_registration_consents_retention_policy; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_registration_consents_retention_policy ON public.ticketing_registration_consents USING btree (retention_policy_id);
 
 
 --
@@ -3108,6 +3782,13 @@ CREATE INDEX idx_ticketing_registrations_queue ON public.ticketing_registrations
 
 
 --
+-- Name: idx_unique_consent_withdrawal_idempotency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_unique_consent_withdrawal_idempotency ON public.ticketing_registration_consent_withdrawals USING btree (idempotency_key);
+
+
+--
 -- Name: idx_unique_legal_acceptance; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3119,6 +3800,20 @@ CREATE UNIQUE INDEX idx_unique_legal_acceptance ON public.legal_acceptances USIN
 --
 
 CREATE UNIQUE INDEX idx_unique_legal_acceptance_request_uuid ON public.legal_acceptances USING btree (request_uuid);
+
+
+--
+-- Name: idx_unique_registration_consent_idempotency_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_unique_registration_consent_idempotency_key ON public.ticketing_registration_consents USING btree (idempotency_key_digest);
+
+
+--
+-- Name: idx_unique_registration_consent_request_uuid; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_unique_registration_consent_request_uuid ON public.ticketing_registration_consents USING btree (request_uuid);
 
 
 --
@@ -3210,6 +3905,13 @@ CREATE INDEX index_catalog_inventory_reservations_on_product_inventory_id ON pub
 --
 
 CREATE INDEX index_catalog_inventory_reservations_on_registration_id ON public.catalog_inventory_reservations USING btree (registration_id);
+
+
+--
+-- Name: index_catalog_inventory_reservations_on_reservation_group_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_catalog_inventory_reservations_on_reservation_group_id ON public.catalog_inventory_reservations USING btree (reservation_group_id);
 
 
 --
@@ -3976,10 +4678,24 @@ CREATE UNIQUE INDEX index_ticketing_ticket_types_on_event_product_id ON public.t
 
 
 --
+-- Name: ticketing_registration_consents trg_consent_evidence_requirement_accepted; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER trg_consent_evidence_requirement_accepted AFTER INSERT ON public.ticketing_registration_consents DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_consent_evidence_requirement_accepted();
+
+
+--
+-- Name: ticketing_registration_consent_requirements trg_consent_requirement_has_evidence; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER trg_consent_requirement_has_evidence AFTER INSERT OR UPDATE OF status ON public.ticketing_registration_consent_requirements DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_consent_requirement_acceptance_evidence();
+
+
+--
 -- Name: events_consent_document_versions trg_consent_version_locked; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_consent_version_locked BEFORE UPDATE ON public.events_consent_document_versions FOR EACH ROW EXECUTE FUNCTION public.lock_consent_version_on_update();
+CREATE TRIGGER trg_consent_version_locked BEFORE INSERT OR UPDATE ON public.events_consent_document_versions FOR EACH ROW EXECUTE FUNCTION public.lock_consent_version_on_update();
 
 
 --
@@ -4130,6 +4846,48 @@ CREATE TRIGGER trg_ticketing_registration_answer_revision_retention BEFORE INSER
 
 
 --
+-- Name: ticketing_registration_consents trg_ticketing_registration_consent_integrity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_ticketing_registration_consent_integrity BEFORE INSERT ON public.ticketing_registration_consents FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_consent_integrity();
+
+
+--
+-- Name: ticketing_registration_consents trg_ticketing_registration_consent_locked; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_ticketing_registration_consent_locked BEFORE DELETE OR UPDATE ON public.ticketing_registration_consents FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_consent_append_only();
+
+
+--
+-- Name: ticketing_registration_consent_requirements trg_ticketing_registration_consent_requirement_integrity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_ticketing_registration_consent_requirement_integrity BEFORE INSERT OR DELETE OR UPDATE ON public.ticketing_registration_consent_requirements FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_consent_requirement_integrity();
+
+
+--
+-- Name: ticketing_registration_consent_requirements trg_ticketing_registration_consent_requirement_withdrawal_evide; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_ticketing_registration_consent_requirement_withdrawal_evide BEFORE INSERT OR UPDATE OF status ON public.ticketing_registration_consent_requirements FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_consent_requirement_withdrawal_evidence();
+
+
+--
+-- Name: ticketing_registration_consent_withdrawals trg_ticketing_registration_consent_withdrawal_integrity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_ticketing_registration_consent_withdrawal_integrity BEFORE INSERT ON public.ticketing_registration_consent_withdrawals FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_consent_withdrawal_integrity();
+
+
+--
+-- Name: ticketing_registration_consent_withdrawals trg_ticketing_registration_consent_withdrawal_locked; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_ticketing_registration_consent_withdrawal_locked BEFORE DELETE OR UPDATE ON public.ticketing_registration_consent_withdrawals FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_consent_withdrawal_append_only();
+
+
+--
 -- Name: ticketing_registration_forms trg_ticketing_registration_form_scope; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -4155,22 +4913,6 @@ CREATE TRIGGER trg_ticketing_registration_submission_immutable BEFORE DELETE OR 
 --
 
 CREATE TRIGGER trg_ticketing_registration_submission_scope BEFORE INSERT OR UPDATE ON public.ticketing_registration_form_submissions FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_submission_scope_guard();
-
-
---
--- Name: catalog_inventory_reservations fk_catalog_inventory_reservations_registration; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.catalog_inventory_reservations
-    ADD CONSTRAINT fk_catalog_inventory_reservations_registration FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id);
-
-
---
--- Name: catalog_venue_capacity_reservations fk_catalog_venue_capacity_reservations_registration; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.catalog_venue_capacity_reservations
-    ADD CONSTRAINT fk_catalog_venue_capacity_reservations_registration FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id);
 
 
 --
@@ -4310,6 +5052,14 @@ ALTER TABLE ONLY public.catalog_venue_capacity_reservations
 
 
 --
+-- Name: ticketing_registration_consent_requirements fk_rails_2e923d40cf; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_consent_requirements
+    ADD CONSTRAINT fk_rails_2e923d40cf FOREIGN KEY (required_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: catalog_product_date_allocations fk_rails_2eea671c63; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4323,6 +5073,14 @@ ALTER TABLE ONLY public.catalog_product_date_allocations
 
 ALTER TABLE ONLY public.events_access_zones
     ADD CONSTRAINT fk_rails_2f500dd95d FOREIGN KEY (event_date_id) REFERENCES public.events_event_dates(id) ON DELETE SET NULL;
+
+
+--
+-- Name: ticketing_registration_consents fk_rails_2fd38622e7; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_consents
+    ADD CONSTRAINT fk_rails_2fd38622e7 FOREIGN KEY (accepted_by_user_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
 
 
 --
@@ -4390,11 +5148,27 @@ ALTER TABLE ONLY public.legal_acceptances
 
 
 --
+-- Name: catalog_venue_capacity_reservations fk_rails_3d79acd51a; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_venue_capacity_reservations
+    ADD CONSTRAINT fk_rails_3d79acd51a FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id);
+
+
+--
 -- Name: core_refresh_tokens fk_rails_3ed4f2d68b; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.core_refresh_tokens
     ADD CONSTRAINT fk_rails_3ed4f2d68b FOREIGN KEY (user_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: ticketing_registration_consent_requirements fk_rails_43273f1434; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_consent_requirements
+    ADD CONSTRAINT fk_rails_43273f1434 FOREIGN KEY (subject_user_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
 
 
 --
@@ -4590,11 +5364,27 @@ ALTER TABLE ONLY public.events_event_staff_assignments
 
 
 --
+-- Name: ticketing_registration_consent_withdrawals fk_rails_6a3841f037; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_consent_withdrawals
+    ADD CONSTRAINT fk_rails_6a3841f037 FOREIGN KEY (registration_consent_id) REFERENCES public.ticketing_registration_consents(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: events_event_participants fk_rails_7025684e48; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.events_event_participants
     ADD CONSTRAINT fk_rails_7025684e48 FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ticketing_registration_consents fk_rails_7187e20807; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_consents
+    ADD CONSTRAINT fk_rails_7187e20807 FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id) ON DELETE RESTRICT;
 
 
 --
@@ -4718,6 +5508,14 @@ ALTER TABLE ONLY public.events_event_dates
 
 
 --
+-- Name: catalog_inventory_reservations fk_rails_8f61f39616; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_inventory_reservations
+    ADD CONSTRAINT fk_rails_8f61f39616 FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id);
+
+
+--
 -- Name: ticketing_registration_answer_revisions fk_rails_92c24f7cf5; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4747,6 +5545,14 @@ ALTER TABLE ONLY public.events_consent_document_versions
 
 ALTER TABLE ONLY public.ticketing_registration_forms
     ADD CONSTRAINT fk_rails_9bc07d0d34 FOREIGN KEY (ticket_type_id) REFERENCES public.ticketing_ticket_types(id);
+
+
+--
+-- Name: ticketing_registration_consent_withdrawals fk_rails_9d5543e235; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_consent_withdrawals
+    ADD CONSTRAINT fk_rails_9d5543e235 FOREIGN KEY (withdrawn_by_user_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
 
 
 --
@@ -4795,6 +5601,14 @@ ALTER TABLE ONLY public.core_role_permissions
 
 ALTER TABLE ONLY public.events_event_video_links
     ADD CONSTRAINT fk_rails_ad38a57f96 FOREIGN KEY (created_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: ticketing_registration_consent_withdrawals fk_rails_ad456e8b22; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_consent_withdrawals
+    ADD CONSTRAINT fk_rails_ad456e8b22 FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id) ON DELETE RESTRICT;
 
 
 --
@@ -4910,6 +5724,14 @@ ALTER TABLE ONLY public.events_event_date_changes
 
 
 --
+-- Name: ticketing_registration_consent_requirements fk_rails_d812807a6e; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_consent_requirements
+    ADD CONSTRAINT fk_rails_d812807a6e FOREIGN KEY (supersedes_requirement_id) REFERENCES public.ticketing_registration_consent_requirements(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: ticketing_registrations fk_rails_de5c6ebe08; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4982,6 +5804,38 @@ ALTER TABLE ONLY public.ticketing_registrations
 
 
 --
+-- Name: ticketing_registration_consents fk_rails_f852314892; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_consents
+    ADD CONSTRAINT fk_rails_f852314892 FOREIGN KEY (retention_policy_id) REFERENCES public.core_data_retention_policies(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: ticketing_registration_consents fk_rails_fb9e57a5c9; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_consents
+    ADD CONSTRAINT fk_rails_fb9e57a5c9 FOREIGN KEY (registration_consent_requirement_id) REFERENCES public.ticketing_registration_consent_requirements(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: ticketing_registration_consent_requirements fk_rails_fba70d2488; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_consent_requirements
+    ADD CONSTRAINT fk_rails_fba70d2488 FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: ticketing_registration_consent_requirements fk_rails_fca65b6fa3; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_consent_requirements
+    ADD CONSTRAINT fk_rails_fca65b6fa3 FOREIGN KEY (consent_document_version_id) REFERENCES public.events_consent_document_versions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: catalog_product_access_zones fk_rails_ffe7c83358; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5009,6 +5863,9 @@ INSERT INTO "schema_migrations" (version) VALUES
 ('20260728000002'),
 ('20260728000001'),
 ('20260727090113'),
+('20260727090111'),
+('20260727090110'),
+('20260727090109'),
 ('20260727090108'),
 ('20260727090107'),
 ('20260727090106'),
