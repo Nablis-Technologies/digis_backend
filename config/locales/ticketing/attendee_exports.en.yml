@@ -1,0 +1,25 @@
+en:
+  ticketing:
+    attendee_exports:
+      fields:
+        registration_id: "Registration ID"
+        registration_status: "Registration Status"
+        ticket_type_id: "Ticket Type ID"
+        selected_event_date_id: "Selected Event Date ID"
+        package_unit_number: "Package Unit Number"
+        admission_position: "Admission Position"
+        registration_user_email: "Registration User Email"
+        registration_user_phone: "Registration User Phone"
+      errors:
+        invalid_field_selector: "The export field selector is not supported"
+        invalid_field_row_mode: "The selected field is not available for this row mode"
+        field_definition_conflict: "The selected question changed meaning across submitted form versions"
+        invalid_field_keys: "The export field selection is invalid"
+        invalid_filters: "The export filters are invalid"
+        invalid_request: "The attendee export request is invalid"
+        invalid_idempotency_key: "The export idempotency key is invalid"
+        not_found: "The attendee export could not be found"
+        invalid_expiry: "The export expiry window is invalid"
+        invalid_state: "The export lifecycle state is invalid"
+        invalid_payload_state: "The export payload does not match its lifecycle state"
+        ready_metadata_required: "Ready exports require row and checksum metadata"

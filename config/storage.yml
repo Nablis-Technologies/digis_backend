@@ -2,6 +2,10 @@ test:
   service: Disk
   root: <%= Rails.root.join("tmp/storage") %>
 
+private_exports:
+  service: Disk
+  root: <%= Rails.root.join(Rails.env.test? ? "tmp/private_exports" : "storage/private_exports") %>
+
 local:
   service: Disk
   root: <%= Rails.root.join("storage") %>
