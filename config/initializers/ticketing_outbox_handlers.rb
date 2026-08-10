@@ -23,6 +23,12 @@ Rails.application.config.x.outbox_handlers["ticketing.consent_credential_require
     affected_coordinates: outbox_event.payload.fetch("affected_coordinates")
   )
 end
+Rails.application.config.x.outbox_handlers["ticketing.attendee_export.requested"] = lambda do |outbox_event|
+  Ticketing::GenerateAttendeeExportJob.perform_later(outbox_event.payload.fetch("attendee_export_id"))
+end
+Rails.application.config.x.outbox_handlers["ticketing.attendee_export.purge_requested"] = lambda do |outbox_event|
+  Ticketing::PurgeAttendeeExportJob.perform_later(outbox_event.payload.fetch("attendee_export_id"))
+end
 # Registration notifications carry only a registration ID and event type; the
 # injected sender decides whether SMS/email delivery is available.
 %w[
