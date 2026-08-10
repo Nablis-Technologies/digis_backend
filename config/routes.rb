@@ -6,6 +6,7 @@ Rails.application.routes.draw do
     post "auth/signup", to: "auth#signup"
     post "auth/refresh", to: "auth#refresh"
     post "auth/logout", to: "auth#logout"
+    post "auth/reauthenticate", to: "auth#reauthenticate"
     get "auth/me", to: "auth#me"
   end
 
@@ -99,6 +100,10 @@ Rails.application.routes.draw do
         post :publish, on: :member
       end
     end
+  end
+
+  resources :events, only: [] do
+    resources :attendee_exports, controller: "ticketing/attendee_exports", only: %i[create]
   end
 
   resources :registration_answers, only: %i[show], controller: "ticketing/registration_answers" do

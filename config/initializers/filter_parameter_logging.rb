@@ -6,6 +6,6 @@
 Rails.application.config.filter_parameters += [
   :passw, :email, :secret, :token, :_key, :crypt, :salt, :certificate, :otp, :ssn, :cvv, :cvc,
   :answer, :answers, :value, :consent, :consents, :content_sha256, :evidence_digest, :request_uuid, :reason_code,
-  :qr_token, :lookup_code, :phone, :phone_hash, :identity_digest, :account_token, :holder_name, :payout,
-  :provider_payload, :signature, :access_code, :code, :promotion_code, :code_ciphertext
+  :qr_token, :lookup_code, :proof, :phone, :phone_hash, :identity_digest, :account_token, :holder_name, :payout,
+  :provider_payload, :signature, :access_code, :code, :promotion_code, :code_ciphertext, :field_keys, :filters
 ]
