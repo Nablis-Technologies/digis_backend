@@ -11,13 +11,6 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
--- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: -
---
-
-COMMENT ON SCHEMA public IS '';
-
-
---
 -- Name: btree_gist; Type: EXTENSION; Schema: -; Owner: -
 --
 
@@ -616,6 +609,63 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+
+--
+-- Name: ticketing_attendee_exports_filters_valid(jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_attendee_exports_filters_valid(filters jsonb) RETURNS boolean
+    LANGUAGE plpgsql IMMUTABLE
+    AS $_$
+DECLARE
+  filter_key text;
+  filter_values text[];
+BEGIN
+  IF filters IS NULL OR jsonb_typeof(filters) <> 'object' THEN
+    RETURN filters IS NULL;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM jsonb_object_keys(filters) AS keys(key)
+    WHERE key NOT IN ('ticket_type_ids', 'access_event_date_ids', 'registration_statuses')
+  ) THEN
+    RETURN FALSE;
+  END IF;
+
+  FOREACH filter_key IN ARRAY ARRAY['ticket_type_ids', 'access_event_date_ids', 'registration_statuses'] LOOP
+    CONTINUE WHEN NOT filters ? filter_key;
+    IF jsonb_typeof(filters -> filter_key) <> 'array'
+       OR jsonb_array_length(filters -> filter_key) > 100 THEN
+      RETURN FALSE;
+    END IF;
+
+    SELECT array_agg(value) INTO filter_values
+    FROM jsonb_array_elements_text(filters -> filter_key) AS element(value);
+    CONTINUE WHEN filter_values IS NULL;
+    IF cardinality(filter_values) <> (
+      SELECT count(DISTINCT value) FROM unnest(filter_values) AS items(value)
+    ) THEN
+      RETURN FALSE;
+    END IF;
+    IF filter_key IN ('ticket_type_ids', 'access_event_date_ids') AND EXISTS (
+      SELECT 1 FROM unnest(filter_values) AS items(value)
+      WHERE value !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RETURN FALSE;
+    END IF;
+    IF filter_key = 'registration_statuses' AND EXISTS (
+      SELECT 1 FROM unnest(filter_values) AS items(value)
+      WHERE value NOT IN ('pending_payment','pending_approval','waitlisted','offered','confirmed','rejected','cancelled','expired')
+    ) THEN
+      RETURN FALSE;
+    END IF;
+  END LOOP;
+
+  RETURN TRUE;
+END;
+$_$;
 
 
 --
@@ -1789,6 +1839,31 @@ CREATE TABLE public.core_permissions (
 
 
 --
+-- Name: core_reauthentication_proofs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.core_reauthentication_proofs (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    user_id uuid NOT NULL,
+    session_jti_digest character varying(64) NOT NULL,
+    purpose character varying NOT NULL,
+    factor_type character varying NOT NULL,
+    token_digest character varying(64) NOT NULL,
+    issued_at timestamp(6) with time zone NOT NULL,
+    expires_at timestamp(6) with time zone NOT NULL,
+    consumed_at timestamp(6) with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT core_reauthentication_proofs_consumed_after_issue CHECK (((consumed_at IS NULL) OR (consumed_at >= issued_at))),
+    CONSTRAINT core_reauthentication_proofs_digest_shape CHECK ((((session_jti_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((token_digest)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT core_reauthentication_proofs_exact_lifetime CHECK ((expires_at = (issued_at + '00:05:00'::interval))),
+    CONSTRAINT core_reauthentication_proofs_factor_allowlist CHECK (((factor_type)::text = 'password'::text)),
+    CONSTRAINT core_reauthentication_proofs_ordered_window CHECK ((expires_at >= issued_at)),
+    CONSTRAINT core_reauthentication_proofs_purpose_allowlist CHECK (((purpose)::text = ANY (ARRAY[('attendee_export_request'::character varying)::text, ('attendee_export_download'::character varying)::text])))
+);
+
+
+--
 -- Name: core_refresh_tokens; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2438,6 +2513,62 @@ CREATE TABLE public.ticketing_access_codes (
 
 
 --
+-- Name: ticketing_attendee_exports; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_attendee_exports (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    event_id uuid NOT NULL,
+    requested_by_id uuid NOT NULL,
+    status character varying NOT NULL,
+    row_mode character varying NOT NULL,
+    format_version character varying NOT NULL,
+    field_keys jsonb,
+    filters jsonb,
+    field_set_digest character varying NOT NULL,
+    filter_digest character varying NOT NULL,
+    reason_code character varying NOT NULL,
+    data_cutoff_at timestamp(6) with time zone NOT NULL,
+    row_count integer,
+    file_sha256 character varying,
+    idempotency_key_digest character varying NOT NULL,
+    request_fingerprint character varying NOT NULL,
+    digest_key_version character varying NOT NULL,
+    processing_started_at timestamp(6) with time zone,
+    attempt_count integer DEFAULT 0 NOT NULL,
+    ready_at timestamp(6) with time zone,
+    failed_at timestamp(6) with time zone,
+    expiring_at timestamp(6) with time zone,
+    expired_at timestamp(6) with time zone,
+    expires_at timestamp(6) with time zone NOT NULL,
+    last_download_authorized_at timestamp(6) with time zone,
+    failure_code character varying,
+    lock_version integer DEFAULT 0 NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_attendee_exports_attempt_count_check CHECK (((attempt_count >= 0) AND (attempt_count <= 3))),
+    CONSTRAINT ticketing_attendee_exports_digest_key_version_check CHECK (((digest_key_version)::text ~ '^v[0-9]+$'::text)),
+    CONSTRAINT ticketing_attendee_exports_expiry_window_check CHECK (((expires_at > data_cutoff_at) AND (expires_at <= (created_at + '24:00:00'::interval)))),
+    CONSTRAINT ticketing_attendee_exports_failure_code_check CHECK (((failure_code IS NULL) OR ((failure_code)::text = ANY (ARRAY[('export_too_large'::character varying)::text, ('export_generation_failed'::character varying)::text, ('export_storage_unavailable'::character varying)::text])))),
+    CONSTRAINT ticketing_attendee_exports_field_keys_shape_check CHECK (((field_keys IS NULL) OR ((jsonb_typeof(field_keys) = 'array'::text) AND (jsonb_array_length(field_keys) <= 100)))),
+    CONSTRAINT ticketing_attendee_exports_field_set_digest_check CHECK (((field_set_digest)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT ticketing_attendee_exports_file_digest_shape_check CHECK (((file_sha256 IS NULL) OR ((file_sha256)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT ticketing_attendee_exports_filter_contract_check CHECK (public.ticketing_attendee_exports_filters_valid(filters)),
+    CONSTRAINT ticketing_attendee_exports_filter_digest_check CHECK (((filter_digest)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT ticketing_attendee_exports_filters_shape_check CHECK (((jsonb_typeof(filters) = 'object'::text) OR (filters IS NULL))),
+    CONSTRAINT ticketing_attendee_exports_format_version_check CHECK (((format_version)::text = 'csv_v1'::text)),
+    CONSTRAINT ticketing_attendee_exports_idempotency_digest_check CHECK (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT ticketing_attendee_exports_payload_state_check CHECK (((((status)::text = 'expired'::text) AND (field_keys IS NULL) AND (filters IS NULL) AND (failure_code IS NULL)) OR (((status)::text <> 'expired'::text) AND (field_keys IS NOT NULL) AND (filters IS NOT NULL)))),
+    CONSTRAINT ticketing_attendee_exports_reason_code_check CHECK (((reason_code)::text = ANY (ARRAY[('event_operations'::character varying)::text, ('attendee_communication'::character varying)::text, ('dietary_accommodation'::character varying)::text, ('accessibility_accommodation'::character varying)::text, ('customer_support'::character varying)::text, ('legal_compliance'::character varying)::text]))),
+    CONSTRAINT ticketing_attendee_exports_request_fingerprint_check CHECK (((request_fingerprint)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT ticketing_attendee_exports_row_count_check CHECK (((row_count IS NULL) OR (row_count >= 0))),
+    CONSTRAINT ticketing_attendee_exports_row_mode_check CHECK (((row_mode)::text = ANY (ARRAY[('registration'::character varying)::text, ('admission'::character varying)::text]))),
+    CONSTRAINT ticketing_attendee_exports_state_timestamps_check CHECK (((((status)::text = 'pending'::text) AND (processing_started_at IS NULL) AND (ready_at IS NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL)) OR (((status)::text = 'processing'::text) AND (processing_started_at IS NOT NULL) AND (ready_at IS NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL)) OR (((status)::text = 'ready'::text) AND (processing_started_at IS NOT NULL) AND (ready_at IS NOT NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL) AND (row_count IS NOT NULL) AND (file_sha256 IS NOT NULL)) OR (((status)::text = 'failed'::text) AND (processing_started_at IS NOT NULL) AND (ready_at IS NULL) AND (failed_at IS NOT NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL)) OR (((status)::text = 'expiring'::text) AND (processing_started_at IS NULL) AND (ready_at IS NULL) AND (failed_at IS NULL) AND (expiring_at IS NOT NULL) AND (expired_at IS NULL)) OR (((status)::text = 'expired'::text) AND (processing_started_at IS NULL) AND (ready_at IS NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NOT NULL)))),
+    CONSTRAINT ticketing_attendee_exports_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('processing'::character varying)::text, ('ready'::character varying)::text, ('failed'::character varying)::text, ('expiring'::character varying)::text, ('expired'::character varying)::text])))
+);
+
+
+--
 -- Name: ticketing_invitations; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2486,7 +2617,7 @@ CREATE TABLE public.ticketing_purchase_limit_allocations (
     idempotency_key character varying NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT ticketing_purchase_limit_allocations_release_reason_check CHECK (((release_reason IS NULL) OR ((release_reason)::text = ANY (ARRAY['expired'::text, 'checkout_expired'::text, 'cancelled'::text, 'refunded'::text, 'void'::text, 'resale_replaced'::text])))),
+    CONSTRAINT ticketing_purchase_limit_allocations_release_reason_check CHECK (((release_reason IS NULL) OR ((release_reason)::text = ANY (ARRAY[('expired'::character varying)::text, ('checkout_expired'::character varying)::text, ('cancelled'::character varying)::text, ('refunded'::character varying)::text, ('void'::character varying)::text, ('resale_replaced'::character varying)::text])))),
     CONSTRAINT ticketing_purchase_limit_allocations_state_check CHECK (((((status)::text = 'reserved'::text) AND (expires_at IS NOT NULL) AND (committed_at IS NULL) AND (released_at IS NULL) AND (release_reason IS NULL)) OR (((status)::text = 'committed'::text) AND (expires_at IS NULL) AND (committed_at IS NOT NULL) AND (released_at IS NULL) AND (release_reason IS NULL)) OR (((status)::text = 'released'::text) AND (expires_at IS NULL) AND (committed_at IS NULL) AND (released_at IS NOT NULL) AND (release_reason IS NOT NULL) AND ((release_reason)::text <> ''::text)))),
     CONSTRAINT ticketing_purchase_limit_allocations_status_check CHECK (((status)::text = ANY (ARRAY[('reserved'::character varying)::text, ('committed'::character varying)::text, ('released'::character varying)::text]))),
     CONSTRAINT ticketing_purchase_limit_allocations_unit_check CHECK ((unit_number > 0))
@@ -3007,6 +3138,14 @@ ALTER TABLE ONLY public.core_permissions
 
 
 --
+-- Name: core_reauthentication_proofs core_reauthentication_proofs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.core_reauthentication_proofs
+    ADD CONSTRAINT core_reauthentication_proofs_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: core_refresh_tokens core_refresh_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3268,6 +3407,14 @@ ALTER TABLE ONLY public.schema_migrations
 
 ALTER TABLE ONLY public.ticketing_access_codes
     ADD CONSTRAINT ticketing_access_codes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_attendee_exports ticketing_attendee_exports_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_attendee_exports
+    ADD CONSTRAINT ticketing_attendee_exports_pkey PRIMARY KEY (id);
 
 
 --
@@ -4279,6 +4426,27 @@ CREATE UNIQUE INDEX index_core_permissions_on_resource_action_namespace ON publi
 
 
 --
+-- Name: index_core_reauthentication_proofs_on_token_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_core_reauthentication_proofs_on_token_digest ON public.core_reauthentication_proofs USING btree (token_digest);
+
+
+--
+-- Name: index_core_reauthentication_proofs_on_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_core_reauthentication_proofs_on_user_id ON public.core_reauthentication_proofs USING btree (user_id);
+
+
+--
+-- Name: index_core_reauthentication_proofs_on_user_purpose_expiry; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_core_reauthentication_proofs_on_user_purpose_expiry ON public.core_reauthentication_proofs USING btree (user_id, purpose, expires_at);
+
+
+--
 -- Name: index_core_refresh_tokens_on_device_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -4759,6 +4927,41 @@ CREATE UNIQUE INDEX index_organizations_organizations_on_slug ON public.organiza
 --
 
 CREATE UNIQUE INDEX index_ticketing_access_codes_on_ticket_type_id_and_code_digest ON public.ticketing_access_codes USING btree (ticket_type_id, code_digest);
+
+
+--
+-- Name: index_ticketing_attendee_exports_on_event_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_ticketing_attendee_exports_on_event_id ON public.ticketing_attendee_exports USING btree (event_id);
+
+
+--
+-- Name: index_ticketing_attendee_exports_on_expires_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_ticketing_attendee_exports_on_expires_at ON public.ticketing_attendee_exports USING btree (expires_at);
+
+
+--
+-- Name: index_ticketing_attendee_exports_on_idempotency_key_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_ticketing_attendee_exports_on_idempotency_key_digest ON public.ticketing_attendee_exports USING btree (idempotency_key_digest);
+
+
+--
+-- Name: index_ticketing_attendee_exports_on_requested_by_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_ticketing_attendee_exports_on_requested_by_id ON public.ticketing_attendee_exports USING btree (requested_by_id);
+
+
+--
+-- Name: index_ticketing_attendee_exports_on_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_ticketing_attendee_exports_on_status ON public.ticketing_attendee_exports USING btree (status);
 
 
 --
@@ -5892,6 +6095,14 @@ ALTER TABLE ONLY public.events_event_date_changes
 
 
 --
+-- Name: core_reauthentication_proofs fk_rails_d799f90d96; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.core_reauthentication_proofs
+    ADD CONSTRAINT fk_rails_d799f90d96 FOREIGN KEY (user_id) REFERENCES public.core_users(id);
+
+
+--
 -- Name: ticketing_registration_consent_requirements fk_rails_d812807a6e; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5956,6 +6167,14 @@ ALTER TABLE ONLY public.events_event_staff_assignments
 
 
 --
+-- Name: ticketing_attendee_exports fk_rails_e7e49b4233; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_attendee_exports
+    ADD CONSTRAINT fk_rails_e7e49b4233 FOREIGN KEY (requested_by_id) REFERENCES public.core_users(id);
+
+
+--
 -- Name: events_consent_document_versions fk_rails_eca35bc8df; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5977,6 +6196,14 @@ ALTER TABLE ONLY public.events_event_categories
 
 ALTER TABLE ONLY public.ticketing_registrations
     ADD CONSTRAINT fk_rails_f0bde43d6c FOREIGN KEY (invitation_id) REFERENCES public.ticketing_invitations(id);
+
+
+--
+-- Name: ticketing_attendee_exports fk_rails_f4991fd494; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_attendee_exports
+    ADD CONSTRAINT fk_rails_f4991fd494 FOREIGN KEY (event_id) REFERENCES public.events_events(id);
 
 
 --
@@ -6046,6 +6273,8 @@ INSERT INTO "schema_migrations" (version) VALUES
 ('20260728000003'),
 ('20260728000002'),
 ('20260728000001'),
+('20260727090117'),
+('20260727090116'),
 ('20260727090115'),
 ('20260727090114'),
 ('20260727090113'),
