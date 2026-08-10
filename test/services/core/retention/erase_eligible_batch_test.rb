@@ -6,6 +6,7 @@ module Core
   module Retention
     class EraseEligibleBatchTest < ActiveSupport::TestCase
       include Ticketing::ConsentTestHelpers
+      include Ticketing::AttendeeExportTestHelpers
 
       setup do
         @event = events_events(:ready_listing)
@@ -88,6 +89,24 @@ module Core
         assert_equal original_deadline, answer.retain_until
         assert Ticketing::Registration.exists?(@registration.id)
         assert_equal "pending_payment", @registration.reload.status
+      end
+
+      test "invalidates every active attendee export before erasing source answers" do
+        statuses = %w[pending processing ready failed]
+        exports = statuses.map do |status|
+          overrides = { status: }
+          overrides[:attempt_count] = 1 if status == "processing"
+          create_export(event: @event, actor: @actor, overrides:)
+        end
+
+        result = EraseEligibleBatch.call(limit: 10)
+
+        assert_predicate result, :success?, result.error&.message
+        assert_equal exports.map(&:id).sort, Ticketing::AttendeeExport.where(status: "expiring").pluck(:id).sort
+        assert_equal exports.length, Core::OutboxEvent.where(
+          event_type: "ticketing.attendee_export.purge_requested"
+        ).count
+        assert @answer.reload.erased?
       end
 
       test "erases a due answer under its retired retention policy snapshot" do

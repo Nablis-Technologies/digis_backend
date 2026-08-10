@@ -15,8 +15,10 @@ module Core
 
       def call
         summary = { answers: 0, revisions: 0, consents: 0, skipped: 0, errors: 0, processed: 0 }
+        @invalidated_event_ids = Set.new
 
         ActiveRecord::Base.transaction do
+          lock_candidate_events!
           # Select candidates with row locks first, then hold the shared scopes
           # while rechecking and erasing each payload.
           answers = locked_answers
@@ -80,6 +82,7 @@ module Core
             next
           end
 
+          invalidate_event!(registration.event_id)
           answer.update!(answer_ciphertext: nil, erased_at: @at, erasure_reason: "policy_expiry")
           answer.revisions.each do |revision|
             next if revision.erased?
@@ -105,6 +108,7 @@ module Core
             next
           end
 
+          invalidate_event!(consent.registration.event_id)
           consent.update!(
             accepted_by_user_id: nil,
             evidence_digest: nil,
@@ -189,6 +193,41 @@ module Core
           keys
         end.uniq.sort_by(&:to_s)
         Core::Database::AdvisoryLock.acquire_all!(*keys)
+      end
+
+      def lock_candidate_events!
+        answer_event_ids = Ticketing::RegistrationAnswer
+          .joins(:retention_policy, registration_form_submission: :registration)
+          .where(erased_at: nil, core_data_retention_policies: { action: "erase_payload" })
+          .where("ticketing_registration_answers.retain_until <= ?", @at)
+          .order(:retain_until, :id)
+          .limit(@limit)
+          .pluck("ticketing_registrations.event_id")
+        remaining = @limit - answer_event_ids.length
+        consent_event_ids = if remaining.positive?
+          Ticketing::RegistrationConsent
+            .joins(:retention_policy, :registration)
+            .where(erased_at: nil, core_data_retention_policies: { action: "erase_payload" })
+            .where("ticketing_registration_consents.retain_until <= ?", @at)
+            .order(:retain_until, :id)
+            .limit(remaining)
+            .pluck("ticketing_registrations.event_id")
+        else
+          []
+        end
+        event_ids = (answer_event_ids + consent_event_ids).uniq.sort
+        Core::Database::AdvisoryLock.acquire_all!(
+          *event_ids.map { |event_id| [ "registration-privacy-event", event_id ] }
+        )
+      end
+
+      def invalidate_event!(event_id)
+        return if @invalidated_event_ids.include?(event_id)
+
+        result = Ticketing::Exports::InvalidateForEvent.call(event: Events::Event.new(id: event_id))
+        raise result.error if result.failure?
+
+        @invalidated_event_ids.add(event_id)
       end
     end
   end
