@@ -117,6 +117,12 @@ permissions = [
   { resource: "ticket", action: "destroy", namespace: "core", description: "Delete tickets" },
   { resource: "ticket", action: "scan", namespace: "core", description: "Scan ticket QR codes" },
 
+  # Private attendee exports
+  { resource: "attendee_export", action: "request", namespace: "ticketing", description: "Request private attendee exports" },
+  { resource: "attendee_export", action: "contact", namespace: "ticketing", description: "Export registration contact fields" },
+  { resource: "attendee_export", action: "dietary", namespace: "ticketing", description: "Export dietary fields" },
+  { resource: "attendee_export", action: "accessibility", namespace: "ticketing", description: "Export accessibility fields" },
+
   # Order management
   { resource: "order", action: "index", namespace: "core", description: "List all orders" },
   { resource: "order", action: "show", namespace: "core", description: "View order details" },
@@ -233,6 +239,15 @@ organizer_permissions = Core::Permission.where(
   namespace: "core"
 )
 organizer_permissions.find_each do |perm|
+  Core::RolePermission.find_or_create_by!(role: organizer_role, permission: perm)
+end
+
+organizer_export_permissions = Core::Permission.where(
+  resource: "attendee_export",
+  action: %w[request contact],
+  namespace: "ticketing"
+)
+organizer_export_permissions.find_each do |perm|
   Core::RolePermission.find_or_create_by!(role: organizer_role, permission: perm)
 end
 

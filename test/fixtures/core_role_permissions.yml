@@ -147,3 +147,53 @@ support_org_show:
   id: 019e5f6c-0002-7aaa-bbbb-ccccccccccc5
   role_id: 019e5f6b-0001-7aaa-bbbb-ccccccccccc1
   permission_id: 019e5f6c-0001-7aaa-bbbb-ccccccccccc2
+
+super_admin_attendee_export_request:
+  id: 019e5f6d-0003-7aaa-bbbb-ccccccccccc1
+  role_id: 019e5f69-d843-7def-8cf6-53197a1972e5
+  permission_id: 019e5f6d-0001-7aaa-bbbb-ccccccccccc1
+
+super_admin_attendee_export_contact:
+  id: 019e5f6d-0003-7aaa-bbbb-ccccccccccc2
+  role_id: 019e5f69-d843-7def-8cf6-53197a1972e5
+  permission_id: 019e5f6d-0001-7aaa-bbbb-ccccccccccc2
+
+super_admin_attendee_export_dietary:
+  id: 019e5f6d-0003-7aaa-bbbb-ccccccccccc3
+  role_id: 019e5f69-d843-7def-8cf6-53197a1972e5
+  permission_id: 019e5f6d-0001-7aaa-bbbb-ccccccccccc3
+
+super_admin_attendee_export_accessibility:
+  id: 019e5f6d-0003-7aaa-bbbb-ccccccccccc4
+  role_id: 019e5f69-d843-7def-8cf6-53197a1972e5
+  permission_id: 019e5f6d-0001-7aaa-bbbb-ccccccccccc4
+
+admin_attendee_export_request:
+  id: 019e5f6d-0003-7aaa-bbbb-ccccccccccc5
+  role_id: 019e5f6d-0002-7aaa-bbbb-ccccccccccc1
+  permission_id: 019e5f6d-0001-7aaa-bbbb-ccccccccccc1
+
+admin_attendee_export_contact:
+  id: 019e5f6d-0003-7aaa-bbbb-ccccccccccc6
+  role_id: 019e5f6d-0002-7aaa-bbbb-ccccccccccc1
+  permission_id: 019e5f6d-0001-7aaa-bbbb-ccccccccccc2
+
+admin_attendee_export_dietary:
+  id: 019e5f6d-0003-7aaa-bbbb-ccccccccccc7
+  role_id: 019e5f6d-0002-7aaa-bbbb-ccccccccccc1
+  permission_id: 019e5f6d-0001-7aaa-bbbb-ccccccccccc3
+
+admin_attendee_export_accessibility:
+  id: 019e5f6d-0003-7aaa-bbbb-ccccccccccc8
+  role_id: 019e5f6d-0002-7aaa-bbbb-ccccccccccc1
+  permission_id: 019e5f6d-0001-7aaa-bbbb-ccccccccccc4
+
+organizer_attendee_export_request:
+  id: 019e5f6d-0003-7aaa-bbbb-ccccccccccc9
+  role_id: 019e5f6d-0002-7aaa-bbbb-ccccccccccc2
+  permission_id: 019e5f6d-0001-7aaa-bbbb-ccccccccccc1
+
+organizer_attendee_export_contact:
+  id: 019e5f6d-0003-7aaa-bbbb-ccccccccccd0
+  role_id: 019e5f6d-0002-7aaa-bbbb-ccccccccccc2
+  permission_id: 019e5f6d-0001-7aaa-bbbb-ccccccccccc2

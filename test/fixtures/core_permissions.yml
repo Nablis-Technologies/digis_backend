@@ -305,3 +305,47 @@ audit_log_show:
   active: true
   created_at: <%= Time.current %>
   updated_at: <%= Time.current %>
+
+attendee_export_request:
+  id: 019e5f6d-0001-7aaa-bbbb-ccccccccccc1
+  code: attendee_export.request
+  resource: attendee_export
+  action: request
+  namespace: ticketing
+  description: Request private attendee exports
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+attendee_export_contact:
+  id: 019e5f6d-0001-7aaa-bbbb-ccccccccccc2
+  code: attendee_export.contact
+  resource: attendee_export
+  action: contact
+  namespace: ticketing
+  description: Export registration contact fields
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+attendee_export_dietary:
+  id: 019e5f6d-0001-7aaa-bbbb-ccccccccccc3
+  code: attendee_export.dietary
+  resource: attendee_export
+  action: dietary
+  namespace: ticketing
+  description: Export dietary fields
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+attendee_export_accessibility:
+  id: 019e5f6d-0001-7aaa-bbbb-ccccccccccc4
+  code: attendee_export.accessibility
+  resource: attendee_export
+  action: accessibility
+  namespace: ticketing
+  description: Export accessibility fields
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
