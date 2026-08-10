@@ -143,6 +143,20 @@ class AdminUsersTest < ActionDispatch::IntegrationTest
     assert_not token.reload.active?
   end
 
+  test "changing a password revokes all existing tokens" do
+    user = core_users(:support)
+    token = Core::RefreshToken.generate(user, ActionDispatch::TestRequest.create)
+    headers = token_headers_for(core_users(:super_admin))
+
+    patch "/admin/users/#{user.id}",
+          params: { user: { password: "new-password123" } },
+          headers: headers,
+          as: :json
+
+    assert_response :success
+    assert_not token.reload.active?
+  end
+
   test "deactivate logs an audit" do
     user = core_users(:support)
     headers = token_headers_for(core_users(:super_admin))

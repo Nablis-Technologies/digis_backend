@@ -11,6 +11,11 @@ module Core
     has_many :roles,
              through: :user_roles,
              class_name: "Core::Role"
+    has_many :reauthentication_proofs,
+             class_name: "Core::ReauthenticationProof",
+             foreign_key: :user_id,
+             dependent: :destroy,
+             inverse_of: :user
 
     has_many :memberships,
              class_name: "Organizations::Membership",

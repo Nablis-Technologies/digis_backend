@@ -86,6 +86,22 @@ module Core
       )
     end
 
+    def reauthenticate
+      skip_authorization
+      response.set_header("Cache-Control", "no-store")
+
+      result = Core::Reauthentication::Issue.call(
+        user: current_user,
+        session_jti: current_authentication_jti,
+        purpose: params[:purpose].presence || Core::ReauthenticationProof::PURPOSES.first,
+        password: params.require(:password),
+        ip_address: request.remote_ip
+      )
+      return render_error(result.error.message, status: result.error.status_code, code: result.error.code) if result.failure?
+
+      render_success(:"reauthentication.success.issued", data: { proof: result.value })
+    end
+
     def refresh
       skip_authorization
       new_tokens = refresh_token!
