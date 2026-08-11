@@ -6,6 +6,7 @@ require "test_helper"
 module Commercial
   class ResolveChargesTest < ActiveSupport::TestCase
     include Commercial::FeeDefinitionTestHelpers
+    include Commercial::VolumeTestHelpers
 
     setup do
       @organization = organizations_organizations(:one)
@@ -192,6 +193,68 @@ module Commercial
       assert_equal 12, commission.tier_metric_value
       assert_equal "event", commission.tier_window_type
       assert_equal 0, commission.tier_starts_at_value
+    end
+
+    test "uses the committed counter before selecting a prospective tier" do
+      version = create_active_version(code: "committed_volume_counter", schedule_type: "platform_default") do |candidate|
+        tiered = create_component(
+          candidate, calculation_type: "tiered", rate_bps: nil,
+          basis_type: "eligible_order_subtotal"
+        )
+        create_tier(tiered, starts_at_value: 0, rate_bps: 500)
+        create_tier(tiered, position: 2, starts_at_value: 10, rate_bps: 250)
+        create_fixed_component(candidate, component_type: "buyer_service_fee", fixed_amount_minor: 100)
+        create_component(
+          candidate, component_type: "processing_cost_recovery", charged_to: "buyer", funded_by: "buyer",
+          rate_bps: 500
+        )
+      end
+      tiered = version.fee_components.find_by(component_type: "platform_commission")
+      @event.event_dates.create!(starts_at: Time.utc(2026, 8, 15, 12), ends_at: Time.utc(2026, 8, 15, 18))
+      window = Commercial::Volume::Window.resolve(
+        window_type: "event", quoted_at: @quoted_at, event: @event, event_id: @event.id
+      )
+      counter = Commercial::VolumeCounter.create!(
+        fee_component: tiered, organization: @organization, event: @event,
+        metric_type: "accepted_paid_units", window_type: "event",
+        window_start_at: window.start_at, window_end_at: window.end_at, value: 12, lock_version: 0
+      )
+
+      result = Commercial::ResolveCharges.call(context: context(accepted_paid_units: 0))
+
+      assert_predicate result, :success?, result.error&.message
+      commission = component(result.value, "platform_commission")
+      assert_equal 2, commission.tier_position
+      assert_equal 12, commission.tier_metric_value
+      assert_equal counter.id, commission.volume_counter_id
+      assert_equal 12, commission.volume_counter_value_before
+      assert_equal window.start_at, commission.volume_window_start_at
+      assert_equal window.end_at, commission.volume_window_end_at
+    end
+
+    test "uses a persisted event payer selection when context does not override it" do
+      selected_component = nil
+      create_active_version(code: "persisted_payer_selection", schedule_type: "platform_default") do |version|
+        selected_component = create_component(
+          version, charged_to: "organizer", funded_by: "organizer",
+          organizer_payer_choice: true, rate_bps: 1_000
+        )
+        create_fixed_component(version, component_type: "buyer_service_fee", fixed_amount_minor: 100)
+        create_component(
+          version, component_type: "processing_cost_recovery", charged_to: "buyer", funded_by: "buyer",
+          rate_bps: 500
+        )
+      end
+      set_result = Commercial::EventPayerSelections::Set.call(
+        event: @event, fee_component: selected_component, charged_to: "buyer",
+        selected_by: core_users(:attendee), idempotency_key: "persisted-payer-selection"
+      )
+      assert_predicate set_result, :success?, set_result.error&.message
+
+      result = Commercial::ResolveCharges.call(context: context)
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "buyer", component(result.value, "platform_commission").payer
     end
 
     test "returns deeply frozen scalar evidence with deterministic serialization" do
