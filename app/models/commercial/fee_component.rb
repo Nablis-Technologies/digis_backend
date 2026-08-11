@@ -42,6 +42,18 @@ module Commercial
              class_name: "Commercial::SubsidyBudget",
              inverse_of: :fee_component,
              dependent: :restrict_with_exception
+    has_many :volume_counters,
+             class_name: "Commercial::VolumeCounter",
+             inverse_of: :fee_component,
+             dependent: :restrict_with_exception
+    has_many :volume_usages,
+             class_name: "Commercial::VolumeUsage",
+             inverse_of: :fee_component,
+             dependent: :restrict_with_exception
+    has_many :event_payer_selections,
+             class_name: "Commercial::EventPayerSelection",
+             inverse_of: :fee_component,
+             dependent: :restrict_with_exception
 
     before_validation :normalize_scope_currency
 
@@ -77,7 +89,10 @@ module Commercial
     end
 
     def self.ransackable_associations(_auth_object = nil)
-      %w[fee_schedule_version event_product fee_amounts fee_tiers subsidy_budgets]
+      %w[
+        fee_schedule_version event_product fee_amounts fee_tiers subsidy_budgets
+        volume_counters volume_usages event_payer_selections
+      ]
     end
 
     private

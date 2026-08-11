@@ -48,6 +48,10 @@ module Orders
              class_name: "Commercial::SubsidyReservation",
              inverse_of: :order,
              dependent: :restrict_with_exception
+    has_many :volume_usages,
+             class_name: "Commercial::VolumeUsage",
+             inverse_of: :order,
+             dependent: :restrict_with_exception
     has_one :promotion_redemption,
             class_name: "Orders::PromotionRedemption",
             inverse_of: :order,
@@ -105,7 +109,7 @@ module Orders
 
     def self.ransackable_associations(_auth_object = nil)
       %w[event buyer_user initiated_by replaces_order replacement_order order_items order_adjustments
-         promotion_redemption subsidy_reservations]
+         promotion_redemption subsidy_reservations volume_usages]
     end
 
     private
