@@ -39,3 +39,10 @@
   A plan-level dependency is not enough when one task must create a real
   foreign-key target before another plan can proceed; never use a placeholder
   table or seed data to hide that ordering.
+
+- When a later schema replaces an older cross-module key, update every
+  defensive probe and its tests to use the canonical ownership path. For
+  event-scoped orders, organization ownership is derived through the event and
+  ticket commitments are derived through the product; do not reintroduce
+  redundant `organization_id` or `ticket_type_id` columns just to satisfy an
+  older query.

@@ -3448,6 +3448,13 @@ add_index :promo_code_ticket_types, [:promo_code_id, :ticket_type_id], unique: t
 
 ### F6: `orders` Missing Single-Event Constraint
 
+> **Superseded:** The current canonical design in
+> `docs/COMPOSABLE_EVENT_PLATFORM_DATABASE_DESIGN.md` intentionally keeps one
+> event per order. The implementation uses `orders_orders.event_id` and
+> `orders_order_items.event_product_id`; do not implement the historical
+> multi-event/`ticket_type_id` proposal below. Organization ownership for an
+> order is derived through its event.
+
 **The Problem**: An `order` has `event_id` but in reality, a single order can contain tickets for multiple events (e.g., festival pass that includes multiple days/events). The current design forces one order per event.
 
 **The Better Design**: Remove `event_id` from orders. Each `order_item` links to a `ticket_type` which links to an `event`:
