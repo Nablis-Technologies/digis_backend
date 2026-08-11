@@ -106,6 +106,10 @@ Rails.application.routes.draw do
     resources :attendee_exports, controller: "ticketing/attendee_exports", only: %i[create]
   end
 
+  resources :attendee_exports, controller: "ticketing/attendee_exports", only: %i[show] do
+    post :download_authorizations, on: :member
+  end
+
   resources :registration_answers, only: %i[show], controller: "ticketing/registration_answers" do
     post :revise, on: :member
   end

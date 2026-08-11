@@ -5,6 +5,7 @@ require "test_helper"
 module Ticketing
   class AttendeeExportsTest < ActionDispatch::IntegrationTest
     include Core::AuthTestHelpers
+    include Ticketing::AttendeeExportTestHelpers
 
     setup do
       @user = core_users(:attendee)
@@ -168,9 +169,59 @@ module Ticketing
       assert_equal "idempotency_conflict", response.parsed_body["code"]
     end
 
+    test "shows requester-safe lifecycle metadata without selectors, filters, or URLs" do
+      export = create_export(
+        event: events_events(:ready_listing),
+        actor: core_users(:super_admin),
+        overrides: { status: "ready" }
+      )
+      export.file.attach(io: StringIO.new("private csv"), filename: "export.csv", content_type: "text/csv")
+
+      get "/attendee_exports/#{export.id}", headers: admin_headers, as: :json
+
+      assert_response :success
+      data = response.parsed_body.fetch("data")
+      assert_equal export.id, data.fetch("id")
+      assert_not data.key?("field_keys")
+      assert_not data.key?("filters")
+      assert_not data.key?("url")
+    end
+
+    test "authorizes a download with a fresh download-purpose proof" do
+      export = create_export(
+        event: events_events(:ready_listing),
+        actor: core_users(:super_admin),
+        overrides: { status: "ready" }
+      )
+      export.file.attach(io: StringIO.new("private csv"), filename: "export.csv", content_type: "text/csv")
+      proof = issue_admin_proof(purpose: "attendee_export_download")
+
+      post "/attendee_exports/#{export.id}/download_authorizations",
+           params: { proof: }, headers: @admin_export_headers, as: :json
+
+      assert_response :success
+      data = response.parsed_body.fetch("data")
+      assert data.fetch("url").present?
+      assert data.fetch("expires_at").present?
+    end
+
+    test "requires a download proof for download authorization" do
+      export = create_export(
+        event: events_events(:ready_listing),
+        actor: core_users(:super_admin),
+        overrides: { status: "ready" }
+      )
+
+      post "/attendee_exports/#{export.id}/download_authorizations",
+           params: {}, headers: admin_headers, as: :json
+
+      assert_response :bad_request
+      assert_equal "parameter_missing", response.parsed_body.fetch("code")
+    end
+
     private
 
-    def issue_admin_proof
+    def issue_admin_proof(purpose: "attendee_export_request")
       admin = core_users(:super_admin)
       @admin_session ||= Core::RefreshToken.generate(admin, ActionDispatch::TestRequest.create)
       @admin_token ||= Core::TokenService.issue(
@@ -178,7 +229,7 @@ module Ticketing
       )
       @admin_export_headers = { "Authorization" => "Bearer #{@admin_token}" }
       post "/auth/reauthenticate",
-           params: { password: "password123" },
+           params: { password: "password123", purpose: },
            headers: @admin_export_headers,
            as: :json
       assert_response :success

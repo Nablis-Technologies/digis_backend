@@ -23,3 +23,9 @@ en:
         invalid_state: "The export lifecycle state is invalid"
         invalid_payload_state: "The export payload does not match its lifecycle state"
         ready_metadata_required: "Ready exports require row and checksum metadata"
+        export_not_ready: "The attendee export is not ready for download"
+        export_expired: "The attendee export has expired"
+        storage_unavailable: "The attendee export storage is temporarily unavailable"
+        hmac_key_version_unavailable: "The attendee export HMAC key version is unavailable"
+      success:
+        download_authorization: "Download authorization created"

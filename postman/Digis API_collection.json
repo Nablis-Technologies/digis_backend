@@ -10333,6 +10333,81 @@
           },
           "response": [],
           "event": []
+        },
+        {
+          "name": "Show Attendee Export",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/attendee_exports/{{attendeeExportId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendee_exports",
+                "{{attendeeExportId}}"
+              ]
+            },
+            "description": "Returns lifecycle metadata only. Selectors, filters, attachment URLs, proofs, and storage metadata are never serialized.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": []
+        },
+        {
+          "name": "Authorize Attendee Export Download",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"proof\": \"{{downloadReauthenticationProof}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendee_exports/{{attendeeExportId}}/download_authorizations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendee_exports",
+                "{{attendeeExportId}}",
+                "download_authorizations"
+              ]
+            },
+            "description": "Consumes a fresh attendee_export_download proof and returns a provider URL capped at two minutes or the export expiry, whichever comes first.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": []
         }
       ]
     }

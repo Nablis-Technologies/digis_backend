@@ -26,7 +26,7 @@ module Core
 
     def digest(namespace:, value:, version: current_version)
       key = key_ring.fetch(version.to_s) do
-        fail ArgumentError, "attendee export HMAC key version is unavailable"
+        fail ArgumentError, I18n.t("ticketing.attendee_exports.errors.hmac_key_version_unavailable")
       end
       derived_key = OpenSSL::HMAC.digest("SHA256", key, namespace.to_s)
       OpenSSL::HMAC.hexdigest("SHA256", derived_key, value.to_s.strip)
