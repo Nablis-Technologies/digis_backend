@@ -535,55 +535,89 @@ git commit -m "feat(commercial): reserve first event benefits safely"
 
 ## Task 7: Implement currency budgets and subsidy reservations
 
+Task 7 is split at the Orders boundary. The budget is a Commercial-owned
+invariant and can be introduced now. A reservation is an order-linked
+checkout record, so its explicit `orders_orders` foreign key and the
+hold/processing/commit/release commands must land only after the Orders
+schema exists. This avoids both a temporary placeholder Orders table and a
+reservation table whose referential integrity would be weakened.
+
+### Task 7A: Implement hard per-currency subsidy budgets
+
 **Files:**
 
 - Create: `db/migrate/20260808090012_create_commercial_subsidy_budgets.rb`
-- Create: `db/migrate/20260808090013_create_commercial_subsidy_reservations.rb`
 - Create: `app/models/commercial/subsidy_budget.rb`
+- Modify: `app/models/commercial/assignment.rb`
+- Modify: `app/models/commercial/fee_component.rb`
+- Modify: `app/models/commercial/program.rb`
+- Create: `test/models/commercial/subsidy_budget_test.rb`
+
+- [ ] **Step 1: Generate the budget skeleton and write RED tests**
+
+```bash
+PATH="$HOME/.asdf/shims:$PATH" bundle exec rails generate domain_module Commercial::SubsidyBudget \
+  currency:string --only=migration model --no-interactive --no-auditable
+```
+
+Tests prove XOR budget ownership (`assignment_id` or `program_id`), exact
+owner fee-version/component alignment, platform-subsidy-only usage,
+component/currency compatibility, positive limits, nonnegative counters,
+`reserved + consumed <= limit`, database check constraints, unique owner /
+component / currency budgets, and safe Ransack contracts.
+
+- [ ] **Step 2: Run RED**
+
+```bash
+PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
+  test/models/commercial/subsidy_budget_test.rb
+```
+
+- [ ] **Step 3: Implement database-backed budget invariants**
+
+Use UUIDv7, explicit restrictive foreign keys, partial unique indexes for
+assignment-owned and program-owned budgets, and database checks for owner
+XOR, currency shape, positive limits, nonnegative counters/lock version, and
+the hard counter cap. The model mirrors those checks and documents that
+`lock_version` is reserved for the later transactional reservation command;
+no order-linked mutation service belongs in this subtask.
+
+- [ ] **Step 4: Run GREEN, migration tests, and lint**
+
+```bash
+PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:migrate
+PATH="$HOME/.asdf/shims:$PATH" RAILS_ENV=test bundle exec rails db:migrate
+N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
+  test/models/commercial/subsidy_budget_test.rb
+RUBOCOP_CACHE_ROOT=tmp/rubocop bundle exec rubocop \
+  app/models/commercial/subsidy_budget.rb app/models/commercial/assignment.rb \
+  app/models/commercial/fee_component.rb app/models/commercial/program.rb \
+  test/models/commercial/subsidy_budget_test.rb
+```
+
+### Task 7B: Implement order-linked subsidy reservations after Orders exists
+
+This remains planned but intentionally deferred until
+`orders_orders` is created by the Orders plan.
+
+**Files:**
+
+- Create: `db/migrate/20260808090013_create_commercial_subsidy_reservations.rb`
 - Create: `app/models/commercial/subsidy_reservation.rb`
 - Create: `app/services/commercial/subsidies/hold.rb`
 - Create: `app/services/commercial/subsidies/mark_processing.rb`
 - Create: `app/services/commercial/subsidies/commit.rb`
 - Create: `app/services/commercial/subsidies/release.rb`
 - Create: `app/services/commercial/subsidies/expire_holds.rb`
-- Create: `test/models/commercial/subsidy_budget_test.rb`
 - Create: `test/models/commercial/subsidy_reservation_test.rb`
 - Create: `test/services/commercial/subsidies/*_test.rb`
 
-- [ ] **Step 1: Generate skeletons and write RED tests**
-
-```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails generate domain_module Commercial::SubsidyBudget \
-  currency:string --only=migration,model --no-interactive --no-auditable
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails generate domain_module Commercial::SubsidyReservation \
-  status:string --only=migration,model --no-interactive --no-auditable
-```
-
-Rename the migrations to the canonical timestamps above. Tests prove XOR budget ownership (`assignment_id` or `program_id`), component/currency match, positive limits/holds, `reserved + consumed <= limit`, state/timestamp coupling, request fingerprint conflicts, idempotent replay, expiration, and two concurrent last-unit holds yielding exactly one success.
-
-- [ ] **Step 2: Run RED**
-
-```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
-  test/models/commercial/subsidy_budget_test.rb \
-  test/models/commercial/subsidy_reservation_test.rb \
-  test/services/commercial/subsidies
-```
-
-- [ ] **Step 3: Implement deterministic locking**
-
-Lock budgets in sorted UUID order. Update budget counters and reservation state in one transaction. Use SHA-256 idempotency-key digests/fingerprints rather than plaintext keys. `hold`, `commit`, and `release` write synchronous audit evidence; terminal reservations are never deleted.
-
-- [ ] **Step 4: Run GREEN and commit**
-
-```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:migrate
-PATH="$HOME/.asdf/shims:$PATH" RAILS_ENV=test bundle exec rails db:migrate
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/commercial test/services/commercial/subsidies
-RUBOCOP_CACHE_ROOT=tmp/rubocop bundle exec rubocop app/models/commercial app/services/commercial/subsidies test
-git add db/migrate app/models/commercial app/services/commercial/subsidies test db/structure.sql
-git commit -m "feat(commercial): enforce hard subsidy budgets"
-```
+The reservation migration must own an explicit restrictive foreign key to
+`orders_orders`. Tests and services will then prove state/timestamp coupling,
+request-fingerprint conflicts, idempotent replay, expiration, deterministic
+budget locking, and two concurrent last-unit holds yielding exactly one
+success. Hold/commit/release will update budget counters and reservation state
+in one transaction, record SHA-256 evidence, and retain terminal reservations.
 
 ## Task 8: Implement prospective volume tiers and event payer selections
 
