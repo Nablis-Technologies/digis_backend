@@ -8,8 +8,8 @@ module Core
 
     def initialize(amount_minor:, currency:)
       normalized_currency = currency.to_s.upcase
-      raise ArgumentError, "amount_minor must be an Integer" unless amount_minor.is_a?(Integer)
-      raise ArgumentError, "currency must be ISO-4217 alpha-3" unless normalized_currency.match?(/\A[A-Z]{3}\z/)
+      raise ArgumentError, I18n.t("core.errors.amount_minor_integer") unless amount_minor.is_a?(Integer)
+      raise ArgumentError, I18n.t("core.errors.currency_format") unless normalized_currency.match?(/\A[A-Z]{3}\z/)
 
       @amount_minor = amount_minor
       @currency = normalized_currency
@@ -32,7 +32,7 @@ module Core
       return if other.is_a?(self.class) && other.currency == currency
 
       other_currency = other.respond_to?(:currency) ? other.currency : other.class.name
-      raise CurrencyMismatch, "#{currency} cannot be combined with #{other_currency}"
+      raise CurrencyMismatch, I18n.t("core.errors.currency_mismatch", currency:, other_currency:)
     end
   end
 end

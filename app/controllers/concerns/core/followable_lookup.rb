@@ -17,7 +17,7 @@ module Core
     def find_followable!
       type = params[:followable_type]
       klass = REGISTRY[type]
-      raise ActiveRecord::RecordNotFound, "Unknown followable type: #{type}" unless klass
+      raise ActiveRecord::RecordNotFound, I18n.t("core.errors.unsupported_followable_type", type:) unless klass
 
       klass.find(params[:followable_id])
     end

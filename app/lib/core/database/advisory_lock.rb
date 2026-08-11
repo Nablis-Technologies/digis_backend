@@ -16,7 +16,7 @@ module Core
       # acquired lock set. PostgreSQL releases these locks at transaction end.
       def acquire_all!(*parts_list)
         connection = Core::ApplicationRecord.connection
-        raise ArgumentError, "advisory lock requires an open transaction" unless connection.transaction_open?
+        raise ArgumentError, I18n.t("core.errors.advisory_lock_transaction_required") unless connection.transaction_open?
 
         keys = parts_list.map { |parts| Array(parts).map(&:to_s).join(":") }
         return if keys.empty?
