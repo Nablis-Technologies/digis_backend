@@ -1848,6 +1848,52 @@ CREATE TABLE public.catalog_venue_capacity_reservations (
 
 
 --
+-- Name: commercial_assignments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.commercial_assignments (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    event_id uuid,
+    fee_schedule_version_id uuid NOT NULL,
+    program_id uuid,
+    assignment_type character varying NOT NULL,
+    status character varying DEFAULT 'draft'::character varying NOT NULL,
+    reason text NOT NULL,
+    external_reference character varying,
+    legal_acceptance_id uuid,
+    effective_from timestamp with time zone NOT NULL,
+    effective_until timestamp with time zone,
+    risk_level character varying NOT NULL,
+    created_by_id uuid NOT NULL,
+    approved_by_id uuid,
+    approved_at timestamp with time zone,
+    activated_by_id uuid,
+    activated_at timestamp with time zone,
+    terminated_by_id uuid,
+    terminated_at timestamp with time zone,
+    external_accepted_by_id uuid,
+    external_accepted_at timestamp with time zone,
+    baseline_resolution_digest character varying(64),
+    lock_version integer DEFAULT 0 NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT commercial_assignments_active_metadata_check CHECK ((((status)::text <> 'active'::text) OR ((activated_by_id IS NOT NULL) AND (activated_at IS NOT NULL)))),
+    CONSTRAINT commercial_assignments_assignment_type_check CHECK (((assignment_type)::text = ANY ((ARRAY['program'::character varying, 'platform_grant'::character varying, 'mutual_agreement'::character varying])::text[]))),
+    CONSTRAINT commercial_assignments_baseline_digest_check CHECK (((baseline_resolution_digest IS NULL) OR ((baseline_resolution_digest)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT commercial_assignments_effective_interval_check CHECK (((effective_until IS NULL) OR (effective_until > effective_from))),
+    CONSTRAINT commercial_assignments_external_acceptance_metadata_check CHECK (((external_reference IS NULL) OR ((external_accepted_by_id IS NOT NULL) AND (external_accepted_at IS NOT NULL)))),
+    CONSTRAINT commercial_assignments_external_reference_check CHECK (((external_reference IS NULL) OR (NULLIF(btrim((external_reference)::text), ''::text) IS NOT NULL))),
+    CONSTRAINT commercial_assignments_lock_version_check CHECK ((lock_version >= 0)),
+    CONSTRAINT commercial_assignments_mutual_evidence_check CHECK ((((assignment_type)::text <> 'mutual_agreement'::text) OR ((status)::text <> ALL ((ARRAY['scheduled'::character varying, 'active'::character varying])::text[])) OR (legal_acceptance_id IS NOT NULL) OR (NULLIF(btrim((external_reference)::text), ''::text) IS NOT NULL))),
+    CONSTRAINT commercial_assignments_platform_grant_baseline_check CHECK ((((assignment_type)::text <> 'platform_grant'::text) OR (baseline_resolution_digest IS NOT NULL))),
+    CONSTRAINT commercial_assignments_risk_level_check CHECK (((risk_level)::text = ANY ((ARRAY['low'::character varying, 'medium'::character varying, 'high'::character varying])::text[]))),
+    CONSTRAINT commercial_assignments_status_check CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'pending_acceptance'::character varying, 'pending_approval'::character varying, 'scheduled'::character varying, 'active'::character varying, 'expired'::character varying, 'terminated'::character varying])::text[]))),
+    CONSTRAINT commercial_assignments_terminated_metadata_check CHECK ((((status)::text <> 'terminated'::text) OR ((terminated_by_id IS NOT NULL) AND (terminated_at IS NOT NULL))))
+);
+
+
+--
 -- Name: commercial_fee_amounts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1996,6 +2042,28 @@ CREATE TABLE public.commercial_fee_tiers (
     CONSTRAINT commercial_fee_tiers_rate_check CHECK (((rate_bps IS NULL) OR ((rate_bps >= 0) AND (rate_bps <= 10000)))),
     CONSTRAINT commercial_fee_tiers_threshold_check CHECK ((starts_at_value >= 0)),
     CONSTRAINT commercial_fee_tiers_window_type_check CHECK (((window_type)::text = ANY ((ARRAY['event'::character varying, 'calendar_month'::character varying, 'calendar_quarter'::character varying, 'calendar_year'::character varying, 'agreement_term'::character varying])::text[])))
+);
+
+
+--
+-- Name: commercial_programs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.commercial_programs (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    fee_schedule_id uuid NOT NULL,
+    program_type character varying NOT NULL,
+    enrollment_mode character varying DEFAULT 'automatic'::character varying NOT NULL,
+    starts_at timestamp with time zone,
+    ends_at timestamp with time zone,
+    per_organization_use_limit integer,
+    active boolean DEFAULT false NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT commercial_programs_effective_interval_check CHECK (((ends_at IS NULL) OR (starts_at IS NULL) OR (ends_at > starts_at))),
+    CONSTRAINT commercial_programs_enrollment_mode_check CHECK (((enrollment_mode)::text = ANY ((ARRAY['automatic'::character varying, 'manual'::character varying])::text[]))),
+    CONSTRAINT commercial_programs_program_type_check CHECK (((program_type)::text = ANY ((ARRAY['first_monetized_event'::character varying, 'charity'::character varying, 'partnership'::character varying, 'volume'::character varying])::text[]))),
+    CONSTRAINT commercial_programs_use_limit_check CHECK (((per_organization_use_limit IS NULL) OR (per_organization_use_limit > 0)))
 );
 
 
@@ -2682,7 +2750,7 @@ CREATE TABLE public.legal_acceptances (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT chk_legal_acceptance_method CHECK (((acceptance_method)::text = ANY (ARRAY[('checkbox'::character varying)::text, ('otp'::character varying)::text]))),
-    CONSTRAINT chk_legal_acceptance_subject_type CHECK (((subject_type)::text = ANY (ARRAY[('user'::character varying)::text, ('organization'::character varying)::text, ('order'::character varying)::text])))
+    CONSTRAINT chk_legal_acceptance_subject_type CHECK (((subject_type)::text = ANY (ARRAY[('user'::character varying)::text, ('organization'::character varying)::text, ('order'::character varying)::text, ('commercial_assignment'::character varying)::text])))
 );
 
 
@@ -3386,6 +3454,14 @@ ALTER TABLE ONLY public.catalog_venue_capacity_reservations
 
 
 --
+-- Name: commercial_assignments commercial_assignments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_assignments
+    ADD CONSTRAINT commercial_assignments_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: commercial_fee_amounts commercial_fee_amounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3431,6 +3507,14 @@ ALTER TABLE ONLY public.commercial_fee_schedules
 
 ALTER TABLE ONLY public.commercial_fee_tiers
     ADD CONSTRAINT commercial_fee_tiers_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: commercial_programs commercial_programs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_programs
+    ADD CONSTRAINT commercial_programs_pkey PRIMARY KEY (id);
 
 
 --
@@ -3885,6 +3969,34 @@ CREATE UNIQUE INDEX idx_access_zones_on_product_and_zone ON public.catalog_produ
 --
 
 CREATE UNIQUE INDEX idx_catalog_products_on_event_and_idempotency ON public.catalog_event_products USING btree (event_id, idempotency_key_digest) WHERE (idempotency_key_digest IS NOT NULL);
+
+
+--
+-- Name: idx_commercial_assignments_active_resolution; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_commercial_assignments_active_resolution ON public.commercial_assignments USING btree (organization_id, event_id, status, effective_from) INCLUDE (fee_schedule_version_id, program_id, effective_until) WHERE ((status)::text = ANY ((ARRAY['scheduled'::character varying, 'active'::character varying])::text[]));
+
+
+--
+-- Name: idx_commercial_assignments_on_event_status_start; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_commercial_assignments_on_event_status_start ON public.commercial_assignments USING btree (event_id, status, effective_from) WHERE (event_id IS NOT NULL);
+
+
+--
+-- Name: idx_commercial_assignments_on_org_status_start; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_commercial_assignments_on_org_status_start ON public.commercial_assignments USING btree (organization_id, status, effective_from);
+
+
+--
+-- Name: idx_commercial_programs_unique_schedule; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_commercial_programs_unique_schedule ON public.commercial_programs USING btree (fee_schedule_id);
 
 
 --
@@ -4686,6 +4798,34 @@ CREATE INDEX index_catalog_venue_capacity_reservations_on_registration_id ON pub
 
 
 --
+-- Name: index_commercial_assignments_on_created_by_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_commercial_assignments_on_created_by_id ON public.commercial_assignments USING btree (created_by_id);
+
+
+--
+-- Name: index_commercial_assignments_on_fee_schedule_version_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_commercial_assignments_on_fee_schedule_version_id ON public.commercial_assignments USING btree (fee_schedule_version_id);
+
+
+--
+-- Name: index_commercial_assignments_on_legal_acceptance_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_commercial_assignments_on_legal_acceptance_id ON public.commercial_assignments USING btree (legal_acceptance_id);
+
+
+--
+-- Name: index_commercial_assignments_on_program_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_commercial_assignments_on_program_id ON public.commercial_assignments USING btree (program_id);
+
+
+--
 -- Name: index_commercial_fee_amounts_on_component_and_currency; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -4732,6 +4872,20 @@ CREATE UNIQUE INDEX index_commercial_fee_tiers_on_component_and_position ON publ
 --
 
 CREATE UNIQUE INDEX index_commercial_fee_versions_on_schedule_and_version ON public.commercial_fee_schedule_versions USING btree (fee_schedule_id, version);
+
+
+--
+-- Name: index_commercial_programs_on_active_and_starts_at_and_ends_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_commercial_programs_on_active_and_starts_at_and_ends_at ON public.commercial_programs USING btree (active, starts_at, ends_at);
+
+
+--
+-- Name: index_commercial_programs_on_program_type_and_enrollment_mode; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_commercial_programs_on_program_type_and_enrollment_mode ON public.commercial_programs USING btree (program_type, enrollment_mode);
 
 
 --
@@ -6807,12 +6961,101 @@ ALTER TABLE ONLY public.catalog_product_access_zones
 
 
 --
+-- Name: commercial_assignments fk_rails_024692f7fd; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_assignments
+    ADD CONSTRAINT fk_rails_024692f7fd FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_assignments fk_rails_03fbf2b83b; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_assignments
+    ADD CONSTRAINT fk_rails_03fbf2b83b FOREIGN KEY (created_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_assignments fk_rails_13a045aabd; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_assignments
+    ADD CONSTRAINT fk_rails_13a045aabd FOREIGN KEY (terminated_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_assignments fk_rails_2b5d0d49b4; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_assignments
+    ADD CONSTRAINT fk_rails_2b5d0d49b4 FOREIGN KEY (program_id) REFERENCES public.commercial_programs(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_assignments fk_rails_2c9a2fcc51; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_assignments
+    ADD CONSTRAINT fk_rails_2c9a2fcc51 FOREIGN KEY (external_accepted_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_assignments fk_rails_2e1247f9a8; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_assignments
+    ADD CONSTRAINT fk_rails_2e1247f9a8 FOREIGN KEY (approved_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_assignments fk_rails_3e6ba061e9; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_assignments
+    ADD CONSTRAINT fk_rails_3e6ba061e9 FOREIGN KEY (activated_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_programs fk_rails_c261555096; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_programs
+    ADD CONSTRAINT fk_rails_c261555096 FOREIGN KEY (fee_schedule_id) REFERENCES public.commercial_fee_schedules(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_assignments fk_rails_db4ae80025; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_assignments
+    ADD CONSTRAINT fk_rails_db4ae80025 FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_assignments fk_rails_e0088a0794; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_assignments
+    ADD CONSTRAINT fk_rails_e0088a0794 FOREIGN KEY (fee_schedule_version_id) REFERENCES public.commercial_fee_schedule_versions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_assignments fk_rails_e2244fb635; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_assignments
+    ADD CONSTRAINT fk_rails_e2244fb635 FOREIGN KEY (legal_acceptance_id) REFERENCES public.legal_acceptances(id) ON DELETE RESTRICT;
+
+
 -- PostgreSQL database dump complete
 --
 
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260808090007'),
+('20260808090006'),
 ('20260808090005'),
 ('20260808090004'),
 ('20260808090003'),

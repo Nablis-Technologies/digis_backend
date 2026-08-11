@@ -374,7 +374,48 @@ end
 puts "✓ #{Organizations::Organization.count} organizations seeded"
 
 # ─────────────────────────────────────────────
-# 8. Memberships
+# 8. Commercial programs and assignments
+# ─────────────────────────────────────────────
+puts "\n💼 Seeding commercial program examples..."
+
+commercial_schedule = Commercial::FeeSchedule.find_or_create_by!(code: "first_monetized_event_program") do |schedule|
+  schedule.name = "First Monetized Event Program"
+  schedule.schedule_type = "program"
+  schedule.created_by = admin_user
+end
+
+commercial_version = Commercial::FeeScheduleVersion.find_or_create_by!(
+  fee_schedule: commercial_schedule, version: 1
+) do |version|
+  version.status = "draft"
+  version.definition_digest = Digest::SHA256.hexdigest("first-monetized-event-program-v1")
+  version.acceptance_policy = "none"
+end
+
+commercial_program = Commercial::Program.find_or_create_by!(fee_schedule: commercial_schedule) do |program|
+  program.program_type = "first_monetized_event"
+  program.enrollment_mode = "automatic"
+  program.active = true
+end
+
+Commercial::Assignment.find_or_create_by!(
+  organization: org_music,
+  event: nil,
+  fee_schedule_version: commercial_version,
+  assignment_type: "program"
+) do |assignment|
+  assignment.program = commercial_program
+  assignment.status = "draft"
+  assignment.reason = "Seeded first monetized event program"
+  assignment.effective_from = Time.zone.parse("2026-01-01 00:00")
+  assignment.risk_level = "low"
+  assignment.created_by = admin_user
+end
+
+puts "✓ #{Commercial::Program.count} programs; #{Commercial::Assignment.count} assignments"
+
+# ─────────────────────────────────────────────
+# 9. Memberships
 # ─────────────────────────────────────────────
 puts "\n👥 Seeding memberships..."
 
@@ -406,7 +447,7 @@ end
 puts "✓ #{Organizations::Membership.count} memberships seeded"
 
 # ─────────────────────────────────────────────
-# 9. Events::Venues
+# 10. Events::Venues
 # ─────────────────────────────────────────────
 puts "\n🏟️  Seeding venues..."
 
@@ -425,7 +466,7 @@ end
 puts "✓ #{Events::Venue.count} venues seeded"
 
 # ─────────────────────────────────────────────
-# 10. Events::Artists
+# 11. Events::Artists
 # ─────────────────────────────────────────────
 puts "\n🎤 Seeding artists..."
 
@@ -444,7 +485,7 @@ end
 puts "✓ #{Events::Artist.count} artists seeded"
 
 # ─────────────────────────────────────────────
-# 11. Core::Follows (sample follows)
+# 12. Core::Follows (sample follows)
 # ─────────────────────────────────────────────
 puts "\n❤️  Seeding sample follows..."
 
@@ -485,6 +526,8 @@ puts "  Role Permissions:   #{Core::RolePermission.count}"
 puts "  Event Categories:   #{Events::Category.count}"
 puts "  Organizations:      #{Organizations::Organization.count}"
 puts "  Memberships:        #{Organizations::Membership.count}"
+puts "  Commercial programs: #{Commercial::Program.count}"
+puts "  Commercial assignments: #{Commercial::Assignment.count}"
 puts "  Venues:             #{Events::Venue.count}"
 puts "  Artists:            #{Events::Artist.count}"
 puts "  Follows:            #{Core::Follow.count}"
