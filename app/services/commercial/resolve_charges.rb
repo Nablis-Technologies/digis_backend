@@ -46,6 +46,10 @@ module Commercial
       selections = select_components(candidates_result.value)
       return failure(selections.error) if selections.failure?
 
+      prepare_payer_selections(selections.value)
+      volume_result = prepare_volume_state(selections.value)
+      return failure(volume_result.error) if volume_result.failure?
+
       result = selections.value.map { |selection| calculate_component(selection) }
       failure_result = result.find(&:failure?)
       return failure(failure_result.error) if failure_result
@@ -124,6 +128,7 @@ module Commercial
 
     def resolve_payer(component)
       selected = context.organizer_payer_selections[component.component_type]
+      selected ||= @persisted_payer_selections[component.id]&.charged_to
       return success(component.charged_to) if selected.blank? || selected == component.charged_to
       return failure(error("payer_selection_forbidden")) unless component.organizer_payer_choice
 
@@ -161,6 +166,9 @@ module Commercial
     def tier_metric_value(component)
       metric_type = tier_metric_type(component)
       return if metric_type.blank?
+
+      counter = volume_counter_for(component)
+      return counter.value if counter
 
       context.metric_value(metric_type)
     rescue ArgumentError
@@ -203,6 +211,7 @@ module Commercial
         tier_metric_value: outcome.tier_metric_value,
         tier_window_type: outcome.tier_window_type,
         tier_starts_at_value: outcome.tier_starts_at_value,
+        **volume_evidence(component),
         payer:,
         default_payer: component.charged_to,
         funder: component.funded_by,
@@ -211,6 +220,98 @@ module Commercial
         scope: scope_evidence(component),
         explanation: explanation(selection)
       )
+    end
+
+    def prepare_payer_selections(selections)
+      @persisted_payer_selections = if only_version || context.event_id.blank?
+        {}
+      else
+        Commercial::EventPayerSelection.where(
+          event_id: context.event_id,
+          fee_component_id: selections.map { |selection| selection.component.id }
+        ).index_by(&:fee_component_id)
+      end
+    end
+
+    def prepare_volume_state(selections)
+      @volume_dimensions = {}
+      tiered_selections = selections.select { |selection| selection.component.calculation_type == "tiered" }
+      tiered_selections.each do |selection|
+        component = selection.component
+        dimension = volume_dimension(component, selection)
+        return failure(error("volume_window_unavailable")) unless dimension
+
+        @volume_dimensions[component.id] = dimension
+      end
+
+      @volume_counters = if @volume_dimensions.empty?
+        []
+      else
+        Commercial::VolumeCounter.where(
+          fee_component_id: @volume_dimensions.keys,
+          organization_id: context.organization_id
+        ).to_a
+      end
+      success
+    rescue ArgumentError
+      failure(error("volume_window_unavailable"))
+    end
+
+    def volume_dimension(component, selection)
+      metric_type = tier_metric_type(component)
+      return if metric_type.blank?
+
+      window_type = component.fee_tiers.first&.window_type
+      return if window_type.blank?
+      return if window_type == "event" && context.event_id.blank?
+
+      window = Commercial::Volume::Window.resolve(
+        window_type:, quoted_at: context.quoted_at,
+        event: resolution_event,
+        event_id: context.event_id,
+        assignment: selection.assignment,
+        version: selection.version,
+        currency: metric_type == "accepted_gross" ? tier_currency : nil
+      )
+      {
+        fee_component_id: component.id,
+        organization_id: context.organization_id,
+        event_id: window.event_id,
+        metric_type:,
+        window_type:,
+        currency: window.currency,
+        window_start_at: window.start_at,
+        window_end_at: window.end_at
+      }
+    end
+
+    def resolution_event
+      return @resolution_event if defined?(@resolution_event)
+
+      @resolution_event = Events::Event.includes(:event_dates).find_by(id: context.event_id)
+    end
+
+    def volume_counter_for(component)
+      dimension = @volume_dimensions[component.id]
+      return unless dimension
+
+      @volume_counters.find do |counter|
+        dimension.all? { |attribute, value| counter.public_send(attribute) == value }
+      end
+    end
+
+    def volume_evidence(component)
+      dimension = @volume_dimensions[component.id]
+      counter = volume_counter_for(component)
+      {
+        volume_organization_id: dimension&.fetch(:organization_id),
+        volume_event_id: dimension&.fetch(:event_id),
+        volume_counter_id: counter&.id,
+        volume_counter_value_before: counter&.value || tier_metric_value(component),
+        volume_window_start_at: dimension&.fetch(:window_start_at),
+        volume_window_end_at: dimension&.fetch(:window_end_at),
+        volume_currency: dimension&.fetch(:currency)
+      }
     end
 
     def scope_evidence(component)

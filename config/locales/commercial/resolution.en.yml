@@ -14,4 +14,5 @@ en:
         unsupported_calculation: "the commercial calculation is not supported"
         basis_unavailable: "the trusted commercial calculation basis is unavailable"
         tier_unavailable: "the prospective commercial tier is unavailable"
+        volume_window_unavailable: "the prospective commercial volume window is unavailable"
         invalid_calculation: "the commercial calculation inputs are invalid"

@@ -12,6 +12,8 @@ module Commercial
         assignment_id program_id component_id calculation_type basis_type basis_minor rate_bps
         fixed_amount_minor minimum_minor maximum_minor tier_position tier_metric_type
         tier_metric_value tier_window_type tier_starts_at_value payer default_payer funder refund_policy
+        volume_organization_id volume_event_id volume_counter_id volume_counter_value_before
+        volume_window_start_at volume_window_end_at volume_currency
         offset_component_type scope explanation
       ].freeze
 
