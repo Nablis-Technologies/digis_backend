@@ -2,8 +2,8 @@
 
 module Commercial
   # Defines hard platform-funded subsidy capacity for one owner and
-  # currency. The database owns the hard cap; the future order-linked
-  # reservation command will use lock_version while updating these counters.
+  # currency. The database owns the hard cap; order-linked reservation
+  # commands lock this row while updating its counters.
   class SubsidyBudget < Commercial::ApplicationRecord
     self.table_name = "commercial_subsidy_budgets"
 
@@ -18,6 +18,11 @@ module Commercial
     belongs_to :fee_component,
                class_name: "Commercial::FeeComponent",
                inverse_of: :subsidy_budgets
+
+    has_many :subsidy_reservations,
+             class_name: "Commercial::SubsidyReservation",
+             inverse_of: :subsidy_budget,
+             dependent: :restrict_with_exception
 
     before_validation :normalize_currency
 

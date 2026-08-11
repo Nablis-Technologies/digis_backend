@@ -8251,3 +8251,133 @@ INSERT INTO "schema_migrations" (version) VALUES
 ('20260516000300'),
 ('20260516000200'),
 ('20260516000100');
+
+--
+-- Name: commercial_subsidy_reservations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.commercial_subsidy_reservations (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    subsidy_budget_id uuid NOT NULL,
+    order_id uuid NOT NULL,
+    idempotency_key_digest character varying(64) NOT NULL,
+    request_fingerprint character varying(64) NOT NULL,
+    amount_minor bigint NOT NULL,
+    currency character varying(3) NOT NULL,
+    status character varying DEFAULT 'held'::character varying NOT NULL,
+    expires_at timestamp with time zone,
+    committed_at timestamp with time zone,
+    released_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT commercial_subsidy_reservations_amount_check CHECK ((amount_minor > 0)),
+    CONSTRAINT commercial_subsidy_reservations_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
+    CONSTRAINT commercial_subsidy_reservations_request_evidence_check CHECK ((((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((request_fingerprint)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT commercial_subsidy_reservations_state_check CHECK (((((status)::text = ANY ((ARRAY['held'::character varying, 'processing'::character varying])::text[])) AND (expires_at IS NOT NULL) AND (committed_at IS NULL) AND (released_at IS NULL)) OR (((status)::text = 'committed'::text) AND (committed_at IS NOT NULL) AND (released_at IS NULL)) OR (((status)::text = 'released'::text) AND (released_at IS NOT NULL) AND (committed_at IS NULL)))),
+    CONSTRAINT commercial_subsidy_reservations_status_check CHECK (((status)::text = ANY ((ARRAY['held'::character varying, 'processing'::character varying, 'committed'::character varying, 'released'::character varying])::text[])))
+);
+
+
+--
+-- Name: commercial_subsidy_reservations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_subsidy_reservations
+    ADD CONSTRAINT commercial_subsidy_reservations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: idx_one_active_subsidy_reservation_per_order_budget; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_one_active_subsidy_reservation_per_order_budget ON public.commercial_subsidy_reservations USING btree (subsidy_budget_id, order_id) WHERE ((status)::text = ANY ((ARRAY['held'::character varying, 'processing'::character varying])::text[]));
+
+
+--
+-- Name: idx_subsidy_reservations_on_budget; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_subsidy_reservations_on_budget ON public.commercial_subsidy_reservations USING btree (subsidy_budget_id);
+
+
+--
+-- Name: idx_subsidy_reservations_on_idempotency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_subsidy_reservations_on_idempotency ON public.commercial_subsidy_reservations USING btree (idempotency_key_digest);
+
+
+--
+-- Name: idx_subsidy_reservations_on_order; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_subsidy_reservations_on_order ON public.commercial_subsidy_reservations USING btree (order_id);
+
+
+--
+-- Name: idx_subsidy_reservations_on_status_and_expiry; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_subsidy_reservations_on_status_and_expiry ON public.commercial_subsidy_reservations USING btree (status, expires_at);
+
+
+--
+-- Name: commercial_subsidy_reservation_immutable(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.commercial_subsidy_reservation_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    IF OLD.status IN ('committed', 'released') THEN
+      RAISE EXCEPTION 'commercial_subsidy_reservation_immutable' USING ERRCODE = '40001';
+    END IF;
+
+    RETURN OLD;
+  END IF;
+
+  IF (OLD.subsidy_budget_id, OLD.order_id, OLD.idempotency_key_digest,
+      OLD.request_fingerprint, OLD.amount_minor, OLD.currency, OLD.expires_at)
+     IS DISTINCT FROM
+     (NEW.subsidy_budget_id, NEW.order_id, NEW.idempotency_key_digest,
+      NEW.request_fingerprint, NEW.amount_minor, NEW.currency, NEW.expires_at) THEN
+    RAISE EXCEPTION 'commercial_subsidy_reservation_immutable' USING ERRCODE = '40001';
+  END IF;
+
+  IF OLD.status IN ('committed', 'released') AND
+     (OLD.status, OLD.committed_at, OLD.released_at) IS DISTINCT FROM
+     (NEW.status, NEW.committed_at, NEW.released_at) THEN
+    RAISE EXCEPTION 'commercial_subsidy_reservation_immutable' USING ERRCODE = '40001';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: commercial_subsidy_reservations trg_commercial_subsidy_reservation_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_commercial_subsidy_reservation_immutable BEFORE DELETE OR UPDATE ON public.commercial_subsidy_reservations FOR EACH ROW EXECUTE FUNCTION public.commercial_subsidy_reservation_immutable();
+
+
+--
+-- Name: commercial_subsidy_reservations fk_rails_d77a72289e; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_subsidy_reservations
+    ADD CONSTRAINT fk_rails_d77a72289e FOREIGN KEY (order_id) REFERENCES public.orders_orders(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_subsidy_reservations fk_rails_e391bd89bb; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_subsidy_reservations
+    ADD CONSTRAINT fk_rails_e391bd89bb FOREIGN KEY (subsidy_budget_id) REFERENCES public.commercial_subsidy_budgets(id) ON DELETE RESTRICT;
+
+
+INSERT INTO "schema_migrations" (version) VALUES
+('20260811090005');
