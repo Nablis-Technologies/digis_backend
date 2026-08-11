@@ -15,7 +15,7 @@ module Core
       return unless service.class.name == "ActiveStorage::Service::DiskService" ||
         (service.respond_to?(:public?) && service.public?)
 
-      fail InsecureStorage, "private attendee exports require non-public provider storage"
+       fail InsecureStorage, I18n.t("core.private_attendee_exports.errors.insecure_storage")
     end
 
     def mirror_service?(service)
