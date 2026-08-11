@@ -195,7 +195,7 @@ module Ticketing
     end
 
     def prevent_destroy
-      raise ActiveRecord::ReadOnlyRecord, "Registration consent requirements are historical evidence"
+      raise ActiveRecord::ReadOnlyRecord, I18n.t("core.errors.immutable_registration_consent_requirement")
     end
   end
 end

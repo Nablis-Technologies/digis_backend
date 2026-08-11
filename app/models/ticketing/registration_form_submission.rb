@@ -62,11 +62,11 @@ module Ticketing
 
     def prevent_update
       # Answers and their schema snapshots rely on this row as immutable evidence.
-      raise ActiveRecord::ReadOnlyRecord, "Registration form submissions are immutable"
+      raise ActiveRecord::ReadOnlyRecord, I18n.t("core.errors.immutable_registration_form_submission")
     end
 
     def prevent_destroy
-      raise ActiveRecord::ReadOnlyRecord, "Registration form submissions are immutable"
+      raise ActiveRecord::ReadOnlyRecord, I18n.t("core.errors.immutable_registration_form_submission")
     end
   end
 end

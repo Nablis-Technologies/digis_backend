@@ -167,7 +167,7 @@ module Ticketing
     def prevent_update_unless_erasure
       return if erasure_transition?
 
-      raise ActiveRecord::ReadOnlyRecord, "Registration consent evidence is immutable"
+      raise ActiveRecord::ReadOnlyRecord, I18n.t("core.errors.immutable_registration_consent")
     end
 
     def erasure_transition?
@@ -178,7 +178,7 @@ module Ticketing
     end
 
     def prevent_destroy
-      raise ActiveRecord::ReadOnlyRecord, "Registration consent evidence is immutable"
+      raise ActiveRecord::ReadOnlyRecord, I18n.t("core.errors.immutable_registration_consent")
     end
   end
 end

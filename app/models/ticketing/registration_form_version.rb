@@ -90,7 +90,7 @@ module Ticketing
     def prevent_destroy_if_immutable
       return unless immutable?
 
-      raise ActiveRecord::ReadOnlyRecord, "Published or retired registration form versions are immutable"
+      raise ActiveRecord::ReadOnlyRecord, I18n.t("core.errors.immutable_registration_form_version")
     end
   end
 end

@@ -53,7 +53,7 @@ module Ticketing
         failure(Core::BusinessError.new(error.message, code: "invalid_idempotency_key", status: :unprocessable_entity))
       rescue ActiveRecord::RecordInvalid => error
         failure(Core::BusinessError.new(
-          I18n.t("ticketing.purchase_limits.errors.invalid_override"),
+          I18n.t("ticketing.purchase_limits.errors.override_invalid"),
           code: "invalid_override",
           status: :unprocessable_entity,
           errors: error.record.errors.to_hash
@@ -67,7 +67,7 @@ module Ticketing
       attr_reader :registration, :approved_by, :additional_packages, :reason_code, :idempotency_key
 
       def validate_request!
-        raise ArgumentError, "Idempotency-Key is required" if idempotency_key.blank?
+        raise ArgumentError, I18n.t("ticketing.purchase_limits.errors.idempotency_key_required") if idempotency_key.blank?
         fail BusinessFailure, failure("purchase_limit_override_forbidden", "override_forbidden") unless authorized?
         fail BusinessFailure, failure("purchase_limit_override_invalid", "override_invalid") unless additional_packages.positive?
         return if PurchaseLimitOverride::REASON_CODES.include?(reason_code)

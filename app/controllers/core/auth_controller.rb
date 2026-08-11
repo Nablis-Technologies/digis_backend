@@ -61,7 +61,7 @@ module Core
         Rails.logger.error "Signup error: #{e.class} #{e.message}\n#{e.backtrace.first(8).join("\n")}" if defined?(Rails)
         render_error(
           :"auth.errors.signup",
-          errors: [ e.message.to_s ],
+          errors: [ I18n.t("auth.errors.signup") ],
           status: :internal_server_error,
           code: "signup_failed"
         )

@@ -55,11 +55,11 @@ module Ticketing
       end
 
     def prevent_update
-      raise ActiveRecord::ReadOnlyRecord, "Registration consent withdrawals are immutable"
+      raise ActiveRecord::ReadOnlyRecord, I18n.t("core.errors.immutable_registration_consent_withdrawal")
     end
 
     def prevent_destroy
-      raise ActiveRecord::ReadOnlyRecord, "Registration consent withdrawals are immutable"
+      raise ActiveRecord::ReadOnlyRecord, I18n.t("core.errors.immutable_registration_consent_withdrawal")
     end
   end
 end

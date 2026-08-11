@@ -47,7 +47,7 @@ module Ticketing
       attr_reader :registration, :user, :quantity, :expires_at, :idempotency_key
 
       def validate_request!
-        raise ArgumentError, "Idempotency-Key is required" if idempotency_key.blank?
+        raise ArgumentError, I18n.t("ticketing.purchase_limits.errors.idempotency_key_required") if idempotency_key.blank?
         fail BusinessFailure, failure("purchase_limit_quantity_invalid", "quantity_invalid") unless quantity.positive?
         fail BusinessFailure, failure("purchase_limit_expiry_invalid", "expiry_invalid") unless expires_at.present? && expires_at > Time.current
       end

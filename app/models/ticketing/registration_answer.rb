@@ -103,7 +103,7 @@ module Ticketing
       when String, Integer, Float, TrueClass, FalseClass, NilClass
         value
       else
-        raise ArgumentError, "answer must contain JSON values"
+        raise ArgumentError, I18n.t("core.errors.invalid_answer_json")
       end
     end
 
