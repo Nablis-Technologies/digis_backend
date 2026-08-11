@@ -98,5 +98,51 @@ module Ticketing
       @ticket_type.admissions_per_unit = 4
       assert @ticket_type.valid?
     end
+
+    test "package size is immutable once an order item references the ticket product" do
+      order = Orders::Order.create!(
+        event: @event,
+        buyer_user: core_users(:attendee),
+        sales_channel: "online",
+        status: "draft",
+        charge_currency: "ETB",
+        subtotal_minor: 10_000,
+        discount_minor: 0,
+        subsidy_minor: 0,
+        fee_minor: 0,
+        tax_minor: 0,
+        adjustment_minor: 0,
+        total_minor: 10_000,
+        settlement_currency: "ETB",
+        settlement_total_minor: 10_000,
+        exchange_rate: 1,
+        exchange_rate_source: "same_currency",
+        exchange_rate_expires_at: 10.minutes.from_now,
+        expires_at: 10.minutes.from_now,
+        idempotency_key_digest: SecureRandom.hex(32),
+        creation_request_digest: SecureRandom.hex(32)
+      )
+      Orders::OrderItem.create!(
+        order:,
+        event_product: @product,
+        name_snapshot: @product.name,
+        type_snapshot: "ticket",
+        quantity: 1,
+        admissions_per_unit_snapshot: @ticket_type.admissions_per_unit,
+        base_currency: "ETB",
+        base_unit_amount_minor: 10_000,
+        charge_currency: "ETB",
+        charge_unit_amount_minor: 10_000,
+        discount_minor: 0,
+        total_minor: 10_000,
+        fulfillment_status: "pending"
+      )
+
+      @ticket_type.admissions_per_unit = 4
+
+      assert_not @ticket_type.valid?
+      assert_includes @ticket_type.errors[:admissions_per_unit],
+        I18n.t("ticketing.ticket_type.errors.admissions_per_unit_locked")
+    end
   end
 end

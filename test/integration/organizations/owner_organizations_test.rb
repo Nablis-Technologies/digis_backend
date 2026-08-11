@@ -87,6 +87,52 @@ class OrganizationsOwnerOrganizationsTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "destroy archives an organization that owns an event with an order" do
+    user = core_users(:attendee)
+    org = Organizations::Organization.create!(name: "Ordered Org", organizer_type: "individual", category: "conference")
+    org.memberships.create!(user: user, role: :owner)
+    event = Events::Event.create!(
+      organization: org,
+      created_by: user,
+      title: "Ordered Event",
+      slug: "ordered-event-#{SecureRandom.hex(4)}",
+      status: "draft",
+      visibility: "private",
+      timezone: "Africa/Addis_Ababa",
+      currency: "ETB"
+    )
+    Orders::Order.create!(
+      event:,
+      buyer_user: user,
+      sales_channel: "online",
+      status: "draft",
+      charge_currency: "ETB",
+      subtotal_minor: 10_000,
+      discount_minor: 0,
+      subsidy_minor: 0,
+      fee_minor: 0,
+      tax_minor: 0,
+      adjustment_minor: 0,
+      total_minor: 10_000,
+      settlement_currency: "ETB",
+      settlement_total_minor: 10_000,
+      exchange_rate: 1,
+      exchange_rate_source: "same_currency",
+      exchange_rate_expires_at: 10.minutes.from_now,
+      expires_at: 10.minutes.from_now,
+      idempotency_key_digest: SecureRandom.hex(32),
+      creation_request_digest: SecureRandom.hex(32)
+    )
+    token = Core::TokenService.issue(Core::TokenService.access_token_payload(user))
+    headers = { "Authorization" => "Bearer #{token}" }
+
+    assert_no_difference("Organizations::Organization.count") do
+      delete "/organizations/owner/#{org.id}", headers: headers, as: :json
+    end
+    assert_response :success
+    assert org.reload.archived?
+  end
+
   test "org with legal acceptance is archived, not deleted" do
     user = core_users(:attendee)
     org = Organizations::Organization.create!(name: "Legal Bound Org", organizer_type: "individual", category: "conference")

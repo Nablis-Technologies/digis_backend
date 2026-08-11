@@ -84,7 +84,11 @@ module Organizations
 
     def organization_has_orders?
       klass = "Orders::Order".safe_constantize
-      klass && klass.where(organization_id: @obj.id).exists?
+      return false unless klass
+
+      # Orders are scoped to one event; organization ownership is reached
+      # through that event instead of being duplicated on the order row.
+      klass.joins(:event).where(events_events: { organization_id: @obj.id }).exists?
     end
 
     def serializer_profile

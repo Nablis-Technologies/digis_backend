@@ -115,17 +115,25 @@ module Ticketing
     end
 
     # Package size is immutable once any registration, inventory reservation,
-    # or order item references this ticket type. Tables may not exist in every
-    # phase, so we probe defensively and treat a missing source as "no
-    # commitment".
+    # or order item references this ticket product. Orders store the product
+    # identity rather than duplicating the ticket-type identity, so each
+    # commitment source supplies its own lookup column and value. Tables may
+    # not exist in every phase, so we probe defensively and treat a missing
+    # source as "no commitment".
     def committed?
       return false unless persisted?
 
-      %w[ticketing_registrations ticketing_inventory_reservations orders_order_items].each do |table|
+      commitment_sources = [
+        [ "ticketing_registrations", "ticket_type_id", id ],
+        [ "ticketing_inventory_reservations", "ticket_type_id", id ],
+        [ "orders_order_items", "event_product_id", event_product_id ]
+      ]
+
+      commitment_sources.each do |table, column, value|
         next unless ActiveRecord::Base.connection.data_source_exists?(table)
 
         if ActiveRecord::Base.connection.select_value(
-          ActiveRecord::Base.sanitize_sql_array([ "SELECT 1 FROM #{table} WHERE ticket_type_id = ? LIMIT 1", id ])
+          ActiveRecord::Base.sanitize_sql_array([ "SELECT 1 FROM #{table} WHERE #{column} = ? LIMIT 1", value ])
         )
           return true
         end
