@@ -38,3 +38,12 @@ en:
         term_notice_default_required: "a commercial term notice must reference a platform-default version"
         term_notice_version_mismatch: "the term notice legal version must match the fee version"
         term_notice_evidence_mismatch: "the term notice evidence digest does not match its delivery facts"
+    entitlements:
+      errors:
+        state_metadata: "the entitlement timestamps and reservation metadata do not match its status"
+        event_required: "an event is required for this entitlement operation"
+        event_not_published: "the event must be published before it can receive a first-event benefit"
+        event_not_closed: "the event must be cancelled, completed, or ended before an unused benefit is released"
+        entitlement_unavailable: "no available first-event benefit applies to this event"
+        entitlement_ambiguous: "more than one first-event benefit applies and the entitlement cannot be selected safely"
+        invalid_release_reason: "the entitlement release reason is not supported"
