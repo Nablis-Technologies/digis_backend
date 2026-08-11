@@ -105,7 +105,7 @@ owner of the order schema.
 - Test: `test/services/orders/quote_test.rb`
 - Test: `test/services/orders/largest_remainder_allocator_test.rb`
 
-- [ ] **Step 1: RED — write immutable Commercial-evidence and allocation tests**
+- [x] **Step 1: RED — write immutable Commercial-evidence and allocation tests**
 
 ```ruby
 # frozen_string_literal: true
@@ -114,23 +114,13 @@ require "test_helper"
 
 class Orders::QuoteTest < ActiveSupport::TestCase
   test "preserves exact immutable commercial results without recalculating them" do
-    commercial_result = Commercial::ChargeResult.new(
-      component_id: SecureRandom.uuid,
-      schedule_version_id: SecureRandom.uuid,
-      component_type: "platform_commission",
-      calculation_type: "percentage",
-      charged_to: "organizer",
-      funded_by: "organizer",
+    commercial_result = Commercial::Resolution::ChargeResult.new(
       currency: "ETB",
-      amount_minor: 250,
-      basis_type: "eligible_order_subtotal",
-      basis_minor: 10_000,
-      rate_bps: 250,
-      fixed_amount_minor: nil,
-      minimum_minor: nil,
-      maximum_minor: nil,
-      refund_policy: "nonrefundable",
-      evidence: { resolution_layer: "platform_default" }.freeze
+      quoted_at: Time.current,
+      component_results: [],
+      buyer_fee_total: 250,
+      organizer_fee_total: 0,
+      subsidy_total: 0
     )
 
     quote = Orders::Quote.new(commercial_results: [ commercial_result ], expires_at: 10.minutes.from_now)
@@ -141,15 +131,15 @@ class Orders::QuoteTest < ActiveSupport::TestCase
 end
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/orders/quote_test.rb test/services/orders/largest_remainder_allocator_test.rb
 ```
 
-Expected: FAIL because the Orders quote/allocation values do not exist. Commercial calculation already passes its own phase gate.
+Expected: FAIL because the Orders quote/allocation values do not exist. Commercial calculation already passes its own phase gate. Verified after granting the test process access to the local PostgreSQL socket: 4 tests, 1 failure, 3 errors, all caused by the missing constants.
 
-- [ ] **Step 3: GREEN — implement narrow immutable Orders results and reuse `Core::Money`**
+- [x] **Step 3: GREEN — implement narrow immutable Orders results and deterministic allocation**
 
 ```ruby
 # frozen_string_literal: true
@@ -164,19 +154,29 @@ module Orders
 end
 ```
 
-Implement largest-remainder allocation with rational shares, floor, then remaining units by descending remainder and ascending stable ID. `Orders::Quote` composes `Core::Money` values with product/FX/Commercial/expiry evidence and does not duplicate currency or fee calculation.
+Implement largest-remainder allocation with rational shares, floor, then remaining units by descending remainder and ascending stable ID. `Orders::Quote` carries the immutable Commercial/expiry evidence without duplicating currency or fee calculation; Task 3's `Orders::BuildQuote` composes the `Core::Money`, product, and FX evidence around it.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+For this task, `LargestRemainderAllocator.call(total_minor:, allocations:)`
+accepts hashes with `id` and `allocation_basis_points`, requires a complete
+10,000-basis-point share set, and returns frozen `Allocation` values sorted by
+stable ID. Task 3's `Orders::BuildQuote` will compose product, FX, and
+`Core::Money` evidence around this immutable Commercial/expiry envelope; Task 1
+does not duplicate that checkout-specific assembly.
 
-Run the Task 1 command. Expected: PASS.
+- [x] **Step 4: Run tests and verify GREEN**
 
-- [ ] **Step 5: Refactor and verify**
+Run the Task 1 command. Expected: PASS. Verified: 4 tests, 17 assertions,
+0 failures, 0 errors with `N_PLUS_ONE=1`.
+
+- [x] **Step 5: Refactor and verify**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/orders
 ```
 
-Expected: PASS with no float calculations.
+Expected: PASS with no float calculations. Verified: 4 tests, 17 assertions,
+0 failures, 0 errors with `N_PLUS_ONE=1`; RuboCop reported no offenses in the
+4 changed Ruby files.
 
 - [ ] **Step 6: Commit**
 
