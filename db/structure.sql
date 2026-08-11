@@ -2070,6 +2070,32 @@ CREATE TABLE public.commercial_simulations (
 
 
 --
+-- Name: commercial_subsidy_budgets; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.commercial_subsidy_budgets (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    assignment_id uuid,
+    program_id uuid,
+    fee_component_id uuid NOT NULL,
+    currency character varying(3) NOT NULL,
+    limit_minor bigint NOT NULL,
+    reserved_minor bigint DEFAULT 0 NOT NULL,
+    consumed_minor bigint DEFAULT 0 NOT NULL,
+    lock_version integer DEFAULT 0 NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT commercial_subsidy_budgets_consumed_check CHECK ((consumed_minor >= 0)),
+    CONSTRAINT commercial_subsidy_budgets_counter_limit_check CHECK (((reserved_minor + consumed_minor) <= limit_minor)),
+    CONSTRAINT commercial_subsidy_budgets_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
+    CONSTRAINT commercial_subsidy_budgets_limit_check CHECK ((limit_minor > 0)),
+    CONSTRAINT commercial_subsidy_budgets_lock_version_check CHECK ((lock_version >= 0)),
+    CONSTRAINT commercial_subsidy_budgets_owner_check CHECK ((((assignment_id IS NOT NULL) AND (program_id IS NULL)) OR ((assignment_id IS NULL) AND (program_id IS NOT NULL)))),
+    CONSTRAINT commercial_subsidy_budgets_reserved_check CHECK ((reserved_minor >= 0))
+);
+
+
+--
 -- Name: commercial_term_notices; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3606,6 +3632,14 @@ ALTER TABLE ONLY public.commercial_simulations
 
 
 --
+-- Name: commercial_subsidy_budgets commercial_subsidy_budgets_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_subsidy_budgets
+    ADD CONSTRAINT commercial_subsidy_budgets_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: commercial_term_notices commercial_term_notices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4155,6 +4189,27 @@ CREATE UNIQUE INDEX idx_commercial_entitlements_unique_program_organization ON p
 --
 
 CREATE UNIQUE INDEX idx_commercial_programs_unique_schedule ON public.commercial_programs USING btree (fee_schedule_id);
+
+
+--
+-- Name: idx_commercial_subsidy_budgets_assignment_component_currency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_commercial_subsidy_budgets_assignment_component_currency ON public.commercial_subsidy_budgets USING btree (assignment_id, fee_component_id, currency) WHERE (assignment_id IS NOT NULL);
+
+
+--
+-- Name: idx_commercial_subsidy_budgets_component_currency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_commercial_subsidy_budgets_component_currency ON public.commercial_subsidy_budgets USING btree (fee_component_id, currency);
+
+
+--
+-- Name: idx_commercial_subsidy_budgets_program_component_currency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_commercial_subsidy_budgets_program_component_currency ON public.commercial_subsidy_budgets USING btree (program_id, fee_component_id, currency) WHERE (program_id IS NOT NULL);
 
 
 --
@@ -7265,6 +7320,30 @@ ALTER TABLE ONLY public.commercial_term_notices
 
 
 --
+-- Name: commercial_subsidy_budgets fk_rails_11847a9288; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_subsidy_budgets
+    ADD CONSTRAINT fk_rails_11847a9288 FOREIGN KEY (fee_component_id) REFERENCES public.commercial_fee_components(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_subsidy_budgets fk_rails_1259a58993; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_subsidy_budgets
+    ADD CONSTRAINT fk_rails_1259a58993 FOREIGN KEY (assignment_id) REFERENCES public.commercial_assignments(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_subsidy_budgets fk_rails_ceeebebef1; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_subsidy_budgets
+    ADD CONSTRAINT fk_rails_ceeebebef1 FOREIGN KEY (program_id) REFERENCES public.commercial_programs(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: commercial_simulations fk_rails_b2983c3a53; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7373,6 +7452,7 @@ ALTER TABLE ONLY public.commercial_assignments
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260808090012'),
 ('20260808090011'),
 ('20260808090010'),
 ('20260808090009'),

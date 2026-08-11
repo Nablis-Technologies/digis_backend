@@ -1,0 +1,11 @@
+# frozen_string_literal: true
+
+en:
+  commercial:
+    subsidies:
+      errors:
+        owner_exclusive: "a subsidy budget must belong to exactly one assignment or program"
+        platform_subsidy_required: "a subsidy budget must reference a platform subsidy component"
+        owner_component_mismatch: "the subsidy component must belong to the owner's fee schedule"
+        currency_mismatch: "the subsidy budget currency is not supported by the component"
+        counter_limit: "reserved and consumed subsidy amounts cannot exceed the budget limit"

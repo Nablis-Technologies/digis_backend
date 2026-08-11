@@ -20,6 +20,10 @@ module Commercial
              class_name: "Commercial::ProgramEntitlement",
              inverse_of: :program,
              dependent: :restrict_with_exception
+    has_many :subsidy_budgets,
+             class_name: "Commercial::SubsidyBudget",
+             inverse_of: :program,
+             dependent: :restrict_with_exception
 
     validates :fee_schedule, presence: true
     validates :program_type, presence: true, inclusion: { in: PROGRAM_TYPES }
@@ -48,7 +52,7 @@ module Commercial
     end
 
     def self.ransackable_associations(_auth_object = nil)
-      %w[fee_schedule assignments entitlements]
+      %w[fee_schedule assignments entitlements subsidy_budgets]
     end
 
     private

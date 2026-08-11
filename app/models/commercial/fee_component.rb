@@ -38,6 +38,10 @@ module Commercial
              class_name: "Commercial::FeeTier",
              inverse_of: :fee_component,
              dependent: :restrict_with_exception
+    has_many :subsidy_budgets,
+             class_name: "Commercial::SubsidyBudget",
+             inverse_of: :fee_component,
+             dependent: :restrict_with_exception
 
     before_validation :normalize_scope_currency
 
@@ -73,7 +77,7 @@ module Commercial
     end
 
     def self.ransackable_associations(_auth_object = nil)
-      %w[fee_schedule_version event_product fee_amounts fee_tiers]
+      %w[fee_schedule_version event_product fee_amounts fee_tiers subsidy_budgets]
     end
 
     private

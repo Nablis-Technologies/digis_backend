@@ -33,6 +33,10 @@ module Commercial
              class_name: "Commercial::Simulation",
              inverse_of: :assignment,
              dependent: :restrict_with_exception
+    has_many :subsidy_budgets,
+             class_name: "Commercial::SubsidyBudget",
+             inverse_of: :assignment,
+             dependent: :restrict_with_exception
 
     before_validation :normalize_external_reference
 
@@ -90,7 +94,7 @@ module Commercial
     def self.ransackable_associations(_auth_object = nil)
       %w[
         organization event fee_schedule_version program legal_acceptance created_by approved_by
-        activated_by terminated_by external_accepted_by simulations
+        activated_by terminated_by external_accepted_by simulations subsidy_budgets
       ]
     end
 
