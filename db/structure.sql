@@ -2143,6 +2143,29 @@ CREATE TABLE public.commercial_fee_tiers (
 
 
 --
+-- Name: commercial_program_entitlements; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.commercial_program_entitlements (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    program_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    status character varying DEFAULT 'available'::character varying NOT NULL,
+    reserved_event_id uuid,
+    reserved_at timestamp with time zone,
+    consumed_at timestamp with time zone,
+    released_at timestamp with time zone,
+    expires_at timestamp with time zone,
+    lock_version integer DEFAULT 0 NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT commercial_program_entitlements_lock_version_check CHECK ((lock_version >= 0)),
+    CONSTRAINT commercial_program_entitlements_state_check CHECK (((((status)::text = 'available'::text) AND (reserved_event_id IS NULL) AND (reserved_at IS NULL) AND (consumed_at IS NULL) AND (released_at IS NULL)) OR (((status)::text = 'reserved'::text) AND (reserved_event_id IS NOT NULL) AND (reserved_at IS NOT NULL) AND (consumed_at IS NULL) AND (released_at IS NULL)) OR (((status)::text = 'consumed'::text) AND (reserved_event_id IS NULL) AND (reserved_at IS NULL) AND (consumed_at IS NOT NULL) AND (released_at IS NULL)) OR (((status)::text = 'released'::text) AND (reserved_event_id IS NULL) AND (reserved_at IS NULL) AND (consumed_at IS NULL) AND (released_at IS NOT NULL)) OR (((status)::text = 'expired'::text) AND (reserved_event_id IS NULL) AND (reserved_at IS NULL) AND (consumed_at IS NULL) AND (released_at IS NULL) AND (expires_at IS NOT NULL)))),
+    CONSTRAINT commercial_program_entitlements_status_check CHECK (((status)::text = ANY ((ARRAY['available'::character varying, 'reserved'::character varying, 'consumed'::character varying, 'released'::character varying, 'expired'::character varying])::text[])))
+);
+
+
+--
 -- Name: commercial_programs; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3630,6 +3653,14 @@ ALTER TABLE ONLY public.commercial_fee_tiers
 
 
 --
+-- Name: commercial_program_entitlements commercial_program_entitlements_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_program_entitlements
+    ADD CONSTRAINT commercial_program_entitlements_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: commercial_programs commercial_programs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4113,6 +4144,13 @@ CREATE INDEX idx_commercial_assignments_on_org_status_start ON public.commercial
 
 
 --
+-- Name: idx_commercial_entitlements_unique_program_organization; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_commercial_entitlements_unique_program_organization ON public.commercial_program_entitlements USING btree (program_id, organization_id);
+
+
+--
 -- Name: idx_commercial_programs_unique_schedule; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -4341,6 +4379,13 @@ CREATE INDEX idx_on_fee_schedule_id_status_ac4c487e1e ON public.commercial_fee_s
 --
 
 CREATE INDEX idx_on_metric_type_window_type_currency_34fcab8ed0 ON public.commercial_fee_tiers USING btree (metric_type, window_type, currency);
+
+
+--
+-- Name: idx_on_organization_id_status_ab96da78ad; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_organization_id_status_ab96da78ad ON public.commercial_program_entitlements USING btree (organization_id, status);
 
 
 --
@@ -4992,6 +5037,20 @@ CREATE UNIQUE INDEX index_commercial_fee_tiers_on_component_and_position ON publ
 --
 
 CREATE UNIQUE INDEX index_commercial_fee_versions_on_schedule_and_version ON public.commercial_fee_schedule_versions USING btree (fee_schedule_id, version);
+
+
+--
+-- Name: index_commercial_program_entitlements_on_program_id_and_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_commercial_program_entitlements_on_program_id_and_status ON public.commercial_program_entitlements USING btree (program_id, status);
+
+
+--
+-- Name: index_commercial_program_entitlements_on_reserved_event_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_commercial_program_entitlements_on_reserved_event_id ON public.commercial_program_entitlements USING btree (reserved_event_id);
 
 
 --
@@ -6070,6 +6129,14 @@ ALTER TABLE ONLY public.commercial_fee_amounts
 
 
 --
+-- Name: commercial_program_entitlements fk_rails_077eb5c256; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_program_entitlements
+    ADD CONSTRAINT fk_rails_077eb5c256 FOREIGN KEY (program_id) REFERENCES public.commercial_programs(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: events_events fk_rails_08a9375b27; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6166,6 +6233,14 @@ ALTER TABLE ONLY public.catalog_promotions
 
 
 --
+-- Name: commercial_program_entitlements fk_rails_22f7aea472; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_program_entitlements
+    ADD CONSTRAINT fk_rails_22f7aea472 FOREIGN KEY (reserved_event_id) REFERENCES public.events_events(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: events_consent_documents fk_rails_29adff7b26; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6227,6 +6302,14 @@ ALTER TABLE ONLY public.ticketing_registration_consents
 
 ALTER TABLE ONLY public.ticketing_registrations
     ADD CONSTRAINT fk_rails_31b1d71371 FOREIGN KEY (reviewed_by_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: commercial_program_entitlements fk_rails_31d9bf3b08; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_program_entitlements
+    ADD CONSTRAINT fk_rails_31d9bf3b08 FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE RESTRICT;
 
 
 --
@@ -7290,6 +7373,7 @@ ALTER TABLE ONLY public.commercial_assignments
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260808090011'),
 ('20260808090010'),
 ('20260808090009'),
 ('20260808090008'),
