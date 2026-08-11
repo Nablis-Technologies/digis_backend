@@ -197,3 +197,8 @@ organizer_attendee_export_contact:
   id: 019e5f6d-0003-7aaa-bbbb-ccccccccccd0
   role_id: 019e5f6d-0002-7aaa-bbbb-ccccccccccc2
   permission_id: 019e5f6d-0001-7aaa-bbbb-ccccccccccc2
+
+core_admin_commercial_view:
+  id: 019e5f6e-0003-7aaa-bbbb-ccccccccccc1
+  role_id: 019e5f69-db11-7a51-b1d9-785571600a31
+  permission_id: 019e5f6e-0001-7aaa-bbbb-ccccccccccc1

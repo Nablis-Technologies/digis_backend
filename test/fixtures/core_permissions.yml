@@ -349,3 +349,124 @@ attendee_export_accessibility:
   active: true
   created_at: <%= Time.current %>
   updated_at: <%= Time.current %>
+
+commercial_view:
+  id: 019e5f6e-0001-7aaa-bbbb-ccccccccccc1
+  code: commercial.view
+  resource: commercial
+  action: view
+  namespace: commercial
+  description: <%= I18n.t("commercial.permissions.view") %>
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+commercial_draft:
+  id: 019e5f6e-0001-7aaa-bbbb-ccccccccccc2
+  code: commercial.draft
+  resource: commercial
+  action: draft
+  namespace: commercial
+  description: <%= I18n.t("commercial.permissions.draft") %>
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+commercial_simulate:
+  id: 019e5f6e-0001-7aaa-bbbb-ccccccccccc3
+  code: commercial.simulate
+  resource: commercial
+  action: simulate
+  namespace: commercial
+  description: <%= I18n.t("commercial.permissions.simulate") %>
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+commercial_submit:
+  id: 019e5f6e-0001-7aaa-bbbb-ccccccccccc4
+  code: commercial.submit
+  resource: commercial
+  action: submit
+  namespace: commercial
+  description: <%= I18n.t("commercial.permissions.submit") %>
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+commercial_approve:
+  id: 019e5f6e-0001-7aaa-bbbb-ccccccccccc5
+  code: commercial.approve
+  resource: commercial
+  action: approve
+  namespace: commercial
+  description: <%= I18n.t("commercial.permissions.approve") %>
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+commercial_activate:
+  id: 019e5f6e-0001-7aaa-bbbb-ccccccccccc6
+  code: commercial.activate
+  resource: commercial
+  action: activate
+  namespace: commercial
+  description: <%= I18n.t("commercial.permissions.activate") %>
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+commercial_grant:
+  id: 019e5f6e-0001-7aaa-bbbb-ccccccccccc7
+  code: commercial.grant
+  resource: commercial
+  action: grant
+  namespace: commercial
+  description: <%= I18n.t("commercial.permissions.grant") %>
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+commercial_terminate:
+  id: 019e5f6e-0001-7aaa-bbbb-ccccccccccc8
+  code: commercial.terminate
+  resource: commercial
+  action: terminate
+  namespace: commercial
+  description: <%= I18n.t("commercial.permissions.terminate") %>
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+commercial_audit:
+  id: 019e5f6e-0001-7aaa-bbbb-ccccccccccc9
+  code: commercial.audit
+  resource: commercial
+  action: audit
+  namespace: commercial
+  description: <%= I18n.t("commercial.permissions.audit") %>
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+commercial_budget_view:
+  id: 019e5f6e-0001-7aaa-bbbb-ccccccccccca
+  code: commercial.budget_view
+  resource: commercial
+  action: budget_view
+  namespace: commercial
+  description: <%= I18n.t("commercial.permissions.budget_view") %>
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+commercial_break_glass:
+  id: 019e5f6e-0001-7aaa-bbbb-cccccccccccb
+  code: commercial.break_glass
+  resource: commercial
+  action: break_glass
+  namespace: commercial
+  description: <%= I18n.t("commercial.permissions.break_glass") %>
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
