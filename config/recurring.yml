@@ -41,6 +41,10 @@ production:
     class: Core::RetentionPurgeJob
     queue: default
     schedule: every hour at minute 5
+  expire_attendee_exports:
+    class: Ticketing::ExpireAttendeeExportsJob
+    queue: default
+    schedule: every five minutes
   offer_waitlisted_registrations:
     class: Ticketing::OfferWaitlistJob
     queue: default
