@@ -65,12 +65,12 @@ module Core
       private
 
       def validate_identity!
-        fail ArgumentError, "audit_key is required" if @attributes[:audit_key].blank?
-        fail ArgumentError, "action is required" if @attributes[:action].blank?
-        fail ArgumentError, "auditable_type is required" if @attributes[:auditable_type].blank?
-        fail ArgumentError, "auditable_id is required" if @attributes[:auditable_id].blank?
+        fail ArgumentError, I18n.t("core.errors.audit_key_required") if @attributes[:audit_key].blank?
+        fail ArgumentError, I18n.t("core.errors.action_required") if @attributes[:action].blank?
+        fail ArgumentError, I18n.t("core.errors.auditable_type_required") if @attributes[:auditable_type].blank?
+        fail ArgumentError, I18n.t("core.errors.auditable_id_required") if @attributes[:auditable_id].blank?
         if @attributes[:actor_type].present? != @attributes[:actor_id].present?
-          fail ArgumentError, "actor_type and actor_id must be present together"
+          fail ArgumentError, I18n.t("core.errors.auditable_identity_pair")
         end
       end
 
@@ -83,7 +83,7 @@ module Core
         end.uniq
         return if forbidden.empty?
 
-        fail SensitivePayload, "audit payload contains forbidden keys: #{forbidden.join(', ')}"
+        fail SensitivePayload, I18n.t("core.errors.audit_payload_forbidden_keys", keys: forbidden.join(", "))
       end
 
       def create_or_find_audit
@@ -99,7 +99,7 @@ module Core
         actual = canonical(strip_volatile(audit.attributes.slice(*REPLAY_FIELDS)))
         return if expected == actual
 
-        fail ReplayConflict, "audit_key was already used for a different payload"
+        fail ReplayConflict, I18n.t("core.errors.audit_replay_conflict")
       end
 
       VOLATILE_AUDIT_KEYS = %w[created_at updated_at].freeze

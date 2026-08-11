@@ -60,7 +60,7 @@ module Core
       # for its own idempotency using the event's idempotency_key.
       def handler_for(event)
         Rails.application.config.x.outbox_handlers.fetch(event.event_type) do
-          raise MissingHandler, "no outbox handler for #{event.event_type}"
+          raise MissingHandler, I18n.t("core.errors.outbox_handler_missing", event_type: event.event_type)
         end
       end
 

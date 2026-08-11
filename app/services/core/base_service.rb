@@ -31,7 +31,7 @@ module Core
     end
 
     def call
-      raise NotImplementedError, "#{self.class.name} must implement #call"
+      raise NotImplementedError, I18n.t("core.errors.service_not_implemented", service: self.class.name)
     end
 
     protected
@@ -41,7 +41,7 @@ module Core
     end
 
     def failure(error)
-      raise ArgumentError, "failure requires a Core::Error" unless error.is_a?(Core::Error)
+      raise ArgumentError, I18n.t("core.errors.invalid_failure_error") unless error.is_a?(Core::Error)
 
       Result.failure(error)
     end

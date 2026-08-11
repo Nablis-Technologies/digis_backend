@@ -48,7 +48,7 @@ module Core
       def ensure_release_key_available!(locked_hold, release_key)
         audit = Core::AuditLog.find_by(audit_key: release_audit_key(release_key))
         if audit && audit.auditable_id != locked_hold.id
-          raise Core::Audit::Record::ReplayConflict, "release idempotency key conflicts with another hold"
+          raise Core::Audit::Record::ReplayConflict, I18n.t("core.errors.release_idempotency_conflict")
         end
 
         audit = Core::AuditLog
@@ -56,7 +56,7 @@ module Core
           .first
         return audit if audit.nil? || audit.metadata["idempotency_key"] == release_key
 
-        raise Core::Audit::Record::ReplayConflict, "release idempotency key conflicts with this hold"
+        raise Core::Audit::Record::ReplayConflict, I18n.t("core.errors.release_idempotency_same_hold")
       end
 
       def record_release_audit!(hold, release_key)
