@@ -610,7 +610,7 @@ table to change this ordering.
 
 **Files:**
 
-- Create: `db/migrate/20260808090013_create_commercial_subsidy_reservations.rb`
+- Create: `db/migrate/20260811090005_create_commercial_subsidy_reservations.rb`
 - Create: `app/models/commercial/subsidy_reservation.rb`
 - Create: `app/services/commercial/subsidies/hold.rb`
 - Create: `app/services/commercial/subsidies/mark_processing.rb`
@@ -635,9 +635,9 @@ payer-selection contracts.
 
 **Files:**
 
-- Create: `db/migrate/20260808090014_create_commercial_volume_counters.rb`
-- Create: `db/migrate/20260808090015_create_commercial_volume_usages.rb`
-- Create: `db/migrate/20260808090016_create_commercial_event_payer_selections.rb`
+- Create: `db/migrate/20260811090006_create_commercial_volume_counters.rb`
+- Create: `db/migrate/20260811090007_create_commercial_volume_usages.rb`
+- Create: `db/migrate/20260811090008_create_commercial_event_payer_selections.rb`
 - Create: `app/models/commercial/volume_counter.rb`
 - Create: `app/models/commercial/volume_usage.rb`
 - Create: `app/models/commercial/event_payer_selection.rb`
@@ -790,8 +790,8 @@ Orders Task 3 integration tranche.
 
 **Files:**
 
-- Modify: `db/migrate/20260717090002_create_orders.rb` (the original migration only)
-- Modify: `db/migrate/20260717090004_create_order_adjustments.rb` (the original migration only)
+- Modify: `db/migrate/20260811090001_create_orders.rb` (the original migration only)
+- Modify: `db/migrate/20260811090003_create_order_adjustments.rb` (the original migration only)
 - Modify: `app/models/orders/order.rb`
 - Modify: `app/models/orders/order_adjustment.rb`
 - Modify: `app/services/orders/create_checkout.rb`

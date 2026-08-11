@@ -36,6 +36,14 @@ Do not add a placeholder Orders table, a seed order, or a weakened foreign key
 to make the Commercial reservation work. Orders Task 2 is the authoritative
 owner of the order schema.
 
+Migration versions follow the dependency graph rather than the plan's original
+document date: Commercial foundations through Task 7A use versions through
+`20260808090012`, Orders Tasks 1–2 use `20260811090001` through
+`20260811090004`, Commercial Tasks 7B–8 use the next versions, and the later
+payment tables follow those handoffs. This keeps a fresh database install from
+attempting an Orders foreign key before its Catalog and Commercial parent table
+exists.
+
 - One order has one event and one buyer.
 - Charge currency is selected before persistence and never changes.
 - Price, FX, fee, adjustment, and refund-policy snapshots become immutable at `pending_payment`.
@@ -51,12 +59,12 @@ owner of the order schema.
 
 ### Database and models
 
-- Create `db/migrate/20260717090002_create_orders.rb`
-- Create `db/migrate/20260717090003_create_order_items.rb`
-- Create `db/migrate/20260717090004_create_order_adjustments.rb`
-- Create `db/migrate/20260717090005_create_promotion_redemptions.rb`
-- Create `db/migrate/20260717090006_create_payments.rb`
-- Create `db/migrate/20260717090007_create_payment_events.rb`
+- Create `db/migrate/20260811090001_create_orders.rb`
+- Create `db/migrate/20260811090002_create_order_items.rb`
+- Create `db/migrate/20260811090003_create_order_adjustments.rb`
+- Create `db/migrate/20260811090004_create_promotion_redemptions.rb`
+- Create `db/migrate/20260811090009_create_payments.rb`
+- Create `db/migrate/20260811090010_create_payment_events.rb`
 - Create models under `app/models/orders/`: `order.rb`, `order_item.rb`, `order_adjustment.rb`, `promotion_redemption.rb`, `payment.rb`, `payment_event.rb`
 
 ### Commands and values
@@ -192,19 +200,20 @@ git commit -m "feat(orders): add deterministic pricing primitives"
 - Test: `test/models/orders/order_test.rb`
 - Test: `test/models/orders/order_adjustment_test.rb`
 
-- [ ] **Step 1: RED — write model and direct PostgreSQL constraint tests**
+- [x] **Step 1: RED — write model and direct PostgreSQL constraint tests**
 
 Prove total reconciliation, nonnegative caches, item/event ownership, adjustment/order ownership, Commercial `subsidy`/`resale_platform_fee` types, allowlisted statuses/refund policies/calculation types/bases/funding sources, exact immutable component/version evidence, paired source fields, currency consistency, immutable snapshots, and STI-disabled `type` behavior.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/orders
+N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/orders
 ```
 
-Expected: FAIL because the tables/models do not exist.
+Expected: FAIL because the tables/models do not exist. Verified before implementation:
+16 tests, 0 assertions, 0 failures, and 16 errors with `N_PLUS_ONE=1`.
 
-- [ ] **Step 3: GREEN — create exact schema and indexes**
+- [x] **Step 3: GREEN — create exact schema and indexes**
 
 ```ruby
 add_index :orders_orders, %i[buyer_user_id event_id], unique: true,
@@ -220,25 +229,40 @@ add_check_constraint :orders_order_adjustments,
   "(source_type IS NULL) = (source_id IS NULL)", name: "order_adjustment_source_pair"
 ```
 
+Persist the aggregate retry identity in `orders_orders`: store a unique
+SHA-256 `idempotency_key_digest` together with the exact
+`creation_request_digest`. Both are required lowercase 64-character hex
+snapshots so `Orders::CreateCheckout` can distinguish an exact replay from a
+same-key request with different checkout intent before it mutates inventory or
+Commercial reservations.
+
 Use composite `(id,order_id)` uniqueness and a composite FK for item-scoped adjustments. Add sign/type/refund/currency/fee-bound checks plus `calculation_type`, `basis_type`, `funded_by`, and allowlisted `resolution_evidence`; Commercial sources reference the exact immutable component/version contract, never a mutable schedule identity. Subsidies are explicit negative platform-funded offsets. `Orders::OrderAdjustment` sets `self.inheritance_column = nil`. Do not recreate catalog FX or Commercial tables.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
-Run the Task 2 command. Expected: PASS.
+Run the Task 2 command. Expected: PASS. Verified: 16 tests, 108 assertions,
+0 failures, and 0 errors with `N_PLUS_ONE=1`.
 
-- [ ] **Step 5: Refactor and verify schema**
+- [x] **Step 5: Refactor and verify schema**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:migrate
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/orders
+N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/orders
 ```
 
-Expected: PASS and named constraints appear in schema.
+Expected: PASS and named constraints appear in schema. Verified migrations on
+development and test databases, loaded the tracked `db/structure.sql` into a
+disposable PostgreSQL database, ran Zeitwerk, and ran full RuboCop with no
+offenses.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add db/migrate db/structure.sql app/models/orders test/models/orders test/fixtures/orders
+git add db/migrate/20260811090001_create_orders.rb \
+  db/migrate/20260811090002_create_order_items.rb \
+  db/migrate/20260811090003_create_order_adjustments.rb \
+  db/migrate/20260811090004_create_promotion_redemptions.rb \
+  db/structure.sql app/models/orders test/models/orders
 git commit -m "feat(orders): add immutable order aggregate"
 ```
 
