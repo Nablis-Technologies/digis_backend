@@ -15,6 +15,12 @@ en:
         destroy: "Event media deleted successfully"
         reorder: "Event media reordered successfully"
       errors:
+        create: "Failed to create event media"
+        update: "Failed to update event media"
+        destroy: "Failed to delete event media"
+        reorder: "Failed to reorder event media"
+        reorder_partial: "Some event media could not be reordered"
+        not_ready: "Event media is not ready"
         cover_position_zero: "must be 0 for a cover"
         image_required: "must have an attached image"
         image_format: "must be a JPEG, PNG, or WebP image"
