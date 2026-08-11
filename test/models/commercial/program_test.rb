@@ -66,6 +66,7 @@ module Commercial
       assert_equal "Commercial::FeeSchedule", Program.reflect_on_association(:fee_schedule).class_name
       assert_includes Program.ransackable_attributes, "fee_schedule_id"
       assert_includes Program.ransackable_associations, "assignments"
+      assert_includes Program.ransackable_associations, "entitlements"
       assert_includes Program.ransackable_associations, "fee_schedule"
     end
   end
