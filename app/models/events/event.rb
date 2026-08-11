@@ -117,7 +117,7 @@ module Events
     def category_count_within_limit
       return unless event_categories.reload.count > MAX_CATEGORIES
 
-      errors.add(:categories, I18n.t("events.event.errors.too_many_categories",
+       errors.add(:categories, I18n.t("errors.messages.too_many_categories",
                                      max: MAX_CATEGORIES))
     end
   end

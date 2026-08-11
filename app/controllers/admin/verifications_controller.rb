@@ -17,14 +17,14 @@ module Admin
     end
 
     def reject
-      ensure!(review_feedback_params.present?, "Feedback is required")
+        ensure!(review_feedback_params.present?, I18n.t("review.errors.feedback_required_generic"))
       review = create_review_transition!("rejected", from: "pending", reviewer: current_user, feedback: review_feedback_params)
       record_audit!(review)
       render_success(data: @organization)
     end
 
     def request_modification
-      ensure!(review_feedback_params.present?, "Feedback is required")
+        ensure!(review_feedback_params.present?, I18n.t("review.errors.feedback_required_generic"))
       review = create_review_transition!("modify", from: "pending", reviewer: current_user, feedback: review_feedback_params)
       record_audit!(review)
       render_success(data: @organization)
@@ -36,10 +36,14 @@ module Admin
       current_review = @organization.current_review_for(:verification)
       current_status = current_review&.status || "draft"
 
-      ensure!(
-        Array(from).include?(current_status),
-        "Cannot transition from '#{current_status}' to '#{status}'"
-      )
+        ensure!(
+          Array(from).include?(current_status),
+          I18n.t(
+            "review.errors.invalid_transition",
+            from_status: current_status,
+            to_status: status
+          )
+        )
 
       review = current_review || @organization.build_review_for(:verification)
       review.update!(
@@ -58,7 +62,7 @@ module Admin
     def authorize_review_action!
       authorize @organization, policy_class: Admin::VerificationPolicy
       if @organization.memberships.active.exists?(user_id: current_user.id)
-        raise Pundit::NotAuthorizedError, "cannot review your own organization"
+        raise Pundit::NotAuthorizedError, I18n.t("review.errors.self_organization")
       end
     end
 

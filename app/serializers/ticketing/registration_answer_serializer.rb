@@ -1,0 +1,12 @@
+# frozen_string_literal: true
+
+module Ticketing
+  class RegistrationAnswerSerializer < ActiveModel::Serializer
+    include Core::AttributeVisibilitySerializer
+
+    attributes :id, :registration_form_submission_id, :registration_question_id,
+               :question_key_snapshot, :question_type_snapshot, :response_scope_snapshot,
+               :question_label_snapshot, :package_unit_number, :admission_position,
+               :admission_slot_id, :answered_at, :erased_at, :created_at, :updated_at
+  end
+end

@@ -177,9 +177,9 @@ Events do not store short-link foreign keys. A generic link points to an allowli
 
 Discounts, buyer fees, organizer commissions, payment fees, taxes, and exceptional corrections are stored as immutable `orders_order_adjustments`. The row records the amount actually used by checkout, not a live rule that may change later.
 
-At launch, one versioned application service calculates commission and fee adjustments from simple platform configuration. Tax calculation is enabled only for launch jurisdictions where the platform or organizer is legally required to calculate or collect transaction tax. A future configurable commission or tax engine will calculate the same rows and identify the rule version that produced each one. Orders, refunds, payment integrations, and settlement therefore do not need to be redesigned when an engine is introduced.
+Before Orders is implemented, the `Commercial` module becomes the authoritative producer of platform commission, buyer service fee, processing-cost recovery, platform subsidy, and resale-platform-fee adjustments. It resolves platform defaults, reusable programs, negotiated organization agreements, and event exceptions independently per fee component. Every result identifies the exact immutable schedule version/component that produced it. Tax calculation remains a separate future domain and is enabled only for launch jurisdictions where the platform or organizer is legally required to calculate or collect transaction tax.
 
-The rule engine is never the historical source of truth. Historical receipts and refunds use the order snapshots and adjustments that were written at checkout time; they are never recalculated from current rules.
+Commercial configuration is never the historical source of truth. Historical receipts and refunds use the order snapshots and adjustments that were written at checkout time; they are never recalculated from current schedules, grants, contracts, programs, provider costs, or rules.
 
 ### 2.13 Organizer payouts mature only after the event
 
@@ -420,7 +420,7 @@ Launch forms may collect encrypted dietary and accessibility information with sh
 
 Only primary-organization owners/admins, active event managers, and platform administrators may view authorized answer fields. Event staff and scanners never receive registration answers or consent evidence. Dietary/accessibility fields require the narrower operational permission defined for that event.
 
-Exports are field-allowlisted, audited, encrypted at rest, short-lived, and deleted automatically. The export request row remains as a payload-free audit tombstone after the file expires. Organizers cannot export erased fields, hidden consent evidence, or data outside the platform retention policy.
+Exports use a server-owned field registry, explicit registration/admission row modes, session-bound reauthentication, retention-capped expiry, encrypted private storage, and source-erasure invalidation. Purge clears selectors and filters and retains only digest/audit evidence as a payload-free tombstone. Organizers cannot export erased fields, hidden consent evidence, or data outside the platform retention policy.
 
 ### 2.48 Resale is an organizer-controlled marketplace, not a paid transfer
 
@@ -547,6 +547,24 @@ erDiagram
     EVENTS_EVENTS ||--o{ TICKETING_ATTENDEE_EXPORTS : exports
     CORE_USERS ||--o{ TICKETING_ATTENDEE_EXPORTS : requests
 
+    COMMERCIAL_FEE_SCHEDULES ||--o{ COMMERCIAL_FEE_SCHEDULE_VERSIONS : versions
+    COMMERCIAL_FEE_SCHEDULE_VERSIONS ||--o{ COMMERCIAL_FEE_COMPONENTS : defines
+    COMMERCIAL_FEE_COMPONENTS ||--o{ COMMERCIAL_FEE_AMOUNTS : currency_amounts
+    COMMERCIAL_FEE_COMPONENTS ||--o{ COMMERCIAL_FEE_TIERS : tiers
+    COMMERCIAL_FEE_SCHEDULES ||--o| COMMERCIAL_PROGRAMS : offers
+    COMMERCIAL_FEE_SCHEDULE_VERSIONS ||--o{ COMMERCIAL_ASSIGNMENTS : applies
+    ORGANIZATIONS_ORGANIZATIONS ||--o{ COMMERCIAL_ASSIGNMENTS : receives
+    EVENTS_EVENTS ||--o{ COMMERCIAL_ASSIGNMENTS : overrides
+    COMMERCIAL_PROGRAMS ||--o{ COMMERCIAL_PROGRAM_ENTITLEMENTS : grants
+    COMMERCIAL_PROGRAMS ||--o{ COMMERCIAL_SUBSIDY_BUDGETS : funds
+    COMMERCIAL_ASSIGNMENTS ||--o{ COMMERCIAL_SUBSIDY_BUDGETS : funds
+    COMMERCIAL_SUBSIDY_BUDGETS ||--o{ COMMERCIAL_SUBSIDY_RESERVATIONS : reserves
+    COMMERCIAL_FEE_COMPONENTS ||--o{ COMMERCIAL_VOLUME_COUNTERS : counts
+    COMMERCIAL_FEE_COMPONENTS ||--o{ COMMERCIAL_VOLUME_USAGES : measures
+    EVENTS_EVENTS ||--o{ COMMERCIAL_EVENT_PAYER_SELECTIONS : chooses
+    COMMERCIAL_FEE_SCHEDULE_VERSIONS ||--o{ COMMERCIAL_SIMULATIONS : validates
+    COMMERCIAL_FEE_SCHEDULE_VERSIONS ||--o{ COMMERCIAL_APPROVALS : approves
+
     EVENTS_EVENTS ||--o{ ORDERS_ORDERS : sells
     CORE_USERS ||--o{ ORDERS_ORDERS : buys
     ORDERS_ORDERS ||--o| ORDERS_ORDERS : replaces
@@ -572,9 +590,8 @@ erDiagram
     ORDERS_ORDER_ADJUSTMENTS ||--o{ ORDERS_REFUND_ADJUSTMENT_ALLOCATIONS : reverses
 
     TICKETING_TICKETS ||--o{ MARKETPLACE_RESALE_LISTINGS : lists
-    TICKETING_TICKET_TYPES ||--o{ MARKETPLACE_RESALE_FEE_CONFIGS : configures
     TICKETING_TICKET_TYPES ||--o{ MARKETPLACE_RESALE_LISTINGS : governs
-    MARKETPLACE_RESALE_FEE_CONFIGS ||--o{ MARKETPLACE_RESALE_LISTINGS : prices_fee
+    COMMERCIAL_FEE_COMPONENTS ||--o{ MARKETPLACE_RESALE_LISTINGS : prices_fee
     CORE_USERS ||--o{ MARKETPLACE_RESALE_LISTINGS : sells
     MARKETPLACE_RESALE_LISTINGS ||--o| MARKETPLACE_RESALE_SALES : completes
     ORDERS_ORDERS ||--o| MARKETPLACE_RESALE_LISTINGS : reserves
@@ -1369,7 +1386,7 @@ These rows value dates; they do not duplicate venue, stream, parking, or entry r
 
 ### 7.8 `catalog_promotions`
 
-A deliberately small buyer-discount definition. Platform commission promotions belong to the future fee engine instead; this table changes the buyer's product price.
+A deliberately small buyer-discount definition. Platform commission grants and agreements belong to `Commercial`; this table changes the buyer's product price.
 
 | Column | Type | Rules |
 |---|---|---|
@@ -1766,27 +1783,143 @@ Exactly one of event, registration, or user scope is present. An active hold has
 
 Retention never rewrites commercial truth. Orders, payments, refunds, ledger records, consent evidence, and security logs follow their own policy/legal categories; erasing an ordinary answer does not delete a registration, ticket, scan, or financial record.
 
-### 8.4.4 `ticketing_attendee_exports`
+### 8.4.4 `core_reauthentication_proofs`
 
-Audited request for a temporary generated attendee-data file.
+One short-lived, single-use proof that the currently authenticated user recently
+completed a purpose-specific factor.
+
+| Column | Type | Rules |
+|---|---|---|
+| `user_id` | UUID | Required FK to current authenticated user |
+| `session_jti_digest` | char(64) | Required HMAC-SHA-256 binding to current access session |
+| `purpose` | string | `attendee_export_request` or `attendee_export_download` |
+| `factor_type` | string | Launch value `password` |
+| `token_digest` | char(64) | Required unique HMAC-SHA-256 digest; raw proof returned once |
+| `issued_at` | timestamptz | Required |
+| `expires_at` | timestamptz | Required, exactly five minutes after issue |
+| `consumed_at` | timestamptz | Optional, written by one atomic consume operation |
+| timestamps | timestamptz | Required |
+
+Issuance is authenticated, verifies `current_user.authenticate(password)`, and
+binds to the memoized decoded JWT JTI. Consumption rechecks active user/session,
+purpose, expiry, and unused state under one conditional update. Invalid, expired,
+wrong-session, and consumed proofs share one non-oracular error. Raw passwords,
+proofs, session JTIs, and their digests never enter logs, audits, exports, or URLs.
+Cache-backed throttling allows five failed checks per user/session per 15 minutes
+and 30 issuance attempts per IP per hour, using purpose-separated HMAC counter
+keys and no attacker-triggerable global account lockout.
+
+### 8.4.5 `ticketing_attendee_exports`
+
+Audited request for one temporary generated attendee-data file. The canonical
+workflow and fixed limits are defined in
+`docs/superpowers/specs/2026-08-09-private-attendee-exports-design.md`.
 
 | Column | Type | Rules |
 |---|---|---|
 | `event_id` | UUID | Required FK |
-| `requested_by_id` | UUID | Required FK to primary-org owner/admin, event manager, or platform administrator |
-| `status` | string | `pending`, `processing`, `ready`, `expired`, or `failed` |
-| `field_keys` | jsonb | Required allowlisted field/question keys authorized for this requester |
-| `filters` | jsonb | Required allowlisted event/product/date/status filters; default `{}` |
-| `row_count` | integer | Optional nonnegative result count |
-| `file_sha256` | char(64) | Optional; required while ready |
-| `expires_at` | timestamptz | Required short platform-controlled expiry |
-| `completed_at` | timestamptz | Optional |
-| `last_downloaded_at` | timestamptz | Optional audit projection |
-| `idempotency_key` | string | Required unique request key |
-| `failure_code` | string | Optional scrubbed controlled code |
+| `requested_by_id` | UUID | Required FK to authorized requester |
+| `status` | string | `pending`, `processing`, `ready`, `failed`, `expiring`, or `expired` |
+| `row_mode` | string | `registration` or `admission` |
+| `format_version` | string | Launch value `csv_v1` |
+| `field_keys` | jsonb | Normalized selector array, max 100; required before and null after tombstoning |
+| `filters` | jsonb | Bounded ticket-type/date/status object; required before and null after tombstoning |
+| `field_set_digest`, `filter_digest` | char(64) | Required versioned HMAC-SHA-256 request evidence retained after expiry |
+| `reason_code` | string | Required controlled audit reason |
+| `data_cutoff_at` | timestamptz | Required immutable upper bound for source-row existence |
+| `row_count` | integer | Optional nonnegative; required while ready/after completion |
+| `file_sha256` | char(64) | Optional; required while ready and retained in tombstone |
+| `idempotency_key_digest` | char(64) | Required unique HMAC of operation namespace, requester, and HTTP idempotency key |
+| `request_fingerprint` | char(64) | Required canonical HMAC of actor/event/mode/fields/filters/reason |
+| `digest_key_version` | string | Required platform HMAC-key version for retained request digests |
+| `processing_started_at` | timestamptz | Required only while processing |
+| `attempt_count` | integer | Required `0..3` |
+| `ready_at`, `failed_at`, `expiring_at`, `expired_at` | timestamptz | State-coupled lifecycle evidence |
+| `expires_at` | timestamptz | Required; max request + 24 hours and capped to earliest included retention deadline |
+| `last_download_authorized_at` | timestamptz | Optional URL-issuance projection, not completed-download proof |
+| `failure_code` | string | Optional scrubbed controlled code; cleared in tombstone |
+| `lock_version` | integer | Required optimistic lock counter |
 | timestamps | timestamptz | Required |
 
-The model has one private Active Storage attachment encrypted at rest. Generation reauthorizes every requested field, excludes erased/expired data, and applies sensitivity-specific permissions. Download reauthorizes again and writes `Core::AuditLog`; signed download URLs are short-lived. Expiry purges the blob and leaves this payload-free row. Event staff/scanners cannot request, view, or download exports.
+`registration` mode emits one row per registration and forbids slot fields.
+`admission` mode emits one row per immutable package-unit/admission-position and
+may repeat registration fields. Built-ins come only from a server registry;
+question selectors use `question:<registration_form_id>:<question_key>` and may
+merge historical versions only when a canonical semantic fingerprint matches.
+That fingerprint covers key, type, response scope, sensitivity, normalized
+label/help text, requiredness, canonically ordered option keys/labels, and
+canonically ordered validation rules; it excludes position, timestamps, row IDs,
+and version IDs. Contact, dietary, and accessibility fields have independent
+permissions.
+
+Launch contact selectors are `registration_user_email` and
+`registration_user_phone`, sourced from the canonical `registration.user` when
+generation runs. Admission rows repeat those registration-user values and never
+represent a companion or assigned slot subject. Assigned-attendee contact fields
+are deferred until admission-slot assignment exists with separate authorization,
+retention, and semantic rules.
+
+Fingerprint normalization uses Unicode NFC, trims/collapses whitespace, sorts
+options by immutable key, recursively sorts validation-object keys, and preserves
+semantically meaningful array order while sorting set-like
+`allowed_option_keys`. Reordering options or questions alone is compatible;
+changing wording, option meaning, requiredness, or validation is not.
+Default role grants give all export permissions to `SUPER_ADMIN`/`ADMIN`,
+request/contact to `ORGANIZER`, and none to `CORE_ADMIN`/`SUPPORT`/`USER`;
+dietary/accessibility require an explicit narrow grant. Event manageability and
+permission are both required and never widen one another.
+
+Launch filters are bounded arrays of at most 100 event-owned ticket-type IDs,
+at most 100 event-owned access-date IDs, and registration statuses from the
+canonical registration state set. Access-date matching includes choose-one
+selected dates and fixed/multi-day product-access intersections. Values within a
+filter use OR; different filter keys use AND. Controlled reasons are `event_operations`,
+`attendee_communication`, `dietary_accommodation`,
+`accessibility_accommodation`, `customer_support`, and `legal_compliance`;
+selecting a reason never grants permission to its corresponding data.
+
+The model has `has_one_attached :file, service: :private_exports`. Generation is
+outbox-triggered, lease/retry safe, bounded, deterministic `csv_v1`, and protects
+spreadsheet formula prefixes. Exact idempotent replay returns the existing row
+after current authentication/authorization and fingerprint comparison, without
+requiring, reading, validating, or consuming another proof. Controllers therefore
+pass proof as optional input instead of requiring it before idempotency resolution.
+A genuinely new request requires and consumes its session-bound proof, then
+creates the row, audit, and outbox event in one transaction.
+
+`data_cutoff_at` bounds registration creation and append-only answer/revision
+content; it is not an impossible long-lived database snapshot. Mutable
+registration state, canonical registration-user contact, and current
+authorization are evaluated when generation runs.
+Plain SHA-256 is used for file integrity only; low-entropy selectors, filters,
+idempotency keys, and request fingerprints use purpose-separated, versioned
+platform HMAC keys. Referenced historical key versions remain available for the
+retention life of their tombstones.
+
+Every answer-erasure transaction first changes the event's pending, processing,
+ready, or failed exports to `expiring` and publishes one idempotent
+`ticketing.attendee_export.purge_requested` outbox event per export. New download
+authorization is therefore blocked before ciphertext removal commits. The purge
+worker removes the blob, clears selectors/filters, and then leaves an `expired`
+digest-only tombstone. Download authorization is a POST command requiring a fresh
+proof; it audits issuance and returns a bearer URL capped to two minutes and the
+remaining artifact lifetime. An already-issued provider URL has the documented
+bounded bearer/deletion-propagation limitation.
+
+Export request/replay, claim/reclaim, finalization, download authorization,
+invalidation, expiry transitions, and source-answer erasure all acquire the same
+transaction-scoped advisory lock derived from
+`("registration-privacy-event", event_id)` before any export row lock. Retention
+also keeps its existing scope locks for legal-hold/erasure races. Multi-event
+erasure acquires event locks in ascending event-ID order; invalidation then locks
+exports in ascending export-ID order. CSV generation/upload runs outside locks.
+ID-driven workers may read immutable `event_id` first, then acquire the event
+lock and lock/reload the export; they never hold an export row lock while waiting
+for the event lock.
+This closes the late-request invalidation gap: a request either commits before
+erasure and is invalidated, or waits and sees post-erasure data. Per-export states
+still decide finalization-first versus invalidation-first races. Independent-
+connection tests enforce both directions and the global lock order.
 
 ### 8.5 `ticketing_tickets`
 
@@ -2270,6 +2403,52 @@ Rules:
 - the ticket itself remains `active` after a successful transfer; ownership/version history lives in immutable accepted transfer rows;
 - accepted transfers are never edited or deleted and all initiation/cancellation/acceptance actions are audited.
 
+## 8A. Commercial agreements and platform pricing
+
+The canonical design is `docs/superpowers/specs/2026-08-08-commercial-agreements-platform-pricing-design.md`. Commercial is implemented after Registration and before Orders. It is a bounded agreement system, not an arbitrary condition/expression engine.
+
+Its authoritative tables are:
+
+| Table | Purpose |
+|---|---|
+| `commercial_fee_schedules` | Stable identity for platform defaults, reusable programs, and custom terms |
+| `commercial_fee_schedule_versions` | Immutable simulated/approved/scheduled/active financial definitions with legal-version linkage |
+| `commercial_fee_components` | Independently resolved commission, buyer service, processing recovery, subsidy, and resale components with bounded scopes |
+| `commercial_fee_amounts` | Explicit fixed/minimum/maximum amounts by currency |
+| `commercial_fee_tiers` | Prospective accepted-unit or currency-specific accepted-gross tiers |
+| `commercial_programs` | Automatic/manual launch, charity, partnership, and volume programs |
+| `commercial_assignments` | Organization-wide or event-specific program, platform-grant, or mutual-agreement application |
+| `commercial_program_entitlements` | Limited-use benefits such as first monetized event at 0% commission |
+| `commercial_subsidy_budgets` | Hard currency limits for platform-funded cash costs |
+| `commercial_subsidy_reservations` | Checkout hold/commit/release records that prevent concurrent budget overspend |
+| `commercial_volume_counters` | Locked accepted-activity counters for prospective tier resolution |
+| `commercial_volume_usages` | Immutable accepted commercial activity used by prospective tiers |
+| `commercial_event_payer_selections` | Organizer event-level pass/absorb selection where the agreement permits it |
+| `commercial_simulations` | Mandatory definition-bound impact and conflict evidence |
+| `commercial_approvals` | Append-only maker-checker decisions |
+| `commercial_term_notices` | Durable organization delivery evidence for exact default-version/legal-term changes |
+
+Resolution occurs independently for each component:
+
+```text
+event assignment
+    → organization agreement
+        → assigned program
+            → platform default
+```
+
+The first applicable component wins and untouched components inherit. Within one version, exact product is more specific than product type, which is more specific than sale/provider/method/channel/currency context, which is more specific than the component fallback. Equal-specificity ambiguity prevents activation. Runtime gaps or ambiguity fail quote creation; an explicit 0% rule is never confused with missing configuration.
+
+A `platform_grant` may only improve the organizer's complete resolved position and needs no organizer acceptance. A `mutual_agreement` may change obligations and requires an exact in-app legal acceptance or recorded external contract reference plus a distinct authorized approver. External negotiation and verification do not require an in-platform case workflow.
+
+Every platform-default version that establishes organizer obligations links to exact published fee terms. Worsening successors use the legal version's reviewed `notice_only` or `explicit` acceptance policy. Explicit transitions may grandfather the previously accepted default only through a recorded cutoff; after that, missing acceptance fails new quote creation rather than silently treating it as consent.
+
+Percentage, fixed, blended, prospective tiered, and explicit-zero calculations use allowlisted bases, integer minor units, basis points, `BigDecimal`, and half-up rounding. Fixed amounts, caps, minimums, and hard budgets are explicit per currency. Tax and organizer-created buyer promotions remain separate domains.
+
+Platform-funded subsidies are explicit offset adjustments. Cash-cost subsidies reserve a hard per-currency budget atomically with checkout; pure commission waivers may use an optional cap because they forgo revenue rather than spend cash. The first-event program reserves its entitlement when the first qualifying event publishes, consumes it on that event's first accepted paid order, and releases it only if the event closes/cancels without an accepted payment.
+
+Commercial always calculates before the provider adapter. Chapa split values, Stripe application fees, or future provider instructions are projections of Digis's immutable adjustment evidence. Provider behavior never becomes the contract source of truth.
+
 ## 9. Orders and payments
 
 ### 9.1 `orders_orders`
@@ -2288,6 +2467,7 @@ One order belongs to one event. This keeps cancellation, ownership, taxes, and o
 | `charge_currency` | char(3) | Currency shown/charged to buyer |
 | `subtotal_minor` | bigint | Required |
 | `discount_minor` | bigint | Required, default `0` |
+| `subsidy_minor` | bigint | Required, default `0`; absolute buyer-facing platform-funded subsidy total |
 | `fee_minor` | bigint | Required, default `0` |
 | `tax_minor` | bigint | Required, default `0` |
 | `adjustment_minor` | bigint | Required signed manual-adjustment total, default `0` |
@@ -2306,7 +2486,7 @@ One order belongs to one event. This keeps cancellation, ownership, taxes, and o
 Check:
 
 ```text
-total_minor = subtotal_minor - discount_minor + fee_minor + tax_minor + adjustment_minor
+total_minor = subtotal_minor - discount_minor - subsidy_minor + fee_minor + tax_minor + adjustment_minor
 ```
 
 All amount columns are nonnegative integer minor units except the explicitly signed `adjustment_minor`.
@@ -2357,19 +2537,23 @@ Immutable itemization of every amount added to or subtracted from the merchandis
 |---|---|---|
 | `order_id` | UUID | Required FK |
 | `order_item_id` | UUID | Optional FK; when present, must belong to `order_id` |
-| `type` | string | `discount`, `service_fee`, `platform_fee`, `processing_fee`, `tax`, `manual_adjustment` |
+| `type` | string | `discount`, `service_fee`, `platform_fee`, `processing_fee`, `subsidy`, `resale_platform_fee`, `tax`, `manual_adjustment` |
 | `label` | string | Required customer/reporting snapshot, such as `VAT` or `Digis service fee` |
 | `charged_to` | string | `buyer` or `organizer` |
 | `amount_minor` | bigint | Required signed amount in `currency`; negative subtracts, positive adds |
 | `currency` | char(3) | Required; equals order charge currency |
 | `refund_policy` | string | `refundable`, `event_cancellation_only`, or `nonrefundable`; immutable buyer-facing snapshot |
+| `calculation_type` | string | Optional commercial snapshot: `explicit_zero`, `percentage`, `fixed`, `blended`, or `tiered` |
+| `basis_type` | string | Optional allowlisted named calculation basis |
 | `basis_minor` | bigint | Optional nonnegative amount on which a percentage was calculated |
 | `rate_bps` | integer | Optional nonnegative rate in basis points; `750` means 7.5% |
 | `fixed_amount_minor` | bigint | Optional nonnegative fixed component used by the calculator |
 | `minimum_minor` | bigint | Optional nonnegative lower bound used by the calculator |
 | `maximum_minor` | bigint | Optional nonnegative upper bound used by the calculator |
+| `funded_by` | string | Optional `buyer`, `organizer`, or `platform`; required for commercial charge/subsidy evidence |
 | `source_type` | string | Optional allowlisted calculator/rule source type |
-| `source_id` | UUID | Optional immutable source/rule-version identifier |
+| `source_id` | UUID | Optional immutable source component/version identifier, never a mutable schedule identity |
+| `resolution_evidence` | JSONB | Optional allowlisted scope/tier/window/rounding snapshot; no internal notes or legal/provider secrets |
 | timestamps | timestamptz | Required |
 
 `Orders::OrderAdjustment` declares `self.inheritance_column = nil` because `type` is a business discriminator.
@@ -2378,14 +2562,16 @@ Rules:
 
 - `order_item_id`, when present, must reference an item in the same order;
 - `source_type` and `source_id` are either both null or both present, and source types are allowlisted rather than dynamically constantized from untrusted input;
-- `discount` amounts are negative; buyer-facing fee and tax amounts are nonnegative; signed `manual_adjustment` is restricted to privileged, audited workflows;
+- `discount` and `subsidy` amounts are negative; buyer-facing fee and tax amounts are nonnegative; signed `manual_adjustment` is restricted to privileged, audited workflows;
 - fixed amounts leave `basis_minor` and `rate_bps` null; percentage calculations snapshot both;
 - adjustments and their source references become immutable when the order enters `pending_payment`;
 - buyer adjustments affect the amount collected; organizer adjustments affect settlement, not the buyer's total;
+- a platform-funded subsidy offsets a named buyer/organizer component, preserves `funded_by = platform`, and posts its economic cost separately; it is never represented by deleting or silently reducing the undiscounted component;
 - every buyer adjustment has an explicit checkout-time refund policy; organizer adjustments use `nonrefundable` here because their reversal is handled by settlement policy rather than returned to the buyer;
 - launch service/payment-processing fees shown as nonrefundable remain excluded from event-cancellation refunds; refundable taxes and other buyer adjustments are allocated normally;
 - buyer checkout and receipts render service/platform and payment-processing adjustments as separate lines, including each line's refund treatment;
 - organizer-charged adjustments are converted with the order's snapshotted exchange rate and posted as separate finance-ledger entries, so commission remains auditable in settlement currency;
+- commercial adjustments identify the exact immutable `Commercial` component/version and snapshot calculation type, named basis, payer, funding source, tier/window evidence, and refund behavior;
 - the order's aggregate discount, fee, and tax columns are cached reconciliation values derived from buyer adjustments, not a second pricing source of truth;
 - item `discount_minor` and `total_minor` reconcile to item-scoped adjustments, while order-scoped adjustments are allocated explicitly during refunds;
 - refunds never edit or delete adjustments. `orders_refund_items` records the returned item amount and its deterministic share of refundable buyer adjustments; organizer settlement reversals are posted to the finance ledger.
@@ -2397,6 +2583,7 @@ buyer_adjustment_total = SUM(order_adjustments.amount_minor WHERE charged_to = b
 total_minor = subtotal_minor + buyer_adjustment_total
 
 discount_minor = ABS(SUM(buyer discount adjustments))
+subsidy_minor  = ABS(SUM(buyer subsidy adjustments))
 fee_minor      = SUM(buyer service/platform/processing fee adjustments)
 tax_minor      = SUM(buyer tax adjustments)
 adjustment_minor = SUM(buyer manual adjustments)
@@ -2588,25 +2775,9 @@ Allocation order is deterministic: allocate order-level adjustments across eligi
 
 Marketplace records are separate from free `ticketing_ticket_transfers`. A resale uses the normal order/payment/refund infrastructure for the buyer, transfers one existing package, and creates a separate seller-payable ledger.
 
-### 9A.1 `marketplace_resale_fee_configs`
+### 9A.1 Resale platform fees use `Commercial`
 
-Versioned seller-side marketplace-fee configuration controlled only by platform administrators.
-
-| Column | Type | Rules |
-|---|---|---|
-| `ticket_type_id` | UUID | Optional FK; null means platform default for currency |
-| `currency` | char(3) | Required settlement currency |
-| `version` | integer | Required positive monotonic version within scope/currency |
-| `fixed_amount_minor` | bigint | Required nonnegative |
-| `rate_bps` | integer | Required nonnegative |
-| `minimum_minor` | bigint | Optional nonnegative |
-| `maximum_minor` | bigint | Optional nonnegative and not below minimum |
-| `status` | string | `draft`, `active`, or `retired` |
-| `effective_at` | timestamptz | Required when active |
-| `created_by_id` | UUID | Required platform-administrator FK |
-| timestamps | timestamptz | Required |
-
-Null-safe unique `(ticket_type_id, currency, version)` plus one active row per scope/currency. Resolution is deliberately simple: exact ticket-type configuration, otherwise platform currency default. No priorities, stacking, or organizer-authored fee rules. Calculate `raw_fee = fixed_amount_minor + round_half_up(gross_amount_minor * rate_bps / 10_000)`, then clamp it to the optional minimum/maximum and never above gross. The sale snapshots all formula inputs and the final fee.
+Marketplace does not create `marketplace_resale_fee_configs` or a second fee engine. It requests the distinct `resale_platform_fee` component from `Commercial::ResolveCharges` with resale context. Primary-sale commission never applies automatically. The resale order/sale snapshots the exact Commercial schedule version, component, basis, tier, fixed/rate/minimum/maximum inputs, currency, payer/funder, refund policy, and final amount. The final seller fee may never exceed resale gross.
 
 ### 9A.2 `marketplace_seller_payout_accounts`
 
@@ -2644,7 +2815,8 @@ Unique `(provider, account_token)`. Only verified accounts receive payouts. Veri
 | `resale_count_before` | smallint | Required nonnegative package count snapshot |
 | `max_completed_resales_snapshot` | smallint | Required positive policy snapshot |
 | `resale_cutoff_at` | timestamptz | Required current-schedule cutoff snapshot |
-| `resale_fee_config_id` | UUID | Required active fee-config FK resolved at activation |
+| `commercial_fee_component_id` | UUID | Required immutable Commercial resale-component source resolved for the listing quote |
+| `commercial_fee_schedule_version_id` | UUID | Required exact Commercial version evidence |
 | `reserved_order_id` | UUID | Optional unique FK to the sole resale checkout |
 | `reserved_at` | timestamptz | Optional |
 | `reservation_expires_at` | timestamptz | Optional; same immutable order deadline/grace policy |
@@ -2680,6 +2852,10 @@ Immutable completed marketplace ownership change.
 | `currency` | char(3) | Required settlement currency |
 | `marketplace_fee_minor` | bigint | Required nonnegative seller fee |
 | `seller_proceeds_minor` | bigint | Required nonnegative; gross minus marketplace fee |
+| `commercial_fee_component_id` | UUID | Required immutable Commercial resale-component source |
+| `commercial_fee_schedule_version_id` | UUID | Required exact Commercial version evidence |
+| `fee_calculation_type` | string | Required Commercial calculation snapshot |
+| `fee_basis_type` | string | Required allowlisted resale basis snapshot |
 | `fee_fixed_amount_minor` | bigint | Required nonnegative config snapshot |
 | `fee_rate_bps` | integer | Required nonnegative config snapshot |
 | `fee_minimum_minor` | bigint | Optional snapshot |
@@ -3351,7 +3527,7 @@ At minimum:
 - Per-slot personal consent links to canonical/shadow users and stable slot coordinates; only completion state—not answers or document content—may influence credential activation.
 - Retention purge jobs use bounded batches, row locks, legal-hold rechecks, and payload-free audit/metrics; organizers cannot override platform retention or legal holds.
 - Answer revisions and consent withdrawals receive the same encryption, retention, legal-hold, and authorization controls as their originals; correction never becomes a retention-extension mechanism.
-- Attendee exports require recent reauthentication, field-level authorization, reason/audit metadata, short expiry, encrypted private storage, and deterministic artifact deletion. Export URLs are never public or reusable after expiry.
+- Attendee exports require session-bound recent reauthentication, explicit row mode, registry-owned field authorization, reason/digest audit evidence, retention-capped expiry, encrypted private storage, source-erasure invalidation, and deterministic tombstoning. Newly issued URLs are private bearer capabilities capped to two minutes and never beyond export expiry; an already-issued provider URL retains the documented bounded deletion-propagation limitation.
 - Store separate keyed digests only for necessary lookup/deduplication.
 - Access-code and invitation tokens are never logged in plaintext.
 - Promo codes use event-namespaced keyed digests, are never logged in plaintext, and are not treated as admission authorization.
@@ -3394,7 +3570,7 @@ The core has attachment points but does not prebuild:
 - organizer advances, rolling pre-event payouts, per-organizer reserves, and automated risk scoring;
 - cause-based full-fee cancellation refunds until treasury funding and organizer recovery controls exist;
 - split organizer settlement/revenue shares;
-- full tax/fee rule engine;
+- full tax rule engine;
 - full conditional promotion engine;
 - cash box-office sessions and till reconciliation;
 - merchandise variants/SKUs and shipping;
@@ -3406,58 +3582,21 @@ The core has attachment points but does not prebuild:
 
 These features add their own tables around existing event products, orders, tickets, and collaborators. They do not require an event-schema rewrite.
 
-### 19.1 Future commission and fee engine
+### 19.1 Commercial extensions still deferred
 
-The launch system uses one simple, versioned calculator in application code—for example, a platform percentage plus a fixed processing amount. It writes one immutable adjustment per charge component. Do not hide multiple fees inside a single number.
+The configurable commission and platform-fee system is no longer deferred. Its canonical design is Section 8A and `docs/superpowers/specs/2026-08-08-commercial-agreements-platform-pricing-design.md`; it is implemented before Orders so checkout never depends on a temporary global-fee calculator.
 
-Build a configurable engine when the business needs different rules by organization, event, product, country, payment method, volume tier, or effective date. Its likely model is:
+Commercial intentionally does **not** prebuild:
 
-> **Implementation checkpoint:** the following engine tables are a remembered candidate design, not migrations to create now. Re-evaluate their names, normalization, scopes, and provider/legal requirements when engine implementation begins. The stable contract is that every finalized calculation becomes an immutable `orders_order_adjustments` row.
+- arbitrary administrator-authored expressions or executable formulas;
+- retroactive volume rebates and cross-currency gross aggregation;
+- organizer subscription billing, invoicing, or credit notes;
+- co-organizer revenue-share contracts;
+- provider-contract negotiation workflows;
+- a legal/charity verification case-management system; or
+- dynamic pricing of buyer product face value.
 
-| Future table | Purpose |
-|---|---|
-| `pricing_charge_rules` | Named, effective-dated rule version with `type`, `charged_to`, priority, combination behavior, and active interval |
-| `pricing_charge_rule_scopes` | Optional organization, event, product, product-type, country, currency, or payment-method applicability |
-| `pricing_charge_rule_tiers` | Fixed, percentage, tiered, minimum, and maximum calculation parameters |
-
-Candidate `pricing_charge_rules` fields:
-
-- `type`: `platform_fee`, `service_fee`, `processing_fee`, or another controlled charge type;
-- `calculation_type`: `fixed`, `percentage`, or `tiered`;
-- `percentage_basis_points`;
-- `fixed_amount_minor` and `currency`;
-- `minimum_minor` and `maximum_minor`;
-- `charged_to`: `buyer` or `organizer`;
-- `priority` and explicit combination behavior;
-- `starts_at`, `ends_at`, and `active`;
-- immutable version/supersession data once a rule has produced an adjustment.
-
-Because this candidate table uses the business column `type`, its future Rails model must declare `self.inheritance_column = nil` and receive the same STI regression test as the current business-type models.
-
-No scope rows means the rule is the platform default. Scope rows may narrow it to one organization, event, product, product type, payment method, country, or currency. Tier rows represent ticket/transaction-volume bands. At implementation time, prefer explicit foreign-key columns with an exactly-one-scope check over an unconstrained polymorphic target when practical.
-
-Worked examples the engine should eventually express:
-
-| Commercial policy | Example rule result |
-|---|---|
-| Default commission | 3% of ticket subtotal |
-| Special organizer agreement | 1.5% for Addis Live |
-| Volume agreement | 3% for the first 1,000 tickets, then 2% |
-| Maximum commission | Never exceed 100 ETB per ticket |
-| Launch promotion | 0% commission for an organizer's first event |
-| Payment-method rule | Add 1% for international card payments |
-
-The engine resolves all matching scopes, tiers, priorities, caps, and combination rules. It then writes the resulting fee components as separate immutable order adjustments; it does not make the mutable rule rows part of an order's historical truth.
-
-Rules used by a payable order are immutable. Editing a live rule closes its effective interval and creates a new version. Checkout resolves all applicable rules deterministically, calculates adjustments, and stores the rule version in `source_type/source_id` plus `basis_minor/rate_bps` where applicable.
-
-When this engine is introduced:
-
-- **replace** hard-coded fee/commission calculator branches and environment/config percentages with rule resolution;
-- **add** rule authoring, approval, versioning, simulation, and conflict-detection interfaces;
-- **keep** `orders_order_adjustments`, order totals, refund itemization, payment amounts, finance ledger entries, and payout allocations;
-- **do not migrate or recalculate** old orders from the new rules;
-- **do not remove** simple calculators until shadow-mode comparison proves the engine produces identical results for existing policy.
+These are separate future capabilities. They may consume the Commercial resolver or immutable order-adjustment seam, but they do not weaken its bounded scopes, approval, evidence, or fail-closed rules.
 
 ### 19.2 Future tax engine
 
@@ -3557,7 +3696,9 @@ the same redemption and adjustment audit seam
 
 ### 19.4 Engine rollout gates
 
-Do not build either configurable engine merely because the schema permits it. Introduce the fee engine when more than one commercial policy cannot be expressed safely by the launch calculator. For each launch jurisdiction, obtain tax advice before accepting payments. Enable the smallest legally sufficient tax calculation—an internal adapter backed by configuration or an external provider—where the platform or organizer must calculate, collect, or report transaction tax; introduce the complete configurable tax engine only when jurisdictional complexity justifies it.
+Commercial is a launch dependency and follows its mandatory simulation, maker-checker, scheduled activation, shadow comparison, and reconciliation gates from the canonical Commercial specification. This section now governs only the deferred tax and full promotion engines.
+
+Do not build either deferred engine merely because the schema permits it. For each launch jurisdiction, obtain tax advice before accepting payments. Enable the smallest legally sufficient tax calculation—an internal adapter backed by configuration or an external provider—where the platform or organizer must calculate, collect, or report transaction tax; introduce the complete configurable tax engine only when jurisdictional complexity justifies it. Introduce the full promotion engine only after real campaigns require conditions or interactions the minimal promotion model cannot express.
 
 A complete engine is not automatically better. Building it before real requirements are known introduces:
 
@@ -3572,26 +3713,14 @@ A complete engine is not automatically better. Building it before real requireme
 
 A partially correct tax engine is more dangerous than a small explicit calculator reviewed for the launch market. The future-proof choice is not to prebuild every rule; it is to preserve immutable calculation inputs/results and a clean producer boundary.
 
-```text
-Launch:
-simple versioned calculator
-        ↓
-immutable orders_order_adjustments
+Introducing a future tax or promotion engine requires no rewrite of paid orders. It becomes another producer of immutable adjustment rows while preserving historical evidence.
 
-Later:
-configurable commission/tax engine
-        ↓
-the same immutable orders_order_adjustments
-```
-
-Introducing an engine therefore requires no order or payment migration. Only the producer of new adjustment rows changes.
-
-Roll out each engine in this order:
+Roll out each deferred engine in this order:
 
 1. create versioned rule/evidence tables without changing checkout output;
 2. run the engine in shadow mode and compare proposed adjustments with launch calculations;
 3. investigate every mismatch and test boundary dates, currencies, refunds, and rounding;
-4. enable by organization/jurisdiction behind a feature flag;
+4. enable by the narrowest required organization/jurisdiction/campaign scope behind a feature flag;
 5. retain the previous calculator for rollback until payment, refund, ledger, and reporting reconciliation is proven;
 6. remove the old calculator code and configuration only after the new engine is authoritative; never remove historical order adjustments.
 
@@ -3650,7 +3779,7 @@ The current model already preserves the upgrade seam: new orders can snapshot bu
 - ticket-type settings;
 - access codes and invitations.
 
-### Phase 3: Registration and orders
+### Phase 3: Registration, consent, and privacy
 
 - free/paid registration flows;
 - versioned event-wide and product-specific registration forms with allowlisted questions and encrypted immutable answer snapshots;
@@ -3666,6 +3795,22 @@ The current model already preserves the upgrade seam: new orders can snapshot bu
 - organizer complimentary issuance through the normal zero-charge registration, inventory, capacity, package, and credential pipeline;
 - online digital walk-up checkout as a sales channel, with staff attribution when assisted and no launch cash/till accounting;
 - manual approval and waitlist;
+
+### Phase 3.25: Commercial agreements and platform pricing
+
+- platform-default, reusable-program, negotiated-organization, and event-exception fee schedules;
+- immutable schedule versions, component inheritance, bounded scopes, deterministic precedence, and fail-closed resolution;
+- platform grants that cannot worsen organizer obligations and mutual agreements with in-app/external acceptance evidence;
+- dedicated commercial permissions, risk-based maker-checker approval, mandatory simulation, scheduled activation, audit, and outbox publication;
+- hybrid automatic/manual program enrollment and first-monetized-event entitlement reservation/consumption/release;
+- percentage, fixed, blended, prospective tiered, and explicit-zero components with allowlisted bases/refund policies;
+- explicit per-currency fixed/minimum/maximum values and concurrency-safe platform-subsidy budgets;
+- organizer current/scheduled terms, permitted event fee-payer choices, admin explanation, shadow comparison, and reconciliation contracts;
+- primary-sale and resale components on the same resolver without automatic cross-context inheritance;
+- provider-independent charge evidence projected later into Chapa, Stripe, or other adapter instructions.
+
+### Phase 3.5: Orders and payments
+
 - multi-currency checkout snapshots;
 - pre-order currency selection and separate buyer-facing service/payment fee lines;
 - standardized per-currency buyer processing fees with actual provider-cost reconciliation;
@@ -3683,7 +3828,7 @@ The current model already preserves the upgrade seam: new orders can snapshot bu
 - provider adapters with canonical refund-status, idempotency, fee, balance-capability, and webhook mapping;
 - idempotent payment/webhook processing.
 
-### Phase 3.5: Organizer settlement
+### Phase 3.6: Organizer settlement
 
 - append-only finance ledger entries;
 - payout batches and allocations;
@@ -3746,13 +3891,12 @@ The current model already preserves the upgrade seam: new orders can snapshot bu
 - redirect safety, atomic click limits, and asynchronous analytics;
 - optional canonical-link backfill for existing events, tickets, and organizations.
 
-### Future launch expansion: configurable pricing, tax, and promotions
+### Future launch expansion: tax and advanced promotions
 
-- effective-dated commission/fee rules when multiple commercial policies are required;
 - jurisdictional tax engine or external-provider adapter before entering markets that require platform tax calculation;
 - conditional promotion engine only when real campaigns require stacking, bundles, automatic eligibility, or complex funding;
 - funded cause-based full-fee cancellation refunds with reserve, treasury-advance, risk-limit, and organizer-recovery controls;
-- shadow comparison, feature-flagged rollout, and reconciliation gates from Section 19.4;
+- shadow comparison, feature-flagged rollout, and reconciliation gates from Section 19.4 for deferred tax/promotion engines;
 - no replacement or backfill of historical order adjustments.
 
 ## 21. Final model summary
@@ -3799,6 +3943,21 @@ TICKET PRODUCT
     ├── transfers
     └── temporary suspension / audited resolution
 
+COMMERCIAL TERMS
+├── versioned platform defaults
+├── reusable automatic/manual programs
+│   ├── launch / first monetized event
+│   ├── charity / partnership grants
+│   └── prospective volume tiers
+├── negotiated organization agreements
+├── event-specific exceptions
+├── component inheritance: event → organization → program → default
+├── bounded product/context/currency/provider/channel scopes
+├── explicit buyer/organizer payer permissions
+├── per-currency fixed/cap/minimum amounts and hard subsidy budgets
+├── mandatory simulation + risk-based maker-checker approval
+└── immutable order-adjustment evidence + provider projection
+
 RESALE MARKETPLACE
 ├── organizer policy per ticket type
 │   ├── allow/disallow + cutoff + completed-resale limit
@@ -3808,7 +3967,7 @@ RESALE MARKETPLACE
 ├── checkout reservation revokes seller credential and suspends package
 │   ├── success: buyer ownership + new group generation
 │   └── failure: seller restored through a newer group generation
-├── separate versioned seller marketplace fee
+├── separate Commercial resale-platform-fee component; no automatic primary-fee inheritance
 ├── append-only seller ledger held until event completion + buffer
 ├── verified payout destination and payout allocations
 └── cancellation refunds each acquisition payer and reverses matching proceeds
@@ -3825,9 +3984,9 @@ ORDER
 ├── optional link to the checkout order it atomically replaced
 ├── at most two replacement checkouts per buyer/event per rolling hour
 ├── optional single promotion redemption
-├── immutable discount / fee / tax adjustments with refund policies
+├── immutable discount / Commercial fee / subsidy / tax adjustments with refund policies
 ├── separate buyer-visible service and payment-processing fee rows
-│   └── fixed + percentage formula with optional min/max snapshotted per currency
+│   └── exact schedule/component/version/basis/payer/tier/min/max evidence snapshotted per currency
 ├── up to three sequential provider payment attempts when total is greater than zero
 │   ├── exactly one accepted success
 │   ├── immutable 10-minute checkout hold

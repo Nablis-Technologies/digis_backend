@@ -22,6 +22,8 @@ class CreateCatalogVenueCapacityReservations < ActiveRecord::Migration[8.1]
                     column: :event_date_id
     add_foreign_key :catalog_venue_capacity_reservations, :catalog_event_products,
                     column: :event_product_id
+    add_foreign_key :catalog_venue_capacity_reservations, :ticketing_registrations,
+                    column: :registration_id
 
     add_check_constraint :catalog_venue_capacity_reservations,
       "quantity_people > 0",

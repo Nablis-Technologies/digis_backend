@@ -7,6 +7,24 @@ super_admin:
   created_at: <%= Time.current %>
   updated_at: <%= Time.current %>
 
+admin:
+  id: 019e5f6d-0002-7aaa-bbbb-ccccccccccc1
+  code: ADMIN
+  name: Administrator
+  description: Platform administrator with broad operational access
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
+organizer:
+  id: 019e5f6d-0002-7aaa-bbbb-ccccccccccc2
+  code: ORGANIZER
+  name: Organizer
+  description: Event organizer access
+  active: true
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>
+
 core_admin:
   id: 019e5f69-db11-7a51-b1d9-785571600a31
   code: CORE_ADMIN

@@ -61,7 +61,7 @@ module Core
         Rails.logger.error "Signup error: #{e.class} #{e.message}\n#{e.backtrace.first(8).join("\n")}" if defined?(Rails)
         render_error(
           :"auth.errors.signup",
-          errors: [ e.message.to_s ],
+          errors: [ I18n.t("auth.errors.signup") ],
           status: :internal_server_error,
           code: "signup_failed"
         )
@@ -84,6 +84,22 @@ module Core
           user: { serializer: Core::UserAuthSerializer }
         }
       )
+    end
+
+    def reauthenticate
+      skip_authorization
+      response.set_header("Cache-Control", "no-store")
+
+      result = Core::Reauthentication::Issue.call(
+        user: current_user,
+        session_jti: current_authentication_jti,
+        purpose: params[:purpose].presence || Core::ReauthenticationProof::PURPOSES.first,
+        password: params.require(:password),
+        ip_address: request.remote_ip
+      )
+      return render_error(result.error.message, status: result.error.status_code, code: result.error.code) if result.failure?
+
+      render_success(:"reauthentication.success.issued", data: { proof: result.value })
     end
 
     def refresh

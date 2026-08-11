@@ -27,7 +27,11 @@ module Core
       end
 
       rescue_from ActionController::ParameterMissing do |error|
-        render_error(I18n.t(:"errors.parameter_missing", param: error.param), status: :bad_request)
+        render_error(
+          I18n.t(:"errors.parameter_missing", param: error.param),
+          status: :bad_request,
+          code: "parameter_missing"
+        )
       end
     end
   end

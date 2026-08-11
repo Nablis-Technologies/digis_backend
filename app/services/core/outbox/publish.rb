@@ -51,7 +51,10 @@ module Core
       # are still caught, not just top-level ones.
       def validate_payload!
         forbidden = nested_keys(@payload) & FORBIDDEN_KEYS
-        fail SensitivePayload, "outbox payload contains #{forbidden.join(', ')}" if forbidden.any?
+        fail SensitivePayload, I18n.t(
+          "core.errors.outbox_payload_forbidden_keys",
+          keys: forbidden.join(", ")
+        ) if forbidden.any?
       end
 
       def nested_keys(value)
@@ -76,7 +79,7 @@ module Core
           event.payload == @payload
         return if same
 
-        fail IdempotencyConflict, "outbox idempotency key was reused for different content"
+        fail IdempotencyConflict, I18n.t("core.errors.outbox_idempotency_conflict")
       end
     end
   end

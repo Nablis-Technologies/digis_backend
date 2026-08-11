@@ -29,6 +29,26 @@
       "key": "refreshToken",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "idempotencyKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reauthenticationPurpose",
+      "value": "attendee_export_request",
+      "type": "string"
+    },
+    {
+      "key": "eventId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reauthenticationProof",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -70,6 +90,81 @@
                   "  pm.expect(json).to.have.property(\"data\");",
                   "  pm.expect(json.data).to.have.property(\"user\");",
                   "  pm.expect(json.data.user).to.have.property(\"id\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reauthenticate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"purpose\": \"{{reauthenticationPurpose}}\",\n  \"password\": \"password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/reauthenticate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "reauthenticate"
+              ]
+            },
+            "description": "Verify the authenticated user's password and issue a five-minute, single-use proof bound to the current access session.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "Successful Reauthentication",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Cache-Control",
+                  "value": "no-store"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Reauthentication proof issued successfully\",\n  \"data\": {\n    \"proof\": \"opaque-proof-returned-once\"\n  }\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response includes a proof\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property(\"success\", true);",
+                  "  pm.expect(json.data).to.have.property(\"proof\");",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -3016,6 +3111,921 @@
               "variable": [
                 {
                   "key": "productId",
+                  "value": "",
+                  "type": "string"
+                }
+              ]
+            },
+            {
+              "name": "Registration Forms",
+              "item": [
+                {
+                  "name": "List Registration Forms",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{accessToken}}",
+                        "type": "text"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/events/{{eventId}}/registration_forms",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "events",
+                        "{{eventId}}",
+                        "registration_forms"
+                      ]
+                    },
+                    "description": "List registration forms for an event."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Get Registration Form",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{accessToken}}",
+                        "type": "text"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/events/{{eventId}}/registration_forms/{{registrationFormId}}",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "events",
+                        "{{eventId}}",
+                        "registration_forms",
+                        "{{registrationFormId}}"
+                      ]
+                    },
+                    "description": "Get a registration form and its versions."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Create Registration Form",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{accessToken}}",
+                        "type": "text"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"Attendee details\",\n  \"active\": true\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/events/{{eventId}}/registration_forms",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "events",
+                        "{{eventId}}",
+                        "registration_forms"
+                      ]
+                    },
+                    "description": "Create an active event-wide registration form."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Update Registration Form",
+                  "request": {
+                    "method": "PATCH",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{accessToken}}",
+                        "type": "text"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"Updated attendee details\",\n  \"active\": true\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/events/{{eventId}}/registration_forms/{{registrationFormId}}",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "events",
+                        "{{eventId}}",
+                        "registration_forms",
+                        "{{registrationFormId}}"
+                      ]
+                    },
+                    "description": "Update a registration form's name or active state."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Delete Registration Form",
+                  "request": {
+                    "method": "DELETE",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{accessToken}}",
+                        "type": "text"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/events/{{eventId}}/registration_forms/{{registrationFormId}}",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "events",
+                        "{{eventId}}",
+                        "registration_forms",
+                        "{{registrationFormId}}"
+                      ]
+                    },
+                    "description": "Delete a registration form."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Versions",
+                  "item": [
+                    {
+                      "name": "List Registration Form Versions",
+                      "request": {
+                        "method": "GET",
+                        "header": [
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          }
+                        ],
+                        "url": {
+                          "raw": "{{baseUrl}}/events/{{eventId}}/registration_forms/{{registrationFormId}}/versions",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "events",
+                            "{{eventId}}",
+                            "registration_forms",
+                            "{{registrationFormId}}",
+                            "versions"
+                          ]
+                        },
+                        "description": "List all versions of a registration form."
+                      },
+                      "response": []
+                    },
+                    {
+                      "name": "Get Registration Form Version",
+                      "request": {
+                        "method": "GET",
+                        "header": [
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          }
+                        ],
+                        "url": {
+                          "raw": "{{baseUrl}}/events/{{eventId}}/registration_forms/{{registrationFormId}}/versions/{{registrationFormVersionId}}",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "events",
+                            "{{eventId}}",
+                            "registration_forms",
+                            "{{registrationFormId}}",
+                            "versions",
+                            "{{registrationFormVersionId}}"
+                          ]
+                        },
+                        "description": "Get a registration form version and its questions."
+                      },
+                      "response": []
+                    },
+                    {
+                      "name": "Create Registration Form Version",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"version\": 1,\n  \"questions\": [\n    {\n      \"key\": \"full_name\",\n      \"type\": \"short_text\",\n      \"response_scope\": \"registration\",\n      \"sensitivity\": \"standard\",\n      \"label\": \"Full name\",\n      \"help_text\": \"Enter the attendee's full name.\",\n      \"required\": true,\n      \"position\": 0,\n      \"options\": [],\n      \"validation_rules\": {\n        \"min_length\": 2\n      }\n    }\n  ]\n}",
+                          "options": {
+                            "raw": {
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/events/{{eventId}}/registration_forms/{{registrationFormId}}/versions",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "events",
+                            "{{eventId}}",
+                            "registration_forms",
+                            "{{registrationFormId}}",
+                            "versions"
+                          ]
+                        },
+                        "description": "Create a draft version with its questions."
+                      },
+                      "response": []
+                    },
+                    {
+                      "name": "Publish Registration Form Version",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Idempotency-Key",
+                            "value": "{{idempotencyKey}}",
+                            "type": "text"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{}",
+                          "options": {
+                            "raw": {
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/events/{{eventId}}/registration_forms/{{registrationFormId}}/versions/{{registrationFormVersionId}}/publish",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "events",
+                            "{{eventId}}",
+                            "registration_forms",
+                            "{{registrationFormId}}",
+                            "versions",
+                            "{{registrationFormVersionId}}",
+                            "publish"
+                          ]
+                        },
+                        "description": "Publish a draft registration form version. Replays are safe with the same Idempotency-Key."
+                      },
+                      "response": []
+                    }
+                  ]
+                }
+              ],
+              "variable": [
+                {
+                  "key": "registrationFormId",
+                  "value": "",
+                  "type": "string"
+                },
+                {
+                  "key": "registrationFormVersionId",
+                  "value": "",
+                  "type": "string"
+                }
+              ]
+            },
+            {
+              "name": "Registrations",
+              "item": [
+                {
+                  "name": "Discover Registration Consent Requirements",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/public/events/{{eventSlug}}/ticket_types/{{ticketTypeId}}/consent_requirements",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "public",
+                        "events",
+                        "{{eventSlug}}",
+                        "ticket_types",
+                        "{{ticketTypeId}}",
+                        "consent_requirements"
+                      ]
+                    },
+                    "description": "Run before Submit Registration. It records the first required buyer consent's exact version ID and content hash for the seeded registration request. Set ticketTypeId to the seeded Fest General Admission ticket type."
+                  },
+                  "response": [],
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "exec": [
+                          "const requirement = pm.response.json().data.find((item) => item.required && item.acceptance_scope === \"buyer\");",
+                          "pm.expect(requirement, \"required buyer consent\").to.exist;",
+                          "pm.collectionVariables.set(\"consentDocumentVersionId\", requirement.consent_document_version_id);",
+                          "pm.collectionVariables.set(\"consentContentSha256\", requirement.content_sha256);"
+                        ],
+                        "type": "text/javascript"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "Submit Registration",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{accessToken}}",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Idempotency-Key",
+                        "value": "{{idempotencyKey}}",
+                        "type": "text"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"phone\": \"251911000003\",\n  \"package_quantity\": 1,\n  \"answers\": [\n    {\n      \"question_key\": \"name\",\n      \"value\": \"Ada\"\n    }\n  ],\n  \"consents\": [\n    {\n      \"consent_document_version_id\": \"{{consentDocumentVersionId}}\",\n      \"request_uuid\": \"{{$guid}}\",\n      \"idempotency_key\": \"registration-consent-{{$guid}}\",\n      \"acceptance_method\": \"otp\",\n      \"content_sha256\": \"{{consentContentSha256}}\"\n    }\n  ]\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/ticket_types/{{ticketTypeId}}/registrations",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "ticket_types",
+                        "{{ticketTypeId}}",
+                        "registrations"
+                      ]
+                    },
+                    "description": "Run Discover Registration Consent Requirements first to populate the exact required buyer consent fields for the seeded Fest General Admission flow. Submit current registration-form answers for the authenticated, verified phone identity. Reuse the same Idempotency-Key only when retrying this exact submission. Automatic free submissions return requires_confirmation; no credential or inventory allocation is created here."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Get Registration",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{accessToken}}",
+                        "type": "text"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/registrations/{{registrationId}}",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "registrations",
+                        "{{registrationId}}"
+                      ]
+                    },
+                    "description": "Get a registration visible to its registrant or an authorized event organizer. Phone-derived identity data and form answers are excluded."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Registration Workflows",
+                  "item": [
+                    {
+                      "name": "Approve Registration",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Idempotency-Key",
+                            "value": "{{idempotencyKey}}",
+                            "type": "text"
+                          }
+                        ],
+                        "url": "{{baseUrl}}/registrations/{{registrationId}}/approve"
+                      },
+                      "description": "Approve a pending manual registration as an authorized event manager. Automatic approval may also be recorded by the internal workflow. Reuse the same Idempotency-Key only for the identical decision."
+                    },
+                    {
+                      "name": "Reject Registration",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Idempotency-Key",
+                            "value": "{{idempotencyKey}}",
+                            "type": "text"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"reason\": \"Capacity review\"\n}",
+                          "options": {
+                            "raw": {
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": "{{baseUrl}}/registrations/{{registrationId}}/reject"
+                      },
+                      "description": "Reject a pending manual registration with an optional attendee-visible reason."
+                    },
+                    {
+                      "name": "Reconsider Registration",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Idempotency-Key",
+                            "value": "{{idempotencyKey}}",
+                            "type": "text"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"decision\": \"approve\",\n  \"reason\": \"Capacity restored\"\n}",
+                          "options": {
+                            "raw": {
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": "{{baseUrl}}/registrations/{{registrationId}}/reconsider"
+                      },
+                      "description": "Replace a rejected registration's effective decision through an audited manager-only reconsideration."
+                    },
+                    {
+                      "name": "Enqueue Registration On Waitlist",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Idempotency-Key",
+                            "value": "{{idempotencyKey}}",
+                            "type": "text"
+                          }
+                        ],
+                        "url": "{{baseUrl}}/registrations/{{registrationId}}/enqueue_waitlist"
+                      },
+                      "description": "Keep the registration as the queue entry when waitlisting is enabled. Registrants may enqueue their own registration; organizers may enqueue within their event scope."
+                    },
+                    {
+                      "name": "Accept Waitlist Offer",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Idempotency-Key",
+                            "value": "{{idempotencyKey}}",
+                            "type": "text"
+                          }
+                        ],
+                        "url": "{{baseUrl}}/registrations/{{registrationId}}/accept_waitlist_offer"
+                      },
+                      "description": "Accept an active offer as the verified registrant. Free offers confirm immediately; paid offers return to the ordinary payment-order action."
+                    },
+                    {
+                      "name": "Offer Next Waitlisted Registration",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Idempotency-Key",
+                            "value": "{{idempotencyKey}}",
+                            "type": "text"
+                          }
+                        ],
+                        "url": "{{baseUrl}}/ticket_types/{{ticketTypeId}}/offer_next"
+                      },
+                      "description": "Promote the oldest complete waitlisted party that fits available inventory. Concurrent workers use row locking and do not split a party."
+                    }
+                  ]
+                },
+                {
+                  "name": "Issue Complimentary Ticket",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{accessToken}}",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Idempotency-Key",
+                        "value": "{{idempotencyKey}}",
+                        "type": "text"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"ticket_type_id\": \"{{ticketTypeId}}\",\n  \"phone\": \"251911000003\",\n  \"package_quantity\": 1,\n  \"reason\": \"accessibility\",\n  \"answers\": []\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{baseUrl}}/events/{{eventId}}/complimentary_tickets"
+                  },
+                  "description": "Issue a normal confirmed zero-charge registration to a phone identity. Authorized event managers must provide a controlled reason and idempotency key. The command consumes ordinary package limits, inventory, venue capacity, forms, and consent gates, and creates no order or financial rows."
+                },
+                {
+                  "name": "Registration Consents",
+                  "item": [
+                    {
+                      "name": "List Registration Consent Requirements",
+                      "request": {
+                        "method": "GET",
+                        "header": [
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          }
+                        ],
+                        "url": {
+                          "raw": "{{baseUrl}}/registrations/{{registrationId}}/consents",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "registrations",
+                            "{{registrationId}}",
+                            "consents"
+                          ]
+                        }
+                      },
+                      "description": "List privacy-safe exact-version consent requirements. Document bodies, hashes, subject IDs, and acceptance evidence are excluded."
+                    },
+                    {
+                      "name": "Accept Registration Consent",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Idempotency-Key",
+                            "value": "{{idempotencyKey}}",
+                            "type": "text"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"request_uuid\": \"{{$guid}}\",\n  \"acceptance_method\": \"otp\",\n  \"content_sha256\": \"{{consentContentSha256}}\"\n}",
+                          "options": {
+                            "raw": {
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/registrations/{{registrationId}}/consents/{{consentRequirementId}}/accept",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "registrations",
+                            "{{registrationId}}",
+                            "consents",
+                            "{{consentRequirementId}}",
+                            "accept"
+                          ]
+                        }
+                      },
+                      "description": "Accept the exact published-or-retired snapshot requirement as the authenticated verified subject. Reuse the same request_uuid and Idempotency-Key only for the identical request."
+                    },
+                    {
+                      "name": "Withdraw Registration Consent",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{accessToken}}",
+                            "type": "text"
+                          },
+                          {
+                            "key": "Idempotency-Key",
+                            "value": "{{idempotencyKey}}",
+                            "type": "text"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"reason_code\": \"attendee_request\"\n}",
+                          "options": {
+                            "raw": {
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/registration_consents/{{registrationConsentId}}/withdrawal",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "registration_consents",
+                            "{{registrationConsentId}}",
+                            "withdrawal"
+                          ]
+                        }
+                      },
+                      "description": "Withdraw optional or required personal consent as the original verified signer. Buyer contract withdrawal is rejected. The response contains completion state only."
+                    }
+                  ],
+                  "variable": [
+                    {
+                      "key": "consentRequirementId",
+                      "value": "",
+                      "type": "string"
+                    },
+                    {
+                      "key": "registrationConsentId",
+                      "value": "",
+                      "type": "string"
+                    },
+                    {
+                      "key": "consentContentSha256",
+                      "value": "",
+                      "type": "string"
+                    }
+                  ]
+                },
+                {
+                  "name": "Grant Purchase Limit Override",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{accessToken}}",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Idempotency-Key",
+                        "value": "{{idempotencyKey}}",
+                        "type": "text"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"additional_packages\": 1,\n  \"reason_code\": \"accessibility\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/registrations/{{registrationId}}/purchase_limit_override",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "registrations",
+                        "{{registrationId}}",
+                        "purchase_limit_override"
+                      ]
+                    }
+                  },
+                  "description": "Grant one immutable, audited exception to the registration user's purchase limit. Platform admins and event catalogue managers only. Reuse the same Idempotency-Key only for the identical request."
+                }
+              ],
+              "variable": [
+                {
+                  "key": "ticketTypeId",
+                  "value": "",
+                  "type": "string"
+                },
+                {
+                  "key": "eventSlug",
+                  "value": "addis-music-fest-2026",
+                  "type": "string"
+                },
+                {
+                  "key": "registrationId",
+                  "value": "",
+                  "type": "string"
+                },
+                {
+                  "key": "eventId",
+                  "value": "",
+                  "type": "string"
+                }
+              ]
+            },
+            {
+              "name": "Registration Answers",
+              "item": [
+                {
+                  "name": "Get Registration Answer",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{accessToken}}",
+                        "type": "text"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/registration_answers/{{registrationAnswerId}}",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "registration_answers",
+                        "{{registrationAnswerId}}"
+                      ]
+                    },
+                    "description": "Get safe registration answer metadata. RegistrationAnswerSerializer never exposes answer ciphertext or raw answer values."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Revise Registration Answer",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{accessToken}}",
+                        "type": "text"
+                      },
+                      {
+                        "key": "Idempotency-Key",
+                        "value": "{{idempotencyKey}}",
+                        "type": "text"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"value\": \"Corrected attendee name\",\n  \"source\": \"manager_correction\",\n  \"reason_code\": \"data_quality\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/registration_answers/{{registrationAnswerId}}/revise",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "registration_answers",
+                        "{{registrationAnswerId}}",
+                        "revise"
+                      ]
+                    },
+                    "description": "Append a validated answer revision. The response uses RegistrationAnswerRevisionSerializer and does not expose ciphertext or raw answer values."
+                  },
+                  "response": []
+                }
+              ],
+              "variable": [
+                {
+                  "key": "registrationAnswerId",
                   "value": "",
                   "type": "string"
                 }
@@ -7542,6 +8552,245 @@
           ]
         },
         {
+          "name": "Data Retention Policies",
+          "item": [
+            {
+              "name": "List Data Retention Policies",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/data_retention_policies",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "data_retention_policies"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Data Retention Policy",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/data_retention_policies/{{dataRetentionPolicyId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "data_retention_policies",
+                    "{{dataRetentionPolicyId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Create Data Retention Policy",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"data_retention_policy\": {\n    \"category\": \"registration_free_text\",\n    \"version\": 1,\n    \"retention_days\": 30,\n    \"action\": \"erase_payload\",\n    \"status\": \"active\",\n    \"effective_at\": \"2026-01-01T00:00:00Z\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/data_retention_policies",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "data_retention_policies"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Data Retention Policy",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"data_retention_policy\": {\n    \"status\": \"retired\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/data_retention_policies/{{dataRetentionPolicyId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "data_retention_policies",
+                    "{{dataRetentionPolicyId}}"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ],
+          "variable": [
+            {
+              "key": "dataRetentionPolicyId",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        {
+          "name": "Data Retention Holds",
+          "item": [
+            {
+              "name": "List Data Retention Holds",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/data_retention_holds",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "data_retention_holds"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Data Retention Hold",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/data_retention_holds/{{dataRetentionHoldId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "data_retention_holds",
+                    "{{dataRetentionHoldId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Place Data Retention Hold",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{retentionHoldKey}}",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"data_retention_hold\": {\n    \"event_id\": \"{{eventId}}\",\n    \"category\": \"registration_free_text\",\n    \"reason_code\": \"legal_hold\",\n    \"starts_at\": \"2026-01-01T00:00:00Z\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/data_retention_holds",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "data_retention_holds"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Release Data Retention Hold",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{retentionReleaseKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/data_retention_holds/{{dataRetentionHoldId}}/release",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "data_retention_holds",
+                    "{{dataRetentionHoldId}}",
+                    "release"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ],
+          "variable": [
+            {
+              "key": "dataRetentionHoldId",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "key": "retentionHoldKey",
+              "value": "retention-hold-example",
+              "type": "string"
+            },
+            {
+              "key": "retentionReleaseKey",
+              "value": "retention-release-example",
+              "type": "string"
+            }
+          ]
+        },
+        {
           "name": "Permissions",
           "item": [
             {
@@ -8931,6 +10180,234 @@
           "key": "roleId",
           "value": "",
           "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "Attendee Exports",
+      "item": [
+        {
+          "name": "Request Attendee Export",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"row_mode\": \"registration\",\n  \"field_keys\": [\n    \"registration_id\",\n    \"registration_status\"\n  ],\n  \"filters\": {},\n  \"reason_code\": \"event_operations\",\n  \"proof\": \"{{reauthenticationProof}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/events/{{eventId}}/attendee_exports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events",
+                "{{eventId}}",
+                "attendee_exports"
+              ]
+            },
+            "description": "Create a private attendee export. Requires a fresh attendee_export_request proof and Idempotency-Key header.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": []
+        },
+        {
+          "name": "Replay Attendee Export Without Proof",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"row_mode\": \"registration\",\n  \"field_keys\": [\n    \"registration_id\",\n    \"registration_status\"\n  ],\n  \"filters\": {},\n  \"reason_code\": \"event_operations\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/events/{{eventId}}/attendee_exports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events",
+                "{{eventId}}",
+                "attendee_exports"
+              ]
+            },
+            "description": "Safe exact replay. The original export is returned without requiring, reading, or consuming another proof.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": []
+        },
+        {
+          "name": "Request Export Without Idempotency Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"row_mode\": \"registration\",\n  \"field_keys\": [\n    \"registration_id\"\n  ],\n  \"filters\": {},\n  \"reason_code\": \"event_operations\",\n  \"proof\": \"{{reauthenticationProof}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/events/{{eventId}}/attendee_exports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events",
+                "{{eventId}}",
+                "attendee_exports"
+              ]
+            },
+            "description": "Expected 400 missing_idempotency_key. The header is mandatory for safely retryable export requests.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": []
+        },
+        {
+          "name": "Show Attendee Export",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/attendee_exports/{{attendeeExportId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendee_exports",
+                "{{attendeeExportId}}"
+              ]
+            },
+            "description": "Returns lifecycle metadata only. Selectors, filters, attachment URLs, proofs, and storage metadata are never serialized.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": []
+        },
+        {
+          "name": "Authorize Attendee Export Download",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"proof\": \"{{downloadReauthenticationProof}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendee_exports/{{attendeeExportId}}/download_authorizations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendee_exports",
+                "{{attendeeExportId}}",
+                "download_authorizations"
+              ]
+            },
+            "description": "Consumes a fresh attendee_export_download proof and returns a provider URL capped at two minutes or the export expiry, whichever comes first.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": []
         }
       ]
     }

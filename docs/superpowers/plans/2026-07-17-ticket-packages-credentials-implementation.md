@@ -22,7 +22,7 @@
 ## Task 1: Create package, slot, generation, credential, and projection schema
 
 **Files:**
-- Create: `db/migrate/20260717210001_create_ticketing_packages_and_credentials.rb`
+- Create: `db/migrate/20260727090114_create_ticketing_packages_and_credentials.rb`
 - Create: `app/models/ticketing/ticket.rb`
 - Create: `app/models/ticketing/admission_slot.rb`
 - Create: `app/models/ticketing/credential_generation.rb`
@@ -139,7 +139,7 @@ Exercise every partial index/check with validations bypassed. Do not add callbac
 - [ ] **Step 6: Commit**
 
 ```bash
-git add db/migrate/20260717210001_create_ticketing_packages_and_credentials.rb app/models/ticketing test/models/ticketing/package_credential_schema_test.rb test/fixtures/ticketing_*.yml
+git add db/migrate/20260727090114_create_ticketing_packages_and_credentials.rb app/models/ticketing test/models/ticketing/package_credential_schema_test.rb test/fixtures/ticketing_*.yml
 git commit -m "feat(ticketing): add package credential schema"
 ```
 

@@ -21,7 +21,7 @@ module Events
     before_destroy :prevent_mutation
 
     def prevent_mutation
-      raise ActiveRecord::ReadOnlyRecord, "EventDateChange is append-only"
+      raise ActiveRecord::ReadOnlyRecord, I18n.t("core.errors.immutable_event_date_change")
     end
 
     def self.ransackable_attributes(_auth_object = nil)

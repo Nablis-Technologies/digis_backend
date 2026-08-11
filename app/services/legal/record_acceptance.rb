@@ -93,7 +93,7 @@ module Legal
       when Core::User then "user"
       when Organizations::Organization then "organization"
       when Orders::Order then "order"
-      else raise ArgumentError, "unsupported subject type"
+      else raise ArgumentError, I18n.t("core.errors.unsupported_subject_type")
       end
     end
 

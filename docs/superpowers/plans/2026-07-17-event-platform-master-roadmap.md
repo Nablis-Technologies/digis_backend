@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Deliver the approved composable event, commerce, ticketing, QR/offline scanning, settlement, resale, streaming, add-on, and link platform as independently testable Rails vertical slices.
+**Goal:** Deliver the approved composable event, configurable organizer-commercials, commerce, ticketing, QR/offline scanning, settlement, resale, streaming, add-on, and link platform as independently testable Rails vertical slices.
 
 **Architecture:** Build a modular monolith on the existing Rails namespaces and shared controller/policy/serialization infrastructure. Each write endpoint invokes one application command; commands own transactions, deterministic lock order, idempotency, and outbox publication, while models own persistence invariants and queries own reads. The approved database and QR documents remain normative; this roadmap decomposes them into an executable dependency order without legacy compatibility layers.
 
@@ -14,6 +14,7 @@
 
 - `docs/COMPOSABLE_EVENT_PLATFORM_DATABASE_DESIGN.md`
 - `docs/TICKET QR CODE AND OFFLINE SCANNING ARCHITECTURE v3.md`
+- `docs/superpowers/specs/2026-08-08-commercial-agreements-platform-pricing-design.md`
 
 If a plan and a specification disagree, stop implementation and reconcile the plan with the specifications before writing production code. Do not silently reinterpret money, ticket, credential, refund, or offline-scanning invariants.
 
@@ -25,7 +26,8 @@ If a plan and a specification disagree, stop implementation and reconcile the pl
 | 1 | `2026-07-17-event-foundation-scheduling-media-implementation.md` | 0 | Draft/private/public events, collaborators/staff, dates, recurrence, media, schedule history, consent authoring |
 | 2 | `2026-07-17-catalog-pricing-inventory-promotions-implementation.md` | 1 | Products, ticket settings, multi-currency prices, inventory/capacity, accesses/zones, minimal promotions |
 | 3 | `2026-07-17-registration-consent-privacy-implementation.md` | 2 | Phone-first registration, approval/waitlist, forms/answers, consent, limits, retention, exports |
-| 4 | `2026-07-17-orders-payments-implementation.md` | 2, 3 | Immutable quotes/orders/adjustments, payment attempts, webhooks, grace, accepted fulfillment boundary |
+| 3.5 | `2026-08-08-commercial-agreements-platform-pricing-implementation.md` | 0, 1, 2, 3 | Platform defaults, programs, grants, negotiated agreements, deterministic fee resolution, simulation, subsidy budgets |
+| 4 | `2026-07-17-orders-payments-implementation.md` | 2, 3, 3.5 | Immutable quotes/orders/commercial adjustments, payment attempts, webhooks, grace, accepted fulfillment boundary |
 | 5 | `2026-07-17-ticket-packages-credentials-implementation.md` | 3, 4 | Commercial packages, slots, credential generations, QR/PNR, delegation, transfer, suspension |
 | 6 | `2026-07-17-scanner-offline-admission-implementation.md` | 5 | Shared credential validator, admission use, devices, zones, offline sync/upload, manual lookup |
 | 7 | `2026-07-17-refunds-finance-settlement-implementation.md` | 4, 5 | Cancellation/refunds, date-value allocation, liquidity, organizer ledger and payouts |
@@ -42,7 +44,7 @@ Resale is implemented after the package/credential core even though the schema d
 | 0 | Core foundation | Run alone; every later plan consumes its contracts |
 | 1 | Event foundation | Run alone until the event/date/access-zone schema is stable |
 | 2 | Catalog, pricing, inventory, promotions | Run alone because registration and checkout both consume its immutable product contracts |
-| 3 | Registration/consent/privacy, then orders/payments | Registration comes first; provider-adapter work may proceed in parallel once the order/provider interfaces are frozen |
+| 3 | Registration/consent/privacy, then Commercial, then orders/payments | Commercial follows registration and must freeze its resolver/adjustment contract before Orders; provider-adapter work may proceed only after the order/commercial projection interfaces are frozen |
 | 4 | Ticket packages/credentials | Run alone until issuance and generation replacement pass their race tests |
 | 5 | Scanner/offline admission and refunds/finance | May run in parallel after ticket credential interfaces are frozen; coordinate only package status/revocation hooks |
 | 6 | Controlled resale and streaming/add-ons/links | May run in parallel after Wave 5, with resale owning package acquisition and streaming/add-ons consuming access validation |
@@ -65,6 +67,7 @@ Parallel work must not create duplicate migrations or competing abstractions. Be
 11. Sensitive attributes use Active Record Encryption and separate keyed digests only when exact lookup/deduplication is required.
 12. PostgreSQL is the final correctness boundary for uniqueness, checks, exclusion constraints, partial indexes, and critical deferred cross-row invariants.
 13. URL versioning (`/api/v1`) is **deferred** — pre-launch, no external consumers, so routes stay unversioned at root. When adopted later, `/api/v1` is a route `scope path:`, not a duplicate Ruby namespace. Controllers live under their domain (`Orders::`, `Ticketing::`, `Catalog::`, `Marketplace::`, `Finance::`, `Links::`) and inherit the domain application controller created in Plan 0. Keep `Admin::` only for platform-administration surfaces.
+14. `Commercial::ResolveCharges` is the only producer of platform commission, service-fee, processing-recovery, subsidy, and resale-platform-fee calculation evidence. Orders persists its immutable results; payment providers merely receive projections. Do not add environment percentages, controller calculations, or a second resale fee engine.
 
 ## State-transition implementation standard
 
@@ -123,6 +126,8 @@ This application is still in development. Do not build dual writes, compatibilit
 ### Gate B: One free or paid ticket product
 
 - Product has an immutable price/access snapshot and concurrency-safe capacity.
+- Commercial resolution produces exactly one result per required fee component through event → organization → program → default precedence; explicit zero is distinguishable from failure.
+- An organization/event grant cannot worsen organizer obligations, and an accepted paid order preserves the exact schedule/component/basis/payer/refund evidence.
 - Free registration confirms without a payment row.
 - Paid registration cannot confirm until one payment is accepted.
 
@@ -141,6 +146,7 @@ This application is still in development. Do not build dual writes, compatibilit
 ### Gate E: Financial completion
 
 - Cancellation/refund and organizer ledger reconcile exactly by currency.
+- Commercial adjustments, provider split/application fees, provider actual costs, platform subsidy usage, and finance ledger postings reconcile without re-resolving historical rules.
 - Refund remains `pending_funds` when liquidity is absent; entitlement is never reduced.
 - Organizer payout cannot consume immature or disputed value.
 
@@ -224,12 +230,12 @@ Do not begin a dependent phase merely because its migrations exist. The dependen
 ## Task 3: Final implementation audit
 
 **Files:**
-- Verify: `db/schema.rb`
+- Verify: `db/structure.sql`
 - Verify: `app/`, `test/`, `config/`, `docs/`
 
 - [ ] **Step 1: Prove schema coverage**
 
-Compare every table and constraint in Sections 6–11 and 17 of the database design against `db/schema.rb` and any deferred-trigger SQL.
+Compare every table and constraint in Sections 6–11 and 17 of the database design against `db/structure.sql` and any deferred-trigger SQL.
 
 - [ ] **Step 2: Prove QR contract coverage**
 

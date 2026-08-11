@@ -19,6 +19,18 @@ class Core::Database::AdvisoryLockTest < ActiveSupport::TestCase
 
     assert_equal :locked, result
   end
+
+  test "acquires multiple stable transaction locks in one query" do
+    result = ApplicationRecord.transaction do
+      Core::Database::AdvisoryLock.acquire_all!(
+        [ "retention-scope", "event", "event-1" ],
+        [ "retention-scope", "user", "user-1" ]
+      )
+      :locked
+    end
+
+    assert_equal :locked, result
+  end
 end
 
 class Core::Database::AdvisoryLockSerializationTest < ActiveSupport::TestCase

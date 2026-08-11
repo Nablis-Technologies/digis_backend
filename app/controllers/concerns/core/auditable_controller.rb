@@ -48,17 +48,27 @@ module Core
         if associated.is_a?(Array)
           Array(associated).each do |assoc|
             unless assoc.is_a?(Symbol)
-              raise ArgumentError, "auditable associated: must be an array of symbols, got #{assoc.class} for #{assoc.inspect}"
+              raise ArgumentError, I18n.t(
+                "core.errors.unsupported_auditable_associated",
+                type: assoc.class,
+                value: assoc.inspect
+              )
             end
           end
         elsif associated.is_a?(Hash)
           associated.each do |assoc_name, assoc_config|
             unless assoc_name.is_a?(Symbol)
-              raise ArgumentError, "auditable associated: hash keys must be symbols, got #{assoc_name.class}"
+              raise ArgumentError, I18n.t(
+                "core.errors.auditable_associated_keys",
+                type: assoc_name.class
+              )
             end
 
             if assoc_config.present? && !assoc_config.is_a?(Hash)
-              raise ArgumentError, "auditable associated: hash values must be hashes with :only/:except, got #{assoc_config.class}"
+              raise ArgumentError, I18n.t(
+                "core.errors.auditable_associated_values",
+                type: assoc_config.class
+              )
             end
 
             next unless assoc_config.is_a?(Hash)
@@ -83,13 +93,13 @@ module Core
 
         if action.present?
           unless action.is_a?(String) || action.is_a?(Hash)
-            raise ArgumentError, "auditable action: must be a String or Hash, got #{action.class}"
+            raise ArgumentError, I18n.t("core.errors.auditable_action_type", type: action.class)
           end
 
           if action.is_a?(Hash)
             action.each do |key, value|
               unless key.is_a?(Symbol) && value.is_a?(String)
-                raise ArgumentError, "auditable action: Hash keys must be Symbols and values must be Strings"
+                raise ArgumentError, I18n.t("core.errors.auditable_action_values")
               end
             end
           end
@@ -114,7 +124,7 @@ module Core
         self._audit_configs ||= []
         resolver_proc = block || resolver
 
-        raise ArgumentError, "auditable_record_for requires a block or lambda" unless resolver_proc
+        raise ArgumentError, I18n.t("core.errors.auditable_record_resolver") unless resolver_proc
 
         @_auditable_record_resolvers ||= {}
         @_auditable_record_resolvers[action_name.to_sym] = resolver_proc
@@ -293,14 +303,14 @@ module Core
       rescue StandardError => e
         Rails.logger.error "CRITICAL: Audit enqueue failed: #{e.message}"
         raise Core::AuditableRecordNotFoundError,
-              "Critical Audit Failure: Could not enqueue audit job." if required
+              I18n.t("core.errors.audit_enqueue_failed") if required
       end
     rescue Core::AuditableRecordNotFoundError
       raise
     rescue StandardError => e
       Rails.logger.error "Audit enqueue failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
       raise Core::AuditableRecordNotFoundError,
-            "Critical Audit Failure: Unexpected error during audit enqueue." if required
+            I18n.t("core.errors.audit_enqueue_unexpected") if required
     end
 
     # Capture complete state of a record
@@ -476,10 +486,12 @@ module Core
 
       Rails.logger.error("[CRITICAL] Audit system failed to resolve #{model_class.name} for action :#{action} in #{self.class.name}")
 
-      raise Core::AuditableRecordNotFoundError,
-            "Critical Audit Failure: Could not resolve auditable record for #{model_class.name}##{action}. " \
-            "This transaction has been rolled back to prevent untracked data changes. " \
-            "Check application logs for detailed diagnostic information."
+       raise Core::AuditableRecordNotFoundError,
+             I18n.t(
+               "core.errors.auditable_record_unresolved",
+               model: model_class.name,
+               action:
+             )
     end
 
     # Find created record without triggering error logging

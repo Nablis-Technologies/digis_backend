@@ -21,7 +21,7 @@ module Core
       when :revoke_all_user_tokens
         Result.success(self.class.revoke_all_user_tokens(@params[:user]))
       else
-        raise ArgumentError, "Unsupported auth operation: #{@operation}"
+        raise ArgumentError, I18n.t("core.errors.unsupported_auth_operation", operation: @operation)
       end
     rescue Core::Error => error
       Result.failure(error)

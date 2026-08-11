@@ -1,0 +1,25 @@
+en:
+  reauthentication:
+    success:
+      issued: "Reauthentication proof issued successfully"
+    errors:
+      invalid_password: "The password could not be verified"
+      inactive_user: "Reauthentication is unavailable for this account"
+      invalid_session: "The authenticated session is invalid"
+      unsupported_purpose: "The requested reauthentication purpose is not supported"
+      throttled: "Too many reauthentication attempts. Please try again later"
+      invalid_proof: "The reauthentication proof is invalid or expired"
+    codes:
+      invalid_password: "invalid_reauthentication_password"
+      inactive_user: "inactive_reauthentication_user"
+      invalid_session: "invalid_reauthentication_session"
+      unsupported_purpose: "unsupported_reauthentication_purpose"
+      throttled: "reauthentication_throttled"
+      invalid_proof: "invalid_reauthentication_proof"
+    model_errors:
+      invalid_purpose: "is not an approved reauthentication purpose"
+      invalid_factor: "is not an approved reauthentication factor"
+      invalid_digest: "must be a lowercase 64-character hexadecimal digest"
+      token_digest_taken: "has already been issued"
+      invalid_lifetime: "must expire exactly five minutes after issue"
+      invalid_consumed_at: "must be at or after issue"

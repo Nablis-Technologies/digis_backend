@@ -66,7 +66,7 @@ module Events
 
       def build_dtstart
         zone = ActiveSupport::TimeZone[@timezone]
-        raise ArgumentError, "invalid timezone: #{@timezone}" unless zone
+        raise ArgumentError, I18n.t("core.errors.invalid_timezone", timezone: @timezone) unless zone
 
         local = zone.local(
           @rule.dtstart_local.year, @rule.dtstart_local.month, @rule.dtstart_local.day,

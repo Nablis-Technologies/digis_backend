@@ -20,6 +20,8 @@ class CreateCatalogInventoryReservations < ActiveRecord::Migration[8.1]
 
     add_foreign_key :catalog_inventory_reservations, :catalog_product_inventories,
                     column: :product_inventory_id
+    add_foreign_key :catalog_inventory_reservations, :ticketing_registrations,
+                    column: :registration_id
 
     add_check_constraint :catalog_inventory_reservations,
       "quantity > 0",

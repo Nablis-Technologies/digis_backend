@@ -4,11 +4,11 @@
 
 **Goal:** Build an organizer-controlled marketplace that resells one whole unused commercial package through normal checkout while atomically replacing credentials and safely holding seller proceeds.
 
-**Architecture:** Marketplace commerce is separate from free transfer. Routes remain under `/api/v1`; controllers live under `app/controllers/marketplace/` and platform configuration controllers under `app/controllers/admin/marketplace/`. Each mutation authorizes and invokes exactly one `Core::BaseService` command. Reservation creates a quantity-one resale order without primary inventory and invalidates seller access before checkout is exposed; accepted payment changes ownership and creates a buyer generation exactly once; seller economics use a separate append-only ledger.
+**Architecture:** Marketplace commerce is separate from free transfer. Routes remain at the root pre-launch and controllers live under `app/controllers/marketplace/`. Each mutation authorizes and invokes exactly one `Core::BaseService` command. Reservation creates a quantity-one resale order without primary inventory and invalidates seller access before checkout is exposed; accepted payment changes ownership and creates a buyer generation exactly once; `Commercial::ResolveCharges` supplies the distinct resale-platform-fee evidence; seller economics use a separate append-only ledger.
 
 **Tech Stack:** Ruby 3.4, Rails 8.1 API-only, PostgreSQL UUIDs/check constraints/partial indexes/row locks, Pundit, ActiveModelSerializers, Solid Queue, Minitest fixtures, existing Ed25519 credentials/revocation and transactional outbox.
 
-**Approved sources:** `docs/COMPOSABLE_EVENT_PLATFORM_DATABASE_DESIGN.md` and `docs/TICKET QR CODE AND OFFLINE SCANNING ARCHITECTURE v3.md`.
+**Approved sources:** `docs/COMPOSABLE_EVENT_PLATFORM_DATABASE_DESIGN.md`, `docs/TICKET QR CODE AND OFFLINE SCANNING ARCHITECTURE v3.md`, and `docs/superpowers/specs/2026-08-08-commercial-agreements-platform-pricing-design.md`.
 
 ---
 
@@ -22,7 +22,7 @@ Despite the architecture's Phase 3.75 label, executable resale ships **after Pha
 - **AJ-A1:** Only the complete, unused commercial package is resold. No slot resale, delegated-package resale, or partially used multi-day-pass resale. Package is group mode with no active delegated claims.
 - **AJ-B:** Exactly one cap per ticket type: fixed maximum in event settlement currency **or** percentage of the current seller's immutable acquisition product value. Never compete, stack, prioritize, or use `LEAST`.
 - **AJ-C1:** Organizer maximum completed-resale count defaults to one and is bounded by platform hard maximum. Listings/failed checkouts do not increment it.
-- **AJ-D1:** Separately versioned seller marketplace fee is deducted from seller proceeds. Buyer processing adjustment remains separate.
+- **AJ-D1:** A separately versioned Commercial `resale_platform_fee` is deducted from seller proceeds. It never automatically inherits the primary-sale commission; buyer processing adjustment remains separate.
 - **AJ-E1:** Seller proceeds remain pending until event completion plus safety buffer. Event/date cancellation refunds each acquisition payer's own value and reverses matching pending proceeds/fee.
 - **AJ-F1:** Payout requires a verified tokenized seller destination; never fall back to original payment method.
 - **AJ-G1:** New buyer gets a committed purchase-limit allocation while seller historical allocation remains committed.
@@ -35,7 +35,6 @@ Every AJ item is a release-blocking named test.
 ### Database and models
 
 - Create `db/migrate/20260717110001_add_resale_policy_to_ticket_types.rb`
-- Create `db/migrate/20260717110002_create_marketplace_resale_fee_configs.rb`
 - Create `db/migrate/20260717110003_create_marketplace_seller_payout_accounts.rb`
 - Create `db/migrate/20260717110004_create_marketplace_resale_listings.rb`
 - Create `db/migrate/20260717110005_create_marketplace_resale_sales.rb`
@@ -47,7 +46,6 @@ Every AJ item is a release-blocking named test.
 ### Commands/calculations
 
 - Create `app/services/marketplace/calculate_price_cap.rb`
-- Create `app/services/marketplace/calculate_seller_fee.rb`
 - Create `app/services/marketplace/configure_ticket_type_resale.rb`
 - Create `app/services/marketplace/activate_listing.rb`
 - Create `app/services/marketplace/cancel_listing.rb`
@@ -65,10 +63,10 @@ Every AJ item is a release-blocking named test.
 
 ### API/jobs/tests
 
-- Create controllers under `app/controllers/marketplace/` and admin fee/payout controls under `app/controllers/admin/marketplace/`
+- Create controllers under `app/controllers/marketplace/` and admin payout controls under `app/controllers/admin/marketplace/`; Commercial owns platform-fee administration
 - Create policies/serializers under `app/policies/marketplace/`, `app/policies/admin/marketplace/`, and `app/serializers/marketplace/`
 - Create jobs under `app/jobs/marketplace/`: expiry, restore credential, mature proceeds, build/dispatch/reconcile payout
-- Modify `config/routes.rb` with `/api/v1` paths mapped to domain controllers
+- Modify `config/routes.rb` with root paths mapped to domain controllers; URL versioning remains deferred
 - Create matching fixtures/model/service/controller/policy/serializer/job tests under domain paths
 - Create races under `test/integration/marketplace/` and scanner privacy/freshness under `test/integration/ticketing/`
 
@@ -148,7 +146,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add db/migrate db/schema.rb app/models/ticketing/ticket_type.rb app/services/marketplace test/models/ticketing test/services/marketplace
+git add db/migrate db/structure.sql app/models/ticketing/ticket_type.rb app/services/marketplace test/models/ticketing test/services/marketplace
 git commit -m "feat(marketplace): configure controlled resale policy"
 ```
 
@@ -156,7 +154,6 @@ git commit -m "feat(marketplace): configure controlled resale policy"
 
 **Files:**
 - Create: marketplace migrations/models from file map
-- Test: `test/models/marketplace/resale_fee_config_test.rb`
 - Test: `test/models/marketplace/resale_listing_test.rb`
 - Test: `test/models/marketplace/resale_sale_test.rb`
 - Test: `test/models/marketplace/seller_ledger_entry_test.rb`
@@ -164,7 +161,7 @@ git commit -m "feat(marketplace): configure controlled resale policy"
 
 - [ ] **Step 1: RED — write direct constraints and STI tests**
 
-Reject duplicate active fee scope, malformed fee bounds, two open listings/ticket, mixed cap fields, asking above cap, inconsistent reservation, duplicate sale or `(ticket,resale_number)`, seller=buyer, mismatched payment/order/registration, gross mismatch, zero ledger entry, overallocation, and unverified payout. Prove payout-account and ledger business `type` do not trigger STI.
+Reject two open listings/ticket, mixed cap fields, asking above cap, inconsistent reservation, duplicate sale or `(ticket,resale_number)`, seller=buyer, mismatched payment/order/registration, gross mismatch, zero ledger entry, overallocation, and unverified payout. Prove payout-account and ledger business `type` do not trigger STI. Commercial's phase gate already proves fee scope/version/currency invariants.
 
 - [ ] **Step 2: Run tests and verify RED**
 
@@ -189,7 +186,7 @@ add_index :marketplace_seller_ledger_entries, :idempotency_key, unique: true
 add_index :marketplace_seller_payout_accounts, %i[provider account_token], unique: true
 ```
 
-Add null-safe fee scope/version uniqueness and one active config/scope/currency; state coupling, positive amounts, cap exclusivity, gross=fee+proceeds, and allocation constraints. Ledger rows are append-only. STI disabled on business `type` models.
+Add state coupling, positive amounts, cap exclusivity, gross=Commercial resale fee+proceeds, and allocation constraints. Ledger rows are append-only. STI disabled on business `type` models. Do not create a Marketplace fee configuration table.
 
 - [ ] **Step 4: Run tests and verify GREEN**
 
@@ -207,34 +204,32 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add db/migrate db/schema.rb app/models/marketplace test/models/marketplace test/fixtures/marketplace
+git add db/migrate db/structure.sql app/models/marketplace test/models/marketplace test/fixtures/marketplace
 git commit -m "feat(marketplace): add resale and seller-ledger schema"
 ```
 
-## Task 3: Add versioned seller fee configuration
+## Task 3: Integrate Commercial resale fee resolution
 
 **Files:**
-- Create: `app/services/marketplace/calculate_seller_fee.rb`
-- Create: `app/controllers/admin/marketplace/resale_fee_configs_controller.rb`
-- Create: admin policy/serializer
-- Test: `test/services/marketplace/calculate_seller_fee_test.rb`
-- Test: `test/controllers/admin/marketplace/resale_fee_configs_controller_test.rb`
+- Create: `app/services/marketplace/resolve_resale_charge.rb`
+- Test: `test/services/marketplace/commercial_resale_fee_test.rb`
+- Test: `test/integration/marketplace/resale_fee_isolation_test.rb`
 
 - [ ] **Step 1: RED — encode AJ-D1**
 
-Exact ticket-type/currency config wins, else currency default; no stacking; fixed plus half-up percentage with optional bounds and never above gross; used config immutable; platform admin only; seller fee separate from buyer processing adjustment.
+Resolve the allowlisted `resale_platform_fee` sale context through Commercial event → organization → program → default precedence. Prove no automatic inheritance from primary-sale commission, bounded product/currency/provider/channel specificity, no stacking, immutable exact component/version evidence, seller fee never above gross, and separation from buyer processing adjustment.
 
 - [ ] **Step 2: Run tests and verify RED**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/calculate_seller_fee_test.rb test/controllers/admin/marketplace/resale_fee_configs_controller_test.rb
+PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/commercial_resale_fee_test.rb test/integration/marketplace/resale_fee_isolation_test.rb
 ```
 
 Expected: FAIL.
 
-- [ ] **Step 3: GREEN — resolve one config and use one-command admin endpoint**
+- [ ] **Step 3: GREEN — consume one immutable Commercial result**
 
-Calculate `fixed + round_half_up(gross*bps/10_000)`, clamp min/max, cap at gross, and return narrow immutable result with all snapshot inputs. Admin controller authorizes and calls one `Core::BaseService` versioning command; command calls `Core::Audit::Record`.
+`Marketplace::ResolveResaleCharge` is a narrow context adapter that calls `Commercial::ResolveCharges` with resale context and trusted listing/order facts, requires exactly one valid `resale_platform_fee`, rejects a result above gross, and returns the unchanged immutable Commercial result for later snapshotting on the resale order/sale. Commercial's admin APIs own authoring, approval, simulation, and activation; Marketplace creates no competing calculator or admin surface.
 
 - [ ] **Step 4: Run tests and verify GREEN**
 
@@ -243,7 +238,7 @@ Run Task 3 command. Expected: PASS.
 - [ ] **Step 5: Refactor and verify authorization**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace test/controllers/admin/marketplace
+PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace test/integration/marketplace/resale_fee_isolation_test.rb
 ```
 
 Expected: PASS.
@@ -251,8 +246,8 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add app/services/marketplace app/controllers/admin/marketplace app/policies/admin/marketplace app/serializers/marketplace config/routes.rb test/services/marketplace test/controllers/admin/marketplace
-git commit -m "feat(marketplace): calculate versioned seller fees"
+git add app/services/marketplace test/services/marketplace test/integration/marketplace
+git commit -m "feat(marketplace): consume commercial resale fees"
 ```
 
 ## Task 4: Activate whole-package listings
@@ -528,7 +523,7 @@ git commit -m "feat(marketplace): reverse cancelled resale acquisitions"
 
 - [ ] **Step 1: RED — test routes, Pundit, one-command boundary, and privacy**
 
-Include `/api/v1/tickets/:id/resale`, `/api/v1/resale_listings/:id/purchase`, cancellation, seller history/balance/accounts, organizer policy, admin fee/payout. Seller sees own economics; buyer sees asking/fees/refund terms; scanner receives no cap/price/acquisition/fee/proceeds/payout/ledger data.
+Include root `tickets/:id/resale`, `resale_listings/:id/purchase`, cancellation, seller history/balance/accounts, organizer policy, and admin payout. Commercial's existing admin surface owns resale-platform-fee configuration. Seller sees own economics; buyer sees asking/fees/refund terms; scanner receives no cap/price/acquisition/fee/proceeds/payout/ledger data.
 
 - [ ] **Step 2: Run tests and verify RED**
 
@@ -560,7 +555,7 @@ module Marketplace
 end
 ```
 
-Map `/api/v1` routes to `Marketplace::*Controller` and admin routes to `Admin::Marketplace::*Controller`. Every mutation is authorize → one service → foundation renderer.
+Map root routes to `Marketplace::*Controller` and payout routes to `Admin::Marketplace::*Controller`; URL versioning remains deferred. Every mutation is authorize → one service → foundation renderer.
 
 - [ ] **Step 4: Run tests and verify GREEN**
 

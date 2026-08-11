@@ -10,7 +10,7 @@ class ActiveRecordEncryptionTest < ActiveSupport::TestCase
   test "sensitive event-platform parameter names are filtered" do
     filters = Rails.application.config.filter_parameters.map(&:to_s)
 
-    %w[answer consent qr_token lookup_code account_token holder_name promotion_code code_ciphertext].each do |name|
+    %w[answer answers value consent qr_token lookup_code account_token holder_name promotion_code code_ciphertext].each do |name|
       assert filters.any? { |filter| filter.include?(name) }, "expected #{name} to be filtered"
     end
     filtered = ActiveSupport::ParameterFilter.new(Rails.application.config.filter_parameters)

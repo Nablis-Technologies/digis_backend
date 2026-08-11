@@ -31,6 +31,12 @@ module Ticketing
              class_name: "Events::ConsentDocumentProduct",
              inverse_of: :ticket_type,
              dependent: :destroy
+    has_many :purchase_limit_allocations,
+             class_name: "Ticketing::PurchaseLimitAllocation",
+             dependent: :restrict_with_exception
+    has_many :purchase_limit_overrides,
+             class_name: "Ticketing::PurchaseLimitOverride",
+             dependent: :restrict_with_exception
 
     validates :approval_mode, presence: true, inclusion: { in: APPROVAL_MODES }
     validates :audience, presence: true, inclusion: { in: AUDIENCES }
@@ -57,6 +63,17 @@ module Ticketing
     scope :with_access_code, -> { where(audience: %w[access_code code_or_invitation]) }
     scope :with_invitation, -> { where(audience: %w[invitation code_or_invitation]) }
     scope :transferable, -> { where(transferable: true) }
+
+    def covered_date_ids(registration)
+      # Inventory and venue holds use the selected date for choose-one products
+      # and every venue/parking date for fixed products.
+      return [ registration.selected_event_date_id ].compact if date_selection == "choose_one"
+
+      event_product.product_accesses
+        .where(type: %w[venue parking])
+        .distinct
+        .pluck(:event_date_id)
+    end
 
     def self.ransackable_attributes(_auth_object = nil)
       %w[

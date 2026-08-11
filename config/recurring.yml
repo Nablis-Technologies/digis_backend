@@ -33,3 +33,23 @@ production:
     class: Core::ProcessOutboxJob
     queue: outbox
     schedule: every minute
+  remind_pending_consents:
+    class: Ticketing::ConsentReminderJob
+    queue: default
+    schedule: every day at 9am
+  purge_retention_payloads:
+    class: Core::RetentionPurgeJob
+    queue: default
+    schedule: every hour at minute 5
+  expire_attendee_exports:
+    class: Ticketing::ExpireAttendeeExportsJob
+    queue: default
+    schedule: every five minutes
+  offer_waitlisted_registrations:
+    class: Ticketing::OfferWaitlistJob
+    queue: default
+    schedule: every minute
+  expire_waitlist_offers:
+    class: Ticketing::ExpireWaitlistOffersJob
+    queue: default
+    schedule: every minute

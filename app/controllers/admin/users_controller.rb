@@ -40,6 +40,13 @@ module Admin
       @obj = Core::User.find(params[:id])
     end
 
+    def after_update_hook(user)
+      # Password changes invalidate reauthentication proofs and all auth sessions.
+      return unless user.saved_change_to_password_digest?
+
+      Core::AuthService.call(operation: :revoke_all_user_tokens, user: user)
+    end
+
     def model_params
       params.require(:user).permit(:email, :phone, :password, :verified_at)
     end

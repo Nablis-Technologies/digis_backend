@@ -14,7 +14,7 @@ module Organizations
     AUTO_APPROVE_AUDIENCE = %w[under_100 100_500].freeze
 
     def submit
-      ensure!(submission_ready?, "All required documents must be uploaded before submission")
+      ensure!(submission_ready?, I18n.t("review.errors.documents_required"))
       ensure_not_already_submitted!
 
       status = auto_approve? ? "approved" : "pending"
@@ -32,14 +32,14 @@ module Organizations
     end
 
     def reject
-      ensure!(review_feedback_params.present?, "Feedback is required")
+      ensure!(review_feedback_params.present?, I18n.t("review.errors.feedback_required_generic"))
       review = create_review_transition!("rejected", from: "pending", reviewer: current_user, feedback: review_feedback_params)
       record_audit!(review)
       render_success(data: @organization)
     end
 
     def request_modification
-      ensure!(review_feedback_params.present?, "Feedback is required")
+      ensure!(review_feedback_params.present?, I18n.t("review.errors.feedback_required_generic"))
       review = create_review_transition!("modify", from: "pending", reviewer: current_user, feedback: review_feedback_params)
       record_audit!(review)
       render_success(data: @organization)
@@ -60,7 +60,11 @@ module Organizations
 
       ensure!(
         Array(from).include?(current_status),
-        "Cannot transition from '#{current_status}' to '#{status}'"
+        I18n.t(
+          "review.errors.invalid_transition",
+          from_status: current_status,
+          to_status: status
+        )
       )
 
       review = current_review || @organization.build_review_for(:verification)
@@ -76,7 +80,7 @@ module Organizations
     def ensure_not_already_submitted!
       ensure!(
         @organization.current_review_for(:verification).nil?,
-        "Already submitted"
+        I18n.t("review.errors.already_submitted")
       )
     end
 
@@ -97,7 +101,8 @@ module Organizations
 
     def authorize_review_action!
       authorize @organization, policy_class: Organizations::VerificationPolicy
-      raise Pundit::NotAuthorizedError, "not allowed to #{action_name} this organization" unless valid_reviewer?
+      raise Pundit::NotAuthorizedError,
+        I18n.t("review.errors.not_allowed_organization", action: action_name) unless valid_reviewer?
     end
 
     def valid_reviewer?

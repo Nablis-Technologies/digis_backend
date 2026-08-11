@@ -37,6 +37,9 @@ module DigisBackend
     # Skip views, helpers and assets when generating a new resource.
     config.api_only = true
 
+    # Load domain-specific locale files kept below config/locales/*.
+    config.i18n.load_path |= Dir[Rails.root.join("config/locales/**/*.yml")]
+
     config.x.outbox_handlers = {}
 
     # Application-level encryption (Active Record Encryption). Keys are sourced

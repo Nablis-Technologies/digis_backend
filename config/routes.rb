@@ -6,6 +6,7 @@ Rails.application.routes.draw do
     post "auth/signup", to: "auth#signup"
     post "auth/refresh", to: "auth#refresh"
     post "auth/logout", to: "auth#logout"
+    post "auth/reauthenticate", to: "auth#reauthenticate"
     get "auth/me", to: "auth#me"
   end
 
@@ -57,6 +58,8 @@ Rails.application.routes.draw do
   end
 
   get "public/events/:event_slug/products", to: "catalog/public_products#index"
+  get "public/events/:event_slug/ticket_types/:ticket_type_id/consent_requirements",
+      to: "ticketing/public_consent_requirements#index"
 
   scope path: :catalog, module: :catalog do
     resources :product_prices, only: %i[index show create]
@@ -90,6 +93,60 @@ Rails.application.routes.draw do
       end
     end
   end
+
+  resources :events, only: [] do
+    resources :registration_forms, controller: "ticketing/registration_forms", only: %i[index show create update destroy] do
+      resources :versions, controller: "ticketing/registration_form_versions", only: %i[index show create] do
+        post :publish, on: :member
+      end
+    end
+  end
+
+  resources :events, only: [] do
+    resources :attendee_exports, controller: "ticketing/attendee_exports", only: %i[create]
+  end
+
+  resources :attendee_exports, controller: "ticketing/attendee_exports", only: %i[show] do
+    post :download_authorizations, on: :member
+  end
+
+  resources :registration_answers, only: %i[show], controller: "ticketing/registration_answers" do
+    post :revise, on: :member
+  end
+
+  resources :registrations, only: [] do
+    resources :consents, only: :index, controller: "ticketing/registration_consents" do
+      post :accept, on: :member
+    end
+    resource :purchase_limit_override, only: :create, controller: "ticketing/purchase_limit_overrides"
+  end
+
+  resources :registration_consents, only: [] do
+    resource :withdrawal, only: :create, controller: "ticketing/registration_consent_withdrawals"
+  end
+
+  resources :ticket_types, only: [] do
+    resources :registrations, only: :create, controller: "ticketing/registrations"
+  end
+
+  # Workflow endpoints delegate all state transitions to idempotent commands.
+  resources :registrations, only: :show, controller: "ticketing/registrations"
+
+  resources :registrations, only: [] do
+    member do
+      post :approve, controller: "ticketing/registration_decisions"
+      post :reject, controller: "ticketing/registration_decisions"
+      post :reconsider, controller: "ticketing/registration_decisions"
+      post :enqueue_waitlist, controller: "ticketing/waitlist_offers", action: :enqueue
+      post :accept_waitlist_offer, controller: "ticketing/waitlist_offers", action: :accept
+    end
+  end
+
+  resources :ticket_types, only: [] do
+    post :offer_next, on: :member, controller: "ticketing/waitlist_offers"
+  end
+
+  post "events/:event_id/complimentary_tickets", to: "ticketing/complimentary_tickets#create"
 
   resources :events, only: [] do
     resources :event_products, only: [] do
@@ -133,6 +190,12 @@ Rails.application.routes.draw do
         post :publish
         post :activate
         post :deactivate
+      end
+    end
+    resources :data_retention_policies, except: %i[new edit destroy]
+    resources :data_retention_holds, only: %i[index show create] do
+      member do
+        post :release
       end
     end
 

@@ -10,8 +10,8 @@ module Core
 
     def initialize(raw_value)
       normalized = raw_value.to_s.strip
-      raise ArgumentError, "idempotency key is required" if normalized.empty?
-      raise ArgumentError, "idempotency key exceeds 255 bytes" if normalized.bytesize > MAX_LENGTH
+      raise ArgumentError, I18n.t("core.errors.idempotency_key_required") if normalized.empty?
+      raise ArgumentError, I18n.t("core.errors.idempotency_key_too_long") if normalized.bytesize > MAX_LENGTH
 
       @value = normalized.freeze
       freeze

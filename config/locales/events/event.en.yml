@@ -55,3 +55,7 @@ en:
       too_many_categories: "cannot have more than %{max} categories"
       config_must_be_object: "must be a JSON object"
       duplicate_category: "is already assigned to this event"
+  events:
+    event_setting:
+      errors:
+        config_must_be_object: "must be a JSON object"

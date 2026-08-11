@@ -79,7 +79,10 @@ module Core
     rescue ActiveRecord::RecordInvalid => error
       render_error(error.record.errors.full_messages.first, status: :unprocessable_entity)
     rescue ActiveRecord::RecordNotFound => error
-      render_error(error.message, status: :not_found)
+      render_error(
+        I18n.t("errors.not_found", model: error.model&.constantize&.model_name&.human&.downcase || "resource"),
+        status: :not_found
+      )
     rescue Pundit::NotAuthorizedError
       raise
     end
@@ -103,7 +106,10 @@ module Core
     rescue ActiveRecord::RecordInvalid => error
       render_error(error.record.errors.full_messages.first, status: :unprocessable_entity)
     rescue ActiveRecord::RecordNotFound => error
-      render_error(error.message, status: :not_found)
+      render_error(
+        I18n.t("errors.not_found", model: error.model&.constantize&.model_name&.human&.downcase || "resource"),
+        status: :not_found
+      )
     rescue Pundit::NotAuthorizedError
       raise
     end
@@ -125,7 +131,7 @@ module Core
       @clazz = self.class.model_class
       return if @clazz.present?
 
-      raise ArgumentError, "#{self.class.name} must declare self.model_class"
+      raise ArgumentError, I18n.t("core.errors.common_model_class", controller: self.class.name)
     end
 
     def set_parent
@@ -216,7 +222,7 @@ module Core
     end
 
     def model_params
-      raise NotImplementedError, "#{self.class.name} must implement #model_params"
+      raise NotImplementedError, I18n.t("core.errors.common_model_params", controller: self.class.name)
     end
   end
 end

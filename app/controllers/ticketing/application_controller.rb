@@ -2,5 +2,6 @@
 
 module Ticketing
   class ApplicationController < Core::ApplicationController
+    include ActiveStorage::SetCurrent
   end
 end
