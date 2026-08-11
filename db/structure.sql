@@ -60,6 +60,150 @@ $$;
 
 
 --
+-- Name: commercial_fee_amount_immutable(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.commercial_fee_amount_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  old_status text;
+  new_status text;
+BEGIN
+  IF TG_OP IN ('UPDATE','DELETE') THEN
+    SELECT version.status INTO old_status
+    FROM commercial_fee_components component
+    JOIN commercial_fee_schedule_versions version
+      ON version.id = component.fee_schedule_version_id
+    WHERE component.id = OLD.fee_component_id;
+  END IF;
+  IF TG_OP IN ('INSERT','UPDATE') THEN
+    SELECT version.status INTO new_status
+    FROM commercial_fee_components component
+    JOIN commercial_fee_schedule_versions version
+      ON version.id = component.fee_schedule_version_id
+    WHERE component.id = NEW.fee_component_id;
+  END IF;
+
+  IF old_status IN ('approved','scheduled','active','superseded','expired','terminated') OR
+     new_status IN ('approved','scheduled','active','superseded','expired','terminated') THEN
+    RAISE EXCEPTION 'commercial_fee_definition_immutable' USING ERRCODE = '40001';
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: commercial_fee_component_immutable(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.commercial_fee_component_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  old_status text;
+  new_status text;
+BEGIN
+  IF TG_OP IN ('UPDATE','DELETE') THEN
+    SELECT status INTO old_status
+    FROM commercial_fee_schedule_versions
+    WHERE id = OLD.fee_schedule_version_id;
+  END IF;
+  IF TG_OP IN ('INSERT','UPDATE') THEN
+    SELECT status INTO new_status
+    FROM commercial_fee_schedule_versions
+    WHERE id = NEW.fee_schedule_version_id;
+  END IF;
+
+  IF old_status IN ('approved','scheduled','active','superseded','expired','terminated') OR
+     new_status IN ('approved','scheduled','active','superseded','expired','terminated') THEN
+    RAISE EXCEPTION 'commercial_fee_definition_immutable' USING ERRCODE = '40001';
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: commercial_fee_schedule_version_immutable(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.commercial_fee_schedule_version_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF OLD.status IN ('approved','scheduled','active','superseded','expired','terminated') THEN
+    IF TG_OP = 'DELETE' THEN
+      RAISE EXCEPTION 'commercial_fee_definition_immutable' USING ERRCODE = '40001';
+    END IF;
+
+    IF (OLD.fee_schedule_id, OLD.supersedes_version_id, OLD.version,
+        OLD.definition_digest, OLD.legal_document_version_id,
+        OLD.acceptance_policy, OLD.grandfather_until,
+        OLD.effective_from, OLD.effective_until)
+       IS DISTINCT FROM
+       (NEW.fee_schedule_id, NEW.supersedes_version_id, NEW.version,
+        NEW.definition_digest, NEW.legal_document_version_id,
+        NEW.acceptance_policy, NEW.grandfather_until,
+        NEW.effective_from, NEW.effective_until) THEN
+      RAISE EXCEPTION 'commercial_fee_definition_immutable' USING ERRCODE = '40001';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: commercial_fee_tier_immutable(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.commercial_fee_tier_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  old_status text;
+  new_status text;
+BEGIN
+  IF TG_OP IN ('UPDATE','DELETE') THEN
+    SELECT version.status INTO old_status
+    FROM commercial_fee_components component
+    JOIN commercial_fee_schedule_versions version
+      ON version.id = component.fee_schedule_version_id
+    WHERE component.id = OLD.fee_component_id;
+  END IF;
+  IF TG_OP IN ('INSERT','UPDATE') THEN
+    SELECT version.status INTO new_status
+    FROM commercial_fee_components component
+    JOIN commercial_fee_schedule_versions version
+      ON version.id = component.fee_schedule_version_id
+    WHERE component.id = NEW.fee_component_id;
+  END IF;
+
+  IF old_status IN ('approved','scheduled','active','superseded','expired','terminated') OR
+     new_status IN ('approved','scheduled','active','superseded','expired','terminated') THEN
+    RAISE EXCEPTION 'commercial_fee_definition_immutable' USING ERRCODE = '40001';
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: consent_version_delete_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1704,14 +1848,154 @@ CREATE TABLE public.catalog_venue_capacity_reservations (
 
 
 --
+-- Name: commercial_fee_amounts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.commercial_fee_amounts (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    fee_component_id uuid NOT NULL,
+    currency character varying(3) NOT NULL,
+    fixed_amount_minor bigint,
+    minimum_minor bigint,
+    maximum_minor bigint,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT commercial_fee_amounts_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
+    CONSTRAINT commercial_fee_amounts_fixed_amount_check CHECK (((fixed_amount_minor IS NULL) OR (fixed_amount_minor >= 0))),
+    CONSTRAINT commercial_fee_amounts_maximum_check CHECK (((maximum_minor IS NULL) OR (maximum_minor >= 0))),
+    CONSTRAINT commercial_fee_amounts_minimum_check CHECK (((minimum_minor IS NULL) OR (minimum_minor >= 0))),
+    CONSTRAINT commercial_fee_amounts_ordered_bounds_check CHECK (((minimum_minor IS NULL) OR (maximum_minor IS NULL) OR (maximum_minor >= minimum_minor)))
+);
+
+
+--
+-- Name: commercial_fee_components; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.commercial_fee_components (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    fee_schedule_version_id uuid NOT NULL,
+    component_type character varying NOT NULL,
+    calculation_type character varying NOT NULL,
+    charged_to character varying DEFAULT 'buyer'::character varying NOT NULL,
+    organizer_payer_choice boolean DEFAULT false NOT NULL,
+    funded_by character varying DEFAULT 'buyer'::character varying NOT NULL,
+    basis_type character varying,
+    rate_bps integer,
+    refund_policy character varying DEFAULT 'nonrefundable'::character varying NOT NULL,
+    offset_component_type character varying,
+    event_product_id uuid,
+    product_type character varying,
+    sale_context character varying,
+    provider character varying,
+    payment_method character varying,
+    sales_channel character varying,
+    currency character varying(3),
+    label character varying NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT commercial_fee_components_basis_shape_check CHECK (((((calculation_type)::text = ANY ((ARRAY['percentage'::character varying, 'blended'::character varying, 'tiered'::character varying])::text[])) AND (basis_type IS NOT NULL)) OR (((calculation_type)::text = ANY ((ARRAY['explicit_zero'::character varying, 'fixed'::character varying])::text[])) AND (basis_type IS NULL)))),
+    CONSTRAINT commercial_fee_components_calculation_type_check CHECK (((calculation_type)::text = ANY ((ARRAY['explicit_zero'::character varying, 'percentage'::character varying, 'fixed'::character varying, 'blended'::character varying, 'tiered'::character varying])::text[]))),
+    CONSTRAINT commercial_fee_components_charged_to_check CHECK (((charged_to)::text = ANY ((ARRAY['buyer'::character varying, 'organizer'::character varying])::text[]))),
+    CONSTRAINT commercial_fee_components_component_type_check CHECK (((component_type)::text = ANY ((ARRAY['platform_commission'::character varying, 'buyer_service_fee'::character varying, 'processing_cost_recovery'::character varying, 'platform_subsidy'::character varying, 'resale_platform_fee'::character varying])::text[]))),
+    CONSTRAINT commercial_fee_components_currency_check CHECK (((currency IS NULL) OR ((currency)::text ~ '^[A-Z]{3}$'::text))),
+    CONSTRAINT commercial_fee_components_funded_by_check CHECK (((funded_by)::text = ANY ((ARRAY['buyer'::character varying, 'organizer'::character varying, 'platform'::character varying])::text[]))),
+    CONSTRAINT commercial_fee_components_offset_type_check CHECK (((offset_component_type IS NULL) OR ((offset_component_type)::text = ANY ((ARRAY['platform_commission'::character varying, 'buyer_service_fee'::character varying, 'processing_cost_recovery'::character varying, 'resale_platform_fee'::character varying])::text[])))),
+    CONSTRAINT commercial_fee_components_payment_method_check CHECK (((payment_method IS NULL) OR ((payment_method)::text = ANY ((ARRAY['telebirr'::character varying, 'card'::character varying, 'bank'::character varying])::text[])))),
+    CONSTRAINT commercial_fee_components_product_type_check CHECK (((product_type IS NULL) OR ((product_type)::text = ANY ((ARRAY['ticket'::character varying, 'parking'::character varying, 'merchandise'::character varying, 'food'::character varying, 'donation'::character varying, 'digital_addon'::character varying, 'other'::character varying])::text[])))),
+    CONSTRAINT commercial_fee_components_provider_check CHECK (((provider IS NULL) OR ((provider)::text = ANY ((ARRAY['chapa'::character varying, 'stripe'::character varying])::text[])))),
+    CONSTRAINT commercial_fee_components_rate_check CHECK (((rate_bps IS NULL) OR ((rate_bps >= 0) AND (rate_bps <= 10000)))),
+    CONSTRAINT commercial_fee_components_rate_shape_check CHECK (((((calculation_type)::text = ANY ((ARRAY['percentage'::character varying, 'blended'::character varying])::text[])) AND (rate_bps IS NOT NULL)) OR (((calculation_type)::text = ANY ((ARRAY['explicit_zero'::character varying, 'fixed'::character varying, 'tiered'::character varying])::text[])) AND (rate_bps IS NULL)))),
+    CONSTRAINT commercial_fee_components_refund_policy_check CHECK (((refund_policy)::text = ANY ((ARRAY['refundable'::character varying, 'event_cancellation_only'::character varying, 'nonrefundable'::character varying])::text[]))),
+    CONSTRAINT commercial_fee_components_sale_context_check CHECK (((sale_context IS NULL) OR ((sale_context)::text = ANY ((ARRAY['primary'::character varying, 'resale'::character varying])::text[])))),
+    CONSTRAINT commercial_fee_components_sales_channel_check CHECK (((sales_channel IS NULL) OR ((sales_channel)::text = ANY ((ARRAY['online'::character varying, 'walk_up'::character varying, 'resale'::character varying])::text[])))),
+    CONSTRAINT commercial_fee_components_subsidy_shape_check CHECK (((((component_type)::text = 'platform_subsidy'::text) AND ((funded_by)::text = 'platform'::text) AND (offset_component_type IS NOT NULL)) OR (((component_type)::text <> 'platform_subsidy'::text) AND ((funded_by)::text <> 'platform'::text) AND (offset_component_type IS NULL))))
+);
+
+
+--
+-- Name: commercial_fee_schedule_versions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.commercial_fee_schedule_versions (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    fee_schedule_id uuid NOT NULL,
+    supersedes_version_id uuid,
+    version integer NOT NULL,
+    status character varying DEFAULT 'draft'::character varying NOT NULL,
+    definition_digest character varying(64) NOT NULL,
+    legal_document_version_id uuid,
+    acceptance_policy character varying DEFAULT 'none'::character varying NOT NULL,
+    grandfather_until timestamp with time zone,
+    effective_from timestamp with time zone,
+    effective_until timestamp with time zone,
+    submitted_by_id uuid,
+    submitted_at timestamp with time zone,
+    approved_by_id uuid,
+    approved_at timestamp with time zone,
+    activated_by_id uuid,
+    activated_at timestamp with time zone,
+    terminated_by_id uuid,
+    terminated_at timestamp with time zone,
+    lock_version integer DEFAULT 0 NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT commercial_fee_schedule_versions_acceptance_policy_check CHECK (((acceptance_policy)::text = ANY ((ARRAY['none'::character varying, 'notice_only'::character varying, 'explicit'::character varying])::text[]))),
+    CONSTRAINT commercial_fee_schedule_versions_authoritative_start_check CHECK ((((status)::text <> ALL ((ARRAY['scheduled'::character varying, 'active'::character varying])::text[])) OR (effective_from IS NOT NULL))),
+    CONSTRAINT commercial_fee_schedule_versions_digest_check CHECK (((definition_digest)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT commercial_fee_schedule_versions_effective_interval_check CHECK (((effective_until IS NULL) OR (effective_from IS NULL) OR (effective_until > effective_from))),
+    CONSTRAINT commercial_fee_schedule_versions_lock_version_check CHECK ((lock_version >= 0)),
+    CONSTRAINT commercial_fee_schedule_versions_status_check CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'simulated'::character varying, 'pending_approval'::character varying, 'approved'::character varying, 'scheduled'::character varying, 'active'::character varying, 'superseded'::character varying, 'expired'::character varying, 'terminated'::character varying])::text[]))),
+    CONSTRAINT commercial_fee_schedule_versions_version_check CHECK ((version > 0))
+);
+
+
+--
 -- Name: commercial_fee_schedules; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.commercial_fee_schedules (
     id uuid DEFAULT uuidv7() NOT NULL,
-    name character varying,
+    name character varying NOT NULL,
+    code character varying NOT NULL,
+    schedule_type character varying NOT NULL,
+    created_by_id uuid NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
-    updated_at timestamp(6) with time zone NOT NULL
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT commercial_fee_schedules_code_check CHECK (((code)::text ~ '^[a-z0-9]+(_[a-z0-9]+)*$'::text)),
+    CONSTRAINT commercial_fee_schedules_schedule_type_check CHECK (((schedule_type)::text = ANY ((ARRAY['platform_default'::character varying, 'program'::character varying, 'custom'::character varying])::text[])))
+);
+
+
+--
+-- Name: commercial_fee_tiers; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.commercial_fee_tiers (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    fee_component_id uuid NOT NULL,
+    "position" integer NOT NULL,
+    metric_type character varying NOT NULL,
+    window_type character varying NOT NULL,
+    currency character varying(3),
+    starts_at_value bigint NOT NULL,
+    rate_bps integer,
+    fixed_amount_minor bigint,
+    minimum_minor bigint,
+    maximum_minor bigint,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT commercial_fee_tiers_currency_check CHECK (((currency IS NULL) OR ((currency)::text ~ '^[A-Z]{3}$'::text))),
+    CONSTRAINT commercial_fee_tiers_fixed_amount_check CHECK (((fixed_amount_minor IS NULL) OR (fixed_amount_minor >= 0))),
+    CONSTRAINT commercial_fee_tiers_gross_currency_check CHECK ((((metric_type)::text <> 'accepted_gross'::text) OR (currency IS NOT NULL))),
+    CONSTRAINT commercial_fee_tiers_maximum_check CHECK (((maximum_minor IS NULL) OR (maximum_minor >= 0))),
+    CONSTRAINT commercial_fee_tiers_metric_type_check CHECK (((metric_type)::text = ANY ((ARRAY['accepted_paid_units'::character varying, 'accepted_gross'::character varying])::text[]))),
+    CONSTRAINT commercial_fee_tiers_minimum_check CHECK (((minimum_minor IS NULL) OR (minimum_minor >= 0))),
+    CONSTRAINT commercial_fee_tiers_ordered_bounds_check CHECK (((minimum_minor IS NULL) OR (maximum_minor IS NULL) OR (maximum_minor >= minimum_minor))),
+    CONSTRAINT commercial_fee_tiers_position_check CHECK (("position" > 0)),
+    CONSTRAINT commercial_fee_tiers_rate_check CHECK (((rate_bps IS NULL) OR ((rate_bps >= 0) AND (rate_bps <= 10000)))),
+    CONSTRAINT commercial_fee_tiers_threshold_check CHECK ((starts_at_value >= 0)),
+    CONSTRAINT commercial_fee_tiers_window_type_check CHECK (((window_type)::text = ANY ((ARRAY['event'::character varying, 'calendar_month'::character varying, 'calendar_quarter'::character varying, 'calendar_year'::character varying, 'agreement_term'::character varying])::text[])))
 );
 
 
@@ -3102,11 +3386,51 @@ ALTER TABLE ONLY public.catalog_venue_capacity_reservations
 
 
 --
+-- Name: commercial_fee_amounts commercial_fee_amounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_fee_amounts
+    ADD CONSTRAINT commercial_fee_amounts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: commercial_fee_components commercial_fee_components_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_fee_components
+    ADD CONSTRAINT commercial_fee_components_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: commercial_fee_schedule_versions commercial_fee_schedule_versions_authoritative_interval; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_fee_schedule_versions
+    ADD CONSTRAINT commercial_fee_schedule_versions_authoritative_interval EXCLUDE USING gist (fee_schedule_id WITH =, tstzrange(effective_from, COALESCE(effective_until, 'infinity'::timestamp with time zone), '[)'::text) WITH &&) WHERE ((((status)::text = ANY ((ARRAY['scheduled'::character varying, 'active'::character varying])::text[])) AND (effective_from IS NOT NULL)));
+
+
+--
+-- Name: commercial_fee_schedule_versions commercial_fee_schedule_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_fee_schedule_versions
+    ADD CONSTRAINT commercial_fee_schedule_versions_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: commercial_fee_schedules commercial_fee_schedules_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.commercial_fee_schedules
     ADD CONSTRAINT commercial_fee_schedules_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: commercial_fee_tiers commercial_fee_tiers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_fee_tiers
+    ADD CONSTRAINT commercial_fee_tiers_pkey PRIMARY KEY (id);
 
 
 --
@@ -3725,6 +4049,13 @@ CREATE INDEX idx_on_category_jurisdiction_code_status_effective__957fab264b ON p
 
 
 --
+-- Name: idx_on_component_type_product_type_sale_context_76dde5288d; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_component_type_product_type_sale_context_76dde5288d ON public.commercial_fee_components USING btree (component_type, product_type, sale_context);
+
+
+--
 -- Name: idx_on_consent_document_id_ticket_type_id_73d6f9f9f0; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3767,6 +4098,27 @@ CREATE UNIQUE INDEX idx_on_event_id_user_id_role_75273129b3 ON public.events_eve
 
 
 --
+-- Name: idx_on_fee_schedule_id_status_ac4c487e1e; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_fee_schedule_id_status_ac4c487e1e ON public.commercial_fee_schedule_versions USING btree (fee_schedule_id, status);
+
+
+--
+-- Name: idx_on_metric_type_window_type_currency_34fcab8ed0; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_metric_type_window_type_currency_34fcab8ed0 ON public.commercial_fee_tiers USING btree (metric_type, window_type, currency);
+
+
+--
+-- Name: idx_on_provider_payment_method_sales_channel_curren_32a039d86d; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_provider_payment_method_sales_channel_curren_32a039d86d ON public.commercial_fee_components USING btree (provider, payment_method, sales_channel, currency);
+
+
+--
 -- Name: idx_on_published_at_available_at_id_30dbfe6ec6; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3806,6 +4158,13 @@ CREATE INDEX idx_on_registration_id_category_released_at_2a21aa5a70 ON public.co
 --
 
 CREATE INDEX idx_on_retention_policy_id_retain_until_39a1821c75 ON public.ticketing_registration_answers USING btree (retention_policy_id, retain_until);
+
+
+--
+-- Name: idx_on_status_effective_from_effective_until_ed4ab9d52f; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_status_effective_from_effective_until_ed4ab9d52f ON public.commercial_fee_schedule_versions USING btree (status, effective_from, effective_until);
 
 
 --
@@ -4324,6 +4683,55 @@ CREATE INDEX index_catalog_venue_capacity_reservations_on_order_item_id ON publi
 --
 
 CREATE INDEX index_catalog_venue_capacity_reservations_on_registration_id ON public.catalog_venue_capacity_reservations USING btree (registration_id);
+
+
+--
+-- Name: index_commercial_fee_amounts_on_component_and_currency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_commercial_fee_amounts_on_component_and_currency ON public.commercial_fee_amounts USING btree (fee_component_id, currency);
+
+
+--
+-- Name: index_commercial_fee_components_on_event_product_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_commercial_fee_components_on_event_product_id ON public.commercial_fee_components USING btree (event_product_id);
+
+
+--
+-- Name: index_commercial_fee_components_on_fee_schedule_version_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_commercial_fee_components_on_fee_schedule_version_id ON public.commercial_fee_components USING btree (fee_schedule_version_id);
+
+
+--
+-- Name: index_commercial_fee_schedules_on_code; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_commercial_fee_schedules_on_code ON public.commercial_fee_schedules USING btree (code);
+
+
+--
+-- Name: index_commercial_fee_schedules_on_schedule_type; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_commercial_fee_schedules_on_schedule_type ON public.commercial_fee_schedules USING btree (schedule_type);
+
+
+--
+-- Name: index_commercial_fee_tiers_on_component_and_position; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_commercial_fee_tiers_on_component_and_position ON public.commercial_fee_tiers USING btree (fee_component_id, "position");
+
+
+--
+-- Name: index_commercial_fee_versions_on_schedule_and_version; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_commercial_fee_versions_on_schedule_and_version ON public.commercial_fee_schedule_versions USING btree (fee_schedule_id, version);
 
 
 --
@@ -5013,6 +5421,34 @@ CREATE UNIQUE INDEX index_ticketing_ticket_types_on_event_product_id ON public.t
 
 
 --
+-- Name: commercial_fee_amounts trg_commercial_fee_amount_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_commercial_fee_amount_immutable BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_fee_amounts FOR EACH ROW EXECUTE FUNCTION public.commercial_fee_amount_immutable();
+
+
+--
+-- Name: commercial_fee_components trg_commercial_fee_component_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_commercial_fee_component_immutable BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_fee_components FOR EACH ROW EXECUTE FUNCTION public.commercial_fee_component_immutable();
+
+
+--
+-- Name: commercial_fee_schedule_versions trg_commercial_fee_schedule_version_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_commercial_fee_schedule_version_immutable BEFORE DELETE OR UPDATE ON public.commercial_fee_schedule_versions FOR EACH ROW EXECUTE FUNCTION public.commercial_fee_schedule_version_immutable();
+
+
+--
+-- Name: commercial_fee_tiers trg_commercial_fee_tier_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_commercial_fee_tier_immutable BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_fee_tiers FOR EACH ROW EXECUTE FUNCTION public.commercial_fee_tier_immutable();
+
+
+--
 -- Name: ticketing_registration_consents trg_consent_evidence_requirement_accepted; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -5291,6 +5727,14 @@ ALTER TABLE ONLY public.catalog_product_date_allocations
 
 
 --
+-- Name: commercial_fee_amounts fk_rails_0770bb8e98; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_fee_amounts
+    ADD CONSTRAINT fk_rails_0770bb8e98 FOREIGN KEY (fee_component_id) REFERENCES public.commercial_fee_components(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: events_events fk_rails_08a9375b27; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5304,6 +5748,14 @@ ALTER TABLE ONLY public.events_events
 
 ALTER TABLE ONLY public.organizations_memberships
     ADD CONSTRAINT fk_rails_0becb5aad6 FOREIGN KEY (user_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: commercial_fee_schedule_versions fk_rails_0d8d1d857e; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_fee_schedule_versions
+    ADD CONSTRAINT fk_rails_0d8d1d857e FOREIGN KEY (activated_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
 
 
 --
@@ -5579,6 +6031,14 @@ ALTER TABLE ONLY public.events_event_media
 
 
 --
+-- Name: commercial_fee_components fk_rails_5166110a32; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_fee_components
+    ADD CONSTRAINT fk_rails_5166110a32 FOREIGN KEY (event_product_id) REFERENCES public.catalog_event_products(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: catalog_inventory_reservations fk_rails_520317750a; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5755,6 +6215,14 @@ ALTER TABLE ONLY public.legal_acceptances
 
 
 --
+-- Name: commercial_fee_schedule_versions fk_rails_75ae623228; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_fee_schedule_versions
+    ADD CONSTRAINT fk_rails_75ae623228 FOREIGN KEY (submitted_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: catalog_product_inventories fk_rails_774162eb7a; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5771,11 +6239,35 @@ ALTER TABLE ONLY public.catalog_product_accesses
 
 
 --
+-- Name: commercial_fee_schedule_versions fk_rails_77e0620f60; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_fee_schedule_versions
+    ADD CONSTRAINT fk_rails_77e0620f60 FOREIGN KEY (approved_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: events_events fk_rails_784925b6cd; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.events_events
     ADD CONSTRAINT fk_rails_784925b6cd FOREIGN KEY (created_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_fee_components fk_rails_79171aa877; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_fee_components
+    ADD CONSTRAINT fk_rails_79171aa877 FOREIGN KEY (fee_schedule_version_id) REFERENCES public.commercial_fee_schedule_versions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_fee_tiers fk_rails_79963d242d; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_fee_tiers
+    ADD CONSTRAINT fk_rails_79963d242d FOREIGN KEY (fee_component_id) REFERENCES public.commercial_fee_components(id) ON DELETE RESTRICT;
 
 
 --
@@ -5824,6 +6316,14 @@ ALTER TABLE ONLY public.ticketing_registration_answers
 
 ALTER TABLE ONLY public.catalog_promotion_codes
     ADD CONSTRAINT fk_rails_82ebe8867c FOREIGN KEY (promotion_id) REFERENCES public.catalog_promotions(id);
+
+
+--
+-- Name: commercial_fee_schedules fk_rails_83f8b09d29; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_fee_schedules
+    ADD CONSTRAINT fk_rails_83f8b09d29 FOREIGN KEY (created_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
 
 
 --
@@ -5960,6 +6460,14 @@ ALTER TABLE ONLY public.core_role_permissions
 
 ALTER TABLE ONLY public.ticketing_purchase_limit_allocations
     ADD CONSTRAINT fk_rails_a3b4e1fe0e FOREIGN KEY (scope_event_date_id) REFERENCES public.events_event_dates(id);
+
+
+--
+-- Name: commercial_fee_schedule_versions fk_rails_a65c6234ac; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_fee_schedule_versions
+    ADD CONSTRAINT fk_rails_a65c6234ac FOREIGN KEY (terminated_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
 
 
 --
@@ -6115,6 +6623,14 @@ ALTER TABLE ONLY public.events_event_date_changes
 
 
 --
+-- Name: commercial_fee_schedule_versions fk_rails_d50634aedf; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_fee_schedule_versions
+    ADD CONSTRAINT fk_rails_d50634aedf FOREIGN KEY (fee_schedule_id) REFERENCES public.commercial_fee_schedules(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: core_reauthentication_proofs fk_rails_d799f90d96; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6187,6 +6703,14 @@ ALTER TABLE ONLY public.events_event_staff_assignments
 
 
 --
+-- Name: commercial_fee_schedule_versions fk_rails_e5e937ec8b; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_fee_schedule_versions
+    ADD CONSTRAINT fk_rails_e5e937ec8b FOREIGN KEY (legal_document_version_id) REFERENCES public.legal_document_versions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: ticketing_attendee_exports fk_rails_e7e49b4233; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6232,6 +6756,14 @@ ALTER TABLE ONLY public.ticketing_attendee_exports
 
 ALTER TABLE ONLY public.ticketing_registration_consents
     ADD CONSTRAINT fk_rails_f852314892 FOREIGN KEY (retention_policy_id) REFERENCES public.core_data_retention_policies(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_fee_schedule_versions fk_rails_f916345284; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_fee_schedule_versions
+    ADD CONSTRAINT fk_rails_f916345284 FOREIGN KEY (supersedes_version_id) REFERENCES public.commercial_fee_schedule_versions(id) ON DELETE RESTRICT;
 
 
 --
@@ -6281,6 +6813,10 @@ ALTER TABLE ONLY public.catalog_product_access_zones
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260808090005'),
+('20260808090004'),
+('20260808090003'),
+('20260808090002'),
 ('20260808090001'),
 ('20260801010003'),
 ('20260801010002'),
