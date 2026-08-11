@@ -1704,6 +1704,18 @@ CREATE TABLE public.catalog_venue_capacity_reservations (
 
 
 --
+-- Name: commercial_fee_schedules; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.commercial_fee_schedules (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    name character varying,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL
+);
+
+
+--
 -- Name: core_audit_logs; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3087,6 +3099,14 @@ ALTER TABLE ONLY public.catalog_promotions
 
 ALTER TABLE ONLY public.catalog_venue_capacity_reservations
     ADD CONSTRAINT catalog_venue_capacity_reservations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: commercial_fee_schedules commercial_fee_schedules_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_fee_schedules
+    ADD CONSTRAINT commercial_fee_schedules_pkey PRIMARY KEY (id);
 
 
 --
@@ -6261,6 +6281,7 @@ ALTER TABLE ONLY public.catalog_product_access_zones
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260808090001'),
 ('20260801010003'),
 ('20260801010002'),
 ('20260801010001'),
