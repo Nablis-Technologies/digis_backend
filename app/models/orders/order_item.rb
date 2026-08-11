@@ -83,8 +83,16 @@ module Orders
     def product_belongs_to_order_event
       return if order_id.blank? || event_product_id.blank?
 
-      order_event_id = Orders::Order.where(id: order_id).pick(:event_id) || order&.event_id
-      product_event_id = Catalog::EventProduct.where(id: event_product_id).pick(:event_id) || event_product&.event_id
+      order_event_id = if association(:order).loaded?
+        order&.event_id
+      else
+        Orders::Order.where(id: order_id).pick(:event_id)
+      end
+      product_event_id = if association(:event_product).loaded?
+        event_product&.event_id
+      else
+        Catalog::EventProduct.where(id: event_product_id).pick(:event_id)
+      end
       return if order_event_id.present? && order_event_id == product_event_id
 
       errors.add(:event_product, :invalid)
@@ -93,8 +101,16 @@ module Orders
     def registration_belongs_to_order_event
       return if registration_id.blank? || order_id.blank?
 
-      order_event_id = Orders::Order.where(id: order_id).pick(:event_id) || order&.event_id
-      registration_event_id = Ticketing::Registration.where(id: registration_id).pick(:event_id) || registration&.event_id
+      order_event_id = if association(:order).loaded?
+        order&.event_id
+      else
+        Orders::Order.where(id: order_id).pick(:event_id)
+      end
+      registration_event_id = if association(:registration).loaded?
+        registration&.event_id
+      else
+        Ticketing::Registration.where(id: registration_id).pick(:event_id)
+      end
       return if order_event_id.present? && order_event_id == registration_event_id
 
       errors.add(:registration, :invalid)
@@ -111,7 +127,11 @@ module Orders
     def product_type_matches_snapshot
       return if event_product_id.blank? || type_snapshot.blank?
 
-      product_type = Catalog::EventProduct.where(id: event_product_id).pick(:type) || event_product&.type
+      product_type = if association(:event_product).loaded?
+        event_product&.type
+      else
+        Catalog::EventProduct.where(id: event_product_id).pick(:type)
+      end
       return if product_type.blank? || product_type == type_snapshot
 
       errors.add(:type_snapshot, :invalid)
@@ -120,7 +140,11 @@ module Orders
     def charge_currency_matches_order
       return if order_id.blank? || charge_currency.blank?
 
-      order_currency = Orders::Order.where(id: order_id).pick(:charge_currency) || order&.charge_currency
+      order_currency = if association(:order).loaded?
+        order&.charge_currency
+      else
+        Orders::Order.where(id: order_id).pick(:charge_currency)
+      end
       return if order_currency.blank? || charge_currency == order_currency
 
       errors.add(:charge_currency, :invalid)
@@ -137,7 +161,11 @@ module Orders
     end
 
     def snapshot_immutable
-      order_status = Orders::Order.where(id: order_id).pick(:status) || order&.status
+      order_status = if association(:order).loaded?
+        order&.status
+      else
+        Orders::Order.where(id: order_id).pick(:status)
+      end
       return unless IMMUTABLE_ORDER_STATUSES.include?(order_status)
 
       unless persisted?

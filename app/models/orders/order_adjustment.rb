@@ -144,6 +144,7 @@ module Orders
 
     def order_item_scope
       return if order_item_id.blank? || order_id.blank?
+      return if association(:order_item).loaded? && order_item&.order_id == order_id
       return if Orders::OrderItem.where(id: order_item_id, order_id:).exists?
 
       errors.add(:order_item, :invalid)
@@ -151,13 +152,18 @@ module Orders
 
     def currency_matches_order
       return if order_id.blank? || currency.blank?
+      return if association(:order).loaded? && order&.charge_currency == currency
       return if Orders::Order.where(id: order_id).pick(:charge_currency) == currency
 
       errors.add(:currency, :invalid)
     end
 
     def snapshot_immutable
-      order_status = Orders::Order.where(id: order_id).pick(:status) || order&.status
+      order_status = if association(:order).loaded?
+        order&.status
+      else
+        Orders::Order.where(id: order_id).pick(:status)
+      end
       return unless IMMUTABLE_ORDER_STATUSES.include?(order_status)
 
       unless persisted?
