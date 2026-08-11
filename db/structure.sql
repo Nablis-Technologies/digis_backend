@@ -8381,3 +8381,422 @@ ALTER TABLE ONLY public.commercial_subsidy_reservations
 
 INSERT INTO "schema_migrations" (version) VALUES
 ('20260811090005');
+
+--
+-- Name: commercial_volume_counters; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.commercial_volume_counters (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    fee_component_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    event_id uuid,
+    metric_type character varying NOT NULL,
+    window_type character varying NOT NULL,
+    window_start_at timestamp with time zone NOT NULL,
+    window_end_at timestamp with time zone,
+    currency character varying(3),
+    value bigint DEFAULT 0 NOT NULL,
+    lock_version integer DEFAULT 0 NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT commercial_volume_counters_currency_check CHECK (((metric_type = 'accepted_gross' AND currency IS NOT NULL AND currency ~ '^[A-Z]{3}$') OR (metric_type = 'accepted_paid_units' AND currency IS NULL))),
+    CONSTRAINT commercial_volume_counters_event_window_check CHECK ((window_type <> 'event' OR event_id IS NOT NULL)),
+    CONSTRAINT commercial_volume_counters_metric_type_check CHECK ((metric_type IN ('accepted_paid_units','accepted_gross'))),
+    CONSTRAINT commercial_volume_counters_value_check CHECK ((value >= 0 AND lock_version >= 0)),
+    CONSTRAINT commercial_volume_counters_window_bounds_check CHECK ((window_end_at IS NULL OR window_end_at > window_start_at)),
+    CONSTRAINT commercial_volume_counters_window_type_check CHECK ((window_type IN ('event','calendar_month','calendar_quarter','calendar_year','agreement_term')))
+);
+
+
+--
+-- Name: commercial_volume_usages; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.commercial_volume_usages (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    fee_component_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    event_id uuid,
+    order_id uuid NOT NULL,
+    metric_type character varying NOT NULL,
+    window_type character varying NOT NULL,
+    window_start_at timestamp with time zone NOT NULL,
+    window_end_at timestamp with time zone,
+    currency character varying(3),
+    value bigint NOT NULL,
+    accepted_at timestamp with time zone NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT commercial_volume_usages_currency_check CHECK (((metric_type = 'accepted_gross' AND currency IS NOT NULL AND currency ~ '^[A-Z]{3}$') OR (metric_type = 'accepted_paid_units' AND currency IS NULL))),
+    CONSTRAINT commercial_volume_usages_event_window_check CHECK ((window_type <> 'event' OR event_id IS NOT NULL)),
+    CONSTRAINT commercial_volume_usages_metric_type_check CHECK ((metric_type IN ('accepted_paid_units','accepted_gross'))),
+    CONSTRAINT commercial_volume_usages_value_check CHECK ((value >= 0)),
+    CONSTRAINT commercial_volume_usages_window_bounds_check CHECK ((window_end_at IS NULL OR window_end_at > window_start_at)),
+    CONSTRAINT commercial_volume_usages_window_type_check CHECK ((window_type IN ('event','calendar_month','calendar_quarter','calendar_year','agreement_term')))
+);
+
+
+--
+-- Name: commercial_event_payer_selections; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.commercial_event_payer_selections (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    event_id uuid NOT NULL,
+    fee_component_id uuid NOT NULL,
+    charged_to character varying NOT NULL,
+    selected_by_id uuid,
+    selected_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    idempotency_key_digest character varying(64) NOT NULL,
+    request_fingerprint character varying(64) NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT commercial_event_payer_selections_payer_check CHECK ((charged_to IN ('buyer','organizer'))),
+    CONSTRAINT commercial_event_payer_selections_request_evidence_check CHECK ((idempotency_key_digest ~ '^[0-9a-f]{64}$' AND request_fingerprint ~ '^[0-9a-f]{64}$'))
+);
+
+
+--
+-- Name: commercial_volume_counters commercial_volume_counters_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_volume_counters
+    ADD CONSTRAINT commercial_volume_counters_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: commercial_volume_usages commercial_volume_usages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_volume_usages
+    ADD CONSTRAINT commercial_volume_usages_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: commercial_event_payer_selections commercial_event_payer_selections_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_event_payer_selections
+    ADD CONSTRAINT commercial_event_payer_selections_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: idx_volume_counters_on_component; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_volume_counters_on_component ON public.commercial_volume_counters USING btree (fee_component_id);
+
+
+--
+-- Name: idx_volume_counters_on_dimension; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_volume_counters_on_dimension ON public.commercial_volume_counters USING btree (fee_component_id, organization_id, event_id, metric_type, window_type, currency, window_start_at, window_end_at) NULLS NOT DISTINCT;
+
+
+--
+-- Name: idx_volume_counters_on_scope; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_volume_counters_on_scope ON public.commercial_volume_counters USING btree (organization_id, event_id, metric_type, window_type);
+
+
+--
+-- Name: idx_volume_counters_on_window; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_volume_counters_on_window ON public.commercial_volume_counters USING btree (window_type, window_start_at, window_end_at);
+
+
+--
+-- Name: idx_volume_usages_on_component_scope; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_volume_usages_on_component_scope ON public.commercial_volume_usages USING btree (fee_component_id, organization_id);
+
+
+--
+-- Name: idx_volume_usages_on_dimension; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_volume_usages_on_dimension ON public.commercial_volume_usages USING btree (metric_type, window_type, window_start_at, window_end_at, currency);
+
+
+--
+-- Name: idx_volume_usages_on_order; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_volume_usages_on_order ON public.commercial_volume_usages USING btree (order_id);
+
+
+--
+-- Name: idx_volume_usages_on_order_dimension; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_volume_usages_on_order_dimension ON public.commercial_volume_usages USING btree (order_id, fee_component_id, metric_type, window_type, currency, window_start_at, window_end_at) NULLS NOT DISTINCT;
+
+
+--
+-- Name: idx_event_payer_selections_on_actor; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_event_payer_selections_on_actor ON public.commercial_event_payer_selections USING btree (selected_by_id);
+
+
+--
+-- Name: idx_event_payer_selections_on_event_component; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_event_payer_selections_on_event_component ON public.commercial_event_payer_selections USING btree (event_id, fee_component_id);
+
+
+--
+-- Name: commercial_volume_counter_scope(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.commercial_volume_counter_scope() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  event_organization_id uuid;
+  component_event_product_id uuid;
+  component_event_id uuid;
+BEGIN
+  IF NEW.event_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT organization_id INTO event_organization_id
+  FROM events_events
+  WHERE id = NEW.event_id;
+
+  IF event_organization_id IS DISTINCT FROM NEW.organization_id THEN
+    RAISE EXCEPTION 'commercial_volume_counter_scope' USING ERRCODE = '23514';
+  END IF;
+
+  SELECT event_product_id INTO component_event_product_id
+  FROM commercial_fee_components
+  WHERE id = NEW.fee_component_id;
+
+  IF component_event_product_id IS NOT NULL THEN
+    SELECT event_id INTO component_event_id
+    FROM catalog_event_products
+    WHERE id = component_event_product_id;
+
+    IF component_event_id IS DISTINCT FROM NEW.event_id THEN
+      RAISE EXCEPTION 'commercial_volume_counter_component_scope' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: commercial_volume_usage_integrity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.commercial_volume_usage_integrity() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  order_event_id uuid;
+  order_organization_id uuid;
+  order_currency text;
+  order_status text;
+  component_event_product_id uuid;
+  component_event_id uuid;
+BEGIN
+  IF TG_OP <> 'INSERT' THEN
+    RAISE EXCEPTION 'commercial_volume_usage_immutable' USING ERRCODE = '40001';
+  END IF;
+
+  SELECT orders.event_id, events.organization_id, orders.settlement_currency, orders.status
+    INTO order_event_id, order_organization_id, order_currency, order_status
+  FROM orders_orders orders
+  JOIN events_events events ON events.id = orders.event_id
+  WHERE orders.id = NEW.order_id;
+
+  IF order_status NOT IN ('paid','fulfilled','partially_refunded','refunded') THEN
+    RAISE EXCEPTION 'commercial_volume_usage_order_status' USING ERRCODE = '23514';
+  END IF;
+
+  IF order_organization_id IS DISTINCT FROM NEW.organization_id THEN
+    RAISE EXCEPTION 'commercial_volume_usage_organization_scope' USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.window_type = 'event' AND NEW.event_id IS DISTINCT FROM order_event_id THEN
+    RAISE EXCEPTION 'commercial_volume_usage_event_scope' USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.event_id IS NOT NULL AND NEW.event_id IS DISTINCT FROM order_event_id THEN
+    RAISE EXCEPTION 'commercial_volume_usage_event_scope' USING ERRCODE = '23514';
+  END IF;
+
+  SELECT event_product_id INTO component_event_product_id
+  FROM commercial_fee_components
+  WHERE id = NEW.fee_component_id;
+
+  IF component_event_product_id IS NOT NULL THEN
+    SELECT event_id INTO component_event_id
+    FROM catalog_event_products
+    WHERE id = component_event_product_id;
+
+    IF component_event_id IS DISTINCT FROM order_event_id THEN
+      RAISE EXCEPTION 'commercial_volume_usage_component_scope' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  IF NEW.metric_type = 'accepted_gross' AND NEW.currency IS DISTINCT FROM order_currency THEN
+    RAISE EXCEPTION 'commercial_volume_usage_currency_scope' USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: commercial_event_payer_selection_integrity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.commercial_event_payer_selection_integrity() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  component_event_product_id uuid;
+  component_event_id uuid;
+  component_default_payer text;
+  component_allows_choice boolean;
+BEGIN
+  SELECT event_product_id, charged_to, organizer_payer_choice
+    INTO component_event_product_id, component_default_payer, component_allows_choice
+  FROM commercial_fee_components
+  WHERE id = NEW.fee_component_id;
+
+  IF component_event_product_id IS NOT NULL THEN
+    SELECT event_id INTO component_event_id
+    FROM catalog_event_products
+    WHERE id = component_event_product_id;
+
+    IF component_event_id IS DISTINCT FROM NEW.event_id THEN
+      RAISE EXCEPTION 'commercial_event_payer_selection_event_scope' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  IF NEW.charged_to IS DISTINCT FROM component_default_payer AND NOT component_allows_choice THEN
+    RAISE EXCEPTION 'commercial_event_payer_selection_forbidden' USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: commercial_volume_counters trg_commercial_volume_counter_scope; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_commercial_volume_counter_scope BEFORE INSERT OR UPDATE ON public.commercial_volume_counters FOR EACH ROW EXECUTE FUNCTION public.commercial_volume_counter_scope();
+
+
+--
+-- Name: commercial_volume_usages trg_commercial_volume_usage_integrity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_commercial_volume_usage_integrity BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_volume_usages FOR EACH ROW EXECUTE FUNCTION public.commercial_volume_usage_integrity();
+
+
+--
+-- Name: commercial_event_payer_selections trg_commercial_event_payer_selection_integrity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_commercial_event_payer_selection_integrity BEFORE INSERT OR UPDATE ON public.commercial_event_payer_selections FOR EACH ROW EXECUTE FUNCTION public.commercial_event_payer_selection_integrity();
+
+
+--
+-- Name: commercial_volume_counters fk_rails_0c206abbf1; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_volume_counters
+    ADD CONSTRAINT fk_rails_0c206abbf1 FOREIGN KEY (fee_component_id) REFERENCES public.commercial_fee_components(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_volume_usages fk_rails_2acca2a05d; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_volume_usages
+    ADD CONSTRAINT fk_rails_2acca2a05d FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_volume_usages fk_rails_41dbf1e9c6; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_volume_usages
+    ADD CONSTRAINT fk_rails_41dbf1e9c6 FOREIGN KEY (fee_component_id) REFERENCES public.commercial_fee_components(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_volume_usages fk_rails_a2ebf13ea8; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_volume_usages
+    ADD CONSTRAINT fk_rails_a2ebf13ea8 FOREIGN KEY (order_id) REFERENCES public.orders_orders(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_volume_usages fk_rails_f029ba26b4; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_volume_usages
+    ADD CONSTRAINT fk_rails_f029ba26b4 FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_volume_counters fk_rails_61c11298e3; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_volume_counters
+    ADD CONSTRAINT fk_rails_61c11298e3 FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_volume_counters fk_rails_f33e9b7151; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_volume_counters
+    ADD CONSTRAINT fk_rails_f33e9b7151 FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_event_payer_selections fk_rails_7357c14cd7; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_event_payer_selections
+    ADD CONSTRAINT fk_rails_7357c14cd7 FOREIGN KEY (selected_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_event_payer_selections fk_rails_cbe6016119; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_event_payer_selections
+    ADD CONSTRAINT fk_rails_cbe6016119 FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_event_payer_selections fk_rails_fb9956ce8f; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_event_payer_selections
+    ADD CONSTRAINT fk_rails_fb9956ce8f FOREIGN KEY (fee_component_id) REFERENCES public.commercial_fee_components(id) ON DELETE RESTRICT;
+
+
+INSERT INTO "schema_migrations" (version) VALUES
+('20260811090008'),
+('20260811090007'),
+('20260811090006');
