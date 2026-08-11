@@ -13,7 +13,7 @@ module Orders
 
     def initialize(
       quote:, event:, buyer:, idempotency_key:, sales_channel: nil,
-      initiated_by: nil, at: nil
+      initiated_by: nil, replaces_order: nil, at: nil
     )
       @quote = quote
       @event = event
@@ -21,6 +21,7 @@ module Orders
       @raw_idempotency_key = idempotency_key
       @sales_channel = (sales_channel || quote.sales_channel).to_s.downcase
       @initiated_by = initiated_by
+      @replaces_order = replaces_order
       @now = (at || Time.current).to_time.utc.change(usec: 0)
     rescue NoMethodError, ArgumentError => error
       @initialization_error = error
@@ -73,7 +74,7 @@ module Orders
 
     private
 
-    attr_reader :quote, :event, :buyer, :sales_channel, :initiated_by, :now,
+    attr_reader :quote, :event, :buyer, :sales_channel, :initiated_by, :replaces_order, :now,
                 :idempotency_key, :idempotency_key_digest, :creation_request_digest
 
     def prepare_idempotency!
@@ -84,6 +85,7 @@ module Orders
         buyer_id: buyer.id,
         sales_channel:,
         initiated_by_id: initiated_by&.id,
+        replaces_order_id: replaces_order&.id,
         quote_signature: quote.signature
       )))
     end
@@ -108,6 +110,7 @@ module Orders
         buyer_user: buyer,
         sales_channel:,
         initiated_by:,
+        replaces_order:,
         status: "draft",
         charge_currency: quote.charge_currency,
         subtotal_minor: quote.subtotal_minor,

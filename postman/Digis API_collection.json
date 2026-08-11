@@ -36,12 +36,32 @@
       "type": "string"
     },
     {
+      "key": "restartIdempotencyKey",
+      "value": "",
+      "type": "string"
+    },
+    {
       "key": "reauthenticationPurpose",
       "value": "attendee_export_request",
       "type": "string"
     },
     {
       "key": "eventId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "eventProductId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "quoteToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "orderId",
       "value": "",
       "type": "string"
     },
@@ -1725,7 +1745,7 @@
                 "header": [
                   {
                     "key": "Idempotency-Key",
-                    "value": "{{idempotencyKey}}",
+                    "value": "{{restartIdempotencyKey}}",
                     "type": "text"
                   }
                 ],
@@ -10408,6 +10428,187 @@
           },
           "response": [],
           "event": []
+        },
+        {
+          "name": "Orders",
+          "item": [
+            {
+              "name": "Build Checkout Quote",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"charge_currency\": \"ETB\",\n  \"items\": [\n    {\n      \"event_product_id\": \"{{eventProductId}}\",\n      \"quantity\": 1\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/events/{{eventId}}/order_quotes",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    "{{eventId}}",
+                    "order_quotes"
+                  ]
+                },
+                "description": "Builds a buyer-visible quote. The response contains display totals and an encrypted quote_token bound to the authenticated buyer and event; Commercial definitions and provider internals are not exposed.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Quote request succeeds\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "const token = pm.response.json()?.data?.quote_token;",
+                      "if (token) { pm.collectionVariables.set(\"quoteToken\", token); }"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Create Checkout",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{idempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"order\": {\n    \"quote_token\": \"{{quoteToken}}\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/events/{{eventId}}/orders",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    "{{eventId}}",
+                    "orders"
+                  ]
+                },
+                "description": "Creates one checkout from the buyer/event-bound quote token. Reuse the same Idempotency-Key and quote token for a safe retry after a timeout.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Checkout request succeeds\", function () {",
+                      "  pm.expect(pm.response.code).to.be.oneOf([201, 409]);",
+                      "});",
+                      "const orderId = pm.response.json()?.data?.id;",
+                      "if (orderId) { pm.collectionVariables.set(\"orderId\", orderId); }"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Restart Checkout",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{restartIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"order\": {\n    \"quote_token\": \"{{quoteToken}}\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/orders/{{orderId}}/restart",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "orders",
+                    "{{orderId}}",
+                    "restart"
+                  ]
+                },
+                "description": "Releases the old checkout's holds and creates one linked replacement under the buyer/event restart limit. The request is idempotent and requires a fresh valid quote token.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "response": [],
+              "event": []
+            }
+          ]
         }
       ]
     }

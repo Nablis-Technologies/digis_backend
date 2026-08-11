@@ -95,6 +95,15 @@ Rails.application.routes.draw do
   end
 
   resources :events, only: [] do
+    post :order_quotes, to: "orders/order_quotes#create"
+    resources :orders, only: :create, controller: "orders/orders"
+  end
+
+  resources :orders, only: [] do
+    post :restart, on: :member, controller: "orders/orders"
+  end
+
+  resources :events, only: [] do
     resources :registration_forms, controller: "ticketing/registration_forms", only: %i[index show create update destroy] do
       resources :versions, controller: "ticketing/registration_form_versions", only: %i[index show create] do
         post :publish, on: :member

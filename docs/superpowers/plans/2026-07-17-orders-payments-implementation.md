@@ -324,41 +324,50 @@ git commit -m "feat(orders): create multi-currency checkout atomically"
 ## Task 4: Add checkout APIs and bounded restart
 
 **Files:**
-- Create: controllers/policy/serializers listed in the file map
+- Create: `app/controllers/orders/application_controller.rb`
+- Create: `app/controllers/orders/order_quotes_controller.rb`
+- Create: `app/controllers/orders/orders_controller.rb`
+- Create: `app/policies/orders/order_policy.rb`
+- Create: buyer-safe serializers under `app/serializers/orders/`
+- Create: `app/services/orders/quote_token.rb`
 - Create: `app/services/orders/restart_checkout.rb`
 - Modify: `config/routes.rb`
 - Test: `test/controllers/orders/orders_controller_test.rb`
 - Test: `test/controllers/orders/order_quotes_controller_test.rb`
 - Test: `test/services/orders/restart_checkout_test.rb`
+- Test: `test/integration/orders/concurrent_restart_test.rb`
 
-- [ ] **Step 1: RED — test Pundit, privacy, idempotency, and restart races**
+- [x] **Step 1: RED — test Pundit, privacy, idempotency, and restart races**
 
-Assert buyer/event authority; serializer hides inventory counters, provider internals, promo digests, organizer adjustments, and payment references; one active checkout; at most two replacements per buyer/event/hour; active payment blocks restart; concurrent restarts yield one replacement; failed revalidation leaves old checkout intact.
+Assert buyer/event authority; serializer hides inventory counters, provider internals, promo digests, organizer adjustments, and payment references; one active checkout; at most two replacements per buyer/event/hour; concurrent restarts yield one replacement; and failed revalidation leaves old checkout intact. Because Task 5 owns the payment table, the restart command uses a capability-gated payment check now and Task 5 must add the concrete active-payment test when `Orders::Payment` exists.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/controllers/orders test/services/orders/restart_checkout_test.rb
 ```
 
-Expected: FAIL because API/restart command is absent.
+Expected: FAIL because API/restart command is absent. Verified before implementation with the focused RED suite: 12 tests, 16 assertions, and 12 failures/errors.
 
-- [ ] **Step 3: GREEN — implement domain controller namespace and advisory lock**
+- [x] **Step 3: GREEN — implement buyer-bound quote API and advisory-locked restart**
 
 ```ruby
 # frozen_string_literal: true
 
 module Orders
-  class OrdersController < Core::ApplicationController
+  class OrdersController < Orders::ApplicationController
     def create
       event = Events::Event.find(params.require(:event_id))
-      authorize Order.new(event:), :create?
+      authorize Order.new(event:, buyer_user: current_user), :create?
+      quote = QuoteToken.decode(
+        token: order_params.fetch(:quote_token), event:, buyer: current_user
+      )
+      return render_service_result(quote) if quote.failure?
+
       result = CreateCheckout.call(
-        actor: current_user,
+        buyer: current_user,
         event:,
-        quote_id: order_params.fetch(:quote_id),
-        item_requests: order_params.fetch(:items),
-        promotion_code: order_params[:promotion_code],
+        quote: quote.value,
         idempotency_key: request.headers.fetch("Idempotency-Key")
       )
       render_service_result(result, success_status: :created,
@@ -367,32 +376,35 @@ module Orders
 
     private
 
-    def order_params
-      params.require(:order).permit(:quote_id, :promotion_code,
-        items: %i[event_product_id quantity registration_id])
-    end
+    def order_params = params.require(:order).permit(:quote_token)
   end
 end
 ```
 
-Routes remain at the root and map to `Orders::` controllers; URL versioning is deferred by the master roadmap. Restart takes `pg_advisory_xact_lock(buyer_user_id,event_id)`, locks old order/inventory/commercial reservations in the shared order, checks rolling count, and atomically releases/replaces. Pass every `Core::BaseService::Result` to foundation `render_service_result`; do not create a second renderer.
+The quote endpoint builds the server-owned quote once and returns an encrypted, buyer/event-bound `quote_token`; there is no quote table or shared cache in this pre-launch design, so the token carries the exact immutable Commercial/FX evidence into checkout. Quote and order serializers expose buyer-safe totals and snapshots only. Routes remain at the root and map to `Orders::` controllers; URL versioning is deferred by the master roadmap. Restart takes `pg_advisory_xact_lock(buyer_user_id,event_id)`, locks old order/inventory/commercial reservations in the shared order, checks the rolling count, and atomically releases/replaces. Pass every command result to foundation `render_service_result`; the quote controller uses the serializer directly because `Orders::Quote` is an immutable value rather than an Active Record model.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
-Run the Task 4 command. Expected: PASS.
+Run the Task 4 command with `N_PLUS_ONE=1`. Verified in the complete focused Orders suite: 30 tests, 207 assertions, 0 failures, and 0 errors; this includes the concurrent restart race with 10 assertions.
 
-- [ ] **Step 5: Refactor and verify surfaces**
+- [x] **Step 5: Refactor and verify surfaces**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/controllers/orders test/policies/orders test/serializers/orders
+N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/controllers/orders test/services/orders test/integration/orders
 ```
 
-Expected: PASS with no internal leakage.
+Expected: PASS with no internal leakage. The remaining active-payment behavior is intentionally completed with the payment association and test in Task 5.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Commit — user-owned**
 
 ```bash
-git add app/controllers/orders app/policies/orders app/serializers/orders app/services/orders/restart_checkout.rb config/routes.rb test/controllers/orders test/services/orders test/policies/orders test/serializers/orders
+git add app/controllers/orders app/policies/orders app/serializers/orders \
+  app/services/orders/create_checkout.rb app/services/orders/quote_token.rb \
+  app/services/orders/restart_checkout.rb config/routes.rb \
+  config/locales/orders/checkout.en.yml postman/'Digis API_collection.json' \
+  docs/superpowers/plans/2026-07-17-orders-payments-implementation.md \
+  test/controllers/orders test/services/orders/restart_checkout_test.rb \
+  test/integration/orders/concurrent_restart_test.rb
 git commit -m "feat(api): expose authorized checkout commands"
 ```
 

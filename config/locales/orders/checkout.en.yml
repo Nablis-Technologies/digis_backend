@@ -39,3 +39,7 @@ en:
         commercial_result_invalid: "The commercial charge result is invalid"
         commercial_adjustment_invalid: "The commercial adjustment could not be recorded"
         commercial_component_invalid: "The commercial component is invalid"
+        checkout_restart_unavailable: "This checkout cannot be restarted"
+        checkout_restart_payment_in_progress: "This checkout has an in-flight payment and cannot be restarted"
+        checkout_restart_limit_exceeded: "The checkout restart limit for this event has been reached"
+        checkout_restart_release_failed: "The existing checkout could not be released safely"
