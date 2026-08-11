@@ -69,7 +69,7 @@ module Core
       end
 
       test "erases answer and revision payloads while preserving evidence rows" do
-        original_deadline = @answer.retain_until
+        original_deadline = @answer.reload.retain_until
         result = EraseEligibleBatch.call(limit: 10)
 
         assert_predicate result, :success?

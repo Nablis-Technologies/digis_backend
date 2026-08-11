@@ -37,6 +37,7 @@ module Ticketing
         requirement = build_consent_requirements.value.first
         assign_slot!(requirement, subject: @actor)
         acceptance = accept_consent(requirement:, content_sha256: version.content_sha256).value
+        accepted_at = acceptance.reload.accepted_at
 
         result = Ticketing::Consent::Withdraw.call(
           consent: acceptance,
@@ -59,7 +60,7 @@ module Ticketing
         assert_equal @actor.id, replacement.subject_user_id
         assert_equal "pending", result.value.status
         assert_equal [ replacement.id ], result.value.pending_requirements.map(&:id)
-        assert_equal acceptance.accepted_at, acceptance.reload.accepted_at
+        assert_equal accepted_at, acceptance.reload.accepted_at
       end
 
       test "only the original verified signer can withdraw an acceptance" do
