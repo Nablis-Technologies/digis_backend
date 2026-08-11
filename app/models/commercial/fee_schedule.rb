@@ -11,6 +11,10 @@ module Commercial
              class_name: "Commercial::FeeScheduleVersion",
              inverse_of: :fee_schedule,
              dependent: :restrict_with_exception
+    has_one :program,
+            class_name: "Commercial::Program",
+            inverse_of: :fee_schedule,
+            dependent: :restrict_with_exception
 
     before_validation :normalize_code
 
@@ -24,7 +28,7 @@ module Commercial
     end
 
     def self.ransackable_associations(_auth_object = nil)
-      %w[created_by fee_schedule_versions]
+      %w[created_by fee_schedule_versions program]
     end
 
     private

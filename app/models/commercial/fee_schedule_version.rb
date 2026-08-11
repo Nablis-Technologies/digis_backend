@@ -39,6 +39,10 @@ module Commercial
              class_name: "Commercial::FeeComponent",
              inverse_of: :fee_schedule_version,
              dependent: :restrict_with_exception
+    has_many :assignments,
+             class_name: "Commercial::Assignment",
+             inverse_of: :fee_schedule_version,
+             dependent: :restrict_with_exception
 
     validates :fee_schedule, presence: true
     validates :version, presence: true,
@@ -82,7 +86,7 @@ module Commercial
     end
 
     def self.ransackable_associations(_auth_object = nil)
-      %w[fee_schedule supersedes_version legal_document_version fee_components]
+      %w[fee_schedule supersedes_version legal_document_version fee_components assignments]
     end
 
     private
