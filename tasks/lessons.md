@@ -29,3 +29,7 @@
   module, controller, and job for a class-level responsibility comment and
   comments around non-obvious locking, idempotency, privacy, or state rules
   before considering the task review-ready.
+
+- Never stage or commit changes without explicit user permission. Providing
+  suggested commit commands is not permission to execute them; leave the
+  worktree unchanged until the user authorizes the commit operation.
