@@ -97,6 +97,10 @@ class CreateCommercialFeeScheduleVersions < ActiveRecord::Migration[8.1]
               END IF;
             END IF;
 
+            IF TG_OP = 'DELETE' THEN
+              RETURN OLD;
+            END IF;
+
             RETURN NEW;
           END;
           $$;
