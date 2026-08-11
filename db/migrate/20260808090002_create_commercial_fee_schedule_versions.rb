@@ -65,7 +65,10 @@ class CreateCommercialFeeScheduleVersions < ActiveRecord::Migration[8.1]
     add_exclusion_constraint :commercial_fee_schedule_versions,
       "fee_schedule_id WITH =, tstzrange(effective_from, COALESCE(effective_until, 'infinity'::timestamptz), '[)') WITH &&",
       using: :gist,
-      where: "status IN ('scheduled','active') AND effective_from IS NOT NULL",
+      # A scheduled successor may overlap the current active interval until
+      # activation closes the old state. Only overlapping active definitions
+      # are forbidden at the database boundary.
+      where: "status = 'active' AND effective_from IS NOT NULL",
       name: "commercial_fee_schedule_versions_authoritative_interval"
 
     reversible do |dir|

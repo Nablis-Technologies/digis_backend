@@ -204,6 +204,31 @@ $$;
 
 
 --
+-- Name: commercial_approval_append_only(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.commercial_approval_append_only() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  RAISE EXCEPTION 'commercial_approval_append_only' USING ERRCODE = '40001';
+END;
+$$;
+
+
+--
+-- Name: commercial_simulation_immutable(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.commercial_simulation_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  RAISE EXCEPTION 'commercial_simulation_immutable' USING ERRCODE = '40001';
+END;
+$$;
+
+--
 -- Name: consent_version_delete_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1997,6 +2022,78 @@ CREATE TABLE public.commercial_fee_schedule_versions (
 
 
 --
+-- Name: commercial_approvals; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.commercial_approvals (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    target_type character varying NOT NULL,
+    target_id uuid NOT NULL,
+    decision character varying NOT NULL,
+    reason text NOT NULL,
+    definition_digest character varying(64) NOT NULL,
+    actor_id uuid NOT NULL,
+    decided_at timestamp with time zone NOT NULL,
+    idempotency_key_digest character varying(64) NOT NULL,
+    request_fingerprint character varying(64) NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT commercial_approvals_decision_check CHECK (((decision)::text = ANY ((ARRAY['approved'::character varying, 'rejected'::character varying])::text[]))),
+    CONSTRAINT commercial_approvals_request_evidence_check CHECK ((((definition_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((request_fingerprint)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT commercial_approvals_target_type_check CHECK (((target_type)::text = ANY ((ARRAY['Commercial::FeeScheduleVersion'::character varying, 'Commercial::Assignment'::character varying])::text[])))
+);
+
+
+--
+-- Name: commercial_simulations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.commercial_simulations (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    fee_schedule_version_id uuid NOT NULL,
+    assignment_id uuid,
+    definition_digest character varying(64) NOT NULL,
+    scenario_digest character varying(64) NOT NULL,
+    normalized_outputs jsonb DEFAULT '{}'::jsonb NOT NULL,
+    warnings jsonb DEFAULT '[]'::jsonb NOT NULL,
+    passed boolean DEFAULT false NOT NULL,
+    run_by_id uuid NOT NULL,
+    run_at timestamp with time zone NOT NULL,
+    idempotency_key_digest character varying(64) NOT NULL,
+    request_fingerprint character varying(64) NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT commercial_simulations_digest_check CHECK ((((definition_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((scenario_digest)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT commercial_simulations_payload_shape_check CHECK (((jsonb_typeof(normalized_outputs) = 'object'::text) AND (jsonb_typeof(warnings) = 'array'::text))),
+    CONSTRAINT commercial_simulations_request_evidence_check CHECK ((((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((request_fingerprint)::text ~ '^[0-9a-f]{64}$'::text)))
+);
+
+
+--
+-- Name: commercial_term_notices; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.commercial_term_notices (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    fee_schedule_version_id uuid NOT NULL,
+    legal_document_version_id uuid NOT NULL,
+    delivery_method character varying DEFAULT 'in_app'::character varying NOT NULL,
+    status character varying DEFAULT 'pending'::character varying NOT NULL,
+    evidence_digest character varying(64) NOT NULL,
+    available_at timestamp with time zone NOT NULL,
+    delivered_at timestamp with time zone,
+    failed_at timestamp with time zone,
+    idempotency_key_digest character varying(64) NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT commercial_term_notices_delivery_method_check CHECK (((delivery_method)::text = 'in_app'::text)),
+    CONSTRAINT commercial_term_notices_evidence_check CHECK ((((evidence_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT commercial_term_notices_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'delivered'::character varying, 'failed'::character varying])::text[]))),
+    CONSTRAINT commercial_term_notices_status_metadata_check CHECK (((((status)::text = 'delivered'::text) AND (delivered_at IS NOT NULL) AND (failed_at IS NULL)) OR (((status)::text = 'failed'::text) AND (failed_at IS NOT NULL) AND (delivered_at IS NULL)) OR (((status)::text = 'pending'::text) AND (delivered_at IS NULL) AND (failed_at IS NULL))))
+);
+
+--
 -- Name: commercial_fee_schedules; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3470,6 +3567,29 @@ ALTER TABLE ONLY public.commercial_fee_amounts
 
 
 --
+-- Name: commercial_approvals commercial_approvals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_approvals
+    ADD CONSTRAINT commercial_approvals_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: commercial_simulations commercial_simulations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_simulations
+    ADD CONSTRAINT commercial_simulations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: commercial_term_notices commercial_term_notices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_term_notices
+    ADD CONSTRAINT commercial_term_notices_pkey PRIMARY KEY (id);
+
+--
 -- Name: commercial_fee_components commercial_fee_components_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3482,7 +3602,7 @@ ALTER TABLE ONLY public.commercial_fee_components
 --
 
 ALTER TABLE ONLY public.commercial_fee_schedule_versions
-    ADD CONSTRAINT commercial_fee_schedule_versions_authoritative_interval EXCLUDE USING gist (fee_schedule_id WITH =, tstzrange(effective_from, COALESCE(effective_until, 'infinity'::timestamp with time zone), '[)'::text) WITH &&) WHERE ((((status)::text = ANY ((ARRAY['scheduled'::character varying, 'active'::character varying])::text[])) AND (effective_from IS NOT NULL)));
+    ADD CONSTRAINT commercial_fee_schedule_versions_authoritative_interval EXCLUDE USING gist (fee_schedule_id WITH =, tstzrange(effective_from, COALESCE(effective_until, 'infinity'::timestamp with time zone), '[)'::text) WITH &&) WHERE ((((status)::text = 'active'::text) AND (effective_from IS NOT NULL)));
 
 
 --
@@ -4889,6 +5009,54 @@ CREATE INDEX index_commercial_programs_on_program_type_and_enrollment_mode ON pu
 
 
 --
+-- Name: idx_commercial_approvals_on_target_time; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_commercial_approvals_on_target_time ON public.commercial_approvals USING btree (target_type, target_id, decided_at);
+
+
+--
+-- Name: idx_commercial_simulations_on_version_digest_time; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_commercial_simulations_on_version_digest_time ON public.commercial_simulations USING btree (fee_schedule_version_id, definition_digest, run_at);
+
+
+--
+-- Name: idx_commercial_term_notices_on_organization_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_commercial_term_notices_on_organization_status ON public.commercial_term_notices USING btree (organization_id, status, available_at);
+
+
+--
+-- Name: idx_commercial_term_notices_unique_delivery; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_commercial_term_notices_unique_delivery ON public.commercial_term_notices USING btree (organization_id, fee_schedule_version_id, delivery_method);
+
+
+--
+-- Name: index_commercial_approvals_on_idempotency_key_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_commercial_approvals_on_idempotency_key_digest ON public.commercial_approvals USING btree (idempotency_key_digest);
+
+
+--
+-- Name: index_commercial_simulations_on_assignment_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_commercial_simulations_on_assignment_id ON public.commercial_simulations USING btree (assignment_id);
+
+
+--
+-- Name: index_commercial_simulations_on_idempotency_key_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_commercial_simulations_on_idempotency_key_digest ON public.commercial_simulations USING btree (idempotency_key_digest);
+
+--
 -- Name: index_consent_docs_on_event_name; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5601,6 +5769,19 @@ CREATE TRIGGER trg_commercial_fee_schedule_version_immutable BEFORE DELETE OR UP
 
 CREATE TRIGGER trg_commercial_fee_tier_immutable BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_fee_tiers FOR EACH ROW EXECUTE FUNCTION public.commercial_fee_tier_immutable();
 
+
+--
+-- Name: commercial_approvals trg_commercial_approval_append_only; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_commercial_approval_append_only BEFORE DELETE OR UPDATE ON public.commercial_approvals FOR EACH ROW EXECUTE FUNCTION public.commercial_approval_append_only();
+
+
+--
+-- Name: commercial_simulations trg_commercial_simulation_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_commercial_simulation_immutable BEFORE DELETE OR UPDATE ON public.commercial_simulations FOR EACH ROW EXECUTE FUNCTION public.commercial_simulation_immutable();
 
 --
 -- Name: ticketing_registration_consents trg_consent_evidence_requirement_accepted; Type: TRIGGER; Schema: public; Owner: -
@@ -6961,6 +7142,61 @@ ALTER TABLE ONLY public.catalog_product_access_zones
 
 
 --
+-- Name: commercial_approvals fk_rails_55f27ddd51; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_approvals
+    ADD CONSTRAINT fk_rails_55f27ddd51 FOREIGN KEY (actor_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_simulations fk_rails_83d1a6fec2; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_simulations
+    ADD CONSTRAINT fk_rails_83d1a6fec2 FOREIGN KEY (fee_schedule_version_id) REFERENCES public.commercial_fee_schedule_versions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_term_notices fk_rails_13717644e2; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_term_notices
+    ADD CONSTRAINT fk_rails_13717644e2 FOREIGN KEY (legal_document_version_id) REFERENCES public.legal_document_versions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_term_notices fk_rails_613af43c5e; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_term_notices
+    ADD CONSTRAINT fk_rails_613af43c5e FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_term_notices fk_rails_6a6c478930; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_term_notices
+    ADD CONSTRAINT fk_rails_6a6c478930 FOREIGN KEY (fee_schedule_version_id) REFERENCES public.commercial_fee_schedule_versions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_simulations fk_rails_b2983c3a53; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_simulations
+    ADD CONSTRAINT fk_rails_b2983c3a53 FOREIGN KEY (assignment_id) REFERENCES public.commercial_assignments(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_simulations fk_rails_be1844990e; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_simulations
+    ADD CONSTRAINT fk_rails_be1844990e FOREIGN KEY (run_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+--
 -- Name: commercial_assignments fk_rails_024692f7fd; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7054,6 +7290,9 @@ ALTER TABLE ONLY public.commercial_assignments
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260808090010'),
+('20260808090009'),
+('20260808090008'),
 ('20260808090007'),
 ('20260808090006'),
 ('20260808090005'),
