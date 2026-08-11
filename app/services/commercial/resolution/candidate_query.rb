@@ -17,8 +17,9 @@ module Commercial
         platform_default: 1
       }.freeze
 
-      def initialize(context:)
+      def initialize(context:, only_version: nil)
         @context = context
+        @only_version = only_version
       end
 
       def call
@@ -27,12 +28,22 @@ module Commercial
 
       private
 
-      attr_reader :context
+      attr_reader :context, :only_version
 
       def load_candidates
+        # Simulations use the same candidate/calculator pipeline against a
+        # draft version without making that draft visible to live checkout.
+        return build_candidates(load_only_version, nil, :platform_default) if only_version
+
         # Keep candidates from every layer in one set. Selection is per
         # component, so an event override must not suppress inherited siblings.
         assignment_candidates + platform_default_candidates
+      end
+
+      def load_only_version
+        Commercial::FeeScheduleVersion
+          .includes(:fee_schedule, fee_components: %i[fee_amounts fee_tiers])
+          .find(only_version.id)
       end
 
       def assignment_candidates
@@ -69,12 +80,17 @@ module Commercial
       end
 
       def platform_default_versions
-        Commercial::FeeScheduleVersion
+        versions = Commercial::FeeScheduleVersion
           .active_at(context.quoted_at)
           .joins(:fee_schedule)
           .where(commercial_fee_schedules: { schedule_type: "platform_default" })
           .includes(:fee_schedule, fee_components: %i[fee_amounts fee_tiers])
           .to_a
+
+        versions.group_by(&:fee_schedule_id).values.flat_map do |schedule_versions|
+          latest_effective = schedule_versions.map(&:effective_from).compact.max
+          schedule_versions.select { |version| version.effective_from == latest_effective }
+        end
       end
 
       def assignment_source(assignment)

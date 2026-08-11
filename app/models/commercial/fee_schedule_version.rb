@@ -43,6 +43,14 @@ module Commercial
              class_name: "Commercial::Assignment",
              inverse_of: :fee_schedule_version,
              dependent: :restrict_with_exception
+    has_many :simulations,
+             class_name: "Commercial::Simulation",
+             inverse_of: :fee_schedule_version,
+             dependent: :restrict_with_exception
+    has_many :term_notices,
+             class_name: "Commercial::TermNotice",
+             inverse_of: :fee_schedule_version,
+             dependent: :restrict_with_exception
 
     validates :fee_schedule, presence: true
     validates :version, presence: true,
@@ -66,8 +74,8 @@ module Commercial
     scope :authoritative, -> { where(status: %w[scheduled active]) }
     scope :active_at, lambda { |at|
       where(status: %w[scheduled active])
-        .where("effective_from <= ?", at)
-        .where("effective_until IS NULL OR effective_until > ?", at)
+        .where("commercial_fee_schedule_versions.effective_from <= ?", at)
+        .where("commercial_fee_schedule_versions.effective_until IS NULL OR commercial_fee_schedule_versions.effective_until > ?", at)
     }
 
     def authoritative?
@@ -86,7 +94,7 @@ module Commercial
     end
 
     def self.ransackable_associations(_auth_object = nil)
-      %w[fee_schedule supersedes_version legal_document_version fee_components assignments]
+      %w[fee_schedule supersedes_version legal_document_version fee_components assignments simulations term_notices]
     end
 
     private

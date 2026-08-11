@@ -24,7 +24,8 @@ module Commercial
       "tiered" => Commercial::Calculations::Tiered
     }.freeze
 
-    def initialize(context: nil, **attributes)
+    def initialize(context: nil, only_version: nil, **attributes)
+      @only_version = only_version
       @context = if context.is_a?(Commercial::Resolution::Context)
         context
       elsif context.respond_to?(:to_h)
@@ -39,7 +40,7 @@ module Commercial
     def call
       return failure(error("invalid_context")) if @context_error || invalid_context?
 
-      candidates_result = Commercial::Resolution::CandidateQuery.call(context:)
+      candidates_result = Commercial::Resolution::CandidateQuery.call(context:, only_version:)
       return failure(candidates_result.error) if candidates_result.failure?
 
       selections = select_components(candidates_result.value)
@@ -55,7 +56,7 @@ module Commercial
 
     private
 
-    attr_reader :context
+    attr_reader :context, :only_version
 
     def required_component_types
       context.sale_context == "resale" ? RESALE_COMPONENT_TYPES : PRIMARY_COMPONENT_TYPES
