@@ -16,6 +16,26 @@
 
 Start after event, catalog pricing/inventory/promotions, registration/purchase-limit, and Commercial foundations pass. Reuse Phase 0 `Core::Money`, `Core::BaseService::Result`, `Core::BusinessError`, `Core::CommandResponse`, `Core::Audit::Record`, and `Core::Outbox::Publish`. Reuse Phase 2 `catalog_exchange_rates` and `Catalog::ExchangeRate`; do not recreate them. Consume `Commercial::ResolveCharges`, immutable component evidence, payer selections, volume usage, entitlement, and subsidy-budget contracts; do not recreate platform-fee calculation in Orders. Remove inferior development-only order/payment structures rather than dual-writing.
 
+## Commercial handoff sequence
+
+This plan is intentionally interleaved with the Commercial plan. Execute its
+tasks in the following boundary order:
+
+1. Orders Tasks 1–2 may begin after the Commercial foundations and Task 7A
+   budget invariant are complete.
+2. After Orders Task 2 has created and verified `orders_orders`, pause this
+   plan while Commercial Task 7B creates the real order-linked subsidy
+   reservation contract, followed by Commercial Task 8's volume-usage and
+   event-payer selection contracts.
+3. Begin Orders Task 3 only after Commercial Tasks 7B and 8 are complete.
+   Execute it together with Commercial Task 10's immutable Commercial-results
+   integration; checkout is not complete until both plans' contracts and race
+   tests pass.
+
+Do not add a placeholder Orders table, a seed order, or a weakened foreign key
+to make the Commercial reservation work. Orders Task 2 is the authoritative
+owner of the order schema.
+
 - One order has one event and one buyer.
 - Charge currency is selected before persistence and never changes.
 - Price, FX, fee, adjustment, and refund-policy snapshots become immutable at `pending_payment`.
@@ -77,7 +97,7 @@ Start after event, catalog pricing/inventory/promotions, registration/purchase-l
 - Create job tests under `test/jobs/orders/`
 - Create concurrency tests under `test/integration/orders/`
 
-## Task 1: Add deterministic order-quote and allocation primitives
+## Task 1: Add deterministic order-quote and allocation primitives before the Commercial reservation handoff
 
 **Files:**
 - Create: `app/services/orders/quote.rb`
@@ -165,7 +185,7 @@ git add app/services/orders test/services/orders
 git commit -m "feat(orders): add deterministic pricing primitives"
 ```
 
-## Task 2: Create immutable order schema
+## Task 2: Create immutable order schema for the Commercial reservation handoff
 
 **Files:**
 - Create: order/item/adjustment/promotion migrations and models from the file map
@@ -222,7 +242,7 @@ git add db/migrate db/structure.sql app/models/orders test/models/orders test/fi
 git commit -m "feat(orders): add immutable order aggregate"
 ```
 
-## Task 3: Build quote and atomic checkout creation
+## Task 3: Build quote and atomic checkout creation after Commercial Tasks 7B and 8
 
 **Files:**
 - Create: `app/services/orders/build_quote.rb`

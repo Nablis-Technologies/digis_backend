@@ -26,8 +26,8 @@ If a plan and a specification disagree, stop implementation and reconcile the pl
 | 1 | `2026-07-17-event-foundation-scheduling-media-implementation.md` | 0 | Draft/private/public events, collaborators/staff, dates, recurrence, media, schedule history, consent authoring |
 | 2 | `2026-07-17-catalog-pricing-inventory-promotions-implementation.md` | 1 | Products, ticket settings, multi-currency prices, inventory/capacity, accesses/zones, minimal promotions |
 | 3 | `2026-07-17-registration-consent-privacy-implementation.md` | 2 | Phone-first registration, approval/waitlist, forms/answers, consent, limits, retention, exports |
-| 3.5 | `2026-08-08-commercial-agreements-platform-pricing-implementation.md` | 0, 1, 2, 3 | Platform defaults, programs, grants, negotiated agreements, deterministic fee resolution, simulation, subsidy budgets |
-| 4 | `2026-07-17-orders-payments-implementation.md` | 2, 3, 3.5 | Immutable quotes/orders/commercial adjustments, payment attempts, webhooks, grace, accepted fulfillment boundary |
+| 3.5 | `2026-08-08-commercial-agreements-platform-pricing-implementation.md` | 0, 1, 2, 3 | Platform defaults, programs, grants, negotiated agreements, deterministic fee resolution, simulation, subsidy budgets; order-linked reservations are handed off after Orders Task 2 |
+| 4 | `2026-07-17-orders-payments-implementation.md` | 2, 3, 3.5, with the inter-plan handoff below | Immutable quotes/orders/commercial adjustments, payment attempts, webhooks, grace, accepted fulfillment boundary |
 | 5 | `2026-07-17-ticket-packages-credentials-implementation.md` | 3, 4 | Commercial packages, slots, credential generations, QR/PNR, delegation, transfer, suspension |
 | 6 | `2026-07-17-scanner-offline-admission-implementation.md` | 5 | Shared credential validator, admission use, devices, zones, offline sync/upload, manual lookup |
 | 7 | `2026-07-17-refunds-finance-settlement-implementation.md` | 4, 5 | Cancellation/refunds, date-value allocation, liquidity, organizer ledger and payouts |
@@ -36,6 +36,32 @@ If a plan and a specification disagree, stop implementation and reconcile the pl
 | 10 | `2026-07-17-launch-hardening-observability-implementation.md` | 0–9 | Security, reconciliation, performance, operations, contract tests, launch gates |
 
 Resale is implemented after the package/credential core even though the schema document calls it Phase 3.75. Its reservation invariant cannot exist safely before generation revocation, package suspension, and replacement generation services.
+
+### Commercial/Orders execution handoff
+
+The plan-level table above is intentionally coarse. Commercial and Orders are
+executed in this dependency order; do not treat either plan as an
+all-or-nothing phase:
+
+1. Complete Commercial Tasks 1–7A, including the hard per-currency subsidy
+   budget invariant.
+2. Complete Orders Tasks 1–2. Orders Task 2 owns the real `orders_orders`
+   schema, model, constraints, and tests; do not create a placeholder table
+   or seed order to unblock Commercial.
+3. Complete Commercial Task 7B, which adds the order-linked subsidy
+   reservation table with its restrictive foreign key to `orders_orders` and
+   its transactional hold/processing/commit/release commands.
+4. Complete Commercial Task 8, which adds the volume-usage and event-payer
+   selection contracts consumed by checkout.
+5. Implement Orders Task 3 together with Commercial Task 10's Orders
+   integration contract. Checkout must not be considered complete until
+   inventory, promotion, purchase-limit, volume, and subsidy reservations,
+   immutable commercial adjustments, and accepted-order usage all pass their
+   shared concurrency and idempotency tests.
+
+Commercial Task 9 (admin and organizer API/UX) may follow its own documented
+domain prerequisites, but it is not a reason to introduce a temporary
+`orders_orders` table or to move 7B ahead of Orders Task 2.
 
 ## Delivery waves and safe parallel work
 

@@ -542,6 +542,11 @@ hold/processing/commit/release commands must land only after the Orders
 schema exists. This avoids both a temporary placeholder Orders table and a
 reservation table whose referential integrity would be weakened.
 
+The execution boundary is explicit: complete Orders Tasks 1–2 first, then
+complete Task 7B and Task 8 before beginning Orders Task 3. Orders Task 3 and
+Commercial Task 10 are then implemented as one checkout integration tranche.
+Do not create a seed order or temporary table to bypass this dependency.
+
 ### Task 7A: Implement hard per-currency subsidy budgets
 
 **Files:**
@@ -595,10 +600,13 @@ RUBOCOP_CACHE_ROOT=tmp/rubocop bundle exec rubocop \
   test/models/commercial/subsidy_budget_test.rb
 ```
 
-### Task 7B: Implement order-linked subsidy reservations after Orders exists
+### Task 7B: Implement order-linked subsidy reservations after Orders Task 2
 
 This remains planned but intentionally deferred until
-`orders_orders` is created by the Orders plan.
+`orders_orders` is created and verified by Orders Task 2. It must be completed
+before Orders Task 3 begins, because checkout consumes its reservation
+commands. Do not weaken the foreign key or introduce a placeholder Orders
+table to change this ordering.
 
 **Files:**
 
@@ -619,7 +627,11 @@ budget locking, and two concurrent last-unit holds yielding exactly one
 success. Hold/commit/release will update budget counters and reservation state
 in one transaction, record SHA-256 evidence, and retain terminal reservations.
 
-## Task 8: Implement prospective volume tiers and event payer selections
+## Task 8: Implement prospective volume tiers and event payer selections after Task 7B
+
+**Prerequisite:** Orders Task 2 and Commercial Task 7B must be complete. This
+task must finish before Orders Task 3 because checkout consumes its volume and
+payer-selection contracts.
 
 **Files:**
 
@@ -770,7 +782,11 @@ git commit -m "feat(commercial): expose governed pricing workflows"
 
 ## Task 10: Integrate immutable Commercial results into Orders and provider selection
 
-**Prerequisite:** Begin only when the Orders tables/services from `2026-07-17-orders-payments-implementation.md` exist. If Orders is not yet implemented, stop after defining/contract-testing `Commercial::ChargeResult`; resume this task during Orders Phase 4.
+**Prerequisite:** Begin only after Orders Tasks 1–2 and Commercial Tasks 7B–8
+exist. Execute this task together with Orders Task 3 and its checkout race
+tests. If Orders is not yet implemented, stop after defining and
+contract-testing `Commercial::ChargeResult`; resume this task during the
+Orders Task 3 integration tranche.
 
 **Files:**
 

@@ -33,3 +33,9 @@
 - Never stage or commit changes without explicit user permission. Providing
   suggested commit commands is not permission to execute them; leave the
   worktree unchanged until the user authorizes the commit operation.
+
+- When two canonical plans share database and service contracts, document the
+  exact inter-plan handoff in the master roadmap and both implementation plans.
+  A plan-level dependency is not enough when one task must create a real
+  foreign-key target before another plan can proceed; never use a placeholder
+  table or seed data to hide that ordering.
