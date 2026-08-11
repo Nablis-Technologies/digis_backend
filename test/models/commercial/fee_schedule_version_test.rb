@@ -92,21 +92,19 @@ module Commercial
       end
     end
 
-    test "database prevents overlapping authoritative intervals in one schedule" do
+    test "database prevents overlapping active intervals in one schedule" do
       schedule = create_schedule
       start_time = 1.hour.from_now
       create_version(
         schedule,
-        status: "scheduled",
-        effective_from: start_time,
-        effective_until: start_time + 2.hours
+        status: "active", effective_from: start_time, effective_until: start_time + 2.hours,
+        activated_by: core_users(:super_admin), activated_at: start_time
       )
       overlapping = build_version(
         schedule,
         version: 2,
-        status: "scheduled",
-        effective_from: start_time + 1.hour,
-        effective_until: start_time + 3.hours
+        status: "active", effective_from: start_time + 1.hour, effective_until: start_time + 3.hours,
+        activated_by: core_users(:super_admin), activated_at: start_time + 1.hour
       )
 
       assert_raises(ActiveRecord::StatementInvalid) { overlapping.save! }
