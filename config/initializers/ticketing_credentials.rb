@@ -27,4 +27,5 @@ current_kid = ENV.fetch("TICKETING_QR_CURRENT_KID", "v1")
 raise "TICKETING_QR_CURRENT_KID is not present in configured signing keys" unless signing_keys.key?(current_kid)
 
 Rails.application.config.x.ticketing_qr_signing_keys = signing_keys.freeze
+Rails.application.config.x.ticketing_qr_verify_keys = signing_keys.transform_values(&:verify_key).freeze
 Rails.application.config.x.ticketing_qr_current_kid = current_kid.freeze
