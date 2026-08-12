@@ -91,24 +91,22 @@ domain prerequisites, but it is not a reason to introduce a temporary
   tests, 8,225 assertions,
   zero failures, and zero errors. The user review/commit remains pending.
 - Ticket Packages Task 1 (schema/models) was committed early and is retained
-  because it is a valid prerequisite. Tasks 2–4 (deterministic fulfillment
-  issuance, initial group credentials, PNR/index projection, outbox consumers,
-  generation replacement, revocation/index projection, concurrency safety,
-  signed QR claims, PNR reuse, and the shared validator contract) are
-  implemented and verified in the current working tree. After review/commit,
-  resume the Ticket Packages plan at Task 5; do not start Task 6 until
-  delegation/claim/transfer services use the replacement seam.
+  because it is a valid prerequisite. Tasks 2–6 (deterministic fulfillment
+  issuance, credential generations, QR/PNR/index projection, delegation,
+  claims, transfer, reversible suspension, terminal free-package invalidation,
+  and the shared validator/revocation contract) are implemented and focused-
+  verified in the current working tree. User review/commit remains pending.
 - Commercial Task 11 remains intentionally queued until the controlled-resale
   tranche has the package/credential, Finance, and resale prerequisites.
   Commercial Task 12 remains the last Commercial/Phase 3.5 gate.
 
 The next human-visible action is therefore:
 
-1. Review and commit the verified Orders and Ticket Packages Task 2–4
-   tranches, then resume
-   `2026-07-17-ticket-packages-credentials-implementation.md` at Task 5, then
-   Task 6.
-2. Run the Scanner and Refunds/Finance plans as the Wave 5 parallel tracks.
+1. Review and commit the verified Orders and Ticket Packages tranches.
+2. Start `2026-07-17-scanner-offline-admission-implementation.md` at Task 1
+   when following the serialized single-worktree route. Refunds/Finance Task 1
+   is the independent Wave 5 track and may be run separately when a second
+   isolated worktree is available.
 3. After Wave 5 is green, run Controlled Resale Tasks 1–2 and the Streaming /
    Add-ons / Links plan. These are Wave 6 work and may run in parallel when
    ownership is explicit.

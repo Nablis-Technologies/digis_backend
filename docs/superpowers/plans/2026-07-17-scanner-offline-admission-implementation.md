@@ -19,10 +19,25 @@
 
 **Lock order:** scanner assignment, upload, ticket, active generation, credential, slots by position, product access, uses by slot/number, check-in. Reversal locks original check-in, its uses by ID, slot/access scopes, then event reversal version.
 
+## Execution route
+
+Start this plan after Orders Tasks 7–9 and Ticket Packages Tasks 2–6 are
+green. Scanner can run as a Wave 5 track alongside Refunds/Finance, but it
+must consume the Ticket Packages validator and generation/revocation contract;
+do not add a scanner-specific credential validator. The serialized
+single-worktree route therefore begins here at Task 1; Refunds/Finance Task 1
+remains the independent Wave 5 track.
+
 ## Task 1: Create scanner, check-in, use, upload, and reversal schema
 
 **Files:**
-- Create: `db/migrate/20260717210101_create_ticketing_scanner_and_admission_tables.rb`
+- Create: `db/migrate/20260812090013_create_ticketing_scanner_devices.rb`
+- Create: `db/migrate/20260812090014_create_ticketing_scanner_device_assignments.rb`
+- Create: `db/migrate/20260812090015_create_ticketing_scanner_assignment_zones.rb`
+- Create: `db/migrate/20260812090016_create_ticketing_scan_uploads.rb`
+- Create: `db/migrate/20260812090017_create_ticketing_checkin_logs.rb`
+- Create: `db/migrate/20260812090018_create_ticketing_admission_uses.rb`
+- Create: `db/migrate/20260812090019_create_ticketing_admission_use_reversals.rb`
 - Create: `app/models/ticketing/scanner_device.rb`
 - Create: `app/models/ticketing/scanner_device_assignment.rb`
 - Create: `app/models/ticketing/scanner_assignment_zone.rb`
@@ -33,7 +48,7 @@
 - Test: `test/models/ticketing/scanner_admission_schema_test.rb`
 - Test fixtures: `test/fixtures/ticketing_scanner_devices.yml`, `test/fixtures/ticketing_scanner_device_assignments.yml`, `test/fixtures/ticketing_checkin_logs.yml`, `test/fixtures/ticketing_admission_uses.yml`
 
-- [ ] **Step 1: RED — test database idempotency and history constraints**
+- [x] **Step 1: RED — test database idempotency and history constraints**
 
 ```ruby
 require "test_helper"
@@ -51,13 +66,13 @@ class Ticketing::ScannerAdmissionSchemaTest < ActiveSupport::TestCase
 end
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing/scanner_admission_schema_test.rb`
+Run: `N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing/scanner_admission_schema_test.rb`
 
 Expected: FAIL because schema is missing.
 
-- [ ] **Step 3: GREEN — implement exact constraints and indexes**
+- [x] **Step 3: GREEN — implement exact constraints and indexes**
 
 ```ruby
 add_index :ticketing_scanner_devices, :device_identifier, unique: true
@@ -79,22 +94,27 @@ add_index :ticketing_admission_use_reversals, %i[event_id reversal_version]
 
 Create all fields from Sections 8.10–8.14. Add sync-version/status/result/lookup/identity/usage checks, assignment windows, override all-or-none fields, and a deferred trigger requiring one reversal group to reference one successful group check-in and reverse every use it created.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:migrate && PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing/scanner_admission_schema_test.rb`
+Run: `N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing/scanner_admission_schema_test.rb`
 
 Expected: PASS.
 
-- [ ] **Step 5: REFACTOR — keep models declarative**
+- [x] **Step 5: REFACTOR — keep models declarative**
 
 No callbacks determine scan results, allocate ordinals, or bump feed versions.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add db/migrate/20260717210101_create_ticketing_scanner_and_admission_tables.rb app/models/ticketing test/models/ticketing/scanner_admission_schema_test.rb test/fixtures/ticketing_scanner_*.yml test/fixtures/ticketing_checkin_logs.yml test/fixtures/ticketing_admission_uses.yml
+git add db/migrate/20260812090013_create_ticketing_scanner_devices.rb db/migrate/20260812090014_create_ticketing_scanner_device_assignments.rb db/migrate/20260812090015_create_ticketing_scanner_assignment_zones.rb db/migrate/20260812090016_create_ticketing_scan_uploads.rb db/migrate/20260812090017_create_ticketing_checkin_logs.rb db/migrate/20260812090018_create_ticketing_admission_uses.rb db/migrate/20260812090019_create_ticketing_admission_use_reversals.rb app/models/ticketing test/models/ticketing/scanner_admission_schema_test.rb test/fixtures/ticketing_scanner_*.yml test/fixtures/ticketing_checkin_logs.yml test/fixtures/ticketing_admission_uses.yml
 git commit -m "feat(scanner): add scanner admission schema"
 ```
+
+The migration is intentionally split into one table per migration to follow
+the repository database rule. The four listed fixture files are kept empty in
+Task 1 because the package workflow test data is created dynamically; later
+scanner API tasks can add stable fixtures once their service contracts exist.
 
 ## Task 2: Authenticate devices and authorize event assignments and zones
 

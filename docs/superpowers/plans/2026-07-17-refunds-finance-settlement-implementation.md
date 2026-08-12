@@ -16,6 +16,19 @@
 
 Begin after the order/payment acceptance pipeline is complete. Ticket/date credential transitions named here begin only after the commercial-package credential core exists; before that gate, refund services may be implemented and tested behind a disabled API boundary. Do not retain legacy voluntary-refund, mutable-balance, or ticket-void shortcuts. Development data may be reset; no backward compatibility or dual writes are required.
 
+### Execution route
+
+For the integrated platform sequence, begin this plan after Orders Tasks 7–9
+and Ticket Packages Tasks 2–6 are green. It is a Wave 5 parallel track with
+Scanner Tasks 1–8; neither track is a prerequisite for the other. The Finance
+evidence produced here is required before Controlled Resale completes and
+before Commercial Task 12 runs. Do not start Commercial Task 11 from this plan;
+that handoff belongs to the Controlled Resale plan's Marketplace Task 3.
+
+When using one serialized worktree, Scanner Task 1 is the documented next
+task and this plan follows as the independent Wave 5 Task 1. Do not begin
+Commercial Task 11 or Controlled Resale from this plan.
+
 - There is no voluntary buyer change-of-mind refund at launch.
 - Refunds arise only from cancellation, eligible schedule changes, unaccepted payments, legal remedies, or audited platform administration.
 - Buyer entitlement comes from original immutable item/adjustment snapshots, never current rules.
