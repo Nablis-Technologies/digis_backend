@@ -21,6 +21,7 @@ class CreatePayments < ActiveRecord::Migration[8.1]
       t.string :raw_status
       t.integer :settlement_grace_minutes, null: false, default: 5
       t.timestamptz :settlement_grace_expires_at, null: false
+      t.timestamptz :succeeded_at
       t.timestamptz :accepted_at
       t.timestamptz :superseded_at
 
@@ -75,6 +76,9 @@ class CreatePayments < ActiveRecord::Migration[8.1]
     add_check_constraint :orders_payments,
       "accepted_at IS NULL OR status = 'succeeded'",
       name: "orders_payments_accepted_state_check"
+    add_check_constraint :orders_payments,
+      "succeeded_at IS NULL OR status = 'succeeded'",
+      name: "orders_payments_succeeded_state_check"
     add_foreign_key :orders_payments, :orders_orders,
                     column: :order_id, on_delete: :restrict
 

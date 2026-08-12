@@ -104,6 +104,8 @@ Rails.application.routes.draw do
     post :restart, on: :member, controller: "orders/orders"
   end
 
+  post "payments/:provider/webhook", to: "orders/payment_webhooks#create"
+
   resources :events, only: [] do
     resources :registration_forms, controller: "ticketing/registration_forms", only: %i[index show create update destroy] do
       resources :versions, controller: "ticketing/registration_form_versions", only: %i[index show create] do

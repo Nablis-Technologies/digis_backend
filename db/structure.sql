@@ -897,6 +897,36 @@ $$;
 
 
 --
+-- Name: orders_refund_integrity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.orders_refund_integrity() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  payment_status text;
+  accepted_at timestamptz;
+  payment_amount bigint;
+  payment_currency text;
+BEGIN
+  SELECT payments.status, payments.accepted_at, payments.amount_minor, payments.currency
+    INTO payment_status, accepted_at, payment_amount, payment_currency
+  FROM orders_payments AS payments
+  WHERE payments.id = NEW.payment_id;
+
+  IF NEW.type = 'payment_reversal' AND
+     (payment_status IS DISTINCT FROM 'succeeded' OR accepted_at IS NOT NULL OR
+      NEW.amount_minor IS DISTINCT FROM payment_amount OR
+      NEW.currency IS DISTINCT FROM payment_currency) THEN
+    RAISE EXCEPTION 'orders_payment_reversal_integrity' USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: registration_answer_append_only(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3745,9 +3775,11 @@ CREATE TABLE public.orders_payment_events (
     occurred_at timestamp with time zone,
     received_at timestamp with time zone NOT NULL,
     processed_at timestamp with time zone,
-    processing_error character varying,
+    attempts_count integer DEFAULT 0 NOT NULL,
+    last_error text,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT orders_payment_events_attempts_count_check CHECK ((attempts_count >= 0)),
     CONSTRAINT orders_payment_events_identity_check CHECK (((btrim((provider)::text) <> ''::text) AND (btrim((provider_event_id)::text) <> ''::text) AND (btrim((event_type)::text) <> ''::text))),
     CONSTRAINT orders_payment_events_payload_digest_check CHECK (((payload_digest)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT orders_payment_events_processed_state_check CHECK (((((status)::text = 'processed'::text) AND (processed_at IS NOT NULL)) OR ((status)::text <> 'processed'::text))),
@@ -3779,6 +3811,7 @@ CREATE TABLE public.orders_payments (
     raw_status character varying,
     settlement_grace_minutes integer DEFAULT 5 NOT NULL,
     settlement_grace_expires_at timestamp with time zone NOT NULL,
+    succeeded_at timestamp with time zone,
     accepted_at timestamp with time zone,
     superseded_at timestamp with time zone,
     created_at timestamp(6) with time zone NOT NULL,
@@ -3790,7 +3823,8 @@ CREATE TABLE public.orders_payments (
     CONSTRAINT orders_payments_currency_check CHECK ((((currency)::text ~ '^[A-Z]{3}$'::text) AND ((provider_fee_currency IS NULL) OR ((provider_fee_currency)::text ~ '^[A-Z]{3}$'::text)))),
     CONSTRAINT orders_payments_grace_minutes_check CHECK (((settlement_grace_minutes >= 3) AND (settlement_grace_minutes <= 15))),
     CONSTRAINT orders_payments_provider_fee_pair_check CHECK ((((provider_fee_minor IS NULL) = (provider_fee_currency IS NULL)) AND ((provider_fee_minor IS NULL) OR ((provider_fee_currency)::text = (currency)::text)))),
-    CONSTRAINT orders_payments_status_check CHECK (((status)::text = ANY (ARRAY[('created'::character varying)::text, ('processing'::character varying)::text, ('succeeded'::character varying)::text, ('failed'::character varying)::text, ('cancelled'::character varying)::text, ('unknown'::character varying)::text, ('timeout'::character varying)::text, ('reversed'::character varying)::text])))
+    CONSTRAINT orders_payments_status_check CHECK (((status)::text = ANY (ARRAY[('created'::character varying)::text, ('processing'::character varying)::text, ('succeeded'::character varying)::text, ('failed'::character varying)::text, ('cancelled'::character varying)::text, ('unknown'::character varying)::text, ('timeout'::character varying)::text, ('reversed'::character varying)::text]))),
+    CONSTRAINT orders_payments_succeeded_state_check CHECK (((succeeded_at IS NULL) OR ((status)::text = 'succeeded'::text)))
 );
 
 
@@ -3817,6 +3851,36 @@ CREATE TABLE public.orders_promotion_redemptions (
     CONSTRAINT promotion_redemptions_discount_check CHECK ((discount_minor > 0)),
     CONSTRAINT promotion_redemptions_state_check CHECK (((((status)::text = 'reserved'::text) AND (expires_at IS NOT NULL) AND (applied_at IS NULL) AND (released_at IS NULL)) OR (((status)::text = 'applied'::text) AND (applied_at IS NOT NULL) AND (released_at IS NULL)) OR (((status)::text = 'released'::text) AND (released_at IS NOT NULL) AND (applied_at IS NULL)) OR (((status)::text = 'expired'::text) AND (expires_at IS NOT NULL) AND (released_at IS NOT NULL) AND (applied_at IS NULL)))),
     CONSTRAINT promotion_redemptions_status_check CHECK (((status)::text = ANY (ARRAY[('reserved'::character varying)::text, ('applied'::character varying)::text, ('released'::character varying)::text, ('expired'::character varying)::text])))
+);
+
+
+--
+-- Name: orders_refunds; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.orders_refunds (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    payment_id uuid NOT NULL,
+    event_cancellation_id uuid,
+    type character varying NOT NULL,
+    idempotency_key character varying NOT NULL,
+    provider_reference character varying,
+    amount_minor bigint NOT NULL,
+    currency character varying(3) NOT NULL,
+    status character varying DEFAULT 'created'::character varying NOT NULL,
+    provider_fee_minor bigint,
+    provider_fee_currency character varying(3),
+    provider_fee_recorded_at timestamp with time zone,
+    pending_reason character varying,
+    next_retry_at timestamp with time zone,
+    reason_code character varying NOT NULL,
+    reason text,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT orders_refunds_amount_currency_check CHECK (((amount_minor > 0) AND ((currency)::text ~ '^[A-Z]{3}$'::text))),
+    CONSTRAINT orders_refunds_provider_fee_pair_check CHECK ((((provider_fee_minor IS NULL) AND (provider_fee_currency IS NULL) AND (provider_fee_recorded_at IS NULL)) OR ((provider_fee_minor IS NOT NULL) AND (provider_fee_minor >= 0) AND (provider_fee_currency IS NOT NULL) AND ((provider_fee_currency)::text ~ '^[A-Z]{3}$'::text) AND (provider_fee_recorded_at IS NOT NULL)))),
+    CONSTRAINT orders_refunds_status_check CHECK (((status)::text = ANY (ARRAY[('created'::character varying)::text, ('pending_funds'::character varying)::text, ('processing'::character varying)::text, ('succeeded'::character varying)::text, ('failed'::character varying)::text]))),
+    CONSTRAINT orders_refunds_type_check CHECK (((type)::text = ANY (ARRAY[('item_refund'::character varying)::text, ('payment_reversal'::character varying)::text])))
 );
 
 
@@ -5151,6 +5215,14 @@ ALTER TABLE ONLY public.orders_promotion_redemptions
 
 
 --
+-- Name: orders_refunds orders_refunds_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_refunds
+    ADD CONSTRAINT orders_refunds_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: organizations_memberships organizations_memberships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5917,6 +5989,13 @@ CREATE UNIQUE INDEX idx_one_owner_per_org ON public.organizations_memberships US
 --
 
 CREATE UNIQUE INDEX idx_one_package_credential_per_generation ON public.ticketing_credentials USING btree (credential_generation_id) WHERE ((type)::text = 'package'::text);
+
+
+--
+-- Name: idx_one_payment_reversal_per_payment; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_one_payment_reversal_per_payment ON public.orders_refunds USING btree (payment_id) WHERE ((type)::text = 'payment_reversal'::text);
 
 
 --
@@ -7362,6 +7441,34 @@ CREATE UNIQUE INDEX index_one_published_version_per_doc ON public.events_consent
 
 
 --
+-- Name: index_orders_refunds_on_event_cancellation_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_orders_refunds_on_event_cancellation_id ON public.orders_refunds USING btree (event_cancellation_id);
+
+
+--
+-- Name: index_orders_refunds_on_idempotency_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_orders_refunds_on_idempotency_key ON public.orders_refunds USING btree (idempotency_key);
+
+
+--
+-- Name: index_orders_refunds_on_payment_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_orders_refunds_on_payment_id ON public.orders_refunds USING btree (payment_id);
+
+
+--
+-- Name: index_orders_refunds_on_status_and_next_retry_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_orders_refunds_on_status_and_next_retry_at ON public.orders_refunds USING btree (status, next_retry_at);
+
+
+--
 -- Name: index_organizations_memberships_on_organization_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7754,6 +7861,13 @@ CREATE TRIGGER trg_orders_promotion_redemption_scope BEFORE INSERT OR UPDATE ON 
 
 
 --
+-- Name: orders_refunds trg_orders_refund_integrity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_orders_refund_integrity BEFORE INSERT OR UPDATE ON public.orders_refunds FOR EACH ROW EXECUTE FUNCTION public.orders_refund_integrity();
+
+
+--
 -- Name: ticketing_registration_answers trg_registration_answer_append_only; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -7995,6 +8109,14 @@ ALTER TABLE ONLY public.commercial_assignments
 
 ALTER TABLE ONLY public.orders_promotion_redemptions
     ADD CONSTRAINT fk_rails_0261d89a8a FOREIGN KEY (promotion_code_id) REFERENCES public.catalog_promotion_codes(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: orders_refunds fk_rails_028cc1b359; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_refunds
+    ADD CONSTRAINT fk_rails_028cc1b359 FOREIGN KEY (payment_id) REFERENCES public.orders_payments(id) ON DELETE RESTRICT;
 
 
 --
@@ -9254,6 +9376,14 @@ ALTER TABLE ONLY public.ticketing_revocations
 
 
 --
+-- Name: orders_refunds fk_rails_bc2590f2fc; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_refunds
+    ADD CONSTRAINT fk_rails_bc2590f2fc FOREIGN KEY (event_cancellation_id) REFERENCES public.events_event_cancellations(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: legal_documents fk_rails_bd145f2b2b; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9708,6 +9838,7 @@ ALTER TABLE ONLY public.catalog_product_access_zones
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260812090011'),
 ('20260812090009'),
 ('20260812090008'),
 ('20260812090007'),

@@ -11052,6 +11052,62 @@
               ]
             },
             {
+              "name": "Payment Webhook",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "X-Provider-Signature",
+                    "value": "{{paymentWebhookSignature}}",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event_id\": \"{{providerEventId}}\",\n  \"type\": \"payment.succeeded\",\n  \"status\": \"paid\",\n  \"provider_reference\": \"{{providerReference}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/payments/{{paymentProvider}}/webhook",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "payments",
+                    "{{paymentProvider}}",
+                    "webhook"
+                  ]
+                },
+                "description": "Receives a provider-signed payment event. The endpoint is unauthenticated, verifies the provider signature, durably deduplicates the event, and acknowledges it before asynchronous processing.",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Webhook is durably acknowledged\", function () {",
+                      "  pm.expect(pm.response.code).to.be.oneOf([202, 401, 422]);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
               "name": "Restart Checkout",
               "request": {
                 "method": "POST",

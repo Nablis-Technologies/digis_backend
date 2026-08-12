@@ -13,7 +13,8 @@ class CreatePaymentEvents < ActiveRecord::Migration[8.1]
       t.timestamptz :occurred_at
       t.timestamptz :received_at, null: false
       t.timestamptz :processed_at
-      t.string :processing_error
+      t.integer :attempts_count, null: false, default: 0
+      t.text :last_error
 
       t.timestamps
     end
@@ -35,6 +36,9 @@ class CreatePaymentEvents < ActiveRecord::Migration[8.1]
     add_check_constraint :orders_payment_events,
       "payload_digest ~ '^[0-9a-f]{64}$'",
       name: "orders_payment_events_payload_digest_check"
+    add_check_constraint :orders_payment_events,
+      "attempts_count >= 0",
+      name: "orders_payment_events_attempts_count_check"
     add_check_constraint :orders_payment_events,
       "(status = 'processed' AND processed_at IS NOT NULL) OR " \
       "(status <> 'processed')",
