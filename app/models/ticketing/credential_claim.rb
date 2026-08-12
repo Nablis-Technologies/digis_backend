@@ -17,6 +17,14 @@ module Ticketing
     validates :status, presence: true, inclusion: { in: STATUSES }
     validate :acceptance_state_matches
 
+    def self.token_digest_for(token:)
+      Core::KeyedDigest.digest(namespace: "ticketing-credential-claim", value: token)
+    end
+
+    def self.contact_digest_for(phone:)
+      Core::KeyedDigest.digest(namespace: "ticketing-credential-contact", value: phone)
+    end
+
     def self.ransackable_attributes(_auth_object = nil)
       %w[id credential_id invited_user_id claimed_by_user_id contact_digest token_digest status
          expires_at accepted_at created_at updated_at]

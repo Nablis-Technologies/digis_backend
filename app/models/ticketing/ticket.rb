@@ -39,6 +39,10 @@ module Ticketing
     has_many :attendee_index_entries,
              class_name: "Ticketing::AttendeeIndexEntry",
              dependent: :restrict_with_exception
+    has_many :ticket_transfers,
+             class_name: "Ticketing::TicketTransfer",
+             inverse_of: :ticket,
+             dependent: :restrict_with_exception
     has_one :revocation,
             class_name: "Ticketing::Revocation",
             dependent: :restrict_with_exception
@@ -70,7 +74,7 @@ module Ticketing
 
     def self.ransackable_associations(_auth_object = nil)
       %w[event event_product registration order_item owner_user current_credential_generation
-         admission_slots credential_generations credentials attendee_index_entries revocation]
+         admission_slots credential_generations credentials attendee_index_entries ticket_transfers revocation]
     end
 
     private

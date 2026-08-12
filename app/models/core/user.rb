@@ -63,6 +63,22 @@ module Core
               class_name: "Ticketing::Invitation",
               inverse_of: :created_by,
               foreign_key: :created_by_id
+    has_many :owned_tickets,
+             class_name: "Ticketing::Ticket",
+             inverse_of: :owner_user,
+             foreign_key: :owner_user_id
+    has_many :outgoing_ticket_transfers,
+             class_name: "Ticketing::TicketTransfer",
+             inverse_of: :from_user,
+             foreign_key: :from_user_id
+    has_many :incoming_ticket_transfers,
+             class_name: "Ticketing::TicketTransfer",
+             inverse_of: :to_user,
+             foreign_key: :to_user_id
+    has_many :initiated_ticket_transfers,
+             class_name: "Ticketing::TicketTransfer",
+             inverse_of: :initiated_by,
+             foreign_key: :initiated_by_id
 
     has_many :legal_documents,
              class_name: "Legal::LegalDocument",
