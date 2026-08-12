@@ -60,6 +60,56 @@ $$;
 
 
 --
+-- Name: commercial_approval_append_only(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.commercial_approval_append_only() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  RAISE EXCEPTION 'commercial_approval_append_only' USING ERRCODE = '40001';
+END;
+$$;
+
+
+--
+-- Name: commercial_event_payer_selection_integrity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.commercial_event_payer_selection_integrity() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  component_event_product_id uuid;
+  component_event_id uuid;
+  component_default_payer text;
+  component_allows_choice boolean;
+BEGIN
+  SELECT event_product_id, charged_to, organizer_payer_choice
+    INTO component_event_product_id, component_default_payer, component_allows_choice
+  FROM commercial_fee_components
+  WHERE id = NEW.fee_component_id;
+
+  IF component_event_product_id IS NOT NULL THEN
+    SELECT event_id INTO component_event_id
+    FROM catalog_event_products
+    WHERE id = component_event_product_id;
+
+    IF component_event_id IS DISTINCT FROM NEW.event_id THEN
+      RAISE EXCEPTION 'commercial_event_payer_selection_event_scope' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  IF NEW.charged_to IS DISTINCT FROM component_default_payer AND NOT component_allows_choice THEN
+    RAISE EXCEPTION 'commercial_event_payer_selection_forbidden' USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: commercial_fee_amount_immutable(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -208,19 +258,6 @@ $$;
 
 
 --
--- Name: commercial_approval_append_only(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.commercial_approval_append_only() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-  RAISE EXCEPTION 'commercial_approval_append_only' USING ERRCODE = '40001';
-END;
-$$;
-
-
---
 -- Name: commercial_simulation_immutable(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -231,6 +268,149 @@ BEGIN
   RAISE EXCEPTION 'commercial_simulation_immutable' USING ERRCODE = '40001';
 END;
 $$;
+
+
+--
+-- Name: commercial_subsidy_reservation_immutable(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.commercial_subsidy_reservation_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    IF OLD.status IN ('committed', 'released') THEN
+      RAISE EXCEPTION 'commercial_subsidy_reservation_immutable' USING ERRCODE = '40001';
+    END IF;
+
+    RETURN OLD;
+  END IF;
+
+  IF (OLD.subsidy_budget_id, OLD.order_id, OLD.idempotency_key_digest,
+      OLD.request_fingerprint, OLD.amount_minor, OLD.currency, OLD.expires_at)
+     IS DISTINCT FROM
+     (NEW.subsidy_budget_id, NEW.order_id, NEW.idempotency_key_digest,
+      NEW.request_fingerprint, NEW.amount_minor, NEW.currency, NEW.expires_at) THEN
+    RAISE EXCEPTION 'commercial_subsidy_reservation_immutable' USING ERRCODE = '40001';
+  END IF;
+
+  IF OLD.status IN ('committed', 'released') AND
+     (OLD.status, OLD.committed_at, OLD.released_at) IS DISTINCT FROM
+     (NEW.status, NEW.committed_at, NEW.released_at) THEN
+    RAISE EXCEPTION 'commercial_subsidy_reservation_immutable' USING ERRCODE = '40001';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: commercial_volume_counter_scope(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.commercial_volume_counter_scope() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  event_organization_id uuid;
+  component_event_product_id uuid;
+  component_event_id uuid;
+BEGIN
+  IF NEW.event_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT organization_id INTO event_organization_id
+  FROM events_events
+  WHERE id = NEW.event_id;
+
+  IF event_organization_id IS DISTINCT FROM NEW.organization_id THEN
+    RAISE EXCEPTION 'commercial_volume_counter_scope' USING ERRCODE = '23514';
+  END IF;
+
+  SELECT event_product_id INTO component_event_product_id
+  FROM commercial_fee_components
+  WHERE id = NEW.fee_component_id;
+
+  IF component_event_product_id IS NOT NULL THEN
+    SELECT event_id INTO component_event_id
+    FROM catalog_event_products
+    WHERE id = component_event_product_id;
+
+    IF component_event_id IS DISTINCT FROM NEW.event_id THEN
+      RAISE EXCEPTION 'commercial_volume_counter_component_scope' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: commercial_volume_usage_integrity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.commercial_volume_usage_integrity() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  order_event_id uuid;
+  order_organization_id uuid;
+  order_currency text;
+  order_status text;
+  component_event_product_id uuid;
+  component_event_id uuid;
+BEGIN
+  IF TG_OP <> 'INSERT' THEN
+    RAISE EXCEPTION 'commercial_volume_usage_immutable' USING ERRCODE = '40001';
+  END IF;
+
+  SELECT orders.event_id, events.organization_id, orders.settlement_currency, orders.status
+    INTO order_event_id, order_organization_id, order_currency, order_status
+  FROM orders_orders orders
+  JOIN events_events events ON events.id = orders.event_id
+  WHERE orders.id = NEW.order_id;
+
+  IF order_status NOT IN ('paid','fulfilled','partially_refunded','refunded') THEN
+    RAISE EXCEPTION 'commercial_volume_usage_order_status' USING ERRCODE = '23514';
+  END IF;
+
+  IF order_organization_id IS DISTINCT FROM NEW.organization_id THEN
+    RAISE EXCEPTION 'commercial_volume_usage_organization_scope' USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.window_type = 'event' AND NEW.event_id IS DISTINCT FROM order_event_id THEN
+    RAISE EXCEPTION 'commercial_volume_usage_event_scope' USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.event_id IS NOT NULL AND NEW.event_id IS DISTINCT FROM order_event_id THEN
+    RAISE EXCEPTION 'commercial_volume_usage_event_scope' USING ERRCODE = '23514';
+  END IF;
+
+  SELECT event_product_id INTO component_event_product_id
+  FROM commercial_fee_components
+  WHERE id = NEW.fee_component_id;
+
+  IF component_event_product_id IS NOT NULL THEN
+    SELECT event_id INTO component_event_id
+    FROM catalog_event_products
+    WHERE id = component_event_product_id;
+
+    IF component_event_id IS DISTINCT FROM order_event_id THEN
+      RAISE EXCEPTION 'commercial_volume_usage_component_scope' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  IF NEW.metric_type = 'accepted_gross' AND NEW.currency IS DISTINCT FROM order_currency THEN
+    RAISE EXCEPTION 'commercial_volume_usage_currency_scope' USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
 
 --
 -- Name: consent_version_delete_guard(); Type: FUNCTION; Schema: public; Owner: -
@@ -362,21 +542,6 @@ CREATE FUNCTION public.legal_version_delete_guard() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-  IF TG_OP = 'INSERT' THEN
-    IF NEW.status = 'published' AND (NEW.published_by_id IS NULL OR NEW.published_at IS NULL) THEN
-      RAISE EXCEPTION 'published consent versions require publication metadata'
-        USING ERRCODE = '40001';
-    END IF;
-    IF NEW.status = 'draft' AND (NEW.published_by_id IS NOT NULL OR NEW.published_at IS NOT NULL) THEN
-      RAISE EXCEPTION 'draft consent versions cannot have publication metadata'
-        USING ERRCODE = '40001';
-    END IF;
-    IF NEW.status = 'retired' THEN
-      RAISE EXCEPTION 'consent versions must be published before retirement'
-        USING ERRCODE = '40001';
-    END IF;
-    RETURN NEW;
-  END IF;
   IF OLD.status = 'draft' THEN
     RETURN OLD;
   END IF;
@@ -394,39 +559,10 @@ CREATE FUNCTION public.lock_consent_version_on_update() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-  IF TG_OP = 'INSERT' THEN
-    IF NEW.status = 'published' AND (NEW.published_by_id IS NULL OR NEW.published_at IS NULL) THEN
-      RAISE EXCEPTION 'published consent versions require publication metadata'
-        USING ERRCODE = '40001';
-    END IF;
-    IF NEW.status = 'draft' AND (NEW.published_by_id IS NOT NULL OR NEW.published_at IS NOT NULL) THEN
-      RAISE EXCEPTION 'draft consent versions cannot have publication metadata'
-        USING ERRCODE = '40001';
-    END IF;
-    IF NEW.status = 'retired' THEN
-      RAISE EXCEPTION 'consent versions must be published before retirement'
-        USING ERRCODE = '40001';
-    END IF;
-    RETURN NEW;
-  END IF;
   IF OLD.status = 'draft' THEN
-    IF NEW.status NOT IN ('draft', 'published') THEN
-      RAISE EXCEPTION 'consent version status must advance from draft to published'
-        USING ERRCODE = '40001';
-    END IF;
-    IF NEW.status = 'published' AND (NEW.published_by_id IS NULL OR NEW.published_at IS NULL) THEN
-      RAISE EXCEPTION 'published consent versions require publication metadata'
-        USING ERRCODE = '40001';
-    END IF;
-    IF NEW.status = 'draft' AND (NEW.published_by_id IS NOT NULL OR NEW.published_at IS NOT NULL) THEN
-      RAISE EXCEPTION 'draft consent versions cannot have publication metadata'
-        USING ERRCODE = '40001';
-    END IF;
     RETURN NEW;
   END IF;
-  IF (OLD.status = 'published' AND NEW.status NOT IN ('published', 'retired')) OR
-     (OLD.status = 'retired' AND NEW.status <> 'retired') OR
-     (OLD.body, OLD.content_sha256, OLD.title, OLD.required,
+  IF (OLD.body, OLD.content_sha256, OLD.title, OLD.required,
       OLD.acceptance_scope, OLD.consent_document_id, OLD.created_by_id,
       OLD.version, OLD.published_at, OLD.published_by_id)
      IS DISTINCT FROM
@@ -461,6 +597,299 @@ BEGIN
       NEW.published_at, NEW.published_by_id) THEN
     RAISE EXCEPTION 'published or retired legal versions are immutable'
       USING ERRCODE = '40001';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: orders_order_adjustment_evidence_valid(jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.orders_order_adjustment_evidence_valid(evidence jsonb) RETURNS boolean
+    LANGUAGE plpgsql IMMUTABLE
+    AS $$
+DECLARE
+  evidence_key text;
+BEGIN
+  IF evidence IS NULL THEN
+    RETURN TRUE;
+  END IF;
+  IF jsonb_typeof(evidence) <> 'object' THEN
+    RETURN FALSE;
+  END IF;
+
+  FOR evidence_key IN SELECT jsonb_object_keys(evidence) LOOP
+    IF evidence_key NOT IN ('scope','tier','window','rounding','explanation') THEN
+      RETURN FALSE;
+    END IF;
+  END LOOP;
+  RETURN TRUE;
+END;
+$$;
+
+
+--
+-- Name: orders_order_adjustment_immutable(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.orders_order_adjustment_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  old_order_status text;
+  new_order_status text;
+BEGIN
+  IF TG_OP <> 'INSERT' THEN
+    SELECT status INTO old_order_status FROM orders_orders WHERE id = OLD.order_id;
+  END IF;
+  IF TG_OP <> 'DELETE' THEN
+    SELECT status INTO new_order_status FROM orders_orders WHERE id = NEW.order_id;
+  END IF;
+
+  IF old_order_status IN ('pending_payment','paid','fulfilled','expired','cancelled','partially_refunded','refunded') OR
+     new_order_status IN ('pending_payment','paid','fulfilled','expired','cancelled','partially_refunded','refunded') THEN
+    RAISE EXCEPTION 'orders_order_adjustment_immutable' USING ERRCODE = '40001';
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: orders_order_adjustment_integrity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.orders_order_adjustment_integrity() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  order_currency text;
+BEGIN
+  SELECT charge_currency INTO order_currency
+  FROM orders_orders
+  WHERE id = NEW.order_id;
+
+  IF order_currency IS DISTINCT FROM NEW.currency THEN
+    RAISE EXCEPTION 'orders_order_adjustment_currency_scope' USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: orders_order_immutable(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.orders_order_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF OLD.status IN ('pending_payment','paid','fulfilled','expired','cancelled','partially_refunded','refunded') OR
+     (TG_OP <> 'DELETE' AND NEW.status IN ('pending_payment','paid','fulfilled','expired','cancelled','partially_refunded','refunded')) THEN
+    IF TG_OP = 'DELETE' THEN
+      RAISE EXCEPTION 'orders_order_snapshot_immutable' USING ERRCODE = '40001';
+    END IF;
+
+    IF (OLD.event_id, OLD.buyer_user_id, OLD.sales_channel, OLD.initiated_by_id,
+        OLD.replaces_order_id, OLD.charge_currency, OLD.subtotal_minor,
+        OLD.discount_minor, OLD.subsidy_minor, OLD.fee_minor, OLD.tax_minor,
+        OLD.adjustment_minor, OLD.total_minor, OLD.settlement_currency,
+        OLD.settlement_total_minor, OLD.exchange_rate, OLD.exchange_rate_source,
+        OLD.exchange_rate_quoted_at, OLD.exchange_rate_expires_at, OLD.expires_at,
+        OLD.idempotency_key_digest, OLD.creation_request_digest)
+       IS DISTINCT FROM
+       (NEW.event_id, NEW.buyer_user_id, NEW.sales_channel, NEW.initiated_by_id,
+        NEW.replaces_order_id, NEW.charge_currency, NEW.subtotal_minor,
+        NEW.discount_minor, NEW.subsidy_minor, NEW.fee_minor, NEW.tax_minor,
+        NEW.adjustment_minor, NEW.total_minor, NEW.settlement_currency,
+        NEW.settlement_total_minor, NEW.exchange_rate, NEW.exchange_rate_source,
+        NEW.exchange_rate_quoted_at, NEW.exchange_rate_expires_at, NEW.expires_at,
+        NEW.idempotency_key_digest, NEW.creation_request_digest) THEN
+      RAISE EXCEPTION 'orders_order_snapshot_immutable' USING ERRCODE = '40001';
+    END IF;
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: orders_order_item_event_scope(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.orders_order_item_event_scope() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  order_event_id uuid;
+  product_event_id uuid;
+  product_type text;
+  registration_event_id uuid;
+BEGIN
+  SELECT event_id INTO order_event_id
+  FROM orders_orders
+  WHERE id = NEW.order_id;
+
+  SELECT event_id, type INTO product_event_id, product_type
+  FROM catalog_event_products
+  WHERE id = NEW.event_product_id;
+
+  IF order_event_id IS DISTINCT FROM product_event_id OR
+     product_type IS DISTINCT FROM NEW.type_snapshot THEN
+    RAISE EXCEPTION 'orders_order_item_event_scope' USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.registration_id IS NOT NULL THEN
+    SELECT event_id INTO registration_event_id
+    FROM ticketing_registrations
+    WHERE id = NEW.registration_id;
+
+    IF order_event_id IS DISTINCT FROM registration_event_id THEN
+      RAISE EXCEPTION 'orders_order_item_registration_event_scope'
+        USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: orders_order_item_immutable(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.orders_order_item_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  old_order_status text;
+  new_order_status text;
+BEGIN
+  IF TG_OP <> 'INSERT' THEN
+    SELECT status INTO old_order_status FROM orders_orders WHERE id = OLD.order_id;
+  END IF;
+  IF TG_OP <> 'DELETE' THEN
+    SELECT status INTO new_order_status FROM orders_orders WHERE id = NEW.order_id;
+  END IF;
+
+  IF old_order_status IN ('pending_payment','paid','fulfilled','expired','cancelled','partially_refunded','refunded') OR
+     new_order_status IN ('pending_payment','paid','fulfilled','expired','cancelled','partially_refunded','refunded') THEN
+    IF TG_OP IN ('INSERT', 'DELETE') THEN
+      RAISE EXCEPTION 'orders_order_item_snapshot_immutable' USING ERRCODE = '40001';
+    END IF;
+
+    IF (OLD.order_id, OLD.event_product_id, OLD.registration_id,
+        OLD.resale_listing_id, OLD.name_snapshot, OLD.type_snapshot, OLD.quantity,
+        OLD.admissions_per_unit_snapshot, OLD.base_currency,
+        OLD.base_unit_amount_minor, OLD.charge_currency,
+        OLD.charge_unit_amount_minor, OLD.exchange_rate, OLD.discount_minor,
+        OLD.total_minor)
+       IS DISTINCT FROM
+       (NEW.order_id, NEW.event_product_id, NEW.registration_id,
+        NEW.resale_listing_id, NEW.name_snapshot, NEW.type_snapshot, NEW.quantity,
+        NEW.admissions_per_unit_snapshot, NEW.base_currency,
+        NEW.base_unit_amount_minor, NEW.charge_currency,
+        NEW.charge_unit_amount_minor, NEW.exchange_rate, NEW.discount_minor,
+        NEW.total_minor) THEN
+      RAISE EXCEPTION 'orders_order_item_snapshot_immutable' USING ERRCODE = '40001';
+    END IF;
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: orders_payment_snapshot_integrity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.orders_payment_snapshot_integrity() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  expected_amount bigint;
+  expected_currency text;
+BEGIN
+  SELECT total_minor, charge_currency
+    INTO expected_amount, expected_currency
+  FROM orders_orders
+  WHERE id = NEW.order_id;
+
+  IF NOT FOUND OR NEW.amount_minor IS DISTINCT FROM expected_amount OR
+     NEW.currency IS DISTINCT FROM expected_currency THEN
+    RAISE EXCEPTION 'orders_payment_order_amount_currency_mismatch'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM orders_payments
+    WHERE order_id = NEW.order_id
+      AND id IS DISTINCT FROM NEW.id
+      AND commercial_signature IS DISTINCT FROM NEW.commercial_signature
+  ) THEN
+    RAISE EXCEPTION 'orders_payment_commercial_signature_mismatch'
+      USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: orders_promotion_redemption_scope(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.orders_promotion_redemption_scope() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  order_event_id uuid;
+  order_buyer_id uuid;
+  order_currency text;
+  promotion_event_id uuid;
+  code_promotion_id uuid;
+BEGIN
+  SELECT event_id, buyer_user_id, charge_currency
+    INTO order_event_id, order_buyer_id, order_currency
+  FROM orders_orders
+  WHERE id = NEW.order_id;
+  SELECT event_id INTO promotion_event_id
+  FROM catalog_promotions
+  WHERE id = NEW.promotion_id;
+
+  IF order_event_id IS DISTINCT FROM promotion_event_id OR
+     order_buyer_id IS DISTINCT FROM NEW.user_id OR
+     order_currency IS DISTINCT FROM NEW.currency THEN
+    RAISE EXCEPTION 'orders_promotion_redemption_scope' USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.promotion_code_id IS NOT NULL THEN
+    SELECT promotion_id INTO code_promotion_id
+    FROM catalog_promotion_codes
+    WHERE id = NEW.promotion_code_id;
+
+    IF code_promotion_id IS DISTINCT FROM NEW.promotion_id THEN
+      RAISE EXCEPTION 'orders_promotion_redemption_code_scope'
+        USING ERRCODE = '23514';
+    END IF;
   END IF;
   RETURN NEW;
 END;
@@ -785,63 +1214,6 @@ $$;
 
 
 --
--- Name: ticketing_attendee_exports_filters_valid(jsonb); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.ticketing_attendee_exports_filters_valid(filters jsonb) RETURNS boolean
-    LANGUAGE plpgsql IMMUTABLE
-    AS $_$
-DECLARE
-  filter_key text;
-  filter_values text[];
-BEGIN
-  IF filters IS NULL OR jsonb_typeof(filters) <> 'object' THEN
-    RETURN filters IS NULL;
-  END IF;
-
-  IF EXISTS (
-    SELECT 1
-    FROM jsonb_object_keys(filters) AS keys(key)
-    WHERE key NOT IN ('ticket_type_ids', 'access_event_date_ids', 'registration_statuses')
-  ) THEN
-    RETURN FALSE;
-  END IF;
-
-  FOREACH filter_key IN ARRAY ARRAY['ticket_type_ids', 'access_event_date_ids', 'registration_statuses'] LOOP
-    CONTINUE WHEN NOT filters ? filter_key;
-    IF jsonb_typeof(filters -> filter_key) <> 'array'
-       OR jsonb_array_length(filters -> filter_key) > 100 THEN
-      RETURN FALSE;
-    END IF;
-
-    SELECT array_agg(value) INTO filter_values
-    FROM jsonb_array_elements_text(filters -> filter_key) AS element(value);
-    CONTINUE WHEN filter_values IS NULL;
-    IF cardinality(filter_values) <> (
-      SELECT count(DISTINCT value) FROM unnest(filter_values) AS items(value)
-    ) THEN
-      RETURN FALSE;
-    END IF;
-    IF filter_key IN ('ticket_type_ids', 'access_event_date_ids') AND EXISTS (
-      SELECT 1 FROM unnest(filter_values) AS items(value)
-      WHERE value !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-    ) THEN
-      RETURN FALSE;
-    END IF;
-    IF filter_key = 'registration_statuses' AND EXISTS (
-      SELECT 1 FROM unnest(filter_values) AS items(value)
-      WHERE value NOT IN ('pending_payment','pending_approval','waitlisted','offered','confirmed','rejected','cancelled','expired')
-    ) THEN
-      RETURN FALSE;
-    END IF;
-  END LOOP;
-
-  RETURN TRUE;
-END;
-$_$;
-
-
---
 -- Name: ticketing_registration_answer_integrity_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -859,7 +1231,6 @@ DECLARE
   admissions_per_unit integer;
   retention_days integer;
   policy_category text;
-  policy_action text;
   policy_status text;
   policy_effective_at timestamptz;
 BEGIN
@@ -904,16 +1275,11 @@ BEGIN
       USING ERRCODE = '23514';
   END IF;
 
-  SELECT policy.retention_days, policy.category, policy.action, policy.status, policy.effective_at
-    INTO retention_days, policy_category, policy_action, policy_status, policy_effective_at
+  SELECT policy.retention_days, policy.category, policy.status, policy.effective_at
+    INTO retention_days, policy_category, policy_status, policy_effective_at
     FROM core_data_retention_policies policy
    WHERE policy.id = NEW.retention_policy_id;
-  IF policy_status IS NULL OR
-     (policy_status NOT IN ('active', 'retired') OR
-      (policy_status = 'retired' AND NOT (
-        TG_OP = 'UPDATE' AND OLD.erased_at IS NULL AND NEW.erased_at IS NOT NULL AND
-        NEW.answer_ciphertext IS NULL AND policy_action = 'erase_payload'
-      ))) OR
+  IF policy_status IS DISTINCT FROM 'active' OR
      policy_effective_at IS NULL OR policy_effective_at > NEW.answered_at OR
      policy_category IS DISTINCT FROM (CASE
        WHEN question_type IN ('short_text', 'long_text') THEN 'registration_free_text'
@@ -966,72 +1332,9 @@ $$;
 CREATE FUNCTION public.ticketing_registration_consent_append_only() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
-DECLARE
-  retention_action text;
 BEGIN
-  IF TG_OP = 'DELETE' OR OLD.erased_at IS NOT NULL OR NEW.erased_at IS NULL OR
-     NEW.erased_at < OLD.accepted_at OR NEW.accepted_by_user_id IS NOT NULL OR
-     NEW.evidence_digest IS NOT NULL OR NEW.idempotency_key_digest IS NOT NULL OR
-     NEW.request_uuid IS NOT NULL OR
-     (NEW.registration_consent_requirement_id, NEW.registration_id, NEW.signer_role,
-      NEW.acceptance_method, NEW.content_sha256, NEW.retention_policy_id,
-      NEW.retain_until, NEW.accepted_at)
-     IS DISTINCT FROM
-     (OLD.registration_consent_requirement_id, OLD.registration_id, OLD.signer_role,
-      OLD.acceptance_method, OLD.content_sha256, OLD.retention_policy_id,
-      OLD.retain_until, OLD.accepted_at) THEN
-    RAISE EXCEPTION 'registration consent evidence is immutable except for payload erasure'
-      USING ERRCODE = '40001';
-  END IF;
-
-  SELECT action INTO retention_action
-    FROM core_data_retention_policies
-   WHERE id = OLD.retention_policy_id;
-  IF retention_action IS DISTINCT FROM 'erase_payload' OR OLD.retain_until IS NULL OR
-     OLD.retain_until > clock_timestamp() THEN
-    RAISE EXCEPTION 'registration consent evidence cannot be erased before its retention policy permits it'
-      USING ERRCODE = '23514';
-  END IF;
-
-  IF EXISTS (
-    SELECT 1
-     FROM core_data_retention_holds hold
-     JOIN ticketing_registrations registration ON registration.id = OLD.registration_id
-     WHERE hold.released_at IS NULL
-        AND hold.starts_at <= clock_timestamp()
-        AND (hold.expires_at IS NULL OR hold.expires_at > clock_timestamp())
-       AND (hold.category IS NULL OR hold.category = 'consent_evidence')
-       AND (hold.registration_id = OLD.registration_id OR
-            hold.event_id = registration.event_id OR
-            hold.user_id = OLD.accepted_by_user_id)
-  ) THEN
-    RAISE EXCEPTION 'registration consent evidence cannot be erased while a retention hold is active'
-      USING ERRCODE = '23514';
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
-
-
---
--- Name: ticketing_registration_consent_evidence_requirement_accepted(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.ticketing_registration_consent_evidence_requirement_accepted() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-      FROM ticketing_registration_consent_requirements requirement
-     WHERE requirement.id = NEW.registration_consent_requirement_id
-       AND requirement.status = 'accepted'
-  ) THEN
-    RAISE EXCEPTION 'consent evidence requires an accepted consent requirement by transaction commit'
-      USING ERRCODE = '23514';
-  END IF;
-  RETURN NULL;
+  RAISE EXCEPTION 'registration consent evidence is immutable and append-only'
+    USING ERRCODE = '40001';
 END;
 $$;
 
@@ -1051,19 +1354,15 @@ DECLARE
   requirement_version_id uuid;
   version_digest text;
   registration_user_id uuid;
-  signer_verified_at timestamptz;
-  retention_days integer;
-  expected_evidence_digest text;
 BEGIN
   SELECT requirement.registration_id, requirement.acceptance_scope,
          requirement.subject_user_id, requirement.status,
          requirement.consent_document_version_id,
-         registration.user_id, signer.verified_at
+         registration.user_id
     INTO requirement_registration_id, requirement_scope, requirement_subject_id,
-         requirement_status, requirement_version_id, registration_user_id, signer_verified_at
+         requirement_status, requirement_version_id, registration_user_id
     FROM ticketing_registration_consent_requirements requirement
     JOIN ticketing_registrations registration ON registration.id = requirement.registration_id
-    JOIN core_users signer ON signer.id = NEW.accepted_by_user_id
    WHERE requirement.id = NEW.registration_consent_requirement_id;
   SELECT content_sha256 INTO version_digest
     FROM events_consent_document_versions
@@ -1083,41 +1382,6 @@ BEGIN
       (NEW.signer_role IS DISTINCT FROM 'attendee' OR
        requirement_subject_id IS DISTINCT FROM NEW.accepted_by_user_id)) THEN
     RAISE EXCEPTION 'consent evidence signer does not match the requirement subject'
-      USING ERRCODE = '23514';
-  END IF;
-  IF signer_verified_at IS NULL THEN
-    RAISE EXCEPTION 'consent evidence signer must have verified OTP identity'
-      USING ERRCODE = '23514';
-  END IF;
-  SELECT policy.retention_days
-    INTO retention_days
-    FROM core_data_retention_policies policy
-   WHERE policy.id = NEW.retention_policy_id
-     AND policy.status = 'active'
-     AND policy.category = 'consent_evidence'
-     AND policy.effective_at <= NEW.accepted_at;
-  IF NOT FOUND OR NEW.retain_until IS DISTINCT FROM (
-    CASE WHEN retention_days IS NULL THEN NULL
-         ELSE NEW.accepted_at + make_interval(days => retention_days)
-    END
-  ) THEN
-    RAISE EXCEPTION 'consent evidence must retain the active effective policy snapshot'
-      USING ERRCODE = '23514';
-  END IF;
-  expected_evidence_digest := encode(digest(
-    '{"registration_id":"' || NEW.registration_id::text ||
-    '","subject_user_id":"' || requirement_subject_id::text ||
-    '","accepted_by_user_id":"' || NEW.accepted_by_user_id::text ||
-    '","version_id":"' || requirement_version_id::text ||
-    '","content_sha256":"' || NEW.content_sha256 ||
-    '","signer_role":"' || NEW.signer_role ||
-    '","acceptance_method":"' || NEW.acceptance_method ||
-    '","accepted_at":"' || to_char(NEW.accepted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') ||
-    '","request_uuid":"' || NEW.request_uuid::text || '"}',
-    'sha256'
-  ), 'hex');
-  IF NEW.evidence_digest IS DISTINCT FROM expected_evidence_digest THEN
-    RAISE EXCEPTION 'consent evidence digest must be derived from the exact acceptance event'
       USING ERRCODE = '23514';
   END IF;
 
@@ -1142,7 +1406,7 @@ BEGIN
     RAISE EXCEPTION 'accepted consent requirements require acceptance evidence'
       USING ERRCODE = '23514';
   END IF;
-  RETURN NULL;
+  RETURN NEW;
 END;
 $$;
 
@@ -1164,11 +1428,6 @@ DECLARE
   version_required boolean;
   ticket_event_id uuid;
 BEGIN
-  IF TG_OP = 'DELETE' THEN
-    RAISE EXCEPTION 'registration consent requirements are historical evidence'
-      USING ERRCODE = '40001';
-  END IF;
-
   IF TG_OP = 'INSERT' AND NEW.status IS DISTINCT FROM 'pending' THEN
     RAISE EXCEPTION 'new consent requirements must start pending'
       USING ERRCODE = '23514';
@@ -1190,15 +1449,10 @@ BEGIN
         USING ERRCODE = '23514';
     END IF;
 
-     IF NEW.subject_user_id IS DISTINCT FROM OLD.subject_user_id AND OLD.status <> 'pending' THEN
+    IF NEW.subject_user_id IS DISTINCT FROM OLD.subject_user_id AND OLD.status <> 'pending' THEN
       RAISE EXCEPTION 'consent requirement subjects are immutable after acceptance begins'
         USING ERRCODE = '23514';
-     END IF;
-
-     IF OLD.superseded_at IS NOT NULL AND NEW.superseded_at IS DISTINCT FROM OLD.superseded_at THEN
-       RAISE EXCEPTION 'superseded consent requirement timestamps are immutable'
-         USING ERRCODE = '23514';
-     END IF;
+    END IF;
 
     IF NEW.status IS DISTINCT FROM OLD.status AND NOT (
       (OLD.status = 'pending' AND NEW.status IN ('pending','accepted','withdrawn','superseded')) OR
@@ -1610,8 +1864,6 @@ CREATE TABLE public.catalog_event_products (
     name character varying NOT NULL,
     description text,
     type character varying NOT NULL,
-    status character varying DEFAULT 'draft'::character varying NOT NULL,
-    inventory_mode character varying DEFAULT 'unlimited'::character varying NOT NULL,
     allow_custom_price boolean DEFAULT false NOT NULL,
     sales_start_at timestamp with time zone,
     sales_end_at timestamp with time zone,
@@ -1621,10 +1873,13 @@ CREATE TABLE public.catalog_event_products (
     sort_order integer DEFAULT 0 NOT NULL,
     metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
     lock_version integer DEFAULT 0 NOT NULL,
-    idempotency_key_digest character varying(64),
-    creation_request_digest character varying(64),
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
+    status character varying DEFAULT 'draft'::character varying NOT NULL,
+    inventory_mode character varying DEFAULT 'unlimited'::character varying NOT NULL,
+    idempotency_key character varying,
+    idempotency_key_digest character varying(64),
+    creation_request_digest character varying(64),
     CONSTRAINT catalog_event_products_creation_digests_check CHECK ((((idempotency_key_digest IS NULL) AND (creation_request_digest IS NULL)) OR (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((creation_request_digest)::text ~ '^[0-9a-f]{64}$'::text)))),
     CONSTRAINT catalog_event_products_inventory_mode_check CHECK (((inventory_mode)::text = ANY (ARRAY[('unlimited'::character varying)::text, ('event_wide'::character varying)::text, ('per_date'::character varying)::text, ('event_wide_and_per_date'::character varying)::text]))),
     CONSTRAINT catalog_event_products_max_per_order_check CHECK (((max_per_order IS NULL) OR (max_per_order >= min_per_order))),
@@ -1672,11 +1927,10 @@ CREATE TABLE public.catalog_inventory_reservations (
     expires_at timestamp with time zone,
     committed_at timestamp with time zone,
     released_at timestamp with time zone,
-    request_fingerprint character varying(64) NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
+    request_fingerprint character varying(64) NOT NULL,
     CONSTRAINT catalog_inventory_reservations_admissions_check CHECK ((admissions_per_unit >= 1)),
-    CONSTRAINT catalog_inventory_reservations_expiry_check CHECK ((((status)::text = ANY (ARRAY[('committed'::character varying)::text, ('released'::character varying)::text, ('expired'::character varying)::text])) OR (expires_at IS NOT NULL))),
     CONSTRAINT catalog_inventory_reservations_fingerprint_check CHECK (((request_fingerprint)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT catalog_inventory_reservations_owner_check CHECK ((NOT ((registration_id IS NOT NULL) AND (order_item_id IS NOT NULL)))),
     CONSTRAINT catalog_inventory_reservations_quantity_check CHECK ((quantity > 0)),
@@ -1877,6 +2131,29 @@ CREATE TABLE public.catalog_venue_capacity_reservations (
 
 
 --
+-- Name: commercial_approvals; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.commercial_approvals (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    target_type character varying NOT NULL,
+    target_id uuid NOT NULL,
+    decision character varying NOT NULL,
+    reason text NOT NULL,
+    definition_digest character varying(64) NOT NULL,
+    actor_id uuid NOT NULL,
+    decided_at timestamp with time zone NOT NULL,
+    idempotency_key_digest character varying(64) NOT NULL,
+    request_fingerprint character varying(64) NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT commercial_approvals_decision_check CHECK (((decision)::text = ANY (ARRAY[('approved'::character varying)::text, ('rejected'::character varying)::text]))),
+    CONSTRAINT commercial_approvals_request_evidence_check CHECK ((((definition_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((request_fingerprint)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT commercial_approvals_target_type_check CHECK (((target_type)::text = ANY (ARRAY[('Commercial::FeeScheduleVersion'::character varying)::text, ('Commercial::Assignment'::character varying)::text])))
+);
+
+
+--
 -- Name: commercial_assignments; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1908,17 +2185,37 @@ CREATE TABLE public.commercial_assignments (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT commercial_assignments_active_metadata_check CHECK ((((status)::text <> 'active'::text) OR ((activated_by_id IS NOT NULL) AND (activated_at IS NOT NULL)))),
-    CONSTRAINT commercial_assignments_assignment_type_check CHECK (((assignment_type)::text = ANY ((ARRAY['program'::character varying, 'platform_grant'::character varying, 'mutual_agreement'::character varying])::text[]))),
+    CONSTRAINT commercial_assignments_assignment_type_check CHECK (((assignment_type)::text = ANY (ARRAY[('program'::character varying)::text, ('platform_grant'::character varying)::text, ('mutual_agreement'::character varying)::text]))),
     CONSTRAINT commercial_assignments_baseline_digest_check CHECK (((baseline_resolution_digest IS NULL) OR ((baseline_resolution_digest)::text ~ '^[0-9a-f]{64}$'::text))),
     CONSTRAINT commercial_assignments_effective_interval_check CHECK (((effective_until IS NULL) OR (effective_until > effective_from))),
     CONSTRAINT commercial_assignments_external_acceptance_metadata_check CHECK (((external_reference IS NULL) OR ((external_accepted_by_id IS NOT NULL) AND (external_accepted_at IS NOT NULL)))),
     CONSTRAINT commercial_assignments_external_reference_check CHECK (((external_reference IS NULL) OR (NULLIF(btrim((external_reference)::text), ''::text) IS NOT NULL))),
     CONSTRAINT commercial_assignments_lock_version_check CHECK ((lock_version >= 0)),
-    CONSTRAINT commercial_assignments_mutual_evidence_check CHECK ((((assignment_type)::text <> 'mutual_agreement'::text) OR ((status)::text <> ALL ((ARRAY['scheduled'::character varying, 'active'::character varying])::text[])) OR (legal_acceptance_id IS NOT NULL) OR (NULLIF(btrim((external_reference)::text), ''::text) IS NOT NULL))),
+    CONSTRAINT commercial_assignments_mutual_evidence_check CHECK ((((assignment_type)::text <> 'mutual_agreement'::text) OR ((status)::text <> ALL (ARRAY[('scheduled'::character varying)::text, ('active'::character varying)::text])) OR (legal_acceptance_id IS NOT NULL) OR (NULLIF(btrim((external_reference)::text), ''::text) IS NOT NULL))),
     CONSTRAINT commercial_assignments_platform_grant_baseline_check CHECK ((((assignment_type)::text <> 'platform_grant'::text) OR (baseline_resolution_digest IS NOT NULL))),
-    CONSTRAINT commercial_assignments_risk_level_check CHECK (((risk_level)::text = ANY ((ARRAY['low'::character varying, 'medium'::character varying, 'high'::character varying])::text[]))),
-    CONSTRAINT commercial_assignments_status_check CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'pending_acceptance'::character varying, 'pending_approval'::character varying, 'scheduled'::character varying, 'active'::character varying, 'expired'::character varying, 'terminated'::character varying])::text[]))),
+    CONSTRAINT commercial_assignments_risk_level_check CHECK (((risk_level)::text = ANY (ARRAY[('low'::character varying)::text, ('medium'::character varying)::text, ('high'::character varying)::text]))),
+    CONSTRAINT commercial_assignments_status_check CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('pending_acceptance'::character varying)::text, ('pending_approval'::character varying)::text, ('scheduled'::character varying)::text, ('active'::character varying)::text, ('expired'::character varying)::text, ('terminated'::character varying)::text]))),
     CONSTRAINT commercial_assignments_terminated_metadata_check CHECK ((((status)::text <> 'terminated'::text) OR ((terminated_by_id IS NOT NULL) AND (terminated_at IS NOT NULL))))
+);
+
+
+--
+-- Name: commercial_event_payer_selections; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.commercial_event_payer_selections (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    event_id uuid NOT NULL,
+    fee_component_id uuid NOT NULL,
+    charged_to character varying NOT NULL,
+    selected_by_id uuid,
+    selected_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    idempotency_key_digest character varying(64) CONSTRAINT commercial_event_payer_selectio_idempotency_key_digest_not_null NOT NULL,
+    request_fingerprint character varying(64) NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT commercial_event_payer_selections_payer_check CHECK (((charged_to)::text = ANY (ARRAY[('buyer'::character varying)::text, ('organizer'::character varying)::text]))),
+    CONSTRAINT commercial_event_payer_selections_request_evidence_check CHECK ((((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((request_fingerprint)::text ~ '^[0-9a-f]{64}$'::text)))
 );
 
 
@@ -1969,21 +2266,21 @@ CREATE TABLE public.commercial_fee_components (
     label character varying NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT commercial_fee_components_basis_shape_check CHECK (((((calculation_type)::text = ANY ((ARRAY['percentage'::character varying, 'blended'::character varying, 'tiered'::character varying])::text[])) AND (basis_type IS NOT NULL)) OR (((calculation_type)::text = ANY ((ARRAY['explicit_zero'::character varying, 'fixed'::character varying])::text[])) AND (basis_type IS NULL)))),
-    CONSTRAINT commercial_fee_components_calculation_type_check CHECK (((calculation_type)::text = ANY ((ARRAY['explicit_zero'::character varying, 'percentage'::character varying, 'fixed'::character varying, 'blended'::character varying, 'tiered'::character varying])::text[]))),
-    CONSTRAINT commercial_fee_components_charged_to_check CHECK (((charged_to)::text = ANY ((ARRAY['buyer'::character varying, 'organizer'::character varying])::text[]))),
-    CONSTRAINT commercial_fee_components_component_type_check CHECK (((component_type)::text = ANY ((ARRAY['platform_commission'::character varying, 'buyer_service_fee'::character varying, 'processing_cost_recovery'::character varying, 'platform_subsidy'::character varying, 'resale_platform_fee'::character varying])::text[]))),
+    CONSTRAINT commercial_fee_components_basis_shape_check CHECK (((((calculation_type)::text = ANY (ARRAY[('percentage'::character varying)::text, ('blended'::character varying)::text, ('tiered'::character varying)::text])) AND (basis_type IS NOT NULL)) OR (((calculation_type)::text = ANY (ARRAY[('explicit_zero'::character varying)::text, ('fixed'::character varying)::text])) AND (basis_type IS NULL)))),
+    CONSTRAINT commercial_fee_components_calculation_type_check CHECK (((calculation_type)::text = ANY (ARRAY[('explicit_zero'::character varying)::text, ('percentage'::character varying)::text, ('fixed'::character varying)::text, ('blended'::character varying)::text, ('tiered'::character varying)::text]))),
+    CONSTRAINT commercial_fee_components_charged_to_check CHECK (((charged_to)::text = ANY (ARRAY[('buyer'::character varying)::text, ('organizer'::character varying)::text]))),
+    CONSTRAINT commercial_fee_components_component_type_check CHECK (((component_type)::text = ANY (ARRAY[('platform_commission'::character varying)::text, ('buyer_service_fee'::character varying)::text, ('processing_cost_recovery'::character varying)::text, ('platform_subsidy'::character varying)::text, ('resale_platform_fee'::character varying)::text]))),
     CONSTRAINT commercial_fee_components_currency_check CHECK (((currency IS NULL) OR ((currency)::text ~ '^[A-Z]{3}$'::text))),
-    CONSTRAINT commercial_fee_components_funded_by_check CHECK (((funded_by)::text = ANY ((ARRAY['buyer'::character varying, 'organizer'::character varying, 'platform'::character varying])::text[]))),
-    CONSTRAINT commercial_fee_components_offset_type_check CHECK (((offset_component_type IS NULL) OR ((offset_component_type)::text = ANY ((ARRAY['platform_commission'::character varying, 'buyer_service_fee'::character varying, 'processing_cost_recovery'::character varying, 'resale_platform_fee'::character varying])::text[])))),
-    CONSTRAINT commercial_fee_components_payment_method_check CHECK (((payment_method IS NULL) OR ((payment_method)::text = ANY ((ARRAY['telebirr'::character varying, 'card'::character varying, 'bank'::character varying])::text[])))),
-    CONSTRAINT commercial_fee_components_product_type_check CHECK (((product_type IS NULL) OR ((product_type)::text = ANY ((ARRAY['ticket'::character varying, 'parking'::character varying, 'merchandise'::character varying, 'food'::character varying, 'donation'::character varying, 'digital_addon'::character varying, 'other'::character varying])::text[])))),
-    CONSTRAINT commercial_fee_components_provider_check CHECK (((provider IS NULL) OR ((provider)::text = ANY ((ARRAY['chapa'::character varying, 'stripe'::character varying])::text[])))),
+    CONSTRAINT commercial_fee_components_funded_by_check CHECK (((funded_by)::text = ANY (ARRAY[('buyer'::character varying)::text, ('organizer'::character varying)::text, ('platform'::character varying)::text]))),
+    CONSTRAINT commercial_fee_components_offset_type_check CHECK (((offset_component_type IS NULL) OR ((offset_component_type)::text = ANY (ARRAY[('platform_commission'::character varying)::text, ('buyer_service_fee'::character varying)::text, ('processing_cost_recovery'::character varying)::text, ('resale_platform_fee'::character varying)::text])))),
+    CONSTRAINT commercial_fee_components_payment_method_check CHECK (((payment_method IS NULL) OR ((payment_method)::text = ANY (ARRAY[('telebirr'::character varying)::text, ('card'::character varying)::text, ('bank'::character varying)::text])))),
+    CONSTRAINT commercial_fee_components_product_type_check CHECK (((product_type IS NULL) OR ((product_type)::text = ANY (ARRAY[('ticket'::character varying)::text, ('parking'::character varying)::text, ('merchandise'::character varying)::text, ('food'::character varying)::text, ('donation'::character varying)::text, ('digital_addon'::character varying)::text, ('other'::character varying)::text])))),
+    CONSTRAINT commercial_fee_components_provider_check CHECK (((provider IS NULL) OR ((provider)::text = ANY (ARRAY[('chapa'::character varying)::text, ('stripe'::character varying)::text])))),
     CONSTRAINT commercial_fee_components_rate_check CHECK (((rate_bps IS NULL) OR ((rate_bps >= 0) AND (rate_bps <= 10000)))),
-    CONSTRAINT commercial_fee_components_rate_shape_check CHECK (((((calculation_type)::text = ANY ((ARRAY['percentage'::character varying, 'blended'::character varying])::text[])) AND (rate_bps IS NOT NULL)) OR (((calculation_type)::text = ANY ((ARRAY['explicit_zero'::character varying, 'fixed'::character varying, 'tiered'::character varying])::text[])) AND (rate_bps IS NULL)))),
-    CONSTRAINT commercial_fee_components_refund_policy_check CHECK (((refund_policy)::text = ANY ((ARRAY['refundable'::character varying, 'event_cancellation_only'::character varying, 'nonrefundable'::character varying])::text[]))),
-    CONSTRAINT commercial_fee_components_sale_context_check CHECK (((sale_context IS NULL) OR ((sale_context)::text = ANY ((ARRAY['primary'::character varying, 'resale'::character varying])::text[])))),
-    CONSTRAINT commercial_fee_components_sales_channel_check CHECK (((sales_channel IS NULL) OR ((sales_channel)::text = ANY ((ARRAY['online'::character varying, 'walk_up'::character varying, 'resale'::character varying])::text[])))),
+    CONSTRAINT commercial_fee_components_rate_shape_check CHECK (((((calculation_type)::text = ANY (ARRAY[('percentage'::character varying)::text, ('blended'::character varying)::text])) AND (rate_bps IS NOT NULL)) OR (((calculation_type)::text = ANY (ARRAY[('explicit_zero'::character varying)::text, ('fixed'::character varying)::text, ('tiered'::character varying)::text])) AND (rate_bps IS NULL)))),
+    CONSTRAINT commercial_fee_components_refund_policy_check CHECK (((refund_policy)::text = ANY (ARRAY[('refundable'::character varying)::text, ('event_cancellation_only'::character varying)::text, ('nonrefundable'::character varying)::text]))),
+    CONSTRAINT commercial_fee_components_sale_context_check CHECK (((sale_context IS NULL) OR ((sale_context)::text = ANY (ARRAY[('primary'::character varying)::text, ('resale'::character varying)::text])))),
+    CONSTRAINT commercial_fee_components_sales_channel_check CHECK (((sales_channel IS NULL) OR ((sales_channel)::text = ANY (ARRAY[('online'::character varying)::text, ('walk_up'::character varying)::text, ('resale'::character varying)::text])))),
     CONSTRAINT commercial_fee_components_subsidy_shape_check CHECK (((((component_type)::text = 'platform_subsidy'::text) AND ((funded_by)::text = 'platform'::text) AND (offset_component_type IS NOT NULL)) OR (((component_type)::text <> 'platform_subsidy'::text) AND ((funded_by)::text <> 'platform'::text) AND (offset_component_type IS NULL))))
 );
 
@@ -2015,36 +2312,107 @@ CREATE TABLE public.commercial_fee_schedule_versions (
     lock_version integer DEFAULT 0 NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT commercial_fee_schedule_versions_acceptance_policy_check CHECK (((acceptance_policy)::text = ANY ((ARRAY['none'::character varying, 'notice_only'::character varying, 'explicit'::character varying])::text[]))),
-    CONSTRAINT commercial_fee_schedule_versions_authoritative_start_check CHECK ((((status)::text <> ALL ((ARRAY['scheduled'::character varying, 'active'::character varying])::text[])) OR (effective_from IS NOT NULL))),
+    CONSTRAINT commercial_fee_schedule_versions_acceptance_policy_check CHECK (((acceptance_policy)::text = ANY (ARRAY[('none'::character varying)::text, ('notice_only'::character varying)::text, ('explicit'::character varying)::text]))),
+    CONSTRAINT commercial_fee_schedule_versions_authoritative_start_check CHECK ((((status)::text <> ALL (ARRAY[('scheduled'::character varying)::text, ('active'::character varying)::text])) OR (effective_from IS NOT NULL))),
     CONSTRAINT commercial_fee_schedule_versions_digest_check CHECK (((definition_digest)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT commercial_fee_schedule_versions_effective_interval_check CHECK (((effective_until IS NULL) OR (effective_from IS NULL) OR (effective_until > effective_from))),
     CONSTRAINT commercial_fee_schedule_versions_lock_version_check CHECK ((lock_version >= 0)),
-    CONSTRAINT commercial_fee_schedule_versions_status_check CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'simulated'::character varying, 'pending_approval'::character varying, 'approved'::character varying, 'scheduled'::character varying, 'active'::character varying, 'superseded'::character varying, 'expired'::character varying, 'terminated'::character varying])::text[]))),
+    CONSTRAINT commercial_fee_schedule_versions_status_check CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('simulated'::character varying)::text, ('pending_approval'::character varying)::text, ('approved'::character varying)::text, ('scheduled'::character varying)::text, ('active'::character varying)::text, ('superseded'::character varying)::text, ('expired'::character varying)::text, ('terminated'::character varying)::text]))),
     CONSTRAINT commercial_fee_schedule_versions_version_check CHECK ((version > 0))
 );
 
 
 --
--- Name: commercial_approvals; Type: TABLE; Schema: public; Owner: -
+-- Name: commercial_fee_schedules; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.commercial_approvals (
+CREATE TABLE public.commercial_fee_schedules (
     id uuid DEFAULT uuidv7() NOT NULL,
-    target_type character varying NOT NULL,
-    target_id uuid NOT NULL,
-    decision character varying NOT NULL,
-    reason text NOT NULL,
-    definition_digest character varying(64) NOT NULL,
-    actor_id uuid NOT NULL,
-    decided_at timestamp with time zone NOT NULL,
-    idempotency_key_digest character varying(64) NOT NULL,
-    request_fingerprint character varying(64) NOT NULL,
+    name character varying NOT NULL,
+    code character varying NOT NULL,
+    schedule_type character varying NOT NULL,
+    created_by_id uuid NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT commercial_approvals_decision_check CHECK (((decision)::text = ANY ((ARRAY['approved'::character varying, 'rejected'::character varying])::text[]))),
-    CONSTRAINT commercial_approvals_request_evidence_check CHECK ((((definition_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((request_fingerprint)::text ~ '^[0-9a-f]{64}$'::text))),
-    CONSTRAINT commercial_approvals_target_type_check CHECK (((target_type)::text = ANY ((ARRAY['Commercial::FeeScheduleVersion'::character varying, 'Commercial::Assignment'::character varying])::text[])))
+    CONSTRAINT commercial_fee_schedules_code_check CHECK (((code)::text ~ '^[a-z0-9]+(_[a-z0-9]+)*$'::text)),
+    CONSTRAINT commercial_fee_schedules_schedule_type_check CHECK (((schedule_type)::text = ANY (ARRAY[('platform_default'::character varying)::text, ('program'::character varying)::text, ('custom'::character varying)::text])))
+);
+
+
+--
+-- Name: commercial_fee_tiers; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.commercial_fee_tiers (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    fee_component_id uuid NOT NULL,
+    "position" integer NOT NULL,
+    metric_type character varying NOT NULL,
+    window_type character varying NOT NULL,
+    currency character varying(3),
+    starts_at_value bigint NOT NULL,
+    rate_bps integer,
+    fixed_amount_minor bigint,
+    minimum_minor bigint,
+    maximum_minor bigint,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT commercial_fee_tiers_currency_check CHECK (((currency IS NULL) OR ((currency)::text ~ '^[A-Z]{3}$'::text))),
+    CONSTRAINT commercial_fee_tiers_fixed_amount_check CHECK (((fixed_amount_minor IS NULL) OR (fixed_amount_minor >= 0))),
+    CONSTRAINT commercial_fee_tiers_gross_currency_check CHECK ((((metric_type)::text <> 'accepted_gross'::text) OR (currency IS NOT NULL))),
+    CONSTRAINT commercial_fee_tiers_maximum_check CHECK (((maximum_minor IS NULL) OR (maximum_minor >= 0))),
+    CONSTRAINT commercial_fee_tiers_metric_type_check CHECK (((metric_type)::text = ANY (ARRAY[('accepted_paid_units'::character varying)::text, ('accepted_gross'::character varying)::text]))),
+    CONSTRAINT commercial_fee_tiers_minimum_check CHECK (((minimum_minor IS NULL) OR (minimum_minor >= 0))),
+    CONSTRAINT commercial_fee_tiers_ordered_bounds_check CHECK (((minimum_minor IS NULL) OR (maximum_minor IS NULL) OR (maximum_minor >= minimum_minor))),
+    CONSTRAINT commercial_fee_tiers_position_check CHECK (("position" > 0)),
+    CONSTRAINT commercial_fee_tiers_rate_check CHECK (((rate_bps IS NULL) OR ((rate_bps >= 0) AND (rate_bps <= 10000)))),
+    CONSTRAINT commercial_fee_tiers_threshold_check CHECK ((starts_at_value >= 0)),
+    CONSTRAINT commercial_fee_tiers_window_type_check CHECK (((window_type)::text = ANY (ARRAY[('event'::character varying)::text, ('calendar_month'::character varying)::text, ('calendar_quarter'::character varying)::text, ('calendar_year'::character varying)::text, ('agreement_term'::character varying)::text])))
+);
+
+
+--
+-- Name: commercial_program_entitlements; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.commercial_program_entitlements (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    program_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    status character varying DEFAULT 'available'::character varying NOT NULL,
+    reserved_event_id uuid,
+    reserved_at timestamp with time zone,
+    consumed_at timestamp with time zone,
+    released_at timestamp with time zone,
+    expires_at timestamp with time zone,
+    lock_version integer DEFAULT 0 NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT commercial_program_entitlements_lock_version_check CHECK ((lock_version >= 0)),
+    CONSTRAINT commercial_program_entitlements_state_check CHECK (((((status)::text = 'available'::text) AND (reserved_event_id IS NULL) AND (reserved_at IS NULL) AND (consumed_at IS NULL) AND (released_at IS NULL)) OR (((status)::text = 'reserved'::text) AND (reserved_event_id IS NOT NULL) AND (reserved_at IS NOT NULL) AND (consumed_at IS NULL) AND (released_at IS NULL)) OR (((status)::text = 'consumed'::text) AND (reserved_event_id IS NULL) AND (reserved_at IS NULL) AND (consumed_at IS NOT NULL) AND (released_at IS NULL)) OR (((status)::text = 'released'::text) AND (reserved_event_id IS NULL) AND (reserved_at IS NULL) AND (consumed_at IS NULL) AND (released_at IS NOT NULL)) OR (((status)::text = 'expired'::text) AND (reserved_event_id IS NULL) AND (reserved_at IS NULL) AND (consumed_at IS NULL) AND (released_at IS NULL) AND (expires_at IS NOT NULL)))),
+    CONSTRAINT commercial_program_entitlements_status_check CHECK (((status)::text = ANY (ARRAY[('available'::character varying)::text, ('reserved'::character varying)::text, ('consumed'::character varying)::text, ('released'::character varying)::text, ('expired'::character varying)::text])))
+);
+
+
+--
+-- Name: commercial_programs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.commercial_programs (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    fee_schedule_id uuid NOT NULL,
+    program_type character varying NOT NULL,
+    enrollment_mode character varying DEFAULT 'automatic'::character varying NOT NULL,
+    starts_at timestamp with time zone,
+    ends_at timestamp with time zone,
+    per_organization_use_limit integer,
+    active boolean DEFAULT false NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT commercial_programs_effective_interval_check CHECK (((ends_at IS NULL) OR (starts_at IS NULL) OR (ends_at > starts_at))),
+    CONSTRAINT commercial_programs_enrollment_mode_check CHECK (((enrollment_mode)::text = ANY (ARRAY[('automatic'::character varying)::text, ('manual'::character varying)::text]))),
+    CONSTRAINT commercial_programs_program_type_check CHECK (((program_type)::text = ANY (ARRAY[('first_monetized_event'::character varying)::text, ('charity'::character varying)::text, ('partnership'::character varying)::text, ('volume'::character varying)::text]))),
+    CONSTRAINT commercial_programs_use_limit_check CHECK (((per_organization_use_limit IS NULL) OR (per_organization_use_limit > 0)))
 );
 
 
@@ -2100,6 +2468,32 @@ CREATE TABLE public.commercial_subsidy_budgets (
 
 
 --
+-- Name: commercial_subsidy_reservations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.commercial_subsidy_reservations (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    subsidy_budget_id uuid NOT NULL,
+    order_id uuid NOT NULL,
+    idempotency_key_digest character varying(64) NOT NULL,
+    request_fingerprint character varying(64) NOT NULL,
+    amount_minor bigint NOT NULL,
+    currency character varying(3) NOT NULL,
+    status character varying DEFAULT 'held'::character varying NOT NULL,
+    expires_at timestamp with time zone,
+    committed_at timestamp with time zone,
+    released_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT commercial_subsidy_reservations_amount_check CHECK ((amount_minor > 0)),
+    CONSTRAINT commercial_subsidy_reservations_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
+    CONSTRAINT commercial_subsidy_reservations_request_evidence_check CHECK ((((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((request_fingerprint)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT commercial_subsidy_reservations_state_check CHECK (((((status)::text = ANY (ARRAY[('held'::character varying)::text, ('processing'::character varying)::text])) AND (expires_at IS NOT NULL) AND (committed_at IS NULL) AND (released_at IS NULL)) OR (((status)::text = 'committed'::text) AND (committed_at IS NOT NULL) AND (released_at IS NULL)) OR (((status)::text = 'released'::text) AND (released_at IS NOT NULL) AND (committed_at IS NULL)))),
+    CONSTRAINT commercial_subsidy_reservations_status_check CHECK (((status)::text = ANY (ARRAY[('held'::character varying)::text, ('processing'::character varying)::text, ('committed'::character varying)::text, ('released'::character varying)::text])))
+);
+
+
+--
 -- Name: commercial_term_notices; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2119,101 +2513,63 @@ CREATE TABLE public.commercial_term_notices (
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT commercial_term_notices_delivery_method_check CHECK (((delivery_method)::text = 'in_app'::text)),
     CONSTRAINT commercial_term_notices_evidence_check CHECK ((((evidence_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text))),
-    CONSTRAINT commercial_term_notices_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'delivered'::character varying, 'failed'::character varying])::text[]))),
+    CONSTRAINT commercial_term_notices_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('delivered'::character varying)::text, ('failed'::character varying)::text]))),
     CONSTRAINT commercial_term_notices_status_metadata_check CHECK (((((status)::text = 'delivered'::text) AND (delivered_at IS NOT NULL) AND (failed_at IS NULL)) OR (((status)::text = 'failed'::text) AND (failed_at IS NOT NULL) AND (delivered_at IS NULL)) OR (((status)::text = 'pending'::text) AND (delivered_at IS NULL) AND (failed_at IS NULL))))
 );
 
---
--- Name: commercial_fee_schedules; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.commercial_fee_schedules (
-    id uuid DEFAULT uuidv7() NOT NULL,
-    name character varying NOT NULL,
-    code character varying NOT NULL,
-    schedule_type character varying NOT NULL,
-    created_by_id uuid NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT commercial_fee_schedules_code_check CHECK (((code)::text ~ '^[a-z0-9]+(_[a-z0-9]+)*$'::text)),
-    CONSTRAINT commercial_fee_schedules_schedule_type_check CHECK (((schedule_type)::text = ANY ((ARRAY['platform_default'::character varying, 'program'::character varying, 'custom'::character varying])::text[])))
-);
-
 
 --
--- Name: commercial_fee_tiers; Type: TABLE; Schema: public; Owner: -
+-- Name: commercial_volume_counters; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.commercial_fee_tiers (
+CREATE TABLE public.commercial_volume_counters (
     id uuid DEFAULT uuidv7() NOT NULL,
     fee_component_id uuid NOT NULL,
-    "position" integer NOT NULL,
+    organization_id uuid NOT NULL,
+    event_id uuid,
     metric_type character varying NOT NULL,
     window_type character varying NOT NULL,
+    window_start_at timestamp with time zone NOT NULL,
+    window_end_at timestamp with time zone,
     currency character varying(3),
-    starts_at_value bigint NOT NULL,
-    rate_bps integer,
-    fixed_amount_minor bigint,
-    minimum_minor bigint,
-    maximum_minor bigint,
-    created_at timestamp(6) with time zone NOT NULL,
-    updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT commercial_fee_tiers_currency_check CHECK (((currency IS NULL) OR ((currency)::text ~ '^[A-Z]{3}$'::text))),
-    CONSTRAINT commercial_fee_tiers_fixed_amount_check CHECK (((fixed_amount_minor IS NULL) OR (fixed_amount_minor >= 0))),
-    CONSTRAINT commercial_fee_tiers_gross_currency_check CHECK ((((metric_type)::text <> 'accepted_gross'::text) OR (currency IS NOT NULL))),
-    CONSTRAINT commercial_fee_tiers_maximum_check CHECK (((maximum_minor IS NULL) OR (maximum_minor >= 0))),
-    CONSTRAINT commercial_fee_tiers_metric_type_check CHECK (((metric_type)::text = ANY ((ARRAY['accepted_paid_units'::character varying, 'accepted_gross'::character varying])::text[]))),
-    CONSTRAINT commercial_fee_tiers_minimum_check CHECK (((minimum_minor IS NULL) OR (minimum_minor >= 0))),
-    CONSTRAINT commercial_fee_tiers_ordered_bounds_check CHECK (((minimum_minor IS NULL) OR (maximum_minor IS NULL) OR (maximum_minor >= minimum_minor))),
-    CONSTRAINT commercial_fee_tiers_position_check CHECK (("position" > 0)),
-    CONSTRAINT commercial_fee_tiers_rate_check CHECK (((rate_bps IS NULL) OR ((rate_bps >= 0) AND (rate_bps <= 10000)))),
-    CONSTRAINT commercial_fee_tiers_threshold_check CHECK ((starts_at_value >= 0)),
-    CONSTRAINT commercial_fee_tiers_window_type_check CHECK (((window_type)::text = ANY ((ARRAY['event'::character varying, 'calendar_month'::character varying, 'calendar_quarter'::character varying, 'calendar_year'::character varying, 'agreement_term'::character varying])::text[])))
-);
-
-
---
--- Name: commercial_program_entitlements; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.commercial_program_entitlements (
-    id uuid DEFAULT uuidv7() NOT NULL,
-    program_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    status character varying DEFAULT 'available'::character varying NOT NULL,
-    reserved_event_id uuid,
-    reserved_at timestamp with time zone,
-    consumed_at timestamp with time zone,
-    released_at timestamp with time zone,
-    expires_at timestamp with time zone,
+    value bigint DEFAULT 0 NOT NULL,
     lock_version integer DEFAULT 0 NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT commercial_program_entitlements_lock_version_check CHECK ((lock_version >= 0)),
-    CONSTRAINT commercial_program_entitlements_state_check CHECK (((((status)::text = 'available'::text) AND (reserved_event_id IS NULL) AND (reserved_at IS NULL) AND (consumed_at IS NULL) AND (released_at IS NULL)) OR (((status)::text = 'reserved'::text) AND (reserved_event_id IS NOT NULL) AND (reserved_at IS NOT NULL) AND (consumed_at IS NULL) AND (released_at IS NULL)) OR (((status)::text = 'consumed'::text) AND (reserved_event_id IS NULL) AND (reserved_at IS NULL) AND (consumed_at IS NOT NULL) AND (released_at IS NULL)) OR (((status)::text = 'released'::text) AND (reserved_event_id IS NULL) AND (reserved_at IS NULL) AND (consumed_at IS NULL) AND (released_at IS NOT NULL)) OR (((status)::text = 'expired'::text) AND (reserved_event_id IS NULL) AND (reserved_at IS NULL) AND (consumed_at IS NULL) AND (released_at IS NULL) AND (expires_at IS NOT NULL)))),
-    CONSTRAINT commercial_program_entitlements_status_check CHECK (((status)::text = ANY ((ARRAY['available'::character varying, 'reserved'::character varying, 'consumed'::character varying, 'released'::character varying, 'expired'::character varying])::text[])))
+    CONSTRAINT commercial_volume_counters_currency_check CHECK (((((metric_type)::text = 'accepted_gross'::text) AND (currency IS NOT NULL) AND ((currency)::text ~ '^[A-Z]{3}'::text)) OR (((metric_type)::text = 'accepted_paid_units'::text) AND (currency IS NULL)))),
+    CONSTRAINT commercial_volume_counters_event_window_check CHECK ((((window_type)::text <> 'event'::text) OR (event_id IS NOT NULL))),
+    CONSTRAINT commercial_volume_counters_metric_type_check CHECK (((metric_type)::text = ANY (ARRAY[('accepted_paid_units'::character varying)::text, ('accepted_gross'::character varying)::text]))),
+    CONSTRAINT commercial_volume_counters_value_check CHECK (((value >= 0) AND (lock_version >= 0))),
+    CONSTRAINT commercial_volume_counters_window_bounds_check CHECK (((window_end_at IS NULL) OR (window_end_at > window_start_at))),
+    CONSTRAINT commercial_volume_counters_window_type_check CHECK (((window_type)::text = ANY (ARRAY[('event'::character varying)::text, ('calendar_month'::character varying)::text, ('calendar_quarter'::character varying)::text, ('calendar_year'::character varying)::text, ('agreement_term'::character varying)::text])))
 );
 
 
 --
--- Name: commercial_programs; Type: TABLE; Schema: public; Owner: -
+-- Name: commercial_volume_usages; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.commercial_programs (
+CREATE TABLE public.commercial_volume_usages (
     id uuid DEFAULT uuidv7() NOT NULL,
-    fee_schedule_id uuid NOT NULL,
-    program_type character varying NOT NULL,
-    enrollment_mode character varying DEFAULT 'automatic'::character varying NOT NULL,
-    starts_at timestamp with time zone,
-    ends_at timestamp with time zone,
-    per_organization_use_limit integer,
-    active boolean DEFAULT false NOT NULL,
+    fee_component_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    event_id uuid,
+    order_id uuid NOT NULL,
+    metric_type character varying NOT NULL,
+    window_type character varying NOT NULL,
+    window_start_at timestamp with time zone NOT NULL,
+    window_end_at timestamp with time zone,
+    currency character varying(3),
+    value bigint NOT NULL,
+    accepted_at timestamp with time zone NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT commercial_programs_effective_interval_check CHECK (((ends_at IS NULL) OR (starts_at IS NULL) OR (ends_at > starts_at))),
-    CONSTRAINT commercial_programs_enrollment_mode_check CHECK (((enrollment_mode)::text = ANY ((ARRAY['automatic'::character varying, 'manual'::character varying])::text[]))),
-    CONSTRAINT commercial_programs_program_type_check CHECK (((program_type)::text = ANY ((ARRAY['first_monetized_event'::character varying, 'charity'::character varying, 'partnership'::character varying, 'volume'::character varying])::text[]))),
-    CONSTRAINT commercial_programs_use_limit_check CHECK (((per_organization_use_limit IS NULL) OR (per_organization_use_limit > 0)))
+    CONSTRAINT commercial_volume_usages_currency_check CHECK (((((metric_type)::text = 'accepted_gross'::text) AND (currency IS NOT NULL) AND ((currency)::text ~ '^[A-Z]{3}'::text)) OR (((metric_type)::text = 'accepted_paid_units'::text) AND (currency IS NULL)))),
+    CONSTRAINT commercial_volume_usages_event_window_check CHECK ((((window_type)::text <> 'event'::text) OR (event_id IS NOT NULL))),
+    CONSTRAINT commercial_volume_usages_metric_type_check CHECK (((metric_type)::text = ANY (ARRAY[('accepted_paid_units'::character varying)::text, ('accepted_gross'::character varying)::text]))),
+    CONSTRAINT commercial_volume_usages_value_check CHECK ((value >= 0)),
+    CONSTRAINT commercial_volume_usages_window_bounds_check CHECK (((window_end_at IS NULL) OR (window_end_at > window_start_at))),
+    CONSTRAINT commercial_volume_usages_window_type_check CHECK (((window_type)::text = ANY (ARRAY[('event'::character varying)::text, ('calendar_month'::character varying)::text, ('calendar_quarter'::character varying)::text, ('calendar_year'::character varying)::text, ('agreement_term'::character varying)::text])))
 );
 
 
@@ -2945,6 +3301,232 @@ CREATE TABLE public.legal_documents (
 
 
 --
+-- Name: orders_order_adjustments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.orders_order_adjustments (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    order_id uuid NOT NULL,
+    order_item_id uuid,
+    type character varying NOT NULL,
+    label character varying NOT NULL,
+    charged_to character varying NOT NULL,
+    amount_minor bigint NOT NULL,
+    currency character varying(3) NOT NULL,
+    refund_policy character varying NOT NULL,
+    calculation_type character varying,
+    basis_type character varying,
+    basis_minor bigint,
+    rate_bps integer,
+    fixed_amount_minor bigint,
+    minimum_minor bigint,
+    maximum_minor bigint,
+    funded_by character varying,
+    source_type character varying,
+    source_id uuid,
+    resolution_evidence jsonb,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT order_adjustment_source_pair CHECK (((source_type IS NULL) = (source_id IS NULL))),
+    CONSTRAINT orders_adjustments_amount_sign_check CHECK (((((type)::text = ANY (ARRAY[('discount'::character varying)::text, ('subsidy'::character varying)::text])) AND (amount_minor < 0)) OR (((type)::text = ANY (ARRAY[('service_fee'::character varying)::text, ('platform_fee'::character varying)::text, ('processing_fee'::character varying)::text, ('resale_platform_fee'::character varying)::text, ('tax'::character varying)::text])) AND (amount_minor >= 0)) OR ((type)::text = 'manual_adjustment'::text))),
+    CONSTRAINT orders_adjustments_basis_amount_check CHECK (((basis_minor IS NULL) OR (basis_minor >= 0))),
+    CONSTRAINT orders_adjustments_basis_amount_shape_check CHECK (((calculation_type IS NULL) OR ((calculation_type)::text <> ALL (ARRAY[('explicit_zero'::character varying)::text, ('fixed'::character varying)::text])) OR (basis_minor IS NULL))),
+    CONSTRAINT orders_adjustments_basis_check CHECK (((basis_type IS NULL) OR ((basis_type)::text = ANY (ARRAY[('item_face_value'::character varying)::text, ('item_net_value_after_organizer_promotion'::character varying)::text, ('eligible_order_subtotal'::character varying)::text, ('resale_acquisition_amount'::character varying)::text, ('accepted_paid_units'::character varying)::text, ('accepted_gross'::character varying)::text])))),
+    CONSTRAINT orders_adjustments_basis_shape_check CHECK (((((calculation_type)::text = ANY (ARRAY[('percentage'::character varying)::text, ('blended'::character varying)::text, ('tiered'::character varying)::text])) AND (basis_type IS NOT NULL)) OR (((calculation_type)::text = ANY (ARRAY[('explicit_zero'::character varying)::text, ('fixed'::character varying)::text])) AND (basis_type IS NULL)) OR (calculation_type IS NULL))),
+    CONSTRAINT orders_adjustments_bounds_check CHECK ((((fixed_amount_minor IS NULL) OR (fixed_amount_minor >= 0)) AND ((minimum_minor IS NULL) OR (minimum_minor >= 0)) AND ((maximum_minor IS NULL) OR (maximum_minor >= 0)) AND ((minimum_minor IS NULL) OR (maximum_minor IS NULL) OR (maximum_minor >= minimum_minor)))),
+    CONSTRAINT orders_adjustments_calculation_check CHECK (((calculation_type IS NULL) OR ((calculation_type)::text = ANY (ARRAY[('explicit_zero'::character varying)::text, ('percentage'::character varying)::text, ('fixed'::character varying)::text, ('blended'::character varying)::text, ('tiered'::character varying)::text])))),
+    CONSTRAINT orders_adjustments_charged_to_check CHECK (((charged_to)::text = ANY (ARRAY[('buyer'::character varying)::text, ('organizer'::character varying)::text]))),
+    CONSTRAINT orders_adjustments_commercial_shape_check CHECK ((((type)::text <> ALL (ARRAY[('service_fee'::character varying)::text, ('platform_fee'::character varying)::text, ('processing_fee'::character varying)::text, ('subsidy'::character varying)::text, ('resale_platform_fee'::character varying)::text])) OR ((calculation_type IS NOT NULL) AND (funded_by IS NOT NULL) AND (source_type IS NOT NULL) AND (source_id IS NOT NULL)))),
+    CONSTRAINT orders_adjustments_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
+    CONSTRAINT orders_adjustments_evidence_check CHECK (public.orders_order_adjustment_evidence_valid(resolution_evidence)),
+    CONSTRAINT orders_adjustments_explicit_zero_check CHECK ((((calculation_type)::text <> 'explicit_zero'::text) OR ((fixed_amount_minor IS NULL) AND (minimum_minor IS NULL) AND (maximum_minor IS NULL)))),
+    CONSTRAINT orders_adjustments_fixed_shape_check CHECK ((((calculation_type)::text <> ALL (ARRAY[('fixed'::character varying)::text, ('blended'::character varying)::text])) OR (fixed_amount_minor IS NOT NULL) OR (calculation_type IS NULL))),
+    CONSTRAINT orders_adjustments_funded_by_check CHECK (((funded_by IS NULL) OR ((funded_by)::text = ANY (ARRAY[('buyer'::character varying)::text, ('organizer'::character varying)::text, ('platform'::character varying)::text])))),
+    CONSTRAINT orders_adjustments_rate_check CHECK (((rate_bps IS NULL) OR ((rate_bps >= 0) AND (rate_bps <= 10000)))),
+    CONSTRAINT orders_adjustments_rate_shape_check CHECK (((((calculation_type)::text = ANY (ARRAY[('percentage'::character varying)::text, ('blended'::character varying)::text])) AND (rate_bps IS NOT NULL)) OR (((calculation_type)::text = ANY (ARRAY[('explicit_zero'::character varying)::text, ('fixed'::character varying)::text, ('tiered'::character varying)::text])) AND (rate_bps IS NULL)) OR (calculation_type IS NULL))),
+    CONSTRAINT orders_adjustments_refund_policy_check CHECK (((refund_policy)::text = ANY (ARRAY[('refundable'::character varying)::text, ('event_cancellation_only'::character varying)::text, ('nonrefundable'::character varying)::text]))),
+    CONSTRAINT orders_adjustments_source_type_check CHECK (((source_type IS NULL) OR ((source_type)::text = ANY (ARRAY[('Catalog::Promotion'::character varying)::text, ('Commercial::FeeComponent'::character varying)::text])))),
+    CONSTRAINT orders_adjustments_subsidy_shape_check CHECK (((((type)::text <> 'subsidy'::text) OR ((funded_by)::text = 'platform'::text)) AND ((funded_by IS NULL) OR ((type)::text = 'subsidy'::text) OR ((funded_by)::text <> 'platform'::text)))),
+    CONSTRAINT orders_adjustments_type_check CHECK (((type)::text = ANY (ARRAY[('discount'::character varying)::text, ('service_fee'::character varying)::text, ('platform_fee'::character varying)::text, ('processing_fee'::character varying)::text, ('subsidy'::character varying)::text, ('resale_platform_fee'::character varying)::text, ('tax'::character varying)::text, ('manual_adjustment'::character varying)::text])))
+);
+
+
+--
+-- Name: orders_order_items; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.orders_order_items (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    order_id uuid NOT NULL,
+    event_product_id uuid NOT NULL,
+    registration_id uuid,
+    resale_listing_id uuid,
+    name_snapshot character varying NOT NULL,
+    type_snapshot character varying NOT NULL,
+    quantity integer NOT NULL,
+    admissions_per_unit_snapshot smallint,
+    base_currency character varying(3) NOT NULL,
+    base_unit_amount_minor bigint NOT NULL,
+    charge_currency character varying(3) NOT NULL,
+    charge_unit_amount_minor bigint NOT NULL,
+    exchange_rate numeric(24,12),
+    discount_minor bigint DEFAULT 0 NOT NULL,
+    total_minor bigint NOT NULL,
+    fulfillment_status character varying DEFAULT 'pending'::character varying NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT order_item_quantity_positive CHECK ((quantity > 0)),
+    CONSTRAINT orders_order_items_admissions_check CHECK (((((type_snapshot)::text = 'ticket'::text) AND (admissions_per_unit_snapshot > 0)) OR (((type_snapshot)::text <> 'ticket'::text) AND (admissions_per_unit_snapshot IS NULL)))),
+    CONSTRAINT orders_order_items_amounts_check CHECK (((base_unit_amount_minor >= 0) AND (charge_unit_amount_minor >= 0) AND (discount_minor >= 0) AND (total_minor >= 0))),
+    CONSTRAINT orders_order_items_currency_check CHECK ((((base_currency)::text ~ '^[A-Z]{3}$'::text) AND ((charge_currency)::text ~ '^[A-Z]{3}$'::text))),
+    CONSTRAINT orders_order_items_exchange_check CHECK ((((base_currency)::text = (charge_currency)::text) OR ((exchange_rate IS NOT NULL) AND (exchange_rate > (0)::numeric)))),
+    CONSTRAINT orders_order_items_fulfillment_check CHECK (((fulfillment_status)::text = ANY (ARRAY[('pending'::character varying)::text, ('fulfilled'::character varying)::text, ('cancelled'::character varying)::text, ('refunded'::character varying)::text]))),
+    CONSTRAINT orders_order_items_type_check CHECK (((type_snapshot)::text = ANY (ARRAY[('ticket'::character varying)::text, ('parking'::character varying)::text, ('merchandise'::character varying)::text, ('food'::character varying)::text, ('donation'::character varying)::text, ('digital_addon'::character varying)::text, ('other'::character varying)::text])))
+);
+
+
+--
+-- Name: orders_orders; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.orders_orders (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    event_id uuid NOT NULL,
+    buyer_user_id uuid NOT NULL,
+    sales_channel character varying DEFAULT 'online'::character varying NOT NULL,
+    initiated_by_id uuid,
+    replaces_order_id uuid,
+    status character varying DEFAULT 'draft'::character varying NOT NULL,
+    closed_reason character varying,
+    charge_currency character varying(3) NOT NULL,
+    subtotal_minor bigint NOT NULL,
+    discount_minor bigint DEFAULT 0 NOT NULL,
+    subsidy_minor bigint DEFAULT 0 NOT NULL,
+    fee_minor bigint DEFAULT 0 NOT NULL,
+    tax_minor bigint DEFAULT 0 NOT NULL,
+    adjustment_minor bigint DEFAULT 0 NOT NULL,
+    total_minor bigint NOT NULL,
+    settlement_currency character varying(3) NOT NULL,
+    settlement_total_minor bigint NOT NULL,
+    exchange_rate numeric(24,12) DEFAULT 1.0 NOT NULL,
+    exchange_rate_source character varying NOT NULL,
+    exchange_rate_quoted_at timestamp with time zone,
+    exchange_rate_expires_at timestamp with time zone,
+    expires_at timestamp with time zone NOT NULL,
+    paid_at timestamp with time zone,
+    lock_version integer DEFAULT 0 NOT NULL,
+    idempotency_key_digest character varying(64) NOT NULL,
+    creation_request_digest character varying(64) NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT orders_orders_amounts_check CHECK (((subtotal_minor >= 0) AND (discount_minor >= 0) AND (subsidy_minor >= 0) AND (fee_minor >= 0) AND (tax_minor >= 0) AND (settlement_total_minor >= 0))),
+    CONSTRAINT orders_orders_closed_reason_check CHECK (((((status)::text = ANY (ARRAY[('expired'::character varying)::text, ('cancelled'::character varying)::text])) AND (closed_reason IS NOT NULL)) OR (((status)::text <> ALL (ARRAY[('expired'::character varying)::text, ('cancelled'::character varying)::text])) AND (closed_reason IS NULL)))),
+    CONSTRAINT orders_orders_creation_digests_check CHECK ((((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((creation_request_digest)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT orders_orders_currency_check CHECK ((((charge_currency)::text ~ '^[A-Z]{3}$'::text) AND ((settlement_currency)::text ~ '^[A-Z]{3}$'::text))),
+    CONSTRAINT orders_orders_exchange_metadata_check CHECK (((((charge_currency)::text = (settlement_currency)::text) AND (exchange_rate = (1)::numeric)) OR (((charge_currency)::text <> (settlement_currency)::text) AND (exchange_rate_quoted_at IS NOT NULL) AND (exchange_rate_expires_at IS NOT NULL) AND (exchange_rate_expires_at > exchange_rate_quoted_at)))),
+    CONSTRAINT orders_orders_exchange_rate_check CHECK ((exchange_rate > (0)::numeric)),
+    CONSTRAINT orders_orders_lock_version_check CHECK ((lock_version >= 0)),
+    CONSTRAINT orders_orders_paid_at_check CHECK (((((status)::text = ANY (ARRAY[('paid'::character varying)::text, ('fulfilled'::character varying)::text, ('partially_refunded'::character varying)::text, ('refunded'::character varying)::text])) AND (paid_at IS NOT NULL)) OR (((status)::text <> ALL (ARRAY[('paid'::character varying)::text, ('fulfilled'::character varying)::text, ('partially_refunded'::character varying)::text, ('refunded'::character varying)::text])) AND (paid_at IS NULL)))),
+    CONSTRAINT orders_orders_replacement_self_check CHECK (((replaces_order_id IS NULL) OR (replaces_order_id <> id))),
+    CONSTRAINT orders_orders_sales_channel_check CHECK (((sales_channel)::text = ANY (ARRAY[('online'::character varying)::text, ('walk_up'::character varying)::text, ('resale'::character varying)::text]))),
+    CONSTRAINT orders_orders_status_check CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('pending_payment'::character varying)::text, ('paid'::character varying)::text, ('fulfilled'::character varying)::text, ('expired'::character varying)::text, ('cancelled'::character varying)::text, ('partially_refunded'::character varying)::text, ('refunded'::character varying)::text]))),
+    CONSTRAINT orders_orders_total_reconciles CHECK ((total_minor = (((((subtotal_minor - discount_minor) - subsidy_minor) + fee_minor) + tax_minor) + adjustment_minor)))
+);
+
+
+--
+-- Name: orders_payment_events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.orders_payment_events (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    payment_id uuid,
+    provider character varying NOT NULL,
+    provider_event_id character varying NOT NULL,
+    event_type character varying NOT NULL,
+    status character varying DEFAULT 'received'::character varying NOT NULL,
+    payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+    payload_digest character varying(64) NOT NULL,
+    occurred_at timestamp with time zone,
+    received_at timestamp with time zone NOT NULL,
+    processed_at timestamp with time zone,
+    processing_error character varying,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT orders_payment_events_identity_check CHECK (((btrim((provider)::text) <> ''::text) AND (btrim((provider_event_id)::text) <> ''::text) AND (btrim((event_type)::text) <> ''::text))),
+    CONSTRAINT orders_payment_events_payload_digest_check CHECK (((payload_digest)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT orders_payment_events_processed_state_check CHECK (((((status)::text = 'processed'::text) AND (processed_at IS NOT NULL)) OR ((status)::text <> 'processed'::text))),
+    CONSTRAINT orders_payment_events_status_check CHECK (((status)::text = ANY (ARRAY[('received'::character varying)::text, ('processing'::character varying)::text, ('processed'::character varying)::text, ('failed'::character varying)::text, ('ignored'::character varying)::text])))
+);
+
+
+--
+-- Name: orders_payments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.orders_payments (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    order_id uuid NOT NULL,
+    attempt_number integer NOT NULL,
+    provider character varying NOT NULL,
+    payment_method character varying NOT NULL,
+    status character varying DEFAULT 'created'::character varying NOT NULL,
+    amount_minor bigint NOT NULL,
+    currency character varying(3) NOT NULL,
+    commercial_signature character varying(64) NOT NULL,
+    buyer_fee_minor bigint DEFAULT 0 NOT NULL,
+    organizer_fee_minor bigint DEFAULT 0 NOT NULL,
+    provider_fee_minor bigint,
+    provider_fee_currency character varying(3),
+    idempotency_key character varying NOT NULL,
+    provider_reference character varying,
+    failure_code character varying,
+    raw_status character varying,
+    settlement_grace_minutes integer DEFAULT 5 NOT NULL,
+    settlement_grace_expires_at timestamp with time zone NOT NULL,
+    accepted_at timestamp with time zone,
+    superseded_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT orders_payments_accepted_state_check CHECK (((accepted_at IS NULL) OR ((status)::text = 'succeeded'::text))),
+    CONSTRAINT orders_payments_amounts_check CHECK (((amount_minor > 0) AND (buyer_fee_minor >= 0) AND (organizer_fee_minor >= 0) AND ((provider_fee_minor IS NULL) OR (provider_fee_minor >= 0)))),
+    CONSTRAINT orders_payments_attempt_number_check CHECK (((attempt_number >= 1) AND (attempt_number <= 3))),
+    CONSTRAINT orders_payments_commercial_signature_check CHECK (((commercial_signature)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT orders_payments_currency_check CHECK ((((currency)::text ~ '^[A-Z]{3}$'::text) AND ((provider_fee_currency IS NULL) OR ((provider_fee_currency)::text ~ '^[A-Z]{3}$'::text)))),
+    CONSTRAINT orders_payments_grace_minutes_check CHECK (((settlement_grace_minutes >= 3) AND (settlement_grace_minutes <= 15))),
+    CONSTRAINT orders_payments_provider_fee_pair_check CHECK ((((provider_fee_minor IS NULL) = (provider_fee_currency IS NULL)) AND ((provider_fee_minor IS NULL) OR ((provider_fee_currency)::text = (currency)::text)))),
+    CONSTRAINT orders_payments_status_check CHECK (((status)::text = ANY (ARRAY[('created'::character varying)::text, ('processing'::character varying)::text, ('succeeded'::character varying)::text, ('failed'::character varying)::text, ('cancelled'::character varying)::text, ('unknown'::character varying)::text, ('timeout'::character varying)::text, ('reversed'::character varying)::text]))),
+    CONSTRAINT orders_payments_superseded_state_check CHECK (((superseded_at IS NULL) OR ((status)::text <> ALL (ARRAY[('created'::character varying)::text, ('processing'::character varying)::text]))))
+);
+
+
+--
+-- Name: orders_promotion_redemptions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.orders_promotion_redemptions (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    order_id uuid NOT NULL,
+    promotion_id uuid NOT NULL,
+    promotion_code_id uuid,
+    user_id uuid NOT NULL,
+    status character varying DEFAULT 'reserved'::character varying NOT NULL,
+    discount_minor bigint NOT NULL,
+    currency character varying(3) NOT NULL,
+    idempotency_key character varying NOT NULL,
+    expires_at timestamp with time zone,
+    applied_at timestamp with time zone,
+    released_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT promotion_redemptions_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
+    CONSTRAINT promotion_redemptions_discount_check CHECK ((discount_minor > 0)),
+    CONSTRAINT promotion_redemptions_state_check CHECK (((((status)::text = 'reserved'::text) AND (expires_at IS NOT NULL) AND (applied_at IS NULL) AND (released_at IS NULL)) OR (((status)::text = 'applied'::text) AND (applied_at IS NOT NULL) AND (released_at IS NULL)) OR (((status)::text = 'released'::text) AND (released_at IS NOT NULL) AND (applied_at IS NULL)) OR (((status)::text = 'expired'::text) AND (expires_at IS NOT NULL) AND (released_at IS NOT NULL) AND (applied_at IS NULL)))),
+    CONSTRAINT promotion_redemptions_status_check CHECK (((status)::text = ANY (ARRAY[('reserved'::character varying)::text, ('applied'::character varying)::text, ('released'::character varying)::text, ('expired'::character varying)::text])))
+);
+
+
+--
 -- Name: organizations_memberships; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3006,9 +3588,6 @@ CREATE TABLE public.ticketing_access_codes (
     id uuid DEFAULT uuidv7() NOT NULL,
     ticket_type_id uuid NOT NULL,
     code_digest character varying NOT NULL,
-    code_ciphertext text,
-    idempotency_key_digest character varying(64),
-    creation_request_digest character varying(64),
     label character varying,
     max_uses integer,
     used_count integer DEFAULT 0 NOT NULL,
@@ -3018,6 +3597,9 @@ CREATE TABLE public.ticketing_access_codes (
     active boolean DEFAULT true NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
+    code_ciphertext text,
+    idempotency_key_digest character varying(64),
+    creation_request_digest character varying(64),
     CONSTRAINT ticketing_access_codes_idempotency_digests_check CHECK ((((idempotency_key_digest IS NULL) AND (creation_request_digest IS NULL)) OR (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((creation_request_digest)::text ~ '^[0-9a-f]{64}$'::text)))),
     CONSTRAINT ticketing_access_codes_max_quantity_check CHECK ((max_quantity_per_use >= 1)),
     CONSTRAINT ticketing_access_codes_max_uses_check CHECK (((max_uses IS NULL) OR (max_uses >= 1))),
@@ -3062,22 +3644,21 @@ CREATE TABLE public.ticketing_attendee_exports (
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_attendee_exports_attempt_count_check CHECK (((attempt_count >= 0) AND (attempt_count <= 3))),
     CONSTRAINT ticketing_attendee_exports_digest_key_version_check CHECK (((digest_key_version)::text ~ '^v[0-9]+$'::text)),
-    CONSTRAINT ticketing_attendee_exports_expiry_window_check CHECK (((expires_at > data_cutoff_at) AND (expires_at <= (created_at + '24:00:00'::interval)))),
-    CONSTRAINT ticketing_attendee_exports_failure_code_check CHECK (((failure_code IS NULL) OR ((failure_code)::text = ANY (ARRAY[('export_too_large'::character varying)::text, ('export_generation_failed'::character varying)::text, ('export_storage_unavailable'::character varying)::text])))),
+    CONSTRAINT ticketing_attendee_exports_expiry_window_check CHECK (((expires_at > data_cutoff_at) AND (expires_at <= (data_cutoff_at + '24:00:00'::interval)))),
+    CONSTRAINT ticketing_attendee_exports_failure_code_check CHECK (((failure_code IS NULL) OR ((failure_code)::text = ANY (ARRAY[('generation_failed'::character varying)::text, ('export_too_large'::character varying)::text, ('export_generation_failed'::character varying)::text, ('export_storage_unavailable'::character varying)::text])))),
     CONSTRAINT ticketing_attendee_exports_field_keys_shape_check CHECK (((field_keys IS NULL) OR ((jsonb_typeof(field_keys) = 'array'::text) AND (jsonb_array_length(field_keys) <= 100)))),
     CONSTRAINT ticketing_attendee_exports_field_set_digest_check CHECK (((field_set_digest)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT ticketing_attendee_exports_file_digest_shape_check CHECK (((file_sha256 IS NULL) OR ((file_sha256)::text ~ '^[0-9a-f]{64}$'::text))),
-    CONSTRAINT ticketing_attendee_exports_filter_contract_check CHECK (public.ticketing_attendee_exports_filters_valid(filters)),
     CONSTRAINT ticketing_attendee_exports_filter_digest_check CHECK (((filter_digest)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT ticketing_attendee_exports_filters_shape_check CHECK (((jsonb_typeof(filters) = 'object'::text) OR (filters IS NULL))),
     CONSTRAINT ticketing_attendee_exports_format_version_check CHECK (((format_version)::text = 'csv_v1'::text)),
     CONSTRAINT ticketing_attendee_exports_idempotency_digest_check CHECK (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text)),
-    CONSTRAINT ticketing_attendee_exports_payload_state_check CHECK (((((status)::text = 'expired'::text) AND (field_keys IS NULL) AND (filters IS NULL) AND (failure_code IS NULL)) OR (((status)::text <> 'expired'::text) AND (field_keys IS NOT NULL) AND (filters IS NOT NULL)))),
+    CONSTRAINT ticketing_attendee_exports_payload_state_check CHECK (((((status)::text = 'expired'::text) AND (field_keys IS NULL) AND (filters IS NULL)) OR (((status)::text <> 'expired'::text) AND (field_keys IS NOT NULL) AND (filters IS NOT NULL)))),
     CONSTRAINT ticketing_attendee_exports_reason_code_check CHECK (((reason_code)::text = ANY (ARRAY[('event_operations'::character varying)::text, ('attendee_communication'::character varying)::text, ('dietary_accommodation'::character varying)::text, ('accessibility_accommodation'::character varying)::text, ('customer_support'::character varying)::text, ('legal_compliance'::character varying)::text]))),
     CONSTRAINT ticketing_attendee_exports_request_fingerprint_check CHECK (((request_fingerprint)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT ticketing_attendee_exports_row_count_check CHECK (((row_count IS NULL) OR (row_count >= 0))),
     CONSTRAINT ticketing_attendee_exports_row_mode_check CHECK (((row_mode)::text = ANY (ARRAY[('registration'::character varying)::text, ('admission'::character varying)::text]))),
-    CONSTRAINT ticketing_attendee_exports_state_timestamps_check CHECK (((((status)::text = 'pending'::text) AND (processing_started_at IS NULL) AND (ready_at IS NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL)) OR (((status)::text = 'processing'::text) AND (processing_started_at IS NOT NULL) AND (ready_at IS NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL)) OR (((status)::text = 'ready'::text) AND (processing_started_at IS NOT NULL) AND (ready_at IS NOT NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL) AND (row_count IS NOT NULL) AND (file_sha256 IS NOT NULL)) OR (((status)::text = 'failed'::text) AND (processing_started_at IS NOT NULL) AND (ready_at IS NULL) AND (failed_at IS NOT NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL)) OR (((status)::text = 'expiring'::text) AND (processing_started_at IS NULL) AND (ready_at IS NULL) AND (failed_at IS NULL) AND (expiring_at IS NOT NULL) AND (expired_at IS NULL)) OR (((status)::text = 'expired'::text) AND (processing_started_at IS NULL) AND (ready_at IS NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NOT NULL)))),
+    CONSTRAINT ticketing_attendee_exports_state_timestamps_check CHECK (((((status)::text = 'pending'::text) AND (processing_started_at IS NULL) AND (ready_at IS NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL)) OR (((status)::text = 'processing'::text) AND (processing_started_at IS NOT NULL) AND (ready_at IS NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL)) OR (((status)::text = 'ready'::text) AND (processing_started_at IS NOT NULL) AND (ready_at IS NOT NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL) AND (row_count IS NOT NULL) AND (file_sha256 IS NOT NULL)) OR (((status)::text = 'failed'::text) AND (processing_started_at IS NOT NULL) AND (ready_at IS NULL) AND (failed_at IS NOT NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL)) OR (((status)::text = 'expiring'::text) AND (expiring_at IS NOT NULL) AND (expired_at IS NULL)) OR (((status)::text = 'expired'::text) AND (expired_at IS NOT NULL)))),
     CONSTRAINT ticketing_attendee_exports_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('processing'::character varying)::text, ('ready'::character varying)::text, ('failed'::character varying)::text, ('expiring'::character varying)::text, ('expired'::character varying)::text])))
 );
 
@@ -3093,11 +3674,8 @@ CREATE TABLE public.ticketing_invitations (
     name character varying,
     email_ciphertext text,
     phone_ciphertext text,
-    token_ciphertext text NOT NULL,
     contact_digest character varying NOT NULL,
     token_digest character varying NOT NULL,
-    idempotency_key_digest character varying(64),
-    creation_request_digest character varying(64),
     allowed_quantity integer DEFAULT 1 NOT NULL,
     status character varying DEFAULT 'pending'::character varying NOT NULL,
     expires_at timestamp with time zone,
@@ -3105,6 +3683,9 @@ CREATE TABLE public.ticketing_invitations (
     created_by_id uuid NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
+    token_ciphertext text NOT NULL,
+    idempotency_key_digest character varying(64),
+    creation_request_digest character varying(64),
     CONSTRAINT ticketing_invitations_allowed_quantity_check CHECK ((allowed_quantity >= 1)),
     CONSTRAINT ticketing_invitations_idempotency_digests_check CHECK ((((idempotency_key_digest IS NULL) AND (creation_request_digest IS NULL)) OR (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((creation_request_digest)::text ~ '^[0-9a-f]{64}$'::text)))),
     CONSTRAINT ticketing_invitations_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('accepted'::character varying)::text, ('revoked'::character varying)::text, ('expired'::character varying)::text])))
@@ -3171,13 +3752,13 @@ CREATE TABLE public.ticketing_registration_answer_revisions (
     revised_by_id uuid NOT NULL,
     source character varying NOT NULL,
     reason_code character varying,
-    idempotency_key_digest character varying(64) CONSTRAINT ticketing_registration_answer_r_idempotency_key_digest_not_null NOT NULL,
-    request_digest character varying(64) NOT NULL,
     revised_at timestamp with time zone NOT NULL,
-    retain_until timestamp with time zone,
     erased_at timestamp with time zone,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
+    idempotency_key_digest character varying(64) CONSTRAINT ticketing_registration_answer_r_idempotency_key_digest_not_null NOT NULL,
+    request_digest character varying(64) NOT NULL,
+    retain_until timestamp with time zone,
     CONSTRAINT ticketing_registration_answer_revisions_digest_check CHECK ((((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((request_digest)::text ~ '^[0-9a-f]{64}$'::text))),
     CONSTRAINT ticketing_registration_answer_revisions_erasure_check CHECK ((((erased_at IS NULL) AND (answer_ciphertext IS NOT NULL)) OR ((erased_at IS NOT NULL) AND (answer_ciphertext IS NULL)))),
     CONSTRAINT ticketing_registration_answer_revisions_manager_reason_check CHECK ((((source)::text <> 'manager_correction'::text) OR (reason_code IS NOT NULL))),
@@ -3240,7 +3821,7 @@ CREATE TABLE public.ticketing_registration_consent_requirements (
     superseded_at timestamp with time zone,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT ticketing_consent_requirements_coordinate_check CHECK (((((acceptance_scope)::text = 'buyer'::text) AND (package_unit_number IS NULL) AND (admission_position IS NULL) AND (admission_slot_id IS NULL) AND (subject_user_id IS NOT NULL)) OR (((acceptance_scope)::text = 'admission_slot'::text) AND (package_unit_number IS NOT NULL) AND (package_unit_number > 0) AND (admission_position IS NOT NULL) AND (admission_position > 0) AND (admission_slot_id IS NULL)))),
+    CONSTRAINT ticketing_consent_requirements_coordinate_check CHECK (((((acceptance_scope)::text = 'buyer'::text) AND (package_unit_number IS NULL) AND (admission_position IS NULL) AND (admission_slot_id IS NULL) AND (subject_user_id IS NOT NULL)) OR (((acceptance_scope)::text = 'admission_slot'::text) AND (package_unit_number > 0) AND (admission_position > 0)))),
     CONSTRAINT ticketing_consent_requirements_reason_check CHECK (((required_reason)::text = ANY (ARRAY[('initial_submission'::character varying)::text, ('reconsent'::character varying)::text]))),
     CONSTRAINT ticketing_consent_requirements_required_by_check CHECK ((((required_reason)::text = 'initial_submission'::text) OR (required_by_id IS NOT NULL))),
     CONSTRAINT ticketing_consent_requirements_scope_check CHECK (((acceptance_scope)::text = ANY (ARRAY[('buyer'::character varying)::text, ('admission_slot'::character varying)::text]))),
@@ -3277,13 +3858,13 @@ CREATE TABLE public.ticketing_registration_consents (
     id uuid DEFAULT uuidv7() NOT NULL,
     registration_consent_requirement_id uuid CONSTRAINT ticketing_registration_cons_registration_consent_requi_not_null NOT NULL,
     registration_id uuid NOT NULL,
-    accepted_by_user_id uuid,
+    accepted_by_user_id uuid NOT NULL,
     signer_role character varying NOT NULL,
     acceptance_method character varying DEFAULT 'otp'::character varying NOT NULL,
     content_sha256 character varying(64) NOT NULL,
-    evidence_digest character varying(64),
-    idempotency_key_digest character varying(64),
-    request_uuid uuid,
+    evidence_digest character varying(64) NOT NULL,
+    idempotency_key_digest character varying(64) NOT NULL,
+    request_uuid uuid NOT NULL,
     retention_policy_id uuid NOT NULL,
     retain_until timestamp with time zone,
     accepted_at timestamp with time zone NOT NULL,
@@ -3291,10 +3872,9 @@ CREATE TABLE public.ticketing_registration_consents (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_registration_consents_acceptance_method_check CHECK (((acceptance_method)::text = ANY (ARRAY[('checkbox'::character varying)::text, ('otp'::character varying)::text]))),
-    CONSTRAINT ticketing_registration_consents_digest_check CHECK ((((content_sha256)::text ~ '^[0-9a-f]{64}$'::text) AND ((evidence_digest IS NULL) OR ((evidence_digest)::text ~ '^[0-9a-f]{64}$'::text)))),
-    CONSTRAINT ticketing_registration_consents_erasure_payload_check CHECK ((((erased_at IS NULL) AND (accepted_by_user_id IS NOT NULL) AND (evidence_digest IS NOT NULL) AND (idempotency_key_digest IS NOT NULL) AND (request_uuid IS NOT NULL)) OR ((erased_at IS NOT NULL) AND (accepted_by_user_id IS NULL) AND (evidence_digest IS NULL) AND (idempotency_key_digest IS NULL) AND (request_uuid IS NULL)))),
+    CONSTRAINT ticketing_registration_consents_digest_check CHECK ((((content_sha256)::text ~ '^[0-9a-f]{64}$'::text) AND ((evidence_digest)::text ~ '^[0-9a-f]{64}$'::text))),
     CONSTRAINT ticketing_registration_consents_erasure_time_check CHECK (((erased_at IS NULL) OR (erased_at >= accepted_at))),
-    CONSTRAINT ticketing_registration_consents_idempotency_digest_check CHECK (((idempotency_key_digest IS NULL) OR ((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT ticketing_registration_consents_idempotency_digest_check CHECK (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT ticketing_registration_consents_retention_window_check CHECK (((retain_until IS NULL) OR (retain_until > accepted_at))),
     CONSTRAINT ticketing_registration_consents_signer_role_check CHECK (((signer_role)::text = ANY (ARRAY[('buyer'::character varying)::text, ('attendee'::character varying)::text])))
 );
@@ -3391,14 +3971,12 @@ CREATE TABLE public.ticketing_registrations (
     source character varying NOT NULL,
     created_by_id uuid NOT NULL,
     issuance_idempotency_key character varying,
-    idempotency_request_digest character varying(64),
     complimentary_reason character varying,
     identity_digest character varying(64) NOT NULL,
     package_quantity integer DEFAULT 1 NOT NULL,
     admissions_per_unit_snapshot smallint NOT NULL,
     party_size integer NOT NULL,
     status character varying DEFAULT 'pending_payment'::character varying NOT NULL,
-    next_action_snapshot character varying,
     submitted_at timestamp with time zone NOT NULL,
     waitlisted_at timestamp with time zone,
     offered_at timestamp with time zone,
@@ -3414,9 +3992,7 @@ CREATE TABLE public.ticketing_registrations (
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_registrations_complimentary_reason_check CHECK (((complimentary_reason IS NULL) OR ((complimentary_reason)::text = ANY (ARRAY[('accessibility'::character varying)::text, ('accommodation'::character varying)::text, ('community_partner'::character varying)::text, ('service_recovery'::character varying)::text, ('sponsor_guest'::character varying)::text, ('staff_guest'::character varying)::text])))),
     CONSTRAINT ticketing_registrations_decision_exclusive_check CHECK ((NOT ((approved_at IS NOT NULL) AND (rejected_at IS NOT NULL)))),
-    CONSTRAINT ticketing_registrations_idempotency_request_digest_check CHECK (((idempotency_request_digest IS NULL) OR ((idempotency_request_digest)::text ~ '^[0-9a-f]{64}$'::text))),
     CONSTRAINT ticketing_registrations_identity_digest_check CHECK (((identity_digest)::text ~ '^[0-9a-f]{64}$'::text)),
-    CONSTRAINT ticketing_registrations_next_action_snapshot_check CHECK (((next_action_snapshot IS NULL) OR ((next_action_snapshot)::text = ANY (ARRAY[('requires_confirmation'::character varying)::text, ('requires_order'::character varying)::text, ('awaiting_approval'::character varying)::text])))),
     CONSTRAINT ticketing_registrations_party_size_check CHECK ((party_size = (package_quantity * admissions_per_unit_snapshot))),
     CONSTRAINT ticketing_registrations_quantities_positive_check CHECK (((package_quantity > 0) AND (admissions_per_unit_snapshot > 0) AND (party_size > 0))),
     CONSTRAINT ticketing_registrations_source_check CHECK (((source)::text = ANY (ARRAY[('self_service'::character varying)::text, ('organizer_complimentary'::character varying)::text, ('walk_up'::character varying)::text]))),
@@ -3604,11 +4180,27 @@ ALTER TABLE ONLY public.catalog_venue_capacity_reservations
 
 
 --
+-- Name: commercial_approvals commercial_approvals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_approvals
+    ADD CONSTRAINT commercial_approvals_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: commercial_assignments commercial_assignments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.commercial_assignments
     ADD CONSTRAINT commercial_assignments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: commercial_event_payer_selections commercial_event_payer_selections_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_event_payer_selections
+    ADD CONSTRAINT commercial_event_payer_selections_pkey PRIMARY KEY (id);
 
 
 --
@@ -3618,37 +4210,6 @@ ALTER TABLE ONLY public.commercial_assignments
 ALTER TABLE ONLY public.commercial_fee_amounts
     ADD CONSTRAINT commercial_fee_amounts_pkey PRIMARY KEY (id);
 
-
---
--- Name: commercial_approvals commercial_approvals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_approvals
-    ADD CONSTRAINT commercial_approvals_pkey PRIMARY KEY (id);
-
-
---
--- Name: commercial_simulations commercial_simulations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_simulations
-    ADD CONSTRAINT commercial_simulations_pkey PRIMARY KEY (id);
-
-
---
--- Name: commercial_subsidy_budgets commercial_subsidy_budgets_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_subsidy_budgets
-    ADD CONSTRAINT commercial_subsidy_budgets_pkey PRIMARY KEY (id);
-
-
---
--- Name: commercial_term_notices commercial_term_notices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_term_notices
-    ADD CONSTRAINT commercial_term_notices_pkey PRIMARY KEY (id);
 
 --
 -- Name: commercial_fee_components commercial_fee_components_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -3704,6 +4265,54 @@ ALTER TABLE ONLY public.commercial_program_entitlements
 
 ALTER TABLE ONLY public.commercial_programs
     ADD CONSTRAINT commercial_programs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: commercial_simulations commercial_simulations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_simulations
+    ADD CONSTRAINT commercial_simulations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: commercial_subsidy_budgets commercial_subsidy_budgets_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_subsidy_budgets
+    ADD CONSTRAINT commercial_subsidy_budgets_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: commercial_subsidy_reservations commercial_subsidy_reservations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_subsidy_reservations
+    ADD CONSTRAINT commercial_subsidy_reservations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: commercial_term_notices commercial_term_notices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_term_notices
+    ADD CONSTRAINT commercial_term_notices_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: commercial_volume_counters commercial_volume_counters_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_volume_counters
+    ADD CONSTRAINT commercial_volume_counters_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: commercial_volume_usages commercial_volume_usages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_volume_usages
+    ADD CONSTRAINT commercial_volume_usages_pkey PRIMARY KEY (id);
 
 
 --
@@ -3995,6 +4604,54 @@ ALTER TABLE ONLY public.legal_documents
 
 
 --
+-- Name: orders_order_adjustments orders_order_adjustments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_order_adjustments
+    ADD CONSTRAINT orders_order_adjustments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: orders_order_items orders_order_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_order_items
+    ADD CONSTRAINT orders_order_items_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: orders_orders orders_orders_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_orders
+    ADD CONSTRAINT orders_orders_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: orders_payment_events orders_payment_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_payment_events
+    ADD CONSTRAINT orders_payment_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: orders_payments orders_payments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_payments
+    ADD CONSTRAINT orders_payments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: orders_promotion_redemptions orders_promotion_redemptions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_promotion_redemptions
+    ADD CONSTRAINT orders_promotion_redemptions_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: organizations_memberships organizations_memberships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4154,17 +4811,31 @@ CREATE UNIQUE INDEX idx_access_zones_on_product_and_zone ON public.catalog_produ
 
 
 --
--- Name: idx_catalog_products_on_event_and_idempotency; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_catalog_event_products_on_idempotency_key; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_catalog_products_on_event_and_idempotency ON public.catalog_event_products USING btree (event_id, idempotency_key_digest) WHERE (idempotency_key_digest IS NOT NULL);
+CREATE UNIQUE INDEX idx_catalog_event_products_on_idempotency_key ON public.catalog_event_products USING btree (idempotency_key) WHERE (idempotency_key IS NOT NULL);
+
+
+--
+-- Name: idx_catalog_event_products_on_idempotency_key_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_catalog_event_products_on_idempotency_key_digest ON public.catalog_event_products USING btree (event_id, idempotency_key_digest) WHERE (idempotency_key_digest IS NOT NULL);
+
+
+--
+-- Name: idx_commercial_approvals_on_target_time; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_commercial_approvals_on_target_time ON public.commercial_approvals USING btree (target_type, target_id, decided_at);
 
 
 --
 -- Name: idx_commercial_assignments_active_resolution; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_commercial_assignments_active_resolution ON public.commercial_assignments USING btree (organization_id, event_id, status, effective_from) INCLUDE (fee_schedule_version_id, program_id, effective_until) WHERE ((status)::text = ANY ((ARRAY['scheduled'::character varying, 'active'::character varying])::text[]));
+CREATE INDEX idx_commercial_assignments_active_resolution ON public.commercial_assignments USING btree (organization_id, event_id, status, effective_from) INCLUDE (fee_schedule_version_id, program_id, effective_until) WHERE ((status)::text = ANY (ARRAY[('scheduled'::character varying)::text, ('active'::character varying)::text]));
 
 
 --
@@ -4196,6 +4867,13 @@ CREATE UNIQUE INDEX idx_commercial_programs_unique_schedule ON public.commercial
 
 
 --
+-- Name: idx_commercial_simulations_on_version_digest_time; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_commercial_simulations_on_version_digest_time ON public.commercial_simulations USING btree (fee_schedule_version_id, definition_digest, run_at);
+
+
+--
 -- Name: idx_commercial_subsidy_budgets_assignment_component_currency; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -4214,6 +4892,20 @@ CREATE INDEX idx_commercial_subsidy_budgets_component_currency ON public.commerc
 --
 
 CREATE UNIQUE INDEX idx_commercial_subsidy_budgets_program_component_currency ON public.commercial_subsidy_budgets USING btree (program_id, fee_component_id, currency) WHERE (program_id IS NOT NULL);
+
+
+--
+-- Name: idx_commercial_term_notices_on_organization_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_commercial_term_notices_on_organization_status ON public.commercial_term_notices USING btree (organization_id, status, available_at);
+
+
+--
+-- Name: idx_commercial_term_notices_unique_delivery; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_commercial_term_notices_unique_delivery ON public.commercial_term_notices USING btree (organization_id, fee_schedule_version_id, delivery_method);
 
 
 --
@@ -4319,6 +5011,20 @@ CREATE UNIQUE INDEX idx_current_slot_consent_requirement ON public.ticketing_reg
 --
 
 CREATE UNIQUE INDEX idx_date_allocations_on_product_and_date ON public.catalog_product_date_allocations USING btree (event_product_id, event_date_id);
+
+
+--
+-- Name: idx_event_payer_selections_on_actor; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_event_payer_selections_on_actor ON public.commercial_event_payer_selections USING btree (selected_by_id);
+
+
+--
+-- Name: idx_event_payer_selections_on_event_component; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_event_payer_selections_on_event_component ON public.commercial_event_payer_selections USING btree (event_id, fee_component_id);
 
 
 --
@@ -4539,10 +5245,52 @@ CREATE INDEX idx_on_user_id_category_released_at_516f0054eb ON public.core_data_
 
 
 --
+-- Name: idx_one_accepted_payment_per_order; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_one_accepted_payment_per_order ON public.orders_payments USING btree (order_id) WHERE (accepted_at IS NOT NULL);
+
+
+--
+-- Name: idx_one_active_checkout_per_buyer_event; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_one_active_checkout_per_buyer_event ON public.orders_orders USING btree (buyer_user_id, event_id) WHERE ((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('pending_payment'::character varying)::text]));
+
+
+--
+-- Name: idx_one_active_subsidy_reservation_per_order_budget; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_one_active_subsidy_reservation_per_order_budget ON public.commercial_subsidy_reservations USING btree (subsidy_budget_id, order_id) WHERE ((status)::text = ANY (ARRAY[('held'::character varying)::text, ('processing'::character varying)::text]));
+
+
+--
 -- Name: idx_one_consent_acceptance_per_requirement; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX idx_one_consent_acceptance_per_requirement ON public.ticketing_registration_consents USING btree (registration_consent_requirement_id);
+
+
+--
+-- Name: idx_one_current_payment_attempt; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_one_current_payment_attempt ON public.orders_payments USING btree (order_id) WHERE ((superseded_at IS NULL) AND ((status)::text = ANY (ARRAY[('created'::character varying)::text, ('processing'::character varying)::text])));
+
+
+--
+-- Name: idx_one_order_item_per_registration; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_one_order_item_per_registration ON public.orders_order_items USING btree (registration_id) WHERE (registration_id IS NOT NULL);
+
+
+--
+-- Name: idx_one_order_item_per_resale_listing; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_one_order_item_per_resale_listing ON public.orders_order_items USING btree (resale_listing_id) WHERE (resale_listing_id IS NOT NULL);
 
 
 --
@@ -4553,6 +5301,13 @@ CREATE UNIQUE INDEX idx_one_owner_per_org ON public.organizations_memberships US
 
 
 --
+-- Name: idx_one_promotion_redemption_per_order; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_one_promotion_redemption_per_order ON public.orders_promotion_redemptions USING btree (order_id);
+
+
+--
 -- Name: idx_one_withdrawal_per_registration_consent; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -4560,10 +5315,143 @@ CREATE UNIQUE INDEX idx_one_withdrawal_per_registration_consent ON public.ticket
 
 
 --
+-- Name: idx_order_adjustments_on_order; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_order_adjustments_on_order ON public.orders_order_adjustments USING btree (order_id);
+
+
+--
+-- Name: idx_order_adjustments_on_order_item; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_order_adjustments_on_order_item ON public.orders_order_adjustments USING btree (order_item_id);
+
+
+--
+-- Name: idx_order_adjustments_on_order_type; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_order_adjustments_on_order_type ON public.orders_order_adjustments USING btree (order_id, type);
+
+
+--
+-- Name: idx_order_adjustments_on_source; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_order_adjustments_on_source ON public.orders_order_adjustments USING btree (source_type, source_id);
+
+
+--
+-- Name: idx_order_items_on_event_product; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_order_items_on_event_product ON public.orders_order_items USING btree (event_product_id);
+
+
+--
+-- Name: idx_order_items_on_id_and_order; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_order_items_on_id_and_order ON public.orders_order_items USING btree (id, order_id);
+
+
+--
+-- Name: idx_order_items_on_order; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_order_items_on_order ON public.orders_order_items USING btree (order_id);
+
+
+--
+-- Name: idx_order_items_on_order_fulfillment; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_order_items_on_order_fulfillment ON public.orders_order_items USING btree (order_id, fulfillment_status);
+
+
+--
+-- Name: idx_orders_on_creation_request_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_orders_on_creation_request_digest ON public.orders_orders USING btree (creation_request_digest);
+
+
+--
+-- Name: idx_orders_on_event_status_expiry; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_orders_on_event_status_expiry ON public.orders_orders USING btree (event_id, status, expires_at);
+
+
+--
+-- Name: idx_orders_on_idempotency_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_orders_on_idempotency_digest ON public.orders_orders USING btree (idempotency_key_digest);
+
+
+--
+-- Name: idx_orders_on_replacement; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_orders_on_replacement ON public.orders_orders USING btree (replaces_order_id) WHERE (replaces_order_id IS NOT NULL);
+
+
+--
 -- Name: idx_org_memberships_on_user_and_org; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX idx_org_memberships_on_user_and_org ON public.organizations_memberships USING btree (user_id, organization_id);
+
+
+--
+-- Name: idx_payment_events_on_payment; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_payment_events_on_payment ON public.orders_payment_events USING btree (payment_id);
+
+
+--
+-- Name: idx_payment_events_on_provider_event; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_payment_events_on_provider_event ON public.orders_payment_events USING btree (provider, provider_event_id);
+
+
+--
+-- Name: idx_payment_events_on_status_and_received; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_payment_events_on_status_and_received ON public.orders_payment_events USING btree (status, received_at);
+
+
+--
+-- Name: idx_payments_on_order_and_attempt; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_payments_on_order_and_attempt ON public.orders_payments USING btree (order_id, attempt_number);
+
+
+--
+-- Name: idx_payments_on_provider_and_idempotency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_payments_on_provider_and_idempotency ON public.orders_payments USING btree (provider, idempotency_key);
+
+
+--
+-- Name: idx_payments_on_provider_and_reference; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_payments_on_provider_and_reference ON public.orders_payments USING btree (provider, provider_reference) WHERE (provider_reference IS NOT NULL);
+
+
+--
+-- Name: idx_payments_on_status_and_grace_expiry; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_payments_on_status_and_grace_expiry ON public.orders_payments USING btree (status, settlement_grace_expires_at);
 
 
 --
@@ -4578,6 +5466,34 @@ CREATE UNIQUE INDEX idx_product_accesses_on_product_date_type ON public.catalog_
 --
 
 CREATE UNIQUE INDEX idx_promotion_products_on_promotion_and_product ON public.catalog_promotion_products USING btree (promotion_id, event_product_id);
+
+
+--
+-- Name: idx_promotion_redemptions_on_code_status_expiry; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_promotion_redemptions_on_code_status_expiry ON public.orders_promotion_redemptions USING btree (promotion_code_id, status, expires_at);
+
+
+--
+-- Name: idx_promotion_redemptions_on_idempotency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_promotion_redemptions_on_idempotency ON public.orders_promotion_redemptions USING btree (idempotency_key);
+
+
+--
+-- Name: idx_promotion_redemptions_on_promotion_status_expiry; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_promotion_redemptions_on_promotion_status_expiry ON public.orders_promotion_redemptions USING btree (promotion_id, status, expires_at);
+
+
+--
+-- Name: idx_promotion_redemptions_on_promotion_user_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_promotion_redemptions_on_promotion_user_status ON public.orders_promotion_redemptions USING btree (promotion_id, user_id, status);
 
 
 --
@@ -4676,6 +5592,34 @@ CREATE UNIQUE INDEX idx_registration_questions_version_position ON public.ticket
 --
 
 CREATE UNIQUE INDEX idx_registration_submissions_registration_version ON public.ticketing_registration_form_submissions USING btree (registration_id, registration_form_version_id);
+
+
+--
+-- Name: idx_subsidy_reservations_on_budget; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_subsidy_reservations_on_budget ON public.commercial_subsidy_reservations USING btree (subsidy_budget_id);
+
+
+--
+-- Name: idx_subsidy_reservations_on_idempotency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_subsidy_reservations_on_idempotency ON public.commercial_subsidy_reservations USING btree (idempotency_key_digest);
+
+
+--
+-- Name: idx_subsidy_reservations_on_order; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_subsidy_reservations_on_order ON public.commercial_subsidy_reservations USING btree (order_id);
+
+
+--
+-- Name: idx_subsidy_reservations_on_status_and_expiry; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_subsidy_reservations_on_status_and_expiry ON public.commercial_subsidy_reservations USING btree (status, expires_at);
 
 
 --
@@ -4805,6 +5749,62 @@ CREATE INDEX idx_venue_capacity_reservations_on_status_and_expires ON public.cat
 
 
 --
+-- Name: idx_volume_counters_on_component; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_volume_counters_on_component ON public.commercial_volume_counters USING btree (fee_component_id);
+
+
+--
+-- Name: idx_volume_counters_on_dimension; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_volume_counters_on_dimension ON public.commercial_volume_counters USING btree (fee_component_id, organization_id, event_id, metric_type, window_type, currency, window_start_at, window_end_at) NULLS NOT DISTINCT;
+
+
+--
+-- Name: idx_volume_counters_on_scope; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_volume_counters_on_scope ON public.commercial_volume_counters USING btree (organization_id, event_id, metric_type, window_type);
+
+
+--
+-- Name: idx_volume_counters_on_window; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_volume_counters_on_window ON public.commercial_volume_counters USING btree (window_type, window_start_at, window_end_at);
+
+
+--
+-- Name: idx_volume_usages_on_component_scope; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_volume_usages_on_component_scope ON public.commercial_volume_usages USING btree (fee_component_id, organization_id);
+
+
+--
+-- Name: idx_volume_usages_on_dimension; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_volume_usages_on_dimension ON public.commercial_volume_usages USING btree (metric_type, window_type, window_start_at, window_end_at, currency);
+
+
+--
+-- Name: idx_volume_usages_on_order; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_volume_usages_on_order ON public.commercial_volume_usages USING btree (order_id);
+
+
+--
+-- Name: idx_volume_usages_on_order_dimension; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_volume_usages_on_order_dimension ON public.commercial_volume_usages USING btree (order_id, fee_component_id, metric_type, window_type, currency, window_start_at, window_end_at) NULLS NOT DISTINCT;
+
+
+--
 -- Name: index_access_zones_on_event_code; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -4879,13 +5879,6 @@ CREATE INDEX index_catalog_inventory_reservations_on_product_inventory_id ON pub
 --
 
 CREATE INDEX index_catalog_inventory_reservations_on_registration_id ON public.catalog_inventory_reservations USING btree (registration_id);
-
-
---
--- Name: index_catalog_inventory_reservations_on_reservation_group_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX index_catalog_inventory_reservations_on_reservation_group_id ON public.catalog_inventory_reservations USING btree (reservation_group_id);
 
 
 --
@@ -5022,6 +6015,13 @@ CREATE INDEX index_catalog_venue_capacity_reservations_on_registration_id ON pub
 
 
 --
+-- Name: index_commercial_approvals_on_idempotency_key_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_commercial_approvals_on_idempotency_key_digest ON public.commercial_approvals USING btree (idempotency_key_digest);
+
+
+--
 -- Name: index_commercial_assignments_on_created_by_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5127,41 +6127,6 @@ CREATE INDEX index_commercial_programs_on_program_type_and_enrollment_mode ON pu
 
 
 --
--- Name: idx_commercial_approvals_on_target_time; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_commercial_approvals_on_target_time ON public.commercial_approvals USING btree (target_type, target_id, decided_at);
-
-
---
--- Name: idx_commercial_simulations_on_version_digest_time; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_commercial_simulations_on_version_digest_time ON public.commercial_simulations USING btree (fee_schedule_version_id, definition_digest, run_at);
-
-
---
--- Name: idx_commercial_term_notices_on_organization_status; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_commercial_term_notices_on_organization_status ON public.commercial_term_notices USING btree (organization_id, status, available_at);
-
-
---
--- Name: idx_commercial_term_notices_unique_delivery; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_commercial_term_notices_unique_delivery ON public.commercial_term_notices USING btree (organization_id, fee_schedule_version_id, delivery_method);
-
-
---
--- Name: index_commercial_approvals_on_idempotency_key_digest; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX index_commercial_approvals_on_idempotency_key_digest ON public.commercial_approvals USING btree (idempotency_key_digest);
-
-
---
 -- Name: index_commercial_simulations_on_assignment_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5173,6 +6138,7 @@ CREATE INDEX index_commercial_simulations_on_assignment_id ON public.commercial_
 --
 
 CREATE UNIQUE INDEX index_commercial_simulations_on_idempotency_key_digest ON public.commercial_simulations USING btree (idempotency_key_digest);
+
 
 --
 -- Name: index_consent_docs_on_event_name; Type: INDEX; Schema: public; Owner: -
@@ -5861,6 +6827,20 @@ CREATE UNIQUE INDEX index_ticketing_ticket_types_on_event_product_id ON public.t
 
 
 --
+-- Name: commercial_approvals trg_commercial_approval_append_only; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_commercial_approval_append_only BEFORE DELETE OR UPDATE ON public.commercial_approvals FOR EACH ROW EXECUTE FUNCTION public.commercial_approval_append_only();
+
+
+--
+-- Name: commercial_event_payer_selections trg_commercial_event_payer_selection_integrity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_commercial_event_payer_selection_integrity BEFORE INSERT OR UPDATE ON public.commercial_event_payer_selections FOR EACH ROW EXECUTE FUNCTION public.commercial_event_payer_selection_integrity();
+
+
+--
 -- Name: commercial_fee_amounts trg_commercial_fee_amount_immutable; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -5889,37 +6869,38 @@ CREATE TRIGGER trg_commercial_fee_tier_immutable BEFORE INSERT OR DELETE OR UPDA
 
 
 --
--- Name: commercial_approvals trg_commercial_approval_append_only; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_commercial_approval_append_only BEFORE DELETE OR UPDATE ON public.commercial_approvals FOR EACH ROW EXECUTE FUNCTION public.commercial_approval_append_only();
-
-
---
 -- Name: commercial_simulations trg_commercial_simulation_immutable; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER trg_commercial_simulation_immutable BEFORE DELETE OR UPDATE ON public.commercial_simulations FOR EACH ROW EXECUTE FUNCTION public.commercial_simulation_immutable();
 
---
--- Name: ticketing_registration_consents trg_consent_evidence_requirement_accepted; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE CONSTRAINT TRIGGER trg_consent_evidence_requirement_accepted AFTER INSERT ON public.ticketing_registration_consents DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_consent_evidence_requirement_accepted();
-
 
 --
--- Name: ticketing_registration_consent_requirements trg_consent_requirement_has_evidence; Type: TRIGGER; Schema: public; Owner: -
+-- Name: commercial_subsidy_reservations trg_commercial_subsidy_reservation_immutable; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE CONSTRAINT TRIGGER trg_consent_requirement_has_evidence AFTER INSERT OR UPDATE OF status ON public.ticketing_registration_consent_requirements DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_consent_requirement_acceptance_evidence();
+CREATE TRIGGER trg_commercial_subsidy_reservation_immutable BEFORE DELETE OR UPDATE ON public.commercial_subsidy_reservations FOR EACH ROW EXECUTE FUNCTION public.commercial_subsidy_reservation_immutable();
+
+
+--
+-- Name: commercial_volume_counters trg_commercial_volume_counter_scope; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_commercial_volume_counter_scope BEFORE INSERT OR UPDATE ON public.commercial_volume_counters FOR EACH ROW EXECUTE FUNCTION public.commercial_volume_counter_scope();
+
+
+--
+-- Name: commercial_volume_usages trg_commercial_volume_usage_integrity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_commercial_volume_usage_integrity BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_volume_usages FOR EACH ROW EXECUTE FUNCTION public.commercial_volume_usage_integrity();
 
 
 --
 -- Name: events_consent_document_versions trg_consent_version_locked; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_consent_version_locked BEFORE INSERT OR UPDATE ON public.events_consent_document_versions FOR EACH ROW EXECUTE FUNCTION public.lock_consent_version_on_update();
+CREATE TRIGGER trg_consent_version_locked BEFORE UPDATE ON public.events_consent_document_versions FOR EACH ROW EXECUTE FUNCTION public.lock_consent_version_on_update();
 
 
 --
@@ -5976,6 +6957,55 @@ CREATE TRIGGER trg_legal_version_locked BEFORE UPDATE ON public.legal_document_v
 --
 
 CREATE TRIGGER trg_legal_version_nodelete BEFORE DELETE ON public.legal_document_versions FOR EACH ROW EXECUTE FUNCTION public.legal_version_delete_guard();
+
+
+--
+-- Name: orders_order_adjustments trg_orders_order_adjustment_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_orders_order_adjustment_immutable BEFORE INSERT OR DELETE OR UPDATE ON public.orders_order_adjustments FOR EACH ROW EXECUTE FUNCTION public.orders_order_adjustment_immutable();
+
+
+--
+-- Name: orders_order_adjustments trg_orders_order_adjustment_integrity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_orders_order_adjustment_integrity BEFORE INSERT OR UPDATE ON public.orders_order_adjustments FOR EACH ROW EXECUTE FUNCTION public.orders_order_adjustment_integrity();
+
+
+--
+-- Name: orders_orders trg_orders_order_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_orders_order_immutable BEFORE DELETE OR UPDATE ON public.orders_orders FOR EACH ROW EXECUTE FUNCTION public.orders_order_immutable();
+
+
+--
+-- Name: orders_order_items trg_orders_order_item_event_scope; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_orders_order_item_event_scope BEFORE INSERT OR UPDATE ON public.orders_order_items FOR EACH ROW EXECUTE FUNCTION public.orders_order_item_event_scope();
+
+
+--
+-- Name: orders_order_items trg_orders_order_item_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_orders_order_item_immutable BEFORE INSERT OR DELETE OR UPDATE ON public.orders_order_items FOR EACH ROW EXECUTE FUNCTION public.orders_order_item_immutable();
+
+
+--
+-- Name: orders_payments trg_orders_payment_snapshot_integrity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_orders_payment_snapshot_integrity BEFORE INSERT OR UPDATE ON public.orders_payments FOR EACH ROW EXECUTE FUNCTION public.orders_payment_snapshot_integrity();
+
+
+--
+-- Name: orders_promotion_redemptions trg_orders_promotion_redemption_scope; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_orders_promotion_redemption_scope BEFORE INSERT OR UPDATE ON public.orders_promotion_redemptions FOR EACH ROW EXECUTE FUNCTION public.orders_promotion_redemption_scope();
 
 
 --
@@ -6084,17 +7114,24 @@ CREATE TRIGGER trg_ticketing_registration_consent_locked BEFORE DELETE OR UPDATE
 
 
 --
+-- Name: ticketing_registration_consent_requirements trg_ticketing_registration_consent_requirement_acceptance_evide; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_ticketing_registration_consent_requirement_acceptance_evide BEFORE UPDATE OF status ON public.ticketing_registration_consent_requirements FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_consent_requirement_acceptance_evidence();
+
+
+--
 -- Name: ticketing_registration_consent_requirements trg_ticketing_registration_consent_requirement_integrity; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_ticketing_registration_consent_requirement_integrity BEFORE INSERT OR DELETE OR UPDATE ON public.ticketing_registration_consent_requirements FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_consent_requirement_integrity();
+CREATE TRIGGER trg_ticketing_registration_consent_requirement_integrity BEFORE INSERT OR UPDATE ON public.ticketing_registration_consent_requirements FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_consent_requirement_integrity();
 
 
 --
 -- Name: ticketing_registration_consent_requirements trg_ticketing_registration_consent_requirement_withdrawal_evide; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_ticketing_registration_consent_requirement_withdrawal_evide BEFORE INSERT OR UPDATE OF status ON public.ticketing_registration_consent_requirements FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_consent_requirement_withdrawal_evidence();
+CREATE TRIGGER trg_ticketing_registration_consent_requirement_withdrawal_evide BEFORE UPDATE OF status ON public.ticketing_registration_consent_requirements FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_consent_requirement_withdrawal_evidence();
 
 
 --
@@ -6140,11 +7177,51 @@ CREATE TRIGGER trg_ticketing_registration_submission_scope BEFORE INSERT OR UPDA
 
 
 --
+-- Name: catalog_inventory_reservations fk_catalog_inventory_reservations_registration; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_inventory_reservations
+    ADD CONSTRAINT fk_catalog_inventory_reservations_registration FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id);
+
+
+--
+-- Name: catalog_venue_capacity_reservations fk_catalog_venue_capacity_reservations_registration; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_venue_capacity_reservations
+    ADD CONSTRAINT fk_catalog_venue_capacity_reservations_registration FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id);
+
+
+--
+-- Name: orders_order_adjustments fk_order_adjustments_item_order; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_order_adjustments
+    ADD CONSTRAINT fk_order_adjustments_item_order FOREIGN KEY (order_item_id, order_id) REFERENCES public.orders_order_items(id, order_id) ON DELETE RESTRICT;
+
+
+--
 -- Name: ticketing_registration_answers fk_rails_017cdf08f2; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.ticketing_registration_answers
     ADD CONSTRAINT fk_rails_017cdf08f2 FOREIGN KEY (registration_form_submission_id) REFERENCES public.ticketing_registration_form_submissions(id);
+
+
+--
+-- Name: commercial_assignments fk_rails_024692f7fd; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_assignments
+    ADD CONSTRAINT fk_rails_024692f7fd FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: orders_promotion_redemptions fk_rails_0261d89a8a; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_promotion_redemptions
+    ADD CONSTRAINT fk_rails_0261d89a8a FOREIGN KEY (promotion_code_id) REFERENCES public.catalog_promotion_codes(id) ON DELETE RESTRICT;
 
 
 --
@@ -6169,6 +7246,14 @@ ALTER TABLE ONLY public.events_recurrence_rules
 
 ALTER TABLE ONLY public.core_user_roles
     ADD CONSTRAINT fk_rails_03c87b07c4 FOREIGN KEY (role_id) REFERENCES public.core_roles(id);
+
+
+--
+-- Name: commercial_assignments fk_rails_03fbf2b83b; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_assignments
+    ADD CONSTRAINT fk_rails_03fbf2b83b FOREIGN KEY (created_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
 
 
 --
@@ -6204,11 +7289,35 @@ ALTER TABLE ONLY public.events_events
 
 
 --
+-- Name: orders_promotion_redemptions fk_rails_0a2f4400d9; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_promotion_redemptions
+    ADD CONSTRAINT fk_rails_0a2f4400d9 FOREIGN KEY (user_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: orders_payments fk_rails_0acd2d914e; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_payments
+    ADD CONSTRAINT fk_rails_0acd2d914e FOREIGN KEY (order_id) REFERENCES public.orders_orders(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: organizations_memberships fk_rails_0becb5aad6; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.organizations_memberships
     ADD CONSTRAINT fk_rails_0becb5aad6 FOREIGN KEY (user_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: commercial_volume_counters fk_rails_0c206abbf1; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_volume_counters
+    ADD CONSTRAINT fk_rails_0c206abbf1 FOREIGN KEY (fee_component_id) REFERENCES public.commercial_fee_components(id) ON DELETE RESTRICT;
 
 
 --
@@ -6241,6 +7350,38 @@ ALTER TABLE ONLY public.legal_document_versions
 
 ALTER TABLE ONLY public.events_event_date_changes
     ADD CONSTRAINT fk_rails_116ec6066e FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE CASCADE;
+
+
+--
+-- Name: commercial_subsidy_budgets fk_rails_11847a9288; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_subsidy_budgets
+    ADD CONSTRAINT fk_rails_11847a9288 FOREIGN KEY (fee_component_id) REFERENCES public.commercial_fee_components(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_subsidy_budgets fk_rails_1259a58993; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_subsidy_budgets
+    ADD CONSTRAINT fk_rails_1259a58993 FOREIGN KEY (assignment_id) REFERENCES public.commercial_assignments(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_term_notices fk_rails_13717644e2; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_term_notices
+    ADD CONSTRAINT fk_rails_13717644e2 FOREIGN KEY (legal_document_version_id) REFERENCES public.legal_document_versions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_assignments fk_rails_13a045aabd; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_assignments
+    ADD CONSTRAINT fk_rails_13a045aabd FOREIGN KEY (terminated_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
 
 
 --
@@ -6284,6 +7425,14 @@ ALTER TABLE ONLY public.catalog_product_inventories
 
 
 --
+-- Name: orders_payment_events fk_rails_1de614fb3c; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_payment_events
+    ADD CONSTRAINT fk_rails_1de614fb3c FOREIGN KEY (payment_id) REFERENCES public.orders_payments(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: catalog_promotions fk_rails_1f9d62eca8; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6300,6 +7449,14 @@ ALTER TABLE ONLY public.commercial_program_entitlements
 
 
 --
+-- Name: orders_promotion_redemptions fk_rails_24be26217b; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_promotion_redemptions
+    ADD CONSTRAINT fk_rails_24be26217b FOREIGN KEY (order_id) REFERENCES public.orders_orders(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: events_consent_documents fk_rails_29adff7b26; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6313,6 +7470,46 @@ ALTER TABLE ONLY public.events_consent_documents
 
 ALTER TABLE ONLY public.core_user_roles
     ADD CONSTRAINT fk_rails_29efe7500e FOREIGN KEY (user_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: commercial_volume_usages fk_rails_2acca2a05d; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_volume_usages
+    ADD CONSTRAINT fk_rails_2acca2a05d FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_assignments fk_rails_2b5d0d49b4; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_assignments
+    ADD CONSTRAINT fk_rails_2b5d0d49b4 FOREIGN KEY (program_id) REFERENCES public.commercial_programs(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: orders_orders fk_rails_2b71d52eb7; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_orders
+    ADD CONSTRAINT fk_rails_2b71d52eb7 FOREIGN KEY (buyer_user_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_assignments fk_rails_2c9a2fcc51; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_assignments
+    ADD CONSTRAINT fk_rails_2c9a2fcc51 FOREIGN KEY (external_accepted_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_assignments fk_rails_2e1247f9a8; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_assignments
+    ADD CONSTRAINT fk_rails_2e1247f9a8 FOREIGN KEY (approved_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
 
 
 --
@@ -6428,11 +7625,19 @@ ALTER TABLE ONLY public.legal_acceptances
 
 
 --
--- Name: catalog_venue_capacity_reservations fk_rails_3d79acd51a; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: commercial_assignments fk_rails_3e6ba061e9; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.catalog_venue_capacity_reservations
-    ADD CONSTRAINT fk_rails_3d79acd51a FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id);
+ALTER TABLE ONLY public.commercial_assignments
+    ADD CONSTRAINT fk_rails_3e6ba061e9 FOREIGN KEY (activated_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: orders_order_items fk_rails_3e9c5b1ba4; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_order_items
+    ADD CONSTRAINT fk_rails_3e9c5b1ba4 FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id) ON DELETE RESTRICT;
 
 
 --
@@ -6441,6 +7646,22 @@ ALTER TABLE ONLY public.catalog_venue_capacity_reservations
 
 ALTER TABLE ONLY public.core_refresh_tokens
     ADD CONSTRAINT fk_rails_3ed4f2d68b FOREIGN KEY (user_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: orders_order_items fk_rails_407ab6b9a2; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_order_items
+    ADD CONSTRAINT fk_rails_407ab6b9a2 FOREIGN KEY (event_product_id) REFERENCES public.catalog_event_products(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_volume_usages fk_rails_41dbf1e9c6; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_volume_usages
+    ADD CONSTRAINT fk_rails_41dbf1e9c6 FOREIGN KEY (fee_component_id) REFERENCES public.commercial_fee_components(id) ON DELETE RESTRICT;
 
 
 --
@@ -6540,6 +7761,22 @@ ALTER TABLE ONLY public.ticketing_registrations
 
 
 --
+-- Name: orders_order_adjustments fk_rails_55e4c64d49; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_order_adjustments
+    ADD CONSTRAINT fk_rails_55e4c64d49 FOREIGN KEY (order_id) REFERENCES public.orders_orders(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_approvals fk_rails_55f27ddd51; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_approvals
+    ADD CONSTRAINT fk_rails_55f27ddd51 FOREIGN KEY (actor_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: ticketing_registration_answers fk_rails_56b2f6051e; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6628,6 +7865,22 @@ ALTER TABLE ONLY public.ticketing_registration_questions
 
 
 --
+-- Name: commercial_term_notices fk_rails_613af43c5e; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_term_notices
+    ADD CONSTRAINT fk_rails_613af43c5e FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_volume_counters fk_rails_61c11298e3; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_volume_counters
+    ADD CONSTRAINT fk_rails_61c11298e3 FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: catalog_venue_capacity_reservations fk_rails_644ded3b72; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6668,6 +7921,14 @@ ALTER TABLE ONLY public.ticketing_registration_consent_withdrawals
 
 
 --
+-- Name: commercial_term_notices fk_rails_6a6c478930; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_term_notices
+    ADD CONSTRAINT fk_rails_6a6c478930 FOREIGN KEY (fee_schedule_version_id) REFERENCES public.commercial_fee_schedule_versions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: events_event_participants fk_rails_7025684e48; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6684,11 +7945,27 @@ ALTER TABLE ONLY public.ticketing_registration_consents
 
 
 --
+-- Name: commercial_event_payer_selections fk_rails_7357c14cd7; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_event_payer_selections
+    ADD CONSTRAINT fk_rails_7357c14cd7 FOREIGN KEY (selected_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: legal_acceptances fk_rails_73b4597b95; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.legal_acceptances
     ADD CONSTRAINT fk_rails_73b4597b95 FOREIGN KEY (accepted_by_user_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: orders_orders fk_rails_7428b4bc83; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_orders
+    ADD CONSTRAINT fk_rails_7428b4bc83 FOREIGN KEY (initiated_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
 
 
 --
@@ -6796,6 +8073,14 @@ ALTER TABLE ONLY public.catalog_promotion_codes
 
 
 --
+-- Name: commercial_simulations fk_rails_83d1a6fec2; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_simulations
+    ADD CONSTRAINT fk_rails_83d1a6fec2 FOREIGN KEY (fee_schedule_version_id) REFERENCES public.commercial_fee_schedule_versions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: commercial_fee_schedules fk_rails_83f8b09d29; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6828,6 +8113,14 @@ ALTER TABLE ONLY public.events_event_cancellations
 
 
 --
+-- Name: orders_orders fk_rails_89368e7989; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_orders
+    ADD CONSTRAINT fk_rails_89368e7989 FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: events_event_staff_assignments fk_rails_89a4c0f504; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6849,14 +8142,6 @@ ALTER TABLE ONLY public.events_event_categories
 
 ALTER TABLE ONLY public.events_event_dates
     ADD CONSTRAINT fk_rails_8e99dedcd1 FOREIGN KEY (venue_id) REFERENCES public.events_venues(id) ON DELETE SET NULL;
-
-
---
--- Name: catalog_inventory_reservations fk_rails_8f61f39616; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.catalog_inventory_reservations
-    ADD CONSTRAINT fk_rails_8f61f39616 FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id);
 
 
 --
@@ -6932,6 +8217,14 @@ ALTER TABLE ONLY public.core_role_permissions
 
 
 --
+-- Name: commercial_volume_usages fk_rails_a2ebf13ea8; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_volume_usages
+    ADD CONSTRAINT fk_rails_a2ebf13ea8 FOREIGN KEY (order_id) REFERENCES public.orders_orders(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: ticketing_purchase_limit_allocations fk_rails_a3b4e1fe0e; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7004,6 +8297,22 @@ ALTER TABLE ONLY public.core_data_retention_holds
 
 
 --
+-- Name: commercial_simulations fk_rails_b2983c3a53; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_simulations
+    ADD CONSTRAINT fk_rails_b2983c3a53 FOREIGN KEY (assignment_id) REFERENCES public.commercial_assignments(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: orders_promotion_redemptions fk_rails_b84810ecf5; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_promotion_redemptions
+    ADD CONSTRAINT fk_rails_b84810ecf5 FOREIGN KEY (promotion_id) REFERENCES public.catalog_promotions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: events_event_video_links fk_rails_b98836a298; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7020,11 +8329,35 @@ ALTER TABLE ONLY public.legal_documents
 
 
 --
+-- Name: commercial_simulations fk_rails_be1844990e; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_simulations
+    ADD CONSTRAINT fk_rails_be1844990e FOREIGN KEY (run_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: catalog_product_prices fk_rails_bfffbd73ae; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.catalog_product_prices
     ADD CONSTRAINT fk_rails_bfffbd73ae FOREIGN KEY (event_product_id) REFERENCES public.catalog_event_products(id);
+
+
+--
+-- Name: orders_orders fk_rails_c03b268463; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_orders
+    ADD CONSTRAINT fk_rails_c03b268463 FOREIGN KEY (replaces_order_id) REFERENCES public.orders_orders(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_programs fk_rails_c261555096; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_programs
+    ADD CONSTRAINT fk_rails_c261555096 FOREIGN KEY (fee_schedule_id) REFERENCES public.commercial_fee_schedules(id) ON DELETE RESTRICT;
 
 
 --
@@ -7076,11 +8409,27 @@ ALTER TABLE ONLY public.ticketing_registration_form_submissions
 
 
 --
+-- Name: commercial_event_payer_selections fk_rails_cbe6016119; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_event_payer_selections
+    ADD CONSTRAINT fk_rails_cbe6016119 FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: ticketing_invitations fk_rails_cc4a24abb3; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.ticketing_invitations
     ADD CONSTRAINT fk_rails_cc4a24abb3 FOREIGN KEY (invited_user_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: commercial_subsidy_budgets fk_rails_ceeebebef1; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_subsidy_budgets
+    ADD CONSTRAINT fk_rails_ceeebebef1 FOREIGN KEY (program_id) REFERENCES public.commercial_programs(id) ON DELETE RESTRICT;
 
 
 --
@@ -7108,6 +8457,14 @@ ALTER TABLE ONLY public.commercial_fee_schedule_versions
 
 
 --
+-- Name: commercial_subsidy_reservations fk_rails_d77a72289e; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_subsidy_reservations
+    ADD CONSTRAINT fk_rails_d77a72289e FOREIGN KEY (order_id) REFERENCES public.orders_orders(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: core_reauthentication_proofs fk_rails_d799f90d96; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7121,6 +8478,14 @@ ALTER TABLE ONLY public.core_reauthentication_proofs
 
 ALTER TABLE ONLY public.ticketing_registration_consent_requirements
     ADD CONSTRAINT fk_rails_d812807a6e FOREIGN KEY (supersedes_requirement_id) REFERENCES public.ticketing_registration_consent_requirements(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_assignments fk_rails_db4ae80025; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_assignments
+    ADD CONSTRAINT fk_rails_db4ae80025 FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE RESTRICT;
 
 
 --
@@ -7148,6 +8513,14 @@ ALTER TABLE ONLY public.core_user_roles
 
 
 --
+-- Name: commercial_assignments fk_rails_e0088a0794; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_assignments
+    ADD CONSTRAINT fk_rails_e0088a0794 FOREIGN KEY (fee_schedule_version_id) REFERENCES public.commercial_fee_schedule_versions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: events_event_date_changes fk_rails_e0d0c7b105; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7172,6 +8545,22 @@ ALTER TABLE ONLY public.events_event_participants
 
 
 --
+-- Name: commercial_assignments fk_rails_e2244fb635; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_assignments
+    ADD CONSTRAINT fk_rails_e2244fb635 FOREIGN KEY (legal_acceptance_id) REFERENCES public.legal_acceptances(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: commercial_subsidy_reservations fk_rails_e391bd89bb; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_subsidy_reservations
+    ADD CONSTRAINT fk_rails_e391bd89bb FOREIGN KEY (subsidy_budget_id) REFERENCES public.commercial_subsidy_budgets(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: events_event_staff_assignments fk_rails_e3e6cd98cf; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7185,6 +8574,14 @@ ALTER TABLE ONLY public.events_event_staff_assignments
 
 ALTER TABLE ONLY public.commercial_fee_schedule_versions
     ADD CONSTRAINT fk_rails_e5e937ec8b FOREIGN KEY (legal_document_version_id) REFERENCES public.legal_document_versions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: orders_order_items fk_rails_e76003e058; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_order_items
+    ADD CONSTRAINT fk_rails_e76003e058 FOREIGN KEY (order_id) REFERENCES public.orders_orders(id) ON DELETE RESTRICT;
 
 
 --
@@ -7212,11 +8609,27 @@ ALTER TABLE ONLY public.events_event_categories
 
 
 --
+-- Name: commercial_volume_usages fk_rails_f029ba26b4; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_volume_usages
+    ADD CONSTRAINT fk_rails_f029ba26b4 FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: ticketing_registrations fk_rails_f0bde43d6c; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.ticketing_registrations
     ADD CONSTRAINT fk_rails_f0bde43d6c FOREIGN KEY (invitation_id) REFERENCES public.ticketing_invitations(id);
+
+
+--
+-- Name: commercial_volume_counters fk_rails_f33e9b7151; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_volume_counters
+    ADD CONSTRAINT fk_rails_f33e9b7151 FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE RESTRICT;
 
 
 --
@@ -7252,6 +8665,14 @@ ALTER TABLE ONLY public.ticketing_purchase_limit_overrides
 
 
 --
+-- Name: commercial_event_payer_selections fk_rails_fb9956ce8f; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.commercial_event_payer_selections
+    ADD CONSTRAINT fk_rails_fb9956ce8f FOREIGN KEY (fee_component_id) REFERENCES public.commercial_fee_components(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: ticketing_registration_consents fk_rails_fb9e57a5c9; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7284,892 +8705,18 @@ ALTER TABLE ONLY public.catalog_product_access_zones
 
 
 --
--- Name: commercial_approvals fk_rails_55f27ddd51; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_approvals
-    ADD CONSTRAINT fk_rails_55f27ddd51 FOREIGN KEY (actor_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_simulations fk_rails_83d1a6fec2; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_simulations
-    ADD CONSTRAINT fk_rails_83d1a6fec2 FOREIGN KEY (fee_schedule_version_id) REFERENCES public.commercial_fee_schedule_versions(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_term_notices fk_rails_13717644e2; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_term_notices
-    ADD CONSTRAINT fk_rails_13717644e2 FOREIGN KEY (legal_document_version_id) REFERENCES public.legal_document_versions(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_term_notices fk_rails_613af43c5e; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_term_notices
-    ADD CONSTRAINT fk_rails_613af43c5e FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_term_notices fk_rails_6a6c478930; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_term_notices
-    ADD CONSTRAINT fk_rails_6a6c478930 FOREIGN KEY (fee_schedule_version_id) REFERENCES public.commercial_fee_schedule_versions(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_subsidy_budgets fk_rails_11847a9288; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_subsidy_budgets
-    ADD CONSTRAINT fk_rails_11847a9288 FOREIGN KEY (fee_component_id) REFERENCES public.commercial_fee_components(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_subsidy_budgets fk_rails_1259a58993; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_subsidy_budgets
-    ADD CONSTRAINT fk_rails_1259a58993 FOREIGN KEY (assignment_id) REFERENCES public.commercial_assignments(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_subsidy_budgets fk_rails_ceeebebef1; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_subsidy_budgets
-    ADD CONSTRAINT fk_rails_ceeebebef1 FOREIGN KEY (program_id) REFERENCES public.commercial_programs(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_simulations fk_rails_b2983c3a53; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_simulations
-    ADD CONSTRAINT fk_rails_b2983c3a53 FOREIGN KEY (assignment_id) REFERENCES public.commercial_assignments(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_simulations fk_rails_be1844990e; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_simulations
-    ADD CONSTRAINT fk_rails_be1844990e FOREIGN KEY (run_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
-
---
--- Name: commercial_assignments fk_rails_024692f7fd; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_assignments
-    ADD CONSTRAINT fk_rails_024692f7fd FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_assignments fk_rails_03fbf2b83b; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_assignments
-    ADD CONSTRAINT fk_rails_03fbf2b83b FOREIGN KEY (created_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_assignments fk_rails_13a045aabd; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_assignments
-    ADD CONSTRAINT fk_rails_13a045aabd FOREIGN KEY (terminated_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_assignments fk_rails_2b5d0d49b4; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_assignments
-    ADD CONSTRAINT fk_rails_2b5d0d49b4 FOREIGN KEY (program_id) REFERENCES public.commercial_programs(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_assignments fk_rails_2c9a2fcc51; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_assignments
-    ADD CONSTRAINT fk_rails_2c9a2fcc51 FOREIGN KEY (external_accepted_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_assignments fk_rails_2e1247f9a8; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_assignments
-    ADD CONSTRAINT fk_rails_2e1247f9a8 FOREIGN KEY (approved_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_assignments fk_rails_3e6ba061e9; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_assignments
-    ADD CONSTRAINT fk_rails_3e6ba061e9 FOREIGN KEY (activated_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_programs fk_rails_c261555096; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_programs
-    ADD CONSTRAINT fk_rails_c261555096 FOREIGN KEY (fee_schedule_id) REFERENCES public.commercial_fee_schedules(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_assignments fk_rails_db4ae80025; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_assignments
-    ADD CONSTRAINT fk_rails_db4ae80025 FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_assignments fk_rails_e0088a0794; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_assignments
-    ADD CONSTRAINT fk_rails_e0088a0794 FOREIGN KEY (fee_schedule_version_id) REFERENCES public.commercial_fee_schedule_versions(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_assignments fk_rails_e2244fb635; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_assignments
-    ADD CONSTRAINT fk_rails_e2244fb635 FOREIGN KEY (legal_acceptance_id) REFERENCES public.legal_acceptances(id) ON DELETE RESTRICT;
-
-
---
--- Orders Task 2 schema additions. The source migrations remain the authoritative
--- definition; this block keeps structure.sql aligned without rewriting unrelated
--- schema objects from a stale local database dump.
---
-
-CREATE OR REPLACE FUNCTION public.orders_order_adjustment_evidence_valid(evidence jsonb)
- RETURNS boolean
- LANGUAGE plpgsql
- IMMUTABLE
-AS $function$
-DECLARE
-  evidence_key text;
-BEGIN
-  IF evidence IS NULL THEN
-    RETURN TRUE;
-  END IF;
-  IF jsonb_typeof(evidence) <> 'object' THEN
-    RETURN FALSE;
-  END IF;
-
-  FOR evidence_key IN SELECT jsonb_object_keys(evidence) LOOP
-    IF evidence_key NOT IN ('scope','tier','window','rounding','explanation') THEN
-      RETURN FALSE;
-    END IF;
-  END LOOP;
-  RETURN TRUE;
-END;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.orders_order_adjustment_immutable()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-DECLARE
-  old_order_status text;
-  new_order_status text;
-BEGIN
-  IF TG_OP <> 'INSERT' THEN
-    SELECT status INTO old_order_status FROM orders_orders WHERE id = OLD.order_id;
-  END IF;
-  IF TG_OP <> 'DELETE' THEN
-    SELECT status INTO new_order_status FROM orders_orders WHERE id = NEW.order_id;
-  END IF;
-
-  IF old_order_status IN ('pending_payment','paid','fulfilled','expired','cancelled','partially_refunded','refunded') OR
-     new_order_status IN ('pending_payment','paid','fulfilled','expired','cancelled','partially_refunded','refunded') THEN
-    RAISE EXCEPTION 'orders_order_adjustment_immutable' USING ERRCODE = '40001';
-  END IF;
-
-  IF TG_OP = 'DELETE' THEN
-    RETURN OLD;
-  END IF;
-  RETURN NEW;
-END;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.orders_order_adjustment_integrity()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-DECLARE
-  order_currency text;
-BEGIN
-  SELECT charge_currency INTO order_currency
-  FROM orders_orders
-  WHERE id = NEW.order_id;
-
-  IF order_currency IS DISTINCT FROM NEW.currency THEN
-    RAISE EXCEPTION 'orders_order_adjustment_currency_scope' USING ERRCODE = '23514';
-  END IF;
-  RETURN NEW;
-END;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.orders_order_immutable()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-BEGIN
-  IF OLD.status IN ('pending_payment','paid','fulfilled','expired','cancelled','partially_refunded','refunded') OR
-     (TG_OP <> 'DELETE' AND NEW.status IN ('pending_payment','paid','fulfilled','expired','cancelled','partially_refunded','refunded')) THEN
-    IF TG_OP = 'DELETE' THEN
-      RAISE EXCEPTION 'orders_order_snapshot_immutable' USING ERRCODE = '40001';
-    END IF;
-
-    IF (OLD.event_id, OLD.buyer_user_id, OLD.sales_channel, OLD.initiated_by_id,
-        OLD.replaces_order_id, OLD.charge_currency, OLD.subtotal_minor,
-        OLD.discount_minor, OLD.subsidy_minor, OLD.fee_minor, OLD.tax_minor,
-        OLD.adjustment_minor, OLD.total_minor, OLD.settlement_currency,
-        OLD.settlement_total_minor, OLD.exchange_rate, OLD.exchange_rate_source,
-        OLD.exchange_rate_quoted_at, OLD.exchange_rate_expires_at, OLD.expires_at,
-        OLD.idempotency_key_digest, OLD.creation_request_digest)
-       IS DISTINCT FROM
-       (NEW.event_id, NEW.buyer_user_id, NEW.sales_channel, NEW.initiated_by_id,
-        NEW.replaces_order_id, NEW.charge_currency, NEW.subtotal_minor,
-        NEW.discount_minor, NEW.subsidy_minor, NEW.fee_minor, NEW.tax_minor,
-        NEW.adjustment_minor, NEW.total_minor, NEW.settlement_currency,
-        NEW.settlement_total_minor, NEW.exchange_rate, NEW.exchange_rate_source,
-        NEW.exchange_rate_quoted_at, NEW.exchange_rate_expires_at, NEW.expires_at,
-        NEW.idempotency_key_digest, NEW.creation_request_digest) THEN
-      RAISE EXCEPTION 'orders_order_snapshot_immutable' USING ERRCODE = '40001';
-    END IF;
-  END IF;
-
-  IF TG_OP = 'DELETE' THEN
-    RETURN OLD;
-  END IF;
-  RETURN NEW;
-END;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.orders_order_item_event_scope()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-DECLARE
-  order_event_id uuid;
-  product_event_id uuid;
-  product_type text;
-  registration_event_id uuid;
-BEGIN
-  SELECT event_id INTO order_event_id
-  FROM orders_orders
-  WHERE id = NEW.order_id;
-
-  SELECT event_id, type INTO product_event_id, product_type
-  FROM catalog_event_products
-  WHERE id = NEW.event_product_id;
-
-  IF order_event_id IS DISTINCT FROM product_event_id OR
-     product_type IS DISTINCT FROM NEW.type_snapshot THEN
-    RAISE EXCEPTION 'orders_order_item_event_scope' USING ERRCODE = '23514';
-  END IF;
-
-  IF NEW.registration_id IS NOT NULL THEN
-    SELECT event_id INTO registration_event_id
-    FROM ticketing_registrations
-    WHERE id = NEW.registration_id;
-
-    IF order_event_id IS DISTINCT FROM registration_event_id THEN
-      RAISE EXCEPTION 'orders_order_item_registration_event_scope'
-        USING ERRCODE = '23514';
-    END IF;
-  END IF;
-
-  RETURN NEW;
-END;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.orders_order_item_immutable()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-DECLARE
-  old_order_status text;
-  new_order_status text;
-BEGIN
-  IF TG_OP <> 'INSERT' THEN
-    SELECT status INTO old_order_status FROM orders_orders WHERE id = OLD.order_id;
-  END IF;
-  IF TG_OP <> 'DELETE' THEN
-    SELECT status INTO new_order_status FROM orders_orders WHERE id = NEW.order_id;
-  END IF;
-
-  IF old_order_status IN ('pending_payment','paid','fulfilled','expired','cancelled','partially_refunded','refunded') OR
-     new_order_status IN ('pending_payment','paid','fulfilled','expired','cancelled','partially_refunded','refunded') THEN
-    IF TG_OP IN ('INSERT', 'DELETE') THEN
-      RAISE EXCEPTION 'orders_order_item_snapshot_immutable' USING ERRCODE = '40001';
-    END IF;
-
-    IF (OLD.order_id, OLD.event_product_id, OLD.registration_id,
-        OLD.resale_listing_id, OLD.name_snapshot, OLD.type_snapshot, OLD.quantity,
-        OLD.admissions_per_unit_snapshot, OLD.base_currency,
-        OLD.base_unit_amount_minor, OLD.charge_currency,
-        OLD.charge_unit_amount_minor, OLD.exchange_rate, OLD.discount_minor,
-        OLD.total_minor)
-       IS DISTINCT FROM
-       (NEW.order_id, NEW.event_product_id, NEW.registration_id,
-        NEW.resale_listing_id, NEW.name_snapshot, NEW.type_snapshot, NEW.quantity,
-        NEW.admissions_per_unit_snapshot, NEW.base_currency,
-        NEW.base_unit_amount_minor, NEW.charge_currency,
-        NEW.charge_unit_amount_minor, NEW.exchange_rate, NEW.discount_minor,
-        NEW.total_minor) THEN
-      RAISE EXCEPTION 'orders_order_item_snapshot_immutable' USING ERRCODE = '40001';
-    END IF;
-  END IF;
-
-  IF TG_OP = 'DELETE' THEN
-    RETURN OLD;
-  END IF;
-  RETURN NEW;
-END;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.orders_promotion_redemption_scope()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-DECLARE
-  order_event_id uuid;
-  order_buyer_id uuid;
-  order_currency text;
-  promotion_event_id uuid;
-  code_promotion_id uuid;
-BEGIN
-  SELECT event_id, buyer_user_id, charge_currency
-    INTO order_event_id, order_buyer_id, order_currency
-  FROM orders_orders
-  WHERE id = NEW.order_id;
-  SELECT event_id INTO promotion_event_id
-  FROM catalog_promotions
-  WHERE id = NEW.promotion_id;
-
-  IF order_event_id IS DISTINCT FROM promotion_event_id OR
-     order_buyer_id IS DISTINCT FROM NEW.user_id OR
-     order_currency IS DISTINCT FROM NEW.currency THEN
-    RAISE EXCEPTION 'orders_promotion_redemption_scope' USING ERRCODE = '23514';
-  END IF;
-
-  IF NEW.promotion_code_id IS NOT NULL THEN
-    SELECT promotion_id INTO code_promotion_id
-    FROM catalog_promotion_codes
-    WHERE id = NEW.promotion_code_id;
-
-    IF code_promotion_id IS DISTINCT FROM NEW.promotion_id THEN
-      RAISE EXCEPTION 'orders_promotion_redemption_code_scope'
-        USING ERRCODE = '23514';
-    END IF;
-  END IF;
-  RETURN NEW;
-END;
-$function$;
-
---
--- Name: orders_order_adjustments; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.orders_order_adjustments (
-    id uuid DEFAULT uuidv7() NOT NULL,
-    order_id uuid NOT NULL,
-    order_item_id uuid,
-    type character varying NOT NULL,
-    label character varying NOT NULL,
-    charged_to character varying NOT NULL,
-    amount_minor bigint NOT NULL,
-    currency character varying(3) NOT NULL,
-    refund_policy character varying NOT NULL,
-    calculation_type character varying,
-    basis_type character varying,
-    basis_minor bigint,
-    rate_bps integer,
-    fixed_amount_minor bigint,
-    minimum_minor bigint,
-    maximum_minor bigint,
-    funded_by character varying,
-    source_type character varying,
-    source_id uuid,
-    resolution_evidence jsonb,
-    created_at timestamp(6) with time zone NOT NULL,
-    updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT order_adjustment_source_pair CHECK (((source_type IS NULL) = (source_id IS NULL))),
-    CONSTRAINT orders_adjustments_amount_sign_check CHECK (((((type)::text = ANY (ARRAY[('discount'::character varying)::text, ('subsidy'::character varying)::text])) AND (amount_minor < 0)) OR (((type)::text = ANY (ARRAY[('service_fee'::character varying)::text, ('platform_fee'::character varying)::text, ('processing_fee'::character varying)::text, ('resale_platform_fee'::character varying)::text, ('tax'::character varying)::text])) AND (amount_minor >= 0)) OR ((type)::text = 'manual_adjustment'::text))),
-    CONSTRAINT orders_adjustments_basis_amount_check CHECK (((basis_minor IS NULL) OR (basis_minor >= 0))),
-    CONSTRAINT orders_adjustments_basis_amount_shape_check CHECK (((calculation_type IS NULL) OR ((calculation_type)::text <> ALL (ARRAY[('explicit_zero'::character varying)::text, ('fixed'::character varying)::text])) OR (basis_minor IS NULL))),
-    CONSTRAINT orders_adjustments_basis_check CHECK (((basis_type IS NULL) OR ((basis_type)::text = ANY (ARRAY[('item_face_value'::character varying)::text, ('item_net_value_after_organizer_promotion'::character varying)::text, ('eligible_order_subtotal'::character varying)::text, ('resale_acquisition_amount'::character varying)::text, ('accepted_paid_units'::character varying)::text, ('accepted_gross'::character varying)::text])))),
-    CONSTRAINT orders_adjustments_basis_shape_check CHECK (((((calculation_type)::text = ANY (ARRAY[('percentage'::character varying)::text, ('blended'::character varying)::text, ('tiered'::character varying)::text])) AND (basis_type IS NOT NULL)) OR (((calculation_type)::text = ANY (ARRAY[('explicit_zero'::character varying)::text, ('fixed'::character varying)::text])) AND (basis_type IS NULL)) OR (calculation_type IS NULL))),
-    CONSTRAINT orders_adjustments_bounds_check CHECK ((((fixed_amount_minor IS NULL) OR (fixed_amount_minor >= 0)) AND ((minimum_minor IS NULL) OR (minimum_minor >= 0)) AND ((maximum_minor IS NULL) OR (maximum_minor >= 0)) AND ((minimum_minor IS NULL) OR (maximum_minor IS NULL) OR (maximum_minor >= minimum_minor)))),
-    CONSTRAINT orders_adjustments_calculation_check CHECK (((calculation_type IS NULL) OR ((calculation_type)::text = ANY (ARRAY[('explicit_zero'::character varying)::text, ('percentage'::character varying)::text, ('fixed'::character varying)::text, ('blended'::character varying)::text, ('tiered'::character varying)::text])))),
-    CONSTRAINT orders_adjustments_charged_to_check CHECK (((charged_to)::text = ANY (ARRAY[('buyer'::character varying)::text, ('organizer'::character varying)::text]))),
-    CONSTRAINT orders_adjustments_commercial_shape_check CHECK ((((type)::text <> ALL (ARRAY[('service_fee'::character varying)::text, ('platform_fee'::character varying)::text, ('processing_fee'::character varying)::text, ('subsidy'::character varying)::text, ('resale_platform_fee'::character varying)::text])) OR ((calculation_type IS NOT NULL) AND (funded_by IS NOT NULL) AND (source_type IS NOT NULL) AND (source_id IS NOT NULL)))),
-    CONSTRAINT orders_adjustments_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
-    CONSTRAINT orders_adjustments_evidence_check CHECK (public.orders_order_adjustment_evidence_valid(resolution_evidence)),
-    CONSTRAINT orders_adjustments_explicit_zero_check CHECK ((((calculation_type)::text <> 'explicit_zero'::text) OR ((fixed_amount_minor IS NULL) AND (minimum_minor IS NULL) AND (maximum_minor IS NULL)))),
-    CONSTRAINT orders_adjustments_fixed_shape_check CHECK ((((calculation_type)::text <> ALL (ARRAY[('fixed'::character varying)::text, ('blended'::character varying)::text])) OR (fixed_amount_minor IS NOT NULL) OR (calculation_type IS NULL))),
-    CONSTRAINT orders_adjustments_funded_by_check CHECK (((funded_by IS NULL) OR ((funded_by)::text = ANY (ARRAY[('buyer'::character varying)::text, ('organizer'::character varying)::text, ('platform'::character varying)::text])))),
-    CONSTRAINT orders_adjustments_rate_check CHECK (((rate_bps IS NULL) OR ((rate_bps >= 0) AND (rate_bps <= 10000)))),
-    CONSTRAINT orders_adjustments_rate_shape_check CHECK (((((calculation_type)::text = ANY (ARRAY[('percentage'::character varying)::text, ('blended'::character varying)::text])) AND (rate_bps IS NOT NULL)) OR (((calculation_type)::text = ANY (ARRAY[('explicit_zero'::character varying)::text, ('fixed'::character varying)::text, ('tiered'::character varying)::text])) AND (rate_bps IS NULL)) OR (calculation_type IS NULL))),
-    CONSTRAINT orders_adjustments_refund_policy_check CHECK (((refund_policy)::text = ANY (ARRAY[('refundable'::character varying)::text, ('event_cancellation_only'::character varying)::text, ('nonrefundable'::character varying)::text]))),
-    CONSTRAINT orders_adjustments_source_type_check CHECK (((source_type IS NULL) OR ((source_type)::text = ANY (ARRAY[('Catalog::Promotion'::character varying)::text, ('Commercial::FeeComponent'::character varying)::text])))),
-    CONSTRAINT orders_adjustments_subsidy_shape_check CHECK (((((type)::text <> 'subsidy'::text) OR ((funded_by)::text = 'platform'::text)) AND ((funded_by IS NULL) OR ((type)::text = 'subsidy'::text) OR ((funded_by)::text <> 'platform'::text)))),
-    CONSTRAINT orders_adjustments_type_check CHECK (((type)::text = ANY (ARRAY[('discount'::character varying)::text, ('service_fee'::character varying)::text, ('platform_fee'::character varying)::text, ('processing_fee'::character varying)::text, ('subsidy'::character varying)::text, ('resale_platform_fee'::character varying)::text, ('tax'::character varying)::text, ('manual_adjustment'::character varying)::text])))
-);
-
-
---
--- Name: orders_order_items; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.orders_order_items (
-    id uuid DEFAULT uuidv7() NOT NULL,
-    order_id uuid NOT NULL,
-    event_product_id uuid NOT NULL,
-    registration_id uuid,
-    resale_listing_id uuid,
-    name_snapshot character varying NOT NULL,
-    type_snapshot character varying NOT NULL,
-    quantity integer NOT NULL,
-    admissions_per_unit_snapshot smallint,
-    base_currency character varying(3) NOT NULL,
-    base_unit_amount_minor bigint NOT NULL,
-    charge_currency character varying(3) NOT NULL,
-    charge_unit_amount_minor bigint NOT NULL,
-    exchange_rate numeric(24,12),
-    discount_minor bigint DEFAULT 0 NOT NULL,
-    total_minor bigint NOT NULL,
-    fulfillment_status character varying DEFAULT 'pending'::character varying NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT order_item_quantity_positive CHECK ((quantity > 0)),
-    CONSTRAINT orders_order_items_admissions_check CHECK (((((type_snapshot)::text = 'ticket'::text) AND (admissions_per_unit_snapshot > 0)) OR (((type_snapshot)::text <> 'ticket'::text) AND (admissions_per_unit_snapshot IS NULL)))),
-    CONSTRAINT orders_order_items_amounts_check CHECK (((base_unit_amount_minor >= 0) AND (charge_unit_amount_minor >= 0) AND (discount_minor >= 0) AND (total_minor >= 0))),
-    CONSTRAINT orders_order_items_currency_check CHECK ((((base_currency)::text ~ '^[A-Z]{3}$'::text) AND ((charge_currency)::text ~ '^[A-Z]{3}$'::text))),
-    CONSTRAINT orders_order_items_exchange_check CHECK ((((base_currency)::text = (charge_currency)::text) OR ((exchange_rate IS NOT NULL) AND (exchange_rate > (0)::numeric)))),
-    CONSTRAINT orders_order_items_fulfillment_check CHECK (((fulfillment_status)::text = ANY (ARRAY[('pending'::character varying)::text, ('fulfilled'::character varying)::text, ('cancelled'::character varying)::text, ('refunded'::character varying)::text]))),
-    CONSTRAINT orders_order_items_type_check CHECK (((type_snapshot)::text = ANY (ARRAY[('ticket'::character varying)::text, ('parking'::character varying)::text, ('merchandise'::character varying)::text, ('food'::character varying)::text, ('donation'::character varying)::text, ('digital_addon'::character varying)::text, ('other'::character varying)::text])))
-);
-
-
---
--- Name: orders_orders; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.orders_orders (
-    id uuid DEFAULT uuidv7() NOT NULL,
-    event_id uuid NOT NULL,
-    buyer_user_id uuid NOT NULL,
-    sales_channel character varying DEFAULT 'online'::character varying NOT NULL,
-    initiated_by_id uuid,
-    replaces_order_id uuid,
-    status character varying DEFAULT 'draft'::character varying NOT NULL,
-    closed_reason character varying,
-    charge_currency character varying(3) NOT NULL,
-    subtotal_minor bigint NOT NULL,
-    discount_minor bigint DEFAULT 0 NOT NULL,
-    subsidy_minor bigint DEFAULT 0 NOT NULL,
-    fee_minor bigint DEFAULT 0 NOT NULL,
-    tax_minor bigint DEFAULT 0 NOT NULL,
-    adjustment_minor bigint DEFAULT 0 NOT NULL,
-    total_minor bigint NOT NULL,
-    settlement_currency character varying(3) NOT NULL,
-    settlement_total_minor bigint NOT NULL,
-    exchange_rate numeric(24,12) DEFAULT 1.0 NOT NULL,
-    exchange_rate_source character varying NOT NULL,
-    exchange_rate_quoted_at timestamp with time zone,
-    exchange_rate_expires_at timestamp with time zone,
-    expires_at timestamp with time zone NOT NULL,
-    paid_at timestamp with time zone,
-    lock_version integer DEFAULT 0 NOT NULL,
-    idempotency_key_digest character varying(64) NOT NULL,
-    creation_request_digest character varying(64) NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT orders_orders_amounts_check CHECK (((subtotal_minor >= 0) AND (discount_minor >= 0) AND (subsidy_minor >= 0) AND (fee_minor >= 0) AND (tax_minor >= 0) AND (settlement_total_minor >= 0))),
-    CONSTRAINT orders_orders_closed_reason_check CHECK (((((status)::text = ANY (ARRAY[('expired'::character varying)::text, ('cancelled'::character varying)::text])) AND (closed_reason IS NOT NULL)) OR (((status)::text <> ALL (ARRAY[('expired'::character varying)::text, ('cancelled'::character varying)::text])) AND (closed_reason IS NULL)))),
-    CONSTRAINT orders_orders_creation_digests_check CHECK ((((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((creation_request_digest)::text ~ '^[0-9a-f]{64}$'::text))),
-    CONSTRAINT orders_orders_currency_check CHECK ((((charge_currency)::text ~ '^[A-Z]{3}$'::text) AND ((settlement_currency)::text ~ '^[A-Z]{3}$'::text))),
-    CONSTRAINT orders_orders_exchange_metadata_check CHECK (((((charge_currency)::text = (settlement_currency)::text) AND (exchange_rate = (1)::numeric)) OR (((charge_currency)::text <> (settlement_currency)::text) AND (exchange_rate_quoted_at IS NOT NULL) AND (exchange_rate_expires_at IS NOT NULL) AND (exchange_rate_expires_at > exchange_rate_quoted_at)))),
-    CONSTRAINT orders_orders_exchange_rate_check CHECK ((exchange_rate > (0)::numeric)),
-    CONSTRAINT orders_orders_lock_version_check CHECK ((lock_version >= 0)),
-    CONSTRAINT orders_orders_paid_at_check CHECK (((((status)::text = ANY (ARRAY[('paid'::character varying)::text, ('fulfilled'::character varying)::text, ('partially_refunded'::character varying)::text, ('refunded'::character varying)::text])) AND (paid_at IS NOT NULL)) OR (((status)::text <> ALL (ARRAY[('paid'::character varying)::text, ('fulfilled'::character varying)::text, ('partially_refunded'::character varying)::text, ('refunded'::character varying)::text])) AND (paid_at IS NULL)))),
-    CONSTRAINT orders_orders_replacement_self_check CHECK (((replaces_order_id IS NULL) OR (replaces_order_id <> id))),
-    CONSTRAINT orders_orders_sales_channel_check CHECK (((sales_channel)::text = ANY (ARRAY[('online'::character varying)::text, ('walk_up'::character varying)::text, ('resale'::character varying)::text]))),
-    CONSTRAINT orders_orders_status_check CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('pending_payment'::character varying)::text, ('paid'::character varying)::text, ('fulfilled'::character varying)::text, ('expired'::character varying)::text, ('cancelled'::character varying)::text, ('partially_refunded'::character varying)::text, ('refunded'::character varying)::text]))),
-    CONSTRAINT orders_orders_total_reconciles CHECK ((total_minor = (((((subtotal_minor - discount_minor) - subsidy_minor) + fee_minor) + tax_minor) + adjustment_minor)))
-);
-
-
---
--- Name: orders_promotion_redemptions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.orders_promotion_redemptions (
-    id uuid DEFAULT uuidv7() NOT NULL,
-    order_id uuid NOT NULL,
-    promotion_id uuid NOT NULL,
-    promotion_code_id uuid,
-    user_id uuid NOT NULL,
-    status character varying DEFAULT 'reserved'::character varying NOT NULL,
-    discount_minor bigint NOT NULL,
-    currency character varying(3) NOT NULL,
-    idempotency_key character varying NOT NULL,
-    expires_at timestamp with time zone,
-    applied_at timestamp with time zone,
-    released_at timestamp with time zone,
-    created_at timestamp(6) with time zone NOT NULL,
-    updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT promotion_redemptions_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
-    CONSTRAINT promotion_redemptions_discount_check CHECK ((discount_minor > 0)),
-    CONSTRAINT promotion_redemptions_state_check CHECK (((((status)::text = 'reserved'::text) AND (expires_at IS NOT NULL) AND (applied_at IS NULL) AND (released_at IS NULL)) OR (((status)::text = 'applied'::text) AND (applied_at IS NOT NULL) AND (released_at IS NULL)) OR (((status)::text = 'released'::text) AND (released_at IS NOT NULL) AND (applied_at IS NULL)) OR (((status)::text = 'expired'::text) AND (expires_at IS NOT NULL) AND (released_at IS NOT NULL) AND (applied_at IS NULL)))),
-    CONSTRAINT promotion_redemptions_status_check CHECK (((status)::text = ANY (ARRAY[('reserved'::character varying)::text, ('applied'::character varying)::text, ('released'::character varying)::text, ('expired'::character varying)::text])))
-);
-
-
---
--- Name: orders_order_adjustments orders_order_adjustments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.orders_order_adjustments
-    ADD CONSTRAINT orders_order_adjustments_pkey PRIMARY KEY (id);
-
-
---
--- Name: orders_order_items orders_order_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.orders_order_items
-    ADD CONSTRAINT orders_order_items_pkey PRIMARY KEY (id);
-
-
---
--- Name: orders_orders orders_orders_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.orders_orders
-    ADD CONSTRAINT orders_orders_pkey PRIMARY KEY (id);
-
-
---
--- Name: orders_promotion_redemptions orders_promotion_redemptions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.orders_promotion_redemptions
-    ADD CONSTRAINT orders_promotion_redemptions_pkey PRIMARY KEY (id);
-
-
---
--- Name: idx_one_active_checkout_per_buyer_event; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_one_active_checkout_per_buyer_event ON public.orders_orders USING btree (buyer_user_id, event_id) WHERE ((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('pending_payment'::character varying)::text]));
-
-
---
--- Name: idx_one_order_item_per_registration; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_one_order_item_per_registration ON public.orders_order_items USING btree (registration_id) WHERE (registration_id IS NOT NULL);
-
-
---
--- Name: idx_one_order_item_per_resale_listing; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_one_order_item_per_resale_listing ON public.orders_order_items USING btree (resale_listing_id) WHERE (resale_listing_id IS NOT NULL);
-
-
---
--- Name: idx_one_promotion_redemption_per_order; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_one_promotion_redemption_per_order ON public.orders_promotion_redemptions USING btree (order_id);
-
-
---
--- Name: idx_order_adjustments_on_order; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_order_adjustments_on_order ON public.orders_order_adjustments USING btree (order_id);
-
-
---
--- Name: idx_order_adjustments_on_order_item; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_order_adjustments_on_order_item ON public.orders_order_adjustments USING btree (order_item_id);
-
-
---
--- Name: idx_order_adjustments_on_order_type; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_order_adjustments_on_order_type ON public.orders_order_adjustments USING btree (order_id, type);
-
-
---
--- Name: idx_order_adjustments_on_source; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_order_adjustments_on_source ON public.orders_order_adjustments USING btree (source_type, source_id);
-
-
---
--- Name: idx_order_items_on_event_product; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_order_items_on_event_product ON public.orders_order_items USING btree (event_product_id);
-
-
---
--- Name: idx_order_items_on_id_and_order; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_order_items_on_id_and_order ON public.orders_order_items USING btree (id, order_id);
-
-
---
--- Name: idx_order_items_on_order; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_order_items_on_order ON public.orders_order_items USING btree (order_id);
-
-
---
--- Name: idx_order_items_on_order_fulfillment; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_order_items_on_order_fulfillment ON public.orders_order_items USING btree (order_id, fulfillment_status);
-
-
---
--- Name: idx_orders_on_creation_request_digest; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_orders_on_creation_request_digest ON public.orders_orders USING btree (creation_request_digest);
-
-
---
--- Name: idx_orders_on_event_status_expiry; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_orders_on_event_status_expiry ON public.orders_orders USING btree (event_id, status, expires_at);
-
-
---
--- Name: idx_orders_on_idempotency_digest; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_orders_on_idempotency_digest ON public.orders_orders USING btree (idempotency_key_digest);
-
-
---
--- Name: idx_orders_on_replacement; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_orders_on_replacement ON public.orders_orders USING btree (replaces_order_id) WHERE (replaces_order_id IS NOT NULL);
-
-
---
--- Name: idx_promotion_redemptions_on_code_status_expiry; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_promotion_redemptions_on_code_status_expiry ON public.orders_promotion_redemptions USING btree (promotion_code_id, status, expires_at);
-
-
---
--- Name: idx_promotion_redemptions_on_idempotency; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_promotion_redemptions_on_idempotency ON public.orders_promotion_redemptions USING btree (idempotency_key);
-
-
---
--- Name: idx_promotion_redemptions_on_promotion_status_expiry; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_promotion_redemptions_on_promotion_status_expiry ON public.orders_promotion_redemptions USING btree (promotion_id, status, expires_at);
-
-
---
--- Name: idx_promotion_redemptions_on_promotion_user_status; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_promotion_redemptions_on_promotion_user_status ON public.orders_promotion_redemptions USING btree (promotion_id, user_id, status);
-
-
---
--- Name: orders_order_adjustments trg_orders_order_adjustment_immutable; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_orders_order_adjustment_immutable BEFORE INSERT OR DELETE OR UPDATE ON public.orders_order_adjustments FOR EACH ROW EXECUTE FUNCTION public.orders_order_adjustment_immutable();
-
-
---
--- Name: orders_order_adjustments trg_orders_order_adjustment_integrity; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_orders_order_adjustment_integrity BEFORE INSERT OR UPDATE ON public.orders_order_adjustments FOR EACH ROW EXECUTE FUNCTION public.orders_order_adjustment_integrity();
-
-
---
--- Name: orders_orders trg_orders_order_immutable; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_orders_order_immutable BEFORE DELETE OR UPDATE ON public.orders_orders FOR EACH ROW EXECUTE FUNCTION public.orders_order_immutable();
-
-
---
--- Name: orders_order_items trg_orders_order_item_event_scope; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_orders_order_item_event_scope BEFORE INSERT OR UPDATE ON public.orders_order_items FOR EACH ROW EXECUTE FUNCTION public.orders_order_item_event_scope();
-
-
---
--- Name: orders_order_items trg_orders_order_item_immutable; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_orders_order_item_immutable BEFORE INSERT OR DELETE OR UPDATE ON public.orders_order_items FOR EACH ROW EXECUTE FUNCTION public.orders_order_item_immutable();
-
-
---
--- Name: orders_promotion_redemptions trg_orders_promotion_redemption_scope; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_orders_promotion_redemption_scope BEFORE INSERT OR UPDATE ON public.orders_promotion_redemptions FOR EACH ROW EXECUTE FUNCTION public.orders_promotion_redemption_scope();
-
-
---
--- Name: orders_order_adjustments fk_order_adjustments_item_order; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.orders_order_adjustments
-    ADD CONSTRAINT fk_order_adjustments_item_order FOREIGN KEY (order_item_id, order_id) REFERENCES public.orders_order_items(id, order_id) ON DELETE RESTRICT;
-
-
---
--- Name: orders_promotion_redemptions fk_rails_0261d89a8a; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.orders_promotion_redemptions
-    ADD CONSTRAINT fk_rails_0261d89a8a FOREIGN KEY (promotion_code_id) REFERENCES public.catalog_promotion_codes(id) ON DELETE RESTRICT;
-
-
---
--- Name: orders_promotion_redemptions fk_rails_0a2f4400d9; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.orders_promotion_redemptions
-    ADD CONSTRAINT fk_rails_0a2f4400d9 FOREIGN KEY (user_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
-
-
---
--- Name: orders_promotion_redemptions fk_rails_24be26217b; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.orders_promotion_redemptions
-    ADD CONSTRAINT fk_rails_24be26217b FOREIGN KEY (order_id) REFERENCES public.orders_orders(id) ON DELETE RESTRICT;
-
-
---
--- Name: orders_orders fk_rails_2b71d52eb7; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.orders_orders
-    ADD CONSTRAINT fk_rails_2b71d52eb7 FOREIGN KEY (buyer_user_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
-
-
---
--- Name: orders_order_items fk_rails_3e9c5b1ba4; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.orders_order_items
-    ADD CONSTRAINT fk_rails_3e9c5b1ba4 FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id) ON DELETE RESTRICT;
-
-
---
--- Name: orders_order_items fk_rails_407ab6b9a2; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.orders_order_items
-    ADD CONSTRAINT fk_rails_407ab6b9a2 FOREIGN KEY (event_product_id) REFERENCES public.catalog_event_products(id) ON DELETE RESTRICT;
-
-
---
--- Name: orders_order_adjustments fk_rails_55e4c64d49; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.orders_order_adjustments
-    ADD CONSTRAINT fk_rails_55e4c64d49 FOREIGN KEY (order_id) REFERENCES public.orders_orders(id) ON DELETE RESTRICT;
-
-
---
--- Name: orders_orders fk_rails_7428b4bc83; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.orders_orders
-    ADD CONSTRAINT fk_rails_7428b4bc83 FOREIGN KEY (initiated_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
-
-
---
--- Name: orders_orders fk_rails_89368e7989; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.orders_orders
-    ADD CONSTRAINT fk_rails_89368e7989 FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE RESTRICT;
-
-
---
--- Name: orders_promotion_redemptions fk_rails_b84810ecf5; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.orders_promotion_redemptions
-    ADD CONSTRAINT fk_rails_b84810ecf5 FOREIGN KEY (promotion_id) REFERENCES public.catalog_promotions(id) ON DELETE RESTRICT;
-
-
---
--- Name: orders_orders fk_rails_c03b268463; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.orders_orders
-    ADD CONSTRAINT fk_rails_c03b268463 FOREIGN KEY (replaces_order_id) REFERENCES public.orders_orders(id) ON DELETE RESTRICT;
-
-
---
--- Name: orders_order_items fk_rails_e76003e058; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.orders_order_items
-    ADD CONSTRAINT fk_rails_e76003e058 FOREIGN KEY (order_id) REFERENCES public.orders_orders(id) ON DELETE RESTRICT;
-
-
---
-
 -- PostgreSQL database dump complete
 --
 
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260811090010'),
+('20260811090009'),
+('20260811090008'),
+('20260811090007'),
+('20260811090006'),
+('20260811090005'),
 ('20260811090004'),
 ('20260811090003'),
 ('20260811090002'),
@@ -8255,552 +8802,3 @@ INSERT INTO "schema_migrations" (version) VALUES
 ('20260516000300'),
 ('20260516000200'),
 ('20260516000100');
-
---
--- Name: commercial_subsidy_reservations; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.commercial_subsidy_reservations (
-    id uuid DEFAULT uuidv7() NOT NULL,
-    subsidy_budget_id uuid NOT NULL,
-    order_id uuid NOT NULL,
-    idempotency_key_digest character varying(64) NOT NULL,
-    request_fingerprint character varying(64) NOT NULL,
-    amount_minor bigint NOT NULL,
-    currency character varying(3) NOT NULL,
-    status character varying DEFAULT 'held'::character varying NOT NULL,
-    expires_at timestamp with time zone,
-    committed_at timestamp with time zone,
-    released_at timestamp with time zone,
-    created_at timestamp(6) with time zone NOT NULL,
-    updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT commercial_subsidy_reservations_amount_check CHECK ((amount_minor > 0)),
-    CONSTRAINT commercial_subsidy_reservations_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
-    CONSTRAINT commercial_subsidy_reservations_request_evidence_check CHECK ((((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((request_fingerprint)::text ~ '^[0-9a-f]{64}$'::text))),
-    CONSTRAINT commercial_subsidy_reservations_state_check CHECK (((((status)::text = ANY ((ARRAY['held'::character varying, 'processing'::character varying])::text[])) AND (expires_at IS NOT NULL) AND (committed_at IS NULL) AND (released_at IS NULL)) OR (((status)::text = 'committed'::text) AND (committed_at IS NOT NULL) AND (released_at IS NULL)) OR (((status)::text = 'released'::text) AND (released_at IS NOT NULL) AND (committed_at IS NULL)))),
-    CONSTRAINT commercial_subsidy_reservations_status_check CHECK (((status)::text = ANY ((ARRAY['held'::character varying, 'processing'::character varying, 'committed'::character varying, 'released'::character varying])::text[])))
-);
-
-
---
--- Name: commercial_subsidy_reservations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_subsidy_reservations
-    ADD CONSTRAINT commercial_subsidy_reservations_pkey PRIMARY KEY (id);
-
-
---
--- Name: idx_one_active_subsidy_reservation_per_order_budget; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_one_active_subsidy_reservation_per_order_budget ON public.commercial_subsidy_reservations USING btree (subsidy_budget_id, order_id) WHERE ((status)::text = ANY ((ARRAY['held'::character varying, 'processing'::character varying])::text[]));
-
-
---
--- Name: idx_subsidy_reservations_on_budget; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_subsidy_reservations_on_budget ON public.commercial_subsidy_reservations USING btree (subsidy_budget_id);
-
-
---
--- Name: idx_subsidy_reservations_on_idempotency; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_subsidy_reservations_on_idempotency ON public.commercial_subsidy_reservations USING btree (idempotency_key_digest);
-
-
---
--- Name: idx_subsidy_reservations_on_order; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_subsidy_reservations_on_order ON public.commercial_subsidy_reservations USING btree (order_id);
-
-
---
--- Name: idx_subsidy_reservations_on_status_and_expiry; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_subsidy_reservations_on_status_and_expiry ON public.commercial_subsidy_reservations USING btree (status, expires_at);
-
-
---
--- Name: commercial_subsidy_reservation_immutable(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.commercial_subsidy_reservation_immutable() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-  IF TG_OP = 'DELETE' THEN
-    IF OLD.status IN ('committed', 'released') THEN
-      RAISE EXCEPTION 'commercial_subsidy_reservation_immutable' USING ERRCODE = '40001';
-    END IF;
-
-    RETURN OLD;
-  END IF;
-
-  IF (OLD.subsidy_budget_id, OLD.order_id, OLD.idempotency_key_digest,
-      OLD.request_fingerprint, OLD.amount_minor, OLD.currency, OLD.expires_at)
-     IS DISTINCT FROM
-     (NEW.subsidy_budget_id, NEW.order_id, NEW.idempotency_key_digest,
-      NEW.request_fingerprint, NEW.amount_minor, NEW.currency, NEW.expires_at) THEN
-    RAISE EXCEPTION 'commercial_subsidy_reservation_immutable' USING ERRCODE = '40001';
-  END IF;
-
-  IF OLD.status IN ('committed', 'released') AND
-     (OLD.status, OLD.committed_at, OLD.released_at) IS DISTINCT FROM
-     (NEW.status, NEW.committed_at, NEW.released_at) THEN
-    RAISE EXCEPTION 'commercial_subsidy_reservation_immutable' USING ERRCODE = '40001';
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
-
-
---
--- Name: commercial_subsidy_reservations trg_commercial_subsidy_reservation_immutable; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_commercial_subsidy_reservation_immutable BEFORE DELETE OR UPDATE ON public.commercial_subsidy_reservations FOR EACH ROW EXECUTE FUNCTION public.commercial_subsidy_reservation_immutable();
-
-
---
--- Name: commercial_subsidy_reservations fk_rails_d77a72289e; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_subsidy_reservations
-    ADD CONSTRAINT fk_rails_d77a72289e FOREIGN KEY (order_id) REFERENCES public.orders_orders(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_subsidy_reservations fk_rails_e391bd89bb; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_subsidy_reservations
-    ADD CONSTRAINT fk_rails_e391bd89bb FOREIGN KEY (subsidy_budget_id) REFERENCES public.commercial_subsidy_budgets(id) ON DELETE RESTRICT;
-
-
-INSERT INTO "schema_migrations" (version) VALUES
-('20260811090005');
-
---
--- Name: commercial_volume_counters; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.commercial_volume_counters (
-    id uuid DEFAULT uuidv7() NOT NULL,
-    fee_component_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    event_id uuid,
-    metric_type character varying NOT NULL,
-    window_type character varying NOT NULL,
-    window_start_at timestamp with time zone NOT NULL,
-    window_end_at timestamp with time zone,
-    currency character varying(3),
-    value bigint DEFAULT 0 NOT NULL,
-    lock_version integer DEFAULT 0 NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT commercial_volume_counters_currency_check CHECK (((metric_type = 'accepted_gross' AND currency IS NOT NULL AND currency ~ '^[A-Z]{3}$') OR (metric_type = 'accepted_paid_units' AND currency IS NULL))),
-    CONSTRAINT commercial_volume_counters_event_window_check CHECK ((window_type <> 'event' OR event_id IS NOT NULL)),
-    CONSTRAINT commercial_volume_counters_metric_type_check CHECK ((metric_type IN ('accepted_paid_units','accepted_gross'))),
-    CONSTRAINT commercial_volume_counters_value_check CHECK ((value >= 0 AND lock_version >= 0)),
-    CONSTRAINT commercial_volume_counters_window_bounds_check CHECK ((window_end_at IS NULL OR window_end_at > window_start_at)),
-    CONSTRAINT commercial_volume_counters_window_type_check CHECK ((window_type IN ('event','calendar_month','calendar_quarter','calendar_year','agreement_term')))
-);
-
-
---
--- Name: commercial_volume_usages; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.commercial_volume_usages (
-    id uuid DEFAULT uuidv7() NOT NULL,
-    fee_component_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    event_id uuid,
-    order_id uuid NOT NULL,
-    metric_type character varying NOT NULL,
-    window_type character varying NOT NULL,
-    window_start_at timestamp with time zone NOT NULL,
-    window_end_at timestamp with time zone,
-    currency character varying(3),
-    value bigint NOT NULL,
-    accepted_at timestamp with time zone NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT commercial_volume_usages_currency_check CHECK (((metric_type = 'accepted_gross' AND currency IS NOT NULL AND currency ~ '^[A-Z]{3}$') OR (metric_type = 'accepted_paid_units' AND currency IS NULL))),
-    CONSTRAINT commercial_volume_usages_event_window_check CHECK ((window_type <> 'event' OR event_id IS NOT NULL)),
-    CONSTRAINT commercial_volume_usages_metric_type_check CHECK ((metric_type IN ('accepted_paid_units','accepted_gross'))),
-    CONSTRAINT commercial_volume_usages_value_check CHECK ((value >= 0)),
-    CONSTRAINT commercial_volume_usages_window_bounds_check CHECK ((window_end_at IS NULL OR window_end_at > window_start_at)),
-    CONSTRAINT commercial_volume_usages_window_type_check CHECK ((window_type IN ('event','calendar_month','calendar_quarter','calendar_year','agreement_term')))
-);
-
-
---
--- Name: commercial_event_payer_selections; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.commercial_event_payer_selections (
-    id uuid DEFAULT uuidv7() NOT NULL,
-    event_id uuid NOT NULL,
-    fee_component_id uuid NOT NULL,
-    charged_to character varying NOT NULL,
-    selected_by_id uuid,
-    selected_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    idempotency_key_digest character varying(64) NOT NULL,
-    request_fingerprint character varying(64) NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT commercial_event_payer_selections_payer_check CHECK ((charged_to IN ('buyer','organizer'))),
-    CONSTRAINT commercial_event_payer_selections_request_evidence_check CHECK ((idempotency_key_digest ~ '^[0-9a-f]{64}$' AND request_fingerprint ~ '^[0-9a-f]{64}$'))
-);
-
-
---
--- Name: commercial_volume_counters commercial_volume_counters_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_volume_counters
-    ADD CONSTRAINT commercial_volume_counters_pkey PRIMARY KEY (id);
-
-
---
--- Name: commercial_volume_usages commercial_volume_usages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_volume_usages
-    ADD CONSTRAINT commercial_volume_usages_pkey PRIMARY KEY (id);
-
-
---
--- Name: commercial_event_payer_selections commercial_event_payer_selections_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_event_payer_selections
-    ADD CONSTRAINT commercial_event_payer_selections_pkey PRIMARY KEY (id);
-
-
---
--- Name: idx_volume_counters_on_component; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_volume_counters_on_component ON public.commercial_volume_counters USING btree (fee_component_id);
-
-
---
--- Name: idx_volume_counters_on_dimension; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_volume_counters_on_dimension ON public.commercial_volume_counters USING btree (fee_component_id, organization_id, event_id, metric_type, window_type, currency, window_start_at, window_end_at) NULLS NOT DISTINCT;
-
-
---
--- Name: idx_volume_counters_on_scope; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_volume_counters_on_scope ON public.commercial_volume_counters USING btree (organization_id, event_id, metric_type, window_type);
-
-
---
--- Name: idx_volume_counters_on_window; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_volume_counters_on_window ON public.commercial_volume_counters USING btree (window_type, window_start_at, window_end_at);
-
-
---
--- Name: idx_volume_usages_on_component_scope; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_volume_usages_on_component_scope ON public.commercial_volume_usages USING btree (fee_component_id, organization_id);
-
-
---
--- Name: idx_volume_usages_on_dimension; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_volume_usages_on_dimension ON public.commercial_volume_usages USING btree (metric_type, window_type, window_start_at, window_end_at, currency);
-
-
---
--- Name: idx_volume_usages_on_order; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_volume_usages_on_order ON public.commercial_volume_usages USING btree (order_id);
-
-
---
--- Name: idx_volume_usages_on_order_dimension; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_volume_usages_on_order_dimension ON public.commercial_volume_usages USING btree (order_id, fee_component_id, metric_type, window_type, currency, window_start_at, window_end_at) NULLS NOT DISTINCT;
-
-
---
--- Name: idx_event_payer_selections_on_actor; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_event_payer_selections_on_actor ON public.commercial_event_payer_selections USING btree (selected_by_id);
-
-
---
--- Name: idx_event_payer_selections_on_event_component; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_event_payer_selections_on_event_component ON public.commercial_event_payer_selections USING btree (event_id, fee_component_id);
-
-
---
--- Name: commercial_volume_counter_scope(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.commercial_volume_counter_scope() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-  event_organization_id uuid;
-  component_event_product_id uuid;
-  component_event_id uuid;
-BEGIN
-  IF NEW.event_id IS NULL THEN
-    RETURN NEW;
-  END IF;
-
-  SELECT organization_id INTO event_organization_id
-  FROM events_events
-  WHERE id = NEW.event_id;
-
-  IF event_organization_id IS DISTINCT FROM NEW.organization_id THEN
-    RAISE EXCEPTION 'commercial_volume_counter_scope' USING ERRCODE = '23514';
-  END IF;
-
-  SELECT event_product_id INTO component_event_product_id
-  FROM commercial_fee_components
-  WHERE id = NEW.fee_component_id;
-
-  IF component_event_product_id IS NOT NULL THEN
-    SELECT event_id INTO component_event_id
-    FROM catalog_event_products
-    WHERE id = component_event_product_id;
-
-    IF component_event_id IS DISTINCT FROM NEW.event_id THEN
-      RAISE EXCEPTION 'commercial_volume_counter_component_scope' USING ERRCODE = '23514';
-    END IF;
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
-
-
---
--- Name: commercial_volume_usage_integrity(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.commercial_volume_usage_integrity() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-  order_event_id uuid;
-  order_organization_id uuid;
-  order_currency text;
-  order_status text;
-  component_event_product_id uuid;
-  component_event_id uuid;
-BEGIN
-  IF TG_OP <> 'INSERT' THEN
-    RAISE EXCEPTION 'commercial_volume_usage_immutable' USING ERRCODE = '40001';
-  END IF;
-
-  SELECT orders.event_id, events.organization_id, orders.settlement_currency, orders.status
-    INTO order_event_id, order_organization_id, order_currency, order_status
-  FROM orders_orders orders
-  JOIN events_events events ON events.id = orders.event_id
-  WHERE orders.id = NEW.order_id;
-
-  IF order_status NOT IN ('paid','fulfilled','partially_refunded','refunded') THEN
-    RAISE EXCEPTION 'commercial_volume_usage_order_status' USING ERRCODE = '23514';
-  END IF;
-
-  IF order_organization_id IS DISTINCT FROM NEW.organization_id THEN
-    RAISE EXCEPTION 'commercial_volume_usage_organization_scope' USING ERRCODE = '23514';
-  END IF;
-
-  IF NEW.window_type = 'event' AND NEW.event_id IS DISTINCT FROM order_event_id THEN
-    RAISE EXCEPTION 'commercial_volume_usage_event_scope' USING ERRCODE = '23514';
-  END IF;
-
-  IF NEW.event_id IS NOT NULL AND NEW.event_id IS DISTINCT FROM order_event_id THEN
-    RAISE EXCEPTION 'commercial_volume_usage_event_scope' USING ERRCODE = '23514';
-  END IF;
-
-  SELECT event_product_id INTO component_event_product_id
-  FROM commercial_fee_components
-  WHERE id = NEW.fee_component_id;
-
-  IF component_event_product_id IS NOT NULL THEN
-    SELECT event_id INTO component_event_id
-    FROM catalog_event_products
-    WHERE id = component_event_product_id;
-
-    IF component_event_id IS DISTINCT FROM order_event_id THEN
-      RAISE EXCEPTION 'commercial_volume_usage_component_scope' USING ERRCODE = '23514';
-    END IF;
-  END IF;
-
-  IF NEW.metric_type = 'accepted_gross' AND NEW.currency IS DISTINCT FROM order_currency THEN
-    RAISE EXCEPTION 'commercial_volume_usage_currency_scope' USING ERRCODE = '23514';
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
-
-
---
--- Name: commercial_event_payer_selection_integrity(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.commercial_event_payer_selection_integrity() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-  component_event_product_id uuid;
-  component_event_id uuid;
-  component_default_payer text;
-  component_allows_choice boolean;
-BEGIN
-  SELECT event_product_id, charged_to, organizer_payer_choice
-    INTO component_event_product_id, component_default_payer, component_allows_choice
-  FROM commercial_fee_components
-  WHERE id = NEW.fee_component_id;
-
-  IF component_event_product_id IS NOT NULL THEN
-    SELECT event_id INTO component_event_id
-    FROM catalog_event_products
-    WHERE id = component_event_product_id;
-
-    IF component_event_id IS DISTINCT FROM NEW.event_id THEN
-      RAISE EXCEPTION 'commercial_event_payer_selection_event_scope' USING ERRCODE = '23514';
-    END IF;
-  END IF;
-
-  IF NEW.charged_to IS DISTINCT FROM component_default_payer AND NOT component_allows_choice THEN
-    RAISE EXCEPTION 'commercial_event_payer_selection_forbidden' USING ERRCODE = '23514';
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
-
-
---
--- Name: commercial_volume_counters trg_commercial_volume_counter_scope; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_commercial_volume_counter_scope BEFORE INSERT OR UPDATE ON public.commercial_volume_counters FOR EACH ROW EXECUTE FUNCTION public.commercial_volume_counter_scope();
-
-
---
--- Name: commercial_volume_usages trg_commercial_volume_usage_integrity; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_commercial_volume_usage_integrity BEFORE INSERT OR DELETE OR UPDATE ON public.commercial_volume_usages FOR EACH ROW EXECUTE FUNCTION public.commercial_volume_usage_integrity();
-
-
---
--- Name: commercial_event_payer_selections trg_commercial_event_payer_selection_integrity; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_commercial_event_payer_selection_integrity BEFORE INSERT OR UPDATE ON public.commercial_event_payer_selections FOR EACH ROW EXECUTE FUNCTION public.commercial_event_payer_selection_integrity();
-
-
---
--- Name: commercial_volume_counters fk_rails_0c206abbf1; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_volume_counters
-    ADD CONSTRAINT fk_rails_0c206abbf1 FOREIGN KEY (fee_component_id) REFERENCES public.commercial_fee_components(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_volume_usages fk_rails_2acca2a05d; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_volume_usages
-    ADD CONSTRAINT fk_rails_2acca2a05d FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_volume_usages fk_rails_41dbf1e9c6; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_volume_usages
-    ADD CONSTRAINT fk_rails_41dbf1e9c6 FOREIGN KEY (fee_component_id) REFERENCES public.commercial_fee_components(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_volume_usages fk_rails_a2ebf13ea8; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_volume_usages
-    ADD CONSTRAINT fk_rails_a2ebf13ea8 FOREIGN KEY (order_id) REFERENCES public.orders_orders(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_volume_usages fk_rails_f029ba26b4; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_volume_usages
-    ADD CONSTRAINT fk_rails_f029ba26b4 FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_volume_counters fk_rails_61c11298e3; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_volume_counters
-    ADD CONSTRAINT fk_rails_61c11298e3 FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_volume_counters fk_rails_f33e9b7151; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_volume_counters
-    ADD CONSTRAINT fk_rails_f33e9b7151 FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_event_payer_selections fk_rails_7357c14cd7; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_event_payer_selections
-    ADD CONSTRAINT fk_rails_7357c14cd7 FOREIGN KEY (selected_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_event_payer_selections fk_rails_cbe6016119; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_event_payer_selections
-    ADD CONSTRAINT fk_rails_cbe6016119 FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE RESTRICT;
-
-
---
--- Name: commercial_event_payer_selections fk_rails_fb9956ce8f; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.commercial_event_payer_selections
-    ADD CONSTRAINT fk_rails_fb9956ce8f FOREIGN KEY (fee_component_id) REFERENCES public.commercial_fee_components(id) ON DELETE RESTRICT;
-
-
-INSERT INTO "schema_migrations" (version) VALUES
-('20260811090008'),
-('20260811090007'),
-('20260811090006');

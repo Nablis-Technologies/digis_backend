@@ -4,9 +4,10 @@ require "digest"
 require "json"
 
 module Orders
-  # Produces the stable provider-context signature for immutable Commercial
-  # evidence. Payment-provider code can use it to reject a changed quote
-  # without asking the Commercial module to recalculate anything.
+  # Produces the stable signature for immutable Commercial evidence. Provider
+  # and payment-method arguments remain accepted at this boundary because they
+  # are inputs to Commercial resolution, but they are deliberately excluded:
+  # compatible providers must be able to reuse an identical resolved result.
   class CommercialSignature
     def self.call(...)
       new(...).call
@@ -17,10 +18,8 @@ module Orders
       alias for call
     end
 
-    def initialize(commercial_results:, provider:, payment_method:, charge_currency:)
+    def initialize(commercial_results:, provider: nil, payment_method: nil, charge_currency:)
       @commercial_results = commercial_results.to_a
-      @provider = provider.to_s.downcase.presence
-      @payment_method = payment_method.to_s.downcase.presence
       @charge_currency = charge_currency.to_s.upcase
     end
 
@@ -32,8 +31,6 @@ module Orders
 
     def payload
       {
-        provider: @provider,
-        payment_method: @payment_method,
         charge_currency: @charge_currency,
         commercial_results: @commercial_results.map(&:overall_signature)
       }

@@ -1,0 +1,11 @@
+en:
+  orders:
+    payments:
+      errors:
+        commercial_requote_required: "This payment option requires a new checkout quote"
+  payments:
+    providers:
+      errors:
+        adapter_operation_not_implemented: "Payment provider operation is not implemented"
+        invalid_grace_minutes: "Payment settlement grace must be between 3 and 15 minutes"
+        invalid_result: "Payment provider returned an invalid result"

@@ -59,7 +59,7 @@ module Orders
       assert_equal "half_up", adjustment.resolution_evidence.fetch("rounding").fetch("mode")
     end
 
-    test "commercial signatures change when provider context or results change" do
+    test "commercial signatures stay stable across compatible providers and change with results" do
       charge_result = Commercial::Resolution::ChargeResult.new(
         currency: "ETB",
         quoted_at: Time.current,
@@ -81,9 +81,23 @@ module Orders
         commercial_results: [ charge_result ], provider: "stripe",
         payment_method: "card", charge_currency: "ETB"
       )
+      changed_result = Orders::CommercialSignature.call(
+        commercial_results: [
+          Commercial::Resolution::ChargeResult.new(
+            currency: "ETB",
+            quoted_at: charge_result.quoted_at,
+            component_results: [ @component ],
+            buyer_fee_total: 126,
+            organizer_fee_total: 0,
+            subsidy_total: 0
+          )
+        ], provider: "chapa",
+        payment_method: "telebirr", charge_currency: "ETB"
+      )
 
       assert_equal first, same
-      refute_equal first, changed
+      assert_equal first, changed
+      refute_equal first, changed_result
       assert_match(/\A[0-9a-f]{64}\z/, first)
     end
 
