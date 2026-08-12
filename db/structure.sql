@@ -1265,6 +1265,235 @@ $$;
 
 
 --
+-- Name: ticketing_admission_use_append_only(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_admission_use_append_only() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  RAISE EXCEPTION 'ticketing_admission_uses_append_only' USING ERRCODE = '40001';
+END;
+$$;
+
+
+--
+-- Name: ticketing_admission_use_integrity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_admission_use_integrity() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  slot_ticket_id uuid;
+  credential_ticket_id uuid;
+  checkin_ticket_id uuid;
+  checkin_product_access_id uuid;
+  checkin_event_date_id uuid;
+  product_access_event_date_id uuid;
+  checkin_result text;
+BEGIN
+  SELECT ticket_id INTO slot_ticket_id
+  FROM ticketing_admission_slots WHERE id = NEW.admission_slot_id;
+
+  SELECT ticket_id INTO credential_ticket_id
+  FROM ticketing_credentials WHERE id = NEW.credential_id;
+
+  SELECT ticket_id, product_access_id, event_date_id, result
+    INTO checkin_ticket_id, checkin_product_access_id, checkin_event_date_id, checkin_result
+  FROM ticketing_checkin_logs WHERE id = NEW.checkin_log_id;
+
+  SELECT event_date_id INTO product_access_event_date_id
+  FROM catalog_product_accesses WHERE id = NEW.product_access_id;
+
+  IF checkin_result IS DISTINCT FROM 'success' OR
+     slot_ticket_id IS DISTINCT FROM credential_ticket_id OR
+     slot_ticket_id IS DISTINCT FROM checkin_ticket_id OR
+     NEW.product_access_id IS DISTINCT FROM checkin_product_access_id OR
+     checkin_event_date_id IS DISTINCT FROM product_access_event_date_id THEN
+    RAISE EXCEPTION 'ticketing_admission_use_scope' USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: ticketing_admission_use_reversal_append_only(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_admission_use_reversal_append_only() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  RAISE EXCEPTION 'ticketing_admission_use_reversals_append_only' USING ERRCODE = '40001';
+END;
+$$;
+
+
+--
+-- Name: ticketing_admission_use_reversal_integrity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_admission_use_reversal_integrity() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  checkin_result text;
+  checkin_event_id uuid;
+  checkin_ticket_id uuid;
+  checkin_use_count bigint;
+  group_reversal_count bigint;
+BEGIN
+  SELECT result, ticket_id INTO checkin_result, checkin_ticket_id
+  FROM ticketing_checkin_logs WHERE id = NEW.checkin_log_id;
+
+  SELECT event_id INTO checkin_event_id
+  FROM ticketing_tickets WHERE id = checkin_ticket_id;
+
+  IF checkin_result IS DISTINCT FROM 'success' OR
+     checkin_event_id IS DISTINCT FROM NEW.event_id THEN
+    RAISE EXCEPTION 'ticketing_admission_use_reversal_checkin_scope'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM ticketing_admission_use_reversals existing
+    WHERE existing.reversal_group_id = NEW.reversal_group_id
+      AND (existing.event_id IS DISTINCT FROM NEW.event_id OR
+           existing.checkin_log_id IS DISTINCT FROM NEW.checkin_log_id)
+  ) THEN
+    RAISE EXCEPTION 'ticketing_admission_use_reversal_group_scope'
+      USING ERRCODE = '23514';
+  END IF;
+
+  SELECT count(*) INTO checkin_use_count
+  FROM ticketing_admission_uses
+  WHERE checkin_log_id = NEW.checkin_log_id;
+
+  SELECT count(*) INTO group_reversal_count
+  FROM ticketing_admission_use_reversals
+  WHERE reversal_group_id = NEW.reversal_group_id;
+
+  IF checkin_use_count <> group_reversal_count OR EXISTS (
+    SELECT 1
+    FROM ticketing_admission_uses admission_use
+    WHERE admission_use.checkin_log_id = NEW.checkin_log_id
+      AND NOT EXISTS (
+        SELECT 1
+        FROM ticketing_admission_use_reversals reversal
+        WHERE reversal.admission_use_id = admission_use.id
+          AND reversal.reversal_group_id = NEW.reversal_group_id
+      )
+  ) THEN
+    RAISE EXCEPTION 'ticketing_admission_use_reversal_incomplete_group'
+      USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: ticketing_checkin_log_append_only(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_checkin_log_append_only() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  RAISE EXCEPTION 'ticketing_checkin_logs_append_only' USING ERRCODE = '40001';
+END;
+$$;
+
+
+--
+-- Name: ticketing_checkin_log_scope(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_checkin_log_scope() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  ticket_event_id uuid;
+  product_access_event_id uuid;
+  product_access_event_date_id uuid;
+  event_date_event_id uuid;
+  credential_ticket_id uuid;
+  assignment_event_id uuid;
+  upload_assignment_id uuid;
+  zone_event_id uuid;
+  zone_event_date_id uuid;
+  override_result text;
+  override_ticket_id uuid;
+BEGIN
+  SELECT event_id INTO ticket_event_id
+  FROM ticketing_tickets WHERE id = NEW.ticket_id;
+
+  SELECT product.event_id, access.event_date_id
+    INTO product_access_event_id, product_access_event_date_id
+  FROM catalog_product_accesses access
+  JOIN catalog_event_products product
+    ON product.id = access.event_product_id
+  WHERE access.id = NEW.product_access_id;
+
+  SELECT event_id INTO event_date_event_id
+  FROM events_event_dates WHERE id = NEW.event_date_id;
+
+  SELECT ticket_id INTO credential_ticket_id
+  FROM ticketing_credentials WHERE id = NEW.credential_id;
+
+  IF ticket_event_id IS DISTINCT FROM product_access_event_id OR
+     ticket_event_id IS DISTINCT FROM event_date_event_id OR
+     product_access_event_date_id IS DISTINCT FROM NEW.event_date_id OR
+     credential_ticket_id IS DISTINCT FROM NEW.ticket_id THEN
+    RAISE EXCEPTION 'ticketing_checkin_log_event_scope' USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.scanner_device_assignment_id IS NOT NULL THEN
+    SELECT event_id INTO assignment_event_id
+    FROM ticketing_scanner_device_assignments
+    WHERE id = NEW.scanner_device_assignment_id;
+    IF assignment_event_id IS DISTINCT FROM ticket_event_id THEN
+      RAISE EXCEPTION 'ticketing_checkin_log_assignment_scope' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  IF NEW.scan_upload_id IS NOT NULL THEN
+    SELECT scanner_device_assignment_id INTO upload_assignment_id
+    FROM ticketing_scan_uploads WHERE id = NEW.scan_upload_id;
+    IF upload_assignment_id IS DISTINCT FROM NEW.scanner_device_assignment_id THEN
+      RAISE EXCEPTION 'ticketing_checkin_log_upload_scope' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  IF NEW.access_zone_id IS NOT NULL THEN
+    SELECT event_id, event_date_id INTO zone_event_id, zone_event_date_id
+    FROM events_access_zones WHERE id = NEW.access_zone_id;
+    IF zone_event_id IS DISTINCT FROM ticket_event_id OR
+       (zone_event_date_id IS NOT NULL AND zone_event_date_id IS DISTINCT FROM NEW.event_date_id) THEN
+      RAISE EXCEPTION 'ticketing_checkin_log_zone_scope' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  IF NEW.overrides_checkin_log_id IS NOT NULL THEN
+    SELECT result, ticket_id INTO override_result, override_ticket_id
+    FROM ticketing_checkin_logs WHERE id = NEW.overrides_checkin_log_id;
+    IF override_result IS DISTINCT FROM 'identity_mismatch' OR
+       override_ticket_id IS DISTINCT FROM NEW.ticket_id THEN
+      RAISE EXCEPTION 'ticketing_checkin_log_override_scope' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: ticketing_credential_generation_cardinality_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2039,6 +2268,35 @@ $$;
 
 
 --
+-- Name: ticketing_scanner_assignment_zone_scope(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_scanner_assignment_zone_scope() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  assignment_event_id uuid;
+  zone_event_id uuid;
+BEGIN
+  SELECT event_id INTO assignment_event_id
+  FROM ticketing_scanner_device_assignments
+  WHERE id = NEW.scanner_device_assignment_id;
+
+  SELECT event_id INTO zone_event_id
+  FROM events_access_zones
+  WHERE id = NEW.access_zone_id;
+
+  IF assignment_event_id IS DISTINCT FROM zone_event_id THEN
+    RAISE EXCEPTION 'ticketing_scanner_assignment_zone_event_scope'
+      USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: ticketing_ticket_scope_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2104,8 +2362,7 @@ BEGIN
     IF generation_ticket_id IS DISTINCT FROM NEW.id OR
        generation_mode IS DISTINCT FROM NEW.credential_mode OR
        generation_version IS DISTINCT FROM NEW.credential_version OR
-       (generation_status IS DISTINCT FROM 'active' AND
-        NOT (NEW.status IN ('void', 'refunded') AND generation_status = 'revoked')) THEN
+       generation_status IS DISTINCT FROM 'active' THEN
       RAISE EXCEPTION 'ticket current credential generation does not match the ticket'
         USING ERRCODE = '23514';
     END IF;
@@ -3978,6 +4235,46 @@ CREATE TABLE public.ticketing_admission_slots (
 
 
 --
+-- Name: ticketing_admission_use_reversals; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_admission_use_reversals (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    event_id uuid NOT NULL,
+    admission_use_id uuid NOT NULL,
+    checkin_log_id uuid NOT NULL,
+    reversal_group_id uuid NOT NULL,
+    reversed_by_id uuid NOT NULL,
+    reason_code character varying NOT NULL,
+    note text,
+    reversal_version bigint NOT NULL,
+    reversed_at timestamp with time zone NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_admission_use_reversals_reason_check CHECK ((btrim((reason_code)::text) <> ''::text)),
+    CONSTRAINT ticketing_admission_use_reversals_version_check CHECK ((reversal_version > 0))
+);
+
+
+--
+-- Name: ticketing_admission_uses; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_admission_uses (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    admission_slot_id uuid NOT NULL,
+    product_access_id uuid NOT NULL,
+    credential_id uuid NOT NULL,
+    checkin_log_id uuid NOT NULL,
+    usage_number integer NOT NULL,
+    used_at timestamp with time zone NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_admission_uses_usage_number_check CHECK ((usage_number > 0))
+);
+
+
+--
 -- Name: ticketing_attendee_exports; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4063,6 +4360,44 @@ CREATE TABLE public.ticketing_attendee_index_entries (
     CONSTRAINT ticketing_attendee_index_entries_phone_hash_check CHECK (((phone_hash IS NULL) OR ((phone_hash)::text ~ '^[0-9a-f]{64}$'::text))),
     CONSTRAINT ticketing_attendee_index_entries_shape_check CHECK (((cardinality(slot_positions) > 0) AND (entry_limit = cardinality(slot_positions)) AND (entry_limit > 0) AND (generation_version > 0) AND (index_version >= 0))),
     CONSTRAINT ticketing_attendee_index_entries_validation_mode_check CHECK (((entry_validation_mode)::text = ANY ((ARRAY['qr'::character varying, 'qr_and_id'::character varying])::text[])))
+);
+
+
+--
+-- Name: ticketing_checkin_logs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_checkin_logs (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    ticket_id uuid NOT NULL,
+    credential_id uuid NOT NULL,
+    credential_version integer NOT NULL,
+    product_access_id uuid NOT NULL,
+    event_date_id uuid NOT NULL,
+    access_zone_id uuid,
+    scanner_device_assignment_id uuid,
+    scan_upload_id uuid,
+    client_scan_id uuid NOT NULL,
+    result character varying NOT NULL,
+    lookup_via character varying NOT NULL,
+    reason_code character varying,
+    identity_check_result character varying DEFAULT 'not_required'::character varying NOT NULL,
+    identity_checked_by_id uuid,
+    overrides_checkin_log_id uuid,
+    identity_override_by_id uuid,
+    identity_override_reason character varying,
+    identity_overridden_at timestamp with time zone,
+    scanned_at timestamp with time zone NOT NULL,
+    received_at timestamp with time zone NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_checkin_logs_credential_version_check CHECK ((credential_version > 0)),
+    CONSTRAINT ticketing_checkin_logs_identity_check_shape CHECK (((((identity_check_result)::text = 'not_required'::text) AND (identity_checked_by_id IS NULL)) OR (((identity_check_result)::text = ANY ((ARRAY['matched'::character varying, 'mismatch'::character varying])::text[])) AND (identity_checked_by_id IS NOT NULL)))),
+    CONSTRAINT ticketing_checkin_logs_identity_override_shape CHECK ((((identity_override_by_id IS NULL) AND (identity_override_reason IS NULL) AND (identity_overridden_at IS NULL) AND (overrides_checkin_log_id IS NULL)) OR ((identity_override_by_id IS NOT NULL) AND ((identity_check_result)::text = 'mismatch'::text) AND ((result)::text = 'success'::text) AND (btrim((identity_override_reason)::text) <> ''::text) AND (identity_overridden_at IS NOT NULL) AND (overrides_checkin_log_id IS NOT NULL) AND (scan_upload_id IS NULL)))),
+    CONSTRAINT ticketing_checkin_logs_identity_result_check CHECK (((identity_check_result)::text = ANY ((ARRAY['not_required'::character varying, 'matched'::character varying, 'mismatch'::character varying])::text[]))),
+    CONSTRAINT ticketing_checkin_logs_lookup_via_check CHECK (((lookup_via)::text = ANY ((ARRAY['qr'::character varying, 'code'::character varying, 'phone'::character varying, 'name'::character varying])::text[]))),
+    CONSTRAINT ticketing_checkin_logs_manual_reason_check CHECK ((((lookup_via)::text = 'qr'::text) OR (btrim((reason_code)::text) <> ''::text))),
+    CONSTRAINT ticketing_checkin_logs_result_check CHECK (((result)::text = ANY ((ARRAY['success'::character varying, 'duplicate'::character varying, 'invalid'::character varying, 'version_mismatch'::character varying, 'revoked'::character varying, 'wrong_date'::character varying, 'wrong_channel'::character varying, 'wrong_zone'::character varying, 'identity_mismatch'::character varying])::text[])))
 );
 
 
@@ -4513,6 +4848,81 @@ CREATE TABLE public.ticketing_revocations (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_revocations_versions_check CHECK (((revoked_through_version >= 0) AND (revocation_version >= 0)))
+);
+
+
+--
+-- Name: ticketing_scan_uploads; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_scan_uploads (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    scanner_device_assignment_id uuid NOT NULL,
+    client_upload_id uuid NOT NULL,
+    received_at timestamp with time zone NOT NULL,
+    completed_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_scan_uploads_completion_check CHECK (((completed_at IS NULL) OR (completed_at >= received_at)))
+);
+
+
+--
+-- Name: ticketing_scanner_assignment_zones; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_scanner_assignment_zones (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    scanner_device_assignment_id uuid CONSTRAINT ticketing_scanner_assignmen_scanner_device_assignment__not_null NOT NULL,
+    access_zone_id uuid NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL
+);
+
+
+--
+-- Name: ticketing_scanner_device_assignments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_scanner_device_assignments (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    scanner_device_id uuid NOT NULL,
+    event_id uuid NOT NULL,
+    assigned_by_id uuid NOT NULL,
+    status character varying DEFAULT 'active'::character varying NOT NULL,
+    starts_at timestamp with time zone,
+    ends_at timestamp with time zone,
+    last_revocation_version bigint DEFAULT 0 CONSTRAINT ticketing_scanner_device_assig_last_revocation_version_not_null NOT NULL,
+    last_attendee_index_version bigint DEFAULT 0 CONSTRAINT ticketing_scanner_device_as_last_attendee_index_versio_not_null NOT NULL,
+    last_schedule_version bigint DEFAULT 0 CONSTRAINT ticketing_scanner_device_assignm_last_schedule_version_not_null NOT NULL,
+    last_admission_use_reversal_version bigint DEFAULT 0 CONSTRAINT ticketing_scanner_device_as_last_admission_use_reversa_not_null NOT NULL,
+    last_synced_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_scanner_device_assignments_status_check CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'suspended'::character varying, 'revoked'::character varying, 'expired'::character varying])::text[]))),
+    CONSTRAINT ticketing_scanner_device_assignments_versions_check CHECK (((last_revocation_version >= 0) AND (last_attendee_index_version >= 0) AND (last_schedule_version >= 0) AND (last_admission_use_reversal_version >= 0))),
+    CONSTRAINT ticketing_scanner_device_assignments_window_check CHECK (((ends_at IS NULL) OR (starts_at IS NULL) OR (ends_at > starts_at)))
+);
+
+
+--
+-- Name: ticketing_scanner_devices; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_scanner_devices (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    device_identifier character varying NOT NULL,
+    name character varying,
+    token_digest character varying(64) NOT NULL,
+    status character varying DEFAULT 'active'::character varying NOT NULL,
+    last_seen_at timestamp with time zone,
+    revoked_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_scanner_devices_identifier_check CHECK ((btrim((device_identifier)::text) <> ''::text)),
+    CONSTRAINT ticketing_scanner_devices_status_check CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'suspended'::character varying, 'revoked'::character varying])::text[]))),
+    CONSTRAINT ticketing_scanner_devices_token_digest_check CHECK (((token_digest)::text ~ '^[0-9a-f]{64}$'::text))
 );
 
 
@@ -5307,6 +5717,22 @@ ALTER TABLE ONLY public.ticketing_admission_slots
 
 
 --
+-- Name: ticketing_admission_use_reversals ticketing_admission_use_reversals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_admission_use_reversals
+    ADD CONSTRAINT ticketing_admission_use_reversals_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_admission_uses ticketing_admission_uses_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_admission_uses
+    ADD CONSTRAINT ticketing_admission_uses_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: ticketing_attendee_exports ticketing_attendee_exports_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5320,6 +5746,14 @@ ALTER TABLE ONLY public.ticketing_attendee_exports
 
 ALTER TABLE ONLY public.ticketing_attendee_index_entries
     ADD CONSTRAINT ticketing_attendee_index_entries_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_checkin_logs ticketing_checkin_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_checkin_logs
+    ADD CONSTRAINT ticketing_checkin_logs_pkey PRIMARY KEY (id);
 
 
 --
@@ -5467,6 +5901,38 @@ ALTER TABLE ONLY public.ticketing_revocations
 
 
 --
+-- Name: ticketing_scan_uploads ticketing_scan_uploads_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_scan_uploads
+    ADD CONSTRAINT ticketing_scan_uploads_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_scanner_assignment_zones ticketing_scanner_assignment_zones_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_scanner_assignment_zones
+    ADD CONSTRAINT ticketing_scanner_assignment_zones_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_scanner_device_assignments ticketing_scanner_device_assignments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_scanner_device_assignments
+    ADD CONSTRAINT ticketing_scanner_device_assignments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_scanner_devices ticketing_scanner_devices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_scanner_devices
+    ADD CONSTRAINT ticketing_scanner_devices_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: ticketing_ticket_suspensions ticketing_ticket_suspensions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5503,6 +5969,13 @@ ALTER TABLE ONLY public.ticketing_tickets
 --
 
 CREATE UNIQUE INDEX idx_access_zones_on_product_and_zone ON public.catalog_product_access_zones USING btree (product_access_id, access_zone_id);
+
+
+--
+-- Name: idx_active_scanner_assignment; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_active_scanner_assignment ON public.ticketing_scanner_device_assignments USING btree (scanner_device_id, event_id) WHERE ((status)::text = 'active'::text);
 
 
 --
@@ -5765,6 +6238,13 @@ CREATE INDEX idx_legal_acceptances_by_actor ON public.legal_acceptances USING bt
 
 
 --
+-- Name: idx_on_admission_slot_id_product_access_id_usage_nu_e291a18192; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_on_admission_slot_id_product_access_id_usage_nu_e291a18192 ON public.ticketing_admission_uses USING btree (admission_slot_id, product_access_id, usage_number);
+
+
+--
 -- Name: idx_on_aggregate_type_aggregate_id_occurred_at_dc800603ae; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5783,6 +6263,13 @@ CREATE INDEX idx_on_assigned_user_id_assignment_status_027d423ff0 ON public.tick
 --
 
 CREATE INDEX idx_on_category_jurisdiction_code_status_effective__957fab264b ON public.core_data_retention_policies USING btree (category, jurisdiction_code, status, effective_at);
+
+
+--
+-- Name: idx_on_checkin_log_id_admission_slot_id_ff8a25c365; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_checkin_log_id_admission_slot_id_ff8a25c365 ON public.ticketing_admission_uses USING btree (checkin_log_id, admission_slot_id);
 
 
 --
@@ -5828,10 +6315,24 @@ CREATE UNIQUE INDEX idx_on_event_id_organization_id_ee33770ea4 ON public.events_
 
 
 --
+-- Name: idx_on_event_id_reversal_version_5e553a2e87; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_event_id_reversal_version_5e553a2e87 ON public.ticketing_admission_use_reversals USING btree (event_id, reversal_version);
+
+
+--
 -- Name: idx_on_event_id_revocation_version_4b798feea0; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_on_event_id_revocation_version_4b798feea0 ON public.ticketing_credential_revocations USING btree (event_id, revocation_version);
+
+
+--
+-- Name: idx_on_event_id_status_29a4ce38db; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_event_id_status_29a4ce38db ON public.ticketing_scanner_device_assignments USING btree (event_id, status);
 
 
 --
@@ -5874,6 +6375,13 @@ CREATE INDEX idx_on_metric_type_window_type_currency_34fcab8ed0 ON public.commer
 --
 
 CREATE INDEX idx_on_organization_id_status_ab96da78ad ON public.commercial_program_entitlements USING btree (organization_id, status);
+
+
+--
+-- Name: idx_on_product_access_id_used_at_5bb476d6c6; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_product_access_id_used_at_5bb476d6c6 ON public.ticketing_admission_uses USING btree (product_access_id, used_at);
 
 
 --
@@ -5926,6 +6434,20 @@ CREATE INDEX idx_on_retention_policy_id_retain_until_39a1821c75 ON public.ticket
 
 
 --
+-- Name: idx_on_scanner_device_assignment_id_client_upload_i_dabaaa1f70; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_on_scanner_device_assignment_id_client_upload_i_dabaaa1f70 ON public.ticketing_scan_uploads USING btree (scanner_device_assignment_id, client_upload_id);
+
+
+--
+-- Name: idx_on_scanner_device_assignment_id_received_at_e3b2e0ce81; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_scanner_device_assignment_id_received_at_e3b2e0ce81 ON public.ticketing_scan_uploads USING btree (scanner_device_assignment_id, received_at);
+
+
+--
 -- Name: idx_on_status_effective_from_effective_until_ed4ab9d52f; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5937,6 +6459,13 @@ CREATE INDEX idx_on_status_effective_from_effective_until_ed4ab9d52f ON public.c
 --
 
 CREATE INDEX idx_on_submitted_by_user_id_b8cd03fa99 ON public.ticketing_registration_form_submissions USING btree (submitted_by_user_id);
+
+
+--
+-- Name: idx_on_ticket_id_event_date_id_result_50038ab9b3; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_ticket_id_event_date_id_result_50038ab9b3 ON public.ticketing_checkin_logs USING btree (ticket_id, event_date_id, result);
 
 
 --
@@ -6364,6 +6893,13 @@ CREATE UNIQUE INDEX idx_registration_questions_version_position ON public.ticket
 --
 
 CREATE UNIQUE INDEX idx_registration_submissions_registration_version ON public.ticketing_registration_form_submissions USING btree (registration_id, registration_form_version_id);
+
+
+--
+-- Name: idx_scanner_assignment_zones_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_scanner_assignment_zones_unique ON public.ticketing_scanner_assignment_zones USING btree (scanner_device_assignment_id, access_zone_id);
 
 
 --
@@ -7606,6 +8142,20 @@ CREATE UNIQUE INDEX index_ticketing_admission_slots_on_ticket_id_and_position ON
 
 
 --
+-- Name: index_ticketing_admission_use_reversals_on_admission_use_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_ticketing_admission_use_reversals_on_admission_use_id ON public.ticketing_admission_use_reversals USING btree (admission_use_id);
+
+
+--
+-- Name: index_ticketing_admission_use_reversals_on_reversal_group_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_ticketing_admission_use_reversals_on_reversal_group_id ON public.ticketing_admission_use_reversals USING btree (reversal_group_id);
+
+
+--
 -- Name: index_ticketing_attendee_exports_on_event_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7666,6 +8216,34 @@ CREATE INDEX index_ticketing_attendee_index_entries_on_phone_hash ON public.tick
 --
 
 CREATE INDEX index_ticketing_attendee_index_entries_on_ticket_id ON public.ticketing_attendee_index_entries USING btree (ticket_id);
+
+
+--
+-- Name: index_ticketing_checkin_logs_on_client_scan_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_ticketing_checkin_logs_on_client_scan_id ON public.ticketing_checkin_logs USING btree (client_scan_id);
+
+
+--
+-- Name: index_ticketing_checkin_logs_on_credential_id_and_received_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_ticketing_checkin_logs_on_credential_id_and_received_at ON public.ticketing_checkin_logs USING btree (credential_id, received_at);
+
+
+--
+-- Name: index_ticketing_checkin_logs_on_event_date_id_and_received_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_ticketing_checkin_logs_on_event_date_id_and_received_at ON public.ticketing_checkin_logs USING btree (event_date_id, received_at);
+
+
+--
+-- Name: index_ticketing_checkin_logs_on_overrides_checkin_log_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_ticketing_checkin_logs_on_overrides_checkin_log_id ON public.ticketing_checkin_logs USING btree (overrides_checkin_log_id) WHERE (overrides_checkin_log_id IS NOT NULL);
 
 
 --
@@ -7736,6 +8314,34 @@ CREATE INDEX index_ticketing_revocations_on_event_id_and_revocation_version ON p
 --
 
 CREATE UNIQUE INDEX index_ticketing_revocations_on_ticket_id ON public.ticketing_revocations USING btree (ticket_id);
+
+
+--
+-- Name: index_ticketing_scanner_assignment_zones_on_access_zone_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_ticketing_scanner_assignment_zones_on_access_zone_id ON public.ticketing_scanner_assignment_zones USING btree (access_zone_id);
+
+
+--
+-- Name: index_ticketing_scanner_devices_on_device_identifier; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_ticketing_scanner_devices_on_device_identifier ON public.ticketing_scanner_devices USING btree (device_identifier);
+
+
+--
+-- Name: index_ticketing_scanner_devices_on_organization_id_and_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_ticketing_scanner_devices_on_organization_id_and_status ON public.ticketing_scanner_devices USING btree (organization_id, status);
+
+
+--
+-- Name: index_ticketing_scanner_devices_on_token_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_ticketing_scanner_devices_on_token_digest ON public.ticketing_scanner_devices USING btree (token_digest);
 
 
 --
@@ -8061,6 +8667,48 @@ CREATE TRIGGER trg_ticketing_admission_slot_shape_guard BEFORE INSERT OR UPDATE 
 
 
 --
+-- Name: ticketing_admission_uses trg_ticketing_admission_use_append_only; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_ticketing_admission_use_append_only BEFORE DELETE OR UPDATE ON public.ticketing_admission_uses FOR EACH ROW EXECUTE FUNCTION public.ticketing_admission_use_append_only();
+
+
+--
+-- Name: ticketing_admission_uses trg_ticketing_admission_use_integrity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER trg_ticketing_admission_use_integrity AFTER INSERT OR UPDATE ON public.ticketing_admission_uses DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.ticketing_admission_use_integrity();
+
+
+--
+-- Name: ticketing_admission_use_reversals trg_ticketing_admission_use_reversal_append_only; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_ticketing_admission_use_reversal_append_only BEFORE DELETE OR UPDATE ON public.ticketing_admission_use_reversals FOR EACH ROW EXECUTE FUNCTION public.ticketing_admission_use_reversal_append_only();
+
+
+--
+-- Name: ticketing_admission_use_reversals trg_ticketing_admission_use_reversal_integrity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER trg_ticketing_admission_use_reversal_integrity AFTER INSERT OR UPDATE ON public.ticketing_admission_use_reversals DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.ticketing_admission_use_reversal_integrity();
+
+
+--
+-- Name: ticketing_checkin_logs trg_ticketing_checkin_log_append_only; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_ticketing_checkin_log_append_only BEFORE DELETE OR UPDATE ON public.ticketing_checkin_logs FOR EACH ROW EXECUTE FUNCTION public.ticketing_checkin_log_append_only();
+
+
+--
+-- Name: ticketing_checkin_logs trg_ticketing_checkin_log_scope; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_ticketing_checkin_log_scope BEFORE INSERT OR UPDATE ON public.ticketing_checkin_logs FOR EACH ROW EXECUTE FUNCTION public.ticketing_checkin_log_scope();
+
+
+--
 -- Name: ticketing_credentials trg_ticketing_credential_generation_cardinality; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -8166,6 +8814,13 @@ CREATE TRIGGER trg_ticketing_registration_submission_scope BEFORE INSERT OR UPDA
 
 
 --
+-- Name: ticketing_scanner_assignment_zones trg_ticketing_scanner_assignment_zone_scope; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_ticketing_scanner_assignment_zone_scope BEFORE INSERT OR UPDATE ON public.ticketing_scanner_assignment_zones FOR EACH ROW EXECUTE FUNCTION public.ticketing_scanner_assignment_zone_scope();
+
+
+--
 -- Name: ticketing_tickets trg_ticketing_ticket_scope_guard; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -8194,6 +8849,14 @@ ALTER TABLE ONLY public.catalog_venue_capacity_reservations
 
 ALTER TABLE ONLY public.orders_order_adjustments
     ADD CONSTRAINT fk_order_adjustments_item_order FOREIGN KEY (order_item_id, order_id) REFERENCES public.orders_order_items(id, order_id) ON DELETE RESTRICT;
+
+
+--
+-- Name: ticketing_admission_uses fk_rails_00b9e125c9; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_admission_uses
+    ADD CONSTRAINT fk_rails_00b9e125c9 FOREIGN KEY (credential_id) REFERENCES public.ticketing_credentials(id);
 
 
 --
@@ -8437,6 +9100,14 @@ ALTER TABLE ONLY public.ticketing_attendee_index_entries
 
 
 --
+-- Name: ticketing_admission_use_reversals fk_rails_17f424634b; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_admission_use_reversals
+    ADD CONSTRAINT fk_rails_17f424634b FOREIGN KEY (admission_use_id) REFERENCES public.ticketing_admission_uses(id);
+
+
+--
 -- Name: events_event_cancellations fk_rails_181e9ab2b0; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8485,11 +9156,27 @@ ALTER TABLE ONLY public.catalog_promotions
 
 
 --
+-- Name: ticketing_admission_use_reversals fk_rails_1fe67bbf01; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_admission_use_reversals
+    ADD CONSTRAINT fk_rails_1fe67bbf01 FOREIGN KEY (checkin_log_id) REFERENCES public.ticketing_checkin_logs(id);
+
+
+--
 -- Name: ticketing_ticket_transfers fk_rails_20ad03f53d; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.ticketing_ticket_transfers
     ADD CONSTRAINT fk_rails_20ad03f53d FOREIGN KEY (to_user_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: ticketing_scanner_device_assignments fk_rails_220ef5a8d9; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_scanner_device_assignments
+    ADD CONSTRAINT fk_rails_220ef5a8d9 FOREIGN KEY (scanner_device_id) REFERENCES public.ticketing_scanner_devices(id);
 
 
 --
@@ -8554,6 +9241,14 @@ ALTER TABLE ONLY public.orders_orders
 
 ALTER TABLE ONLY public.commercial_assignments
     ADD CONSTRAINT fk_rails_2c9a2fcc51 FOREIGN KEY (external_accepted_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: ticketing_checkin_logs fk_rails_2d37b108ac; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_checkin_logs
+    ADD CONSTRAINT fk_rails_2d37b108ac FOREIGN KEY (product_access_id) REFERENCES public.catalog_product_accesses(id);
 
 
 --
@@ -8669,6 +9364,14 @@ ALTER TABLE ONLY public.core_data_retention_holds
 
 
 --
+-- Name: ticketing_admission_uses fk_rails_388ca487e1; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_admission_uses
+    ADD CONSTRAINT fk_rails_388ca487e1 FOREIGN KEY (product_access_id) REFERENCES public.catalog_product_accesses(id);
+
+
+--
 -- Name: catalog_promotion_products fk_rails_3a174a3c7f; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8706,6 +9409,14 @@ ALTER TABLE ONLY public.orders_order_items
 
 ALTER TABLE ONLY public.core_refresh_tokens
     ADD CONSTRAINT fk_rails_3ed4f2d68b FOREIGN KEY (user_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: ticketing_checkin_logs fk_rails_3ff8f81542; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_checkin_logs
+    ADD CONSTRAINT fk_rails_3ff8f81542 FOREIGN KEY (access_zone_id) REFERENCES public.events_access_zones(id);
 
 
 --
@@ -8973,6 +9684,14 @@ ALTER TABLE ONLY public.catalog_venue_capacity_reservations
 
 
 --
+-- Name: ticketing_checkin_logs fk_rails_6500fc4a55; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_checkin_logs
+    ADD CONSTRAINT fk_rails_6500fc4a55 FOREIGN KEY (scan_upload_id) REFERENCES public.ticketing_scan_uploads(id);
+
+
+--
 -- Name: ticketing_tickets fk_rails_65628bf63c; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8986,6 +9705,14 @@ ALTER TABLE ONLY public.ticketing_tickets
 
 ALTER TABLE ONLY public.ticketing_registration_forms
     ADD CONSTRAINT fk_rails_65c10bc3a2 FOREIGN KEY (event_id) REFERENCES public.events_events(id);
+
+
+--
+-- Name: ticketing_scanner_device_assignments fk_rails_6636ae8d75; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_scanner_device_assignments
+    ADD CONSTRAINT fk_rails_6636ae8d75 FOREIGN KEY (event_id) REFERENCES public.events_events(id);
 
 
 --
@@ -9018,6 +9745,14 @@ ALTER TABLE ONLY public.ticketing_registration_consent_withdrawals
 
 ALTER TABLE ONLY public.commercial_term_notices
     ADD CONSTRAINT fk_rails_6a6c478930 FOREIGN KEY (fee_schedule_version_id) REFERENCES public.commercial_fee_schedule_versions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: ticketing_checkin_logs fk_rails_6c3a23a1af; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_checkin_logs
+    ADD CONSTRAINT fk_rails_6c3a23a1af FOREIGN KEY (credential_id) REFERENCES public.ticketing_credentials(id);
 
 
 --
@@ -9245,6 +9980,14 @@ ALTER TABLE ONLY public.organizations_memberships
 
 
 --
+-- Name: ticketing_checkin_logs fk_rails_8540002031; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_checkin_logs
+    ADD CONSTRAINT fk_rails_8540002031 FOREIGN KEY (ticket_id) REFERENCES public.ticketing_tickets(id);
+
+
+--
 -- Name: events_event_cancellations fk_rails_88de6f6294; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9293,6 +10036,14 @@ ALTER TABLE ONLY public.events_event_dates
 
 
 --
+-- Name: ticketing_admission_use_reversals fk_rails_8f49c4b9f5; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_admission_use_reversals
+    ADD CONSTRAINT fk_rails_8f49c4b9f5 FOREIGN KEY (reversed_by_id) REFERENCES public.core_users(id);
+
+
+--
 -- Name: ticketing_registration_answer_revisions fk_rails_92c24f7cf5; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9306,6 +10057,14 @@ ALTER TABLE ONLY public.ticketing_registration_answer_revisions
 
 ALTER TABLE ONLY public.ticketing_purchase_limit_overrides
     ADD CONSTRAINT fk_rails_97aeb24d0e FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id);
+
+
+--
+-- Name: ticketing_admission_uses fk_rails_987a35c78c; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_admission_uses
+    ADD CONSTRAINT fk_rails_987a35c78c FOREIGN KEY (checkin_log_id) REFERENCES public.ticketing_checkin_logs(id);
 
 
 --
@@ -9341,6 +10100,14 @@ ALTER TABLE ONLY public.ticketing_registration_forms
 
 
 --
+-- Name: ticketing_checkin_logs fk_rails_9be02e0597; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_checkin_logs
+    ADD CONSTRAINT fk_rails_9be02e0597 FOREIGN KEY (scanner_device_assignment_id) REFERENCES public.ticketing_scanner_device_assignments(id);
+
+
+--
 -- Name: ticketing_registration_consent_withdrawals fk_rails_9d5543e235; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9362,6 +10129,14 @@ ALTER TABLE ONLY public.ticketing_registration_form_versions
 
 ALTER TABLE ONLY public.ticketing_tickets
     ADD CONSTRAINT fk_rails_9d9182e1f1 FOREIGN KEY (event_id) REFERENCES public.events_events(id);
+
+
+--
+-- Name: ticketing_scanner_assignment_zones fk_rails_9da19bf68b; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_scanner_assignment_zones
+    ADD CONSTRAINT fk_rails_9da19bf68b FOREIGN KEY (access_zone_id) REFERENCES public.events_access_zones(id);
 
 
 --
@@ -9413,6 +10188,14 @@ ALTER TABLE ONLY public.ticketing_purchase_limit_allocations
 
 
 --
+-- Name: ticketing_checkin_logs fk_rails_abac9574b8; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_checkin_logs
+    ADD CONSTRAINT fk_rails_abac9574b8 FOREIGN KEY (event_date_id) REFERENCES public.events_event_dates(id);
+
+
+--
 -- Name: events_event_dates fk_rails_acb9b776b1; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9426,6 +10209,14 @@ ALTER TABLE ONLY public.events_event_dates
 
 ALTER TABLE ONLY public.core_role_permissions
     ADD CONSTRAINT fk_rails_accabce058 FOREIGN KEY (permission_id) REFERENCES public.core_permissions(id);
+
+
+--
+-- Name: ticketing_checkin_logs fk_rails_ad2941f051; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_checkin_logs
+    ADD CONSTRAINT fk_rails_ad2941f051 FOREIGN KEY (identity_override_by_id) REFERENCES public.core_users(id);
 
 
 --
@@ -9453,6 +10244,14 @@ ALTER TABLE ONLY public.events_event_organizations
 
 
 --
+-- Name: ticketing_scanner_device_assignments fk_rails_aee6e27c77; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_scanner_device_assignments
+    ADD CONSTRAINT fk_rails_aee6e27c77 FOREIGN KEY (assigned_by_id) REFERENCES public.core_users(id);
+
+
+--
 -- Name: core_data_retention_holds fk_rails_b1e315a8f5; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9474,6 +10273,14 @@ ALTER TABLE ONLY public.ticketing_registration_consent_requirements
 
 ALTER TABLE ONLY public.commercial_simulations
     ADD CONSTRAINT fk_rails_b2983c3a53 FOREIGN KEY (assignment_id) REFERENCES public.commercial_assignments(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: ticketing_scanner_devices fk_rails_b34d6e75fe; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_scanner_devices
+    ADD CONSTRAINT fk_rails_b34d6e75fe FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id);
 
 
 --
@@ -9557,6 +10364,14 @@ ALTER TABLE ONLY public.orders_orders
 
 
 --
+-- Name: ticketing_admission_uses fk_rails_c15631a62f; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_admission_uses
+    ADD CONSTRAINT fk_rails_c15631a62f FOREIGN KEY (admission_slot_id) REFERENCES public.ticketing_admission_slots(id);
+
+
+--
 -- Name: commercial_programs fk_rails_c261555096; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9594,6 +10409,14 @@ ALTER TABLE ONLY public.events_event_settings
 
 ALTER TABLE ONLY public.events_consent_document_products
     ADD CONSTRAINT fk_rails_c649989cad FOREIGN KEY (ticket_type_id) REFERENCES public.ticketing_ticket_types(id);
+
+
+--
+-- Name: ticketing_checkin_logs fk_rails_ca1cf70263; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_checkin_logs
+    ADD CONSTRAINT fk_rails_ca1cf70263 FOREIGN KEY (overrides_checkin_log_id) REFERENCES public.ticketing_checkin_logs(id);
 
 
 --
@@ -9837,6 +10660,14 @@ ALTER TABLE ONLY public.events_event_staff_assignments
 
 
 --
+-- Name: ticketing_checkin_logs fk_rails_e4ade4718c; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_checkin_logs
+    ADD CONSTRAINT fk_rails_e4ade4718c FOREIGN KEY (identity_checked_by_id) REFERENCES public.core_users(id);
+
+
+--
 -- Name: commercial_fee_schedule_versions fk_rails_e5e937ec8b; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9877,11 +10708,27 @@ ALTER TABLE ONLY public.ticketing_credentials
 
 
 --
+-- Name: ticketing_scanner_assignment_zones fk_rails_e98676d95b; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_scanner_assignment_zones
+    ADD CONSTRAINT fk_rails_e98676d95b FOREIGN KEY (scanner_device_assignment_id) REFERENCES public.ticketing_scanner_device_assignments(id);
+
+
+--
 -- Name: events_consent_document_versions fk_rails_eca35bc8df; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.events_consent_document_versions
     ADD CONSTRAINT fk_rails_eca35bc8df FOREIGN KEY (published_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: ticketing_admission_use_reversals fk_rails_ed5529eef9; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_admission_use_reversals
+    ADD CONSTRAINT fk_rails_ed5529eef9 FOREIGN KEY (event_id) REFERENCES public.events_events(id);
 
 
 --
@@ -9914,6 +10761,14 @@ ALTER TABLE ONLY public.ticketing_registrations
 
 ALTER TABLE ONLY public.ticketing_ticket_transfers
     ADD CONSTRAINT fk_rails_f18db02b6c FOREIGN KEY (from_user_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: ticketing_scan_uploads fk_rails_f2699a12eb; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_scan_uploads
+    ADD CONSTRAINT fk_rails_f2699a12eb FOREIGN KEY (scanner_device_assignment_id) REFERENCES public.ticketing_scanner_device_assignments(id);
 
 
 --
@@ -10019,6 +10874,13 @@ ALTER TABLE ONLY public.ticketing_ticket_suspensions
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260812090019'),
+('20260812090018'),
+('20260812090017'),
+('20260812090016'),
+('20260812090015'),
+('20260812090014'),
+('20260812090013'),
 ('20260812090012'),
 ('20260812090011'),
 ('20260812090010'),
