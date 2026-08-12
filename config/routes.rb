@@ -100,6 +100,7 @@ Rails.application.routes.draw do
   end
 
   resources :orders, only: [] do
+    resources :payment_attempts, only: :create, controller: "orders/payment_attempts"
     post :restart, on: :member, controller: "orders/orders"
   end
 

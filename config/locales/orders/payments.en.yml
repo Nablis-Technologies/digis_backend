@@ -3,6 +3,22 @@ en:
     payments:
       errors:
         commercial_requote_required: "This payment option requires a new checkout quote"
+        invalid_payment_attempt: "The payment attempt is invalid"
+        invalid_idempotency_key: "The payment idempotency key is invalid"
+        invalid_provider: "The selected payment provider is invalid"
+        invalid_payment_method: "The selected payment method is invalid"
+        provider_unavailable: "The selected payment provider is unavailable"
+        provider_method_unsupported: "The selected payment method is not supported by this provider"
+        provider_currency_unsupported: "The selected payment provider does not support this currency"
+        payment_order_not_owned: "Only the order buyer can start its payment"
+        payment_attempt_unavailable: "This order cannot accept a payment attempt"
+        payment_attempt_expired: "The order payment deadline has passed"
+        payment_amount_invalid: "The order has no payable amount"
+        payment_idempotency_conflict: "The payment idempotency key conflicts with another attempt"
+        payment_already_accepted: "This order already has an accepted payment"
+        payment_succeeded_pending_acceptance: "This order has a payment awaiting acceptance"
+        payment_attempt_limit_reached: "The maximum number of payment attempts has been reached"
+        provider_result_invalid: "The payment provider returned an invalid result"
   payments:
     providers:
       errors:

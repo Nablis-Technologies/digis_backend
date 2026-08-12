@@ -41,6 +41,11 @@
       "type": "string"
     },
     {
+      "key": "paymentAttemptIdempotencyKey",
+      "value": "",
+      "type": "string"
+    },
+    {
       "key": "reauthenticationPurpose",
       "value": "attendee_export_request",
       "type": "string"
@@ -62,6 +67,11 @@
     },
     {
       "key": "orderId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "paymentAttemptId",
       "value": "",
       "type": "string"
     },
@@ -10971,6 +10981,71 @@
                       "});",
                       "const orderId = pm.response.json()?.data?.id;",
                       "if (orderId) { pm.collectionVariables.set(\"orderId\", orderId); }"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Start Payment Attempt",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{paymentAttemptIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"payment_attempt\": {\n    \"provider\": \"chapa\",\n    \"payment_method\": \"telebirr\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/orders/{{orderId}}/payment_attempts",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "orders",
+                    "{{orderId}}",
+                    "payment_attempts"
+                  ]
+                },
+                "description": "Starts or switches one bounded payment attempt for the immutable order total. Reuse the same Idempotency-Key after a timeout; an ambiguous provider result remains processing for later verification.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Payment attempt request returns a documented status\", function () {",
+                      "  pm.expect(pm.response.code).to.be.oneOf([201, 409, 422, 503]);",
+                      "});",
+                      "const paymentId = pm.response.json()?.data?.id;",
+                      "if (paymentId) { pm.collectionVariables.set(\"paymentAttemptId\", paymentId); }"
                     ]
                   }
                 }

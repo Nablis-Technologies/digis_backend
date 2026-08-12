@@ -11,6 +11,7 @@ class CreateOrders < ActiveRecord::Migration[8.1]
       t.string :status, null: false, default: "draft"
       t.string :closed_reason
       t.string :charge_currency, limit: 3, null: false
+      t.string :commercial_signature, limit: 64, null: false
       t.bigint :subtotal_minor, null: false
       t.bigint :discount_minor, null: false, default: 0
       t.bigint :subsidy_minor, null: false, default: 0
@@ -42,6 +43,9 @@ class CreateOrders < ActiveRecord::Migration[8.1]
     add_check_constraint :orders_orders,
       "charge_currency ~ '^[A-Z]{3}$' AND settlement_currency ~ '^[A-Z]{3}$'",
       name: "orders_orders_currency_check"
+    add_check_constraint :orders_orders,
+      "commercial_signature ~ '^[0-9a-f]{64}$'",
+      name: "orders_orders_commercial_signature_check"
     add_check_constraint :orders_orders,
       "subtotal_minor >= 0 AND discount_minor >= 0 AND subsidy_minor >= 0 AND " \
       "fee_minor >= 0 AND tax_minor >= 0 AND settlement_total_minor >= 0",
@@ -112,7 +116,7 @@ class CreateOrders < ActiveRecord::Migration[8.1]
               END IF;
 
               IF (OLD.event_id, OLD.buyer_user_id, OLD.sales_channel, OLD.initiated_by_id,
-                  OLD.replaces_order_id, OLD.charge_currency, OLD.subtotal_minor,
+                  OLD.replaces_order_id, OLD.charge_currency, OLD.commercial_signature, OLD.subtotal_minor,
                   OLD.discount_minor, OLD.subsidy_minor, OLD.fee_minor, OLD.tax_minor,
                   OLD.adjustment_minor, OLD.total_minor, OLD.settlement_currency,
                   OLD.settlement_total_minor, OLD.exchange_rate, OLD.exchange_rate_source,
@@ -120,7 +124,7 @@ class CreateOrders < ActiveRecord::Migration[8.1]
                   OLD.idempotency_key_digest, OLD.creation_request_digest)
                  IS DISTINCT FROM
                  (NEW.event_id, NEW.buyer_user_id, NEW.sales_channel, NEW.initiated_by_id,
-                  NEW.replaces_order_id, NEW.charge_currency, NEW.subtotal_minor,
+                  NEW.replaces_order_id, NEW.charge_currency, NEW.commercial_signature, NEW.subtotal_minor,
                   NEW.discount_minor, NEW.subsidy_minor, NEW.fee_minor, NEW.tax_minor,
                   NEW.adjustment_minor, NEW.total_minor, NEW.settlement_currency,
                   NEW.settlement_total_minor, NEW.exchange_rate, NEW.exchange_rate_source,

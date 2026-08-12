@@ -698,7 +698,7 @@ BEGIN
     END IF;
 
     IF (OLD.event_id, OLD.buyer_user_id, OLD.sales_channel, OLD.initiated_by_id,
-        OLD.replaces_order_id, OLD.charge_currency, OLD.subtotal_minor,
+        OLD.replaces_order_id, OLD.charge_currency, OLD.commercial_signature, OLD.subtotal_minor,
         OLD.discount_minor, OLD.subsidy_minor, OLD.fee_minor, OLD.tax_minor,
         OLD.adjustment_minor, OLD.total_minor, OLD.settlement_currency,
         OLD.settlement_total_minor, OLD.exchange_rate, OLD.exchange_rate_source,
@@ -706,7 +706,7 @@ BEGIN
         OLD.idempotency_key_digest, OLD.creation_request_digest)
        IS DISTINCT FROM
        (NEW.event_id, NEW.buyer_user_id, NEW.sales_channel, NEW.initiated_by_id,
-        NEW.replaces_order_id, NEW.charge_currency, NEW.subtotal_minor,
+        NEW.replaces_order_id, NEW.charge_currency, NEW.commercial_signature, NEW.subtotal_minor,
         NEW.discount_minor, NEW.subsidy_minor, NEW.fee_minor, NEW.tax_minor,
         NEW.adjustment_minor, NEW.total_minor, NEW.settlement_currency,
         NEW.settlement_total_minor, NEW.exchange_rate, NEW.exchange_rate_source,
@@ -3419,8 +3419,10 @@ CREATE TABLE public.orders_orders (
     creation_request_digest character varying(64) NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
+    commercial_signature character varying(64) NOT NULL,
     CONSTRAINT orders_orders_amounts_check CHECK (((subtotal_minor >= 0) AND (discount_minor >= 0) AND (subsidy_minor >= 0) AND (fee_minor >= 0) AND (tax_minor >= 0) AND (settlement_total_minor >= 0))),
     CONSTRAINT orders_orders_closed_reason_check CHECK (((((status)::text = ANY (ARRAY[('expired'::character varying)::text, ('cancelled'::character varying)::text])) AND (closed_reason IS NOT NULL)) OR (((status)::text <> ALL (ARRAY[('expired'::character varying)::text, ('cancelled'::character varying)::text])) AND (closed_reason IS NULL)))),
+    CONSTRAINT orders_orders_commercial_signature_check CHECK (((commercial_signature)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT orders_orders_creation_digests_check CHECK ((((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((creation_request_digest)::text ~ '^[0-9a-f]{64}$'::text))),
     CONSTRAINT orders_orders_currency_check CHECK ((((charge_currency)::text ~ '^[A-Z]{3}$'::text) AND ((settlement_currency)::text ~ '^[A-Z]{3}$'::text))),
     CONSTRAINT orders_orders_exchange_metadata_check CHECK (((((charge_currency)::text = (settlement_currency)::text) AND (exchange_rate = (1)::numeric)) OR (((charge_currency)::text <> (settlement_currency)::text) AND (exchange_rate_quoted_at IS NOT NULL) AND (exchange_rate_expires_at IS NOT NULL) AND (exchange_rate_expires_at > exchange_rate_quoted_at)))),
@@ -3495,8 +3497,7 @@ CREATE TABLE public.orders_payments (
     CONSTRAINT orders_payments_currency_check CHECK ((((currency)::text ~ '^[A-Z]{3}$'::text) AND ((provider_fee_currency IS NULL) OR ((provider_fee_currency)::text ~ '^[A-Z]{3}$'::text)))),
     CONSTRAINT orders_payments_grace_minutes_check CHECK (((settlement_grace_minutes >= 3) AND (settlement_grace_minutes <= 15))),
     CONSTRAINT orders_payments_provider_fee_pair_check CHECK ((((provider_fee_minor IS NULL) = (provider_fee_currency IS NULL)) AND ((provider_fee_minor IS NULL) OR ((provider_fee_currency)::text = (currency)::text)))),
-    CONSTRAINT orders_payments_status_check CHECK (((status)::text = ANY (ARRAY[('created'::character varying)::text, ('processing'::character varying)::text, ('succeeded'::character varying)::text, ('failed'::character varying)::text, ('cancelled'::character varying)::text, ('unknown'::character varying)::text, ('timeout'::character varying)::text, ('reversed'::character varying)::text]))),
-    CONSTRAINT orders_payments_superseded_state_check CHECK (((superseded_at IS NULL) OR ((status)::text <> ALL (ARRAY[('created'::character varying)::text, ('processing'::character varying)::text]))))
+    CONSTRAINT orders_payments_status_check CHECK (((status)::text = ANY (ARRAY[('created'::character varying)::text, ('processing'::character varying)::text, ('succeeded'::character varying)::text, ('failed'::character varying)::text, ('cancelled'::character varying)::text, ('unknown'::character varying)::text, ('timeout'::character varying)::text, ('reversed'::character varying)::text])))
 );
 
 

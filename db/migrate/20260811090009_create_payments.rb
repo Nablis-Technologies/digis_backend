@@ -75,10 +75,6 @@ class CreatePayments < ActiveRecord::Migration[8.1]
     add_check_constraint :orders_payments,
       "accepted_at IS NULL OR status = 'succeeded'",
       name: "orders_payments_accepted_state_check"
-    add_check_constraint :orders_payments,
-      "superseded_at IS NULL OR status NOT IN ('created','processing')",
-      name: "orders_payments_superseded_state_check"
-
     add_foreign_key :orders_payments, :orders_orders,
                     column: :order_id, on_delete: :restrict
 
