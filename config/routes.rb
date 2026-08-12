@@ -169,6 +169,36 @@ Rails.application.routes.draw do
   post "ticketing/audience_authorizations", to: "ticketing/audience_authorizations#create"
 
   namespace :admin do
+    namespace :commercial do
+      resources :fee_schedules, only: %i[index show create update] do
+        resources :fee_schedule_versions, only: %i[index create], controller: "fee_schedule_versions"
+      end
+      resources :fee_schedule_versions, only: %i[show update], controller: "fee_schedule_versions" do
+        member do
+          post :simulate
+          post :submit
+          post :approve
+          post :reject
+          post :schedule
+          post :activate
+          post :terminate
+          post :deliver_notice
+        end
+      end
+      resources :programs, only: %i[index show create update]
+      resources :assignments, only: %i[index show create] do
+        member do
+          post :submit
+          post :approve
+          post :reject
+          post :activate
+          post :terminate
+        end
+      end
+      resources :simulations, only: %i[index show create]
+      resources :subsidy_budgets, only: %i[index show create update]
+    end
+
     resources :users, except: %i[new edit] do
       member do
         post :deactivate
@@ -233,6 +263,14 @@ Rails.application.routes.draw do
     post "organizations/owner/:organization_id/verification/resubmit", to: "verifications#resubmit"
 
     resources :organizations, only: %i[index show], path: "organizations"
+  end
+
+  scope path: :commercial, module: :commercial do
+    get "organizations/:organization_id/terms", to: "organization_terms#show",
+      as: :commercial_organization_terms
+    resources :events, only: [] do
+      resources :event_payer_selections, only: %i[index show create]
+    end
   end
 
   scope module: :core do

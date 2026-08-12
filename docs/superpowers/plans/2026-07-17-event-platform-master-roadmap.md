@@ -63,6 +63,13 @@ Commercial Task 9 (admin and organizer API/UX) may follow its own documented
 domain prerequisites, but it is not a reason to introduce a temporary
 `orders_orders` table or to move 7B ahead of Orders Task 2.
 
+**2026-08-12 checkpoint:** Commercial Tasks 1–9 are complete. The
+Commercial-owned projection portion of Task 10 is complete with Orders
+checkout, while provider-attempt enforcement remains with the later Orders
+payment tasks. Commercial Task 11 remains intentionally queued with the
+controlled resale marketplace tranche; Commercial Task 12 remains the final
+reconciliation/operations gate after resale and Finance evidence exist.
+
 ## Delivery waves and safe parallel work
 
 | Wave | Work | Parallelism rule |

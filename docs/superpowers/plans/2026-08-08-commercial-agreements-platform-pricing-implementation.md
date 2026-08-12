@@ -40,6 +40,26 @@ Implementation must preserve these decisions:
 - Run focused tests after every task and full Commercial tests at each checkpoint. Run RuboCop on changed Ruby files before committing.
 - Never store legal bodies, internal negotiation prose, provider secrets, or arbitrary submitted JSON in audit/outbox/order evidence.
 
+## Current implementation status (verified 2026-08-12)
+
+The dependency-ordered Commercial tranche is complete through Task 9, with
+the Commercial-owned projection portion of Task 10 complete:
+
+| Task | Status | Evidence / boundary |
+|---|---|---|
+| 1–6 | Complete | Namespace, governed definitions, assignments/legal evidence, resolver/calculators, lifecycle/acceptance, and first-event entitlement code plus tests are committed. |
+| 7A | Complete | Per-currency subsidy budgets and database invariants are committed and tested. |
+| 7B | Complete | Order-linked subsidy reservations now reference the real Orders schema and are committed/tested; the former placeholder-table gate is closed. |
+| 8 | Complete | Volume counters/usages and event payer selections are committed/tested for the Orders handoff. |
+| 9 | Complete pending user commit | Admin/organizer API, privacy policies, serializers, routes, locales, tests, and Postman synchronization are implemented; focused API tests pass with `N_PLUS_ONE=1`. |
+| 10 | Commercial projection complete; provider selection pending | Orders checkout snapshots immutable Commercial results and exposes the provider-context signature; actual payment-attempt/provider-adapter enforcement remains with the later Orders payment tasks. |
+| 11 | Pending by design | Starts only with the controlled-resale marketplace plan after package, credential, finance, and resale prerequisites exist. |
+| 12 | Pending by design | Starts last, after resale and operational/finance evidence exist; it is the final reconciliation and Phase 3.5 gate. |
+
+Do not interpret the historical step recipes below as permission to bypass the
+Orders payment, or Task 11/12, prerequisites. Task 9's commit step remains
+unchecked because the working-tree owner must review and commit it.
+
 ## Task 1: Establish the Commercial namespace and permissions
 
 **Files:**
@@ -53,7 +73,7 @@ Implementation must preserve these decisions:
 - Create: `test/models/commercial/namespace_test.rb`
 - Create: `test/policies/commercial/commercial_authorization_test.rb`
 
-- [ ] **Step 1: Generate the namespace through the first aggregate skeleton**
+- [x] **Step 1: Generate the namespace through the first aggregate skeleton**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails generate domain_module \
@@ -66,7 +86,7 @@ Rename the generated migration to
 `db/migrate/20260808090001_create_commercial_fee_schedules.rb` before any
 database migration runs.
 
-- [ ] **Step 2: Write RED namespace and permission tests**
+- [x] **Step 2: Write RED namespace and permission tests**
 
 Assert:
 
@@ -80,7 +100,7 @@ Assert:
   `commercial.grant`, `commercial.terminate`, `commercial.audit`,
   `commercial.budget_view`, and `commercial.break_glass`.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
@@ -90,11 +110,11 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
 
 Expected: failures for missing controller and permission fixtures/seeds.
 
-- [ ] **Step 4: Add namespace classes and permissions**
+- [x] **Step 4: Add namespace classes and permissions**
 
 Use `Commercial::ApplicationRecord` for models. Admin policies must use the exact dedicated permission for each custom action and explicit `VISIBILITY`; super-admin remains an override through `Core::ApplicationPolicy`.
 
-- [ ] **Step 5: Run GREEN and lint**
+- [x] **Step 5: Run GREEN and lint**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
@@ -105,7 +125,7 @@ RUBOCOP_CACHE_ROOT=tmp/rubocop bundle exec rubocop \
   test/models/commercial test/policies/commercial
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/models/commercial app/controllers/commercial app/controllers/admin/commercial \
@@ -138,7 +158,7 @@ git commit -m "feat(commercial): establish module and permissions"
 - Create: `test/services/commercial/definitions/canonicalize_test.rb`
 - Create: `test/services/commercial/definitions/validate_test.rb`
 
-- [ ] **Step 1: Generate the remaining model/migration skeletons**
+- [x] **Step 1: Generate the remaining model/migration skeletons**
 
 Run one generator per table:
 
@@ -155,7 +175,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails generate domain_module Commerci
 
 Rename generated timestamps to the canonical timestamps above before migrating. Confirm there is exactly one `create_table` per migration.
 
-- [ ] **Step 2: Write RED model and definition tests**
+- [x] **Step 2: Write RED model and definition tests**
 
 Prove all allowlists and shapes:
 
@@ -173,7 +193,7 @@ Prove all allowlists and shapes:
 - canonical digest is order-independent for hashes/components but changes for any financially meaningful field;
 - post-approval edits to nested components/amounts/tiers are rejected.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
@@ -187,7 +207,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
 
 Expected: missing tables/models/services and constraint failures.
 
-- [ ] **Step 4: Implement migrations and database invariants**
+- [x] **Step 4: Implement migrations and database invariants**
 
 The five tables must implement every column in design Sections 9.1–9.5. Add:
 
@@ -204,11 +224,11 @@ The five tables must implement every column in design Sections 9.1–9.5. Add:
 
 Cross-table definition shape, exact-product ownership, and equal-specificity ambiguity are enforced by `Commercial::Definitions::Validate` before simulation/activation; do not pretend a Rails validation alone is a concurrency guarantee.
 
-- [ ] **Step 5: Implement models and canonical definition services**
+- [x] **Step 5: Implement models and canonical definition services**
 
 All models expose explicit associations, validations, scopes, `ransackable_attributes`, and `ransackable_associations`. `Canonicalize` emits an allowlisted, stable-key, stable-order representation and SHA-256 digest. `Validate` returns `Result.failure(Core::BusinessError)` with stable error codes for gaps, conflicts, invalid shapes, and missing currency coverage.
 
-- [ ] **Step 6: Reset the development/test schema and run GREEN**
+- [x] **Step 6: Reset the development/test schema and run GREEN**
 
 Because the project is pre-production, edit the original generated migrations rather than adding corrective migrations.
 
@@ -219,7 +239,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/commercial tes
 RUBOCOP_CACHE_ROOT=tmp/rubocop bundle exec rubocop app/models/commercial app/services/commercial test/models/commercial test/services/commercial
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add db/migrate app/models/commercial app/services/commercial/definitions \
@@ -248,7 +268,7 @@ git commit -m "feat(commercial): model immutable fee schedules"
 - Modify: `test/models/legal/legal_acceptance_test.rb`
 - Modify: `test/services/legal/record_acceptance_test.rb`
 
-- [ ] **Step 1: Generate one skeleton per new table**
+- [x] **Step 1: Generate one skeleton per new table**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails generate domain_module Commercial::Program \
@@ -259,7 +279,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails generate domain_module Commerci
 
 Rename migration timestamps to the canonical names above.
 
-- [ ] **Step 2: Write RED tests**
+- [x] **Step 2: Write RED tests**
 
 Prove:
 
@@ -274,7 +294,7 @@ Prove:
 - external acceptance stores only a controlled reference, acceptance time, and actor—not uploaded contract contents;
 - beneficial comparison detects rate increases, removed caps, payer switches, shorter benefits, removed subsidies, and new organizer-funded components.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
@@ -286,13 +306,13 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
   test/services/legal/record_acceptance_test.rb
 ```
 
-- [ ] **Step 4: Implement schema, models, and commands**
+- [x] **Step 4: Implement schema, models, and commands**
 
 Implement all columns and invariants from design Sections 9.6–9.7. Use explicit `organization_id` plus optional `event_id`; never use a polymorphic commercial target. Add partial/covering indexes for active organization and event resolution. The assignment owns creator/approver/activator identity, baseline digest, reason, legal evidence, effective interval, and optimistic lock.
 
 `ValidateBenefit` compares normalized full baseline and proposed result matrices at every supported context/currency boundary. It must fail closed when a comparison cannot be proven.
 
-- [ ] **Step 5: Run GREEN, migrate, and lint**
+- [x] **Step 5: Run GREEN, migrate, and lint**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:migrate
@@ -305,7 +325,7 @@ RUBOCOP_CACHE_ROOT=tmp/rubocop bundle exec rubocop \
   test/models/commercial test/services/commercial test/models/legal test/services/legal
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add db/migrate app/models/commercial app/services/commercial \
@@ -333,7 +353,7 @@ git commit -m "feat(commercial): add programs grants and agreements"
 - Create: `test/services/commercial/resolution/select_component_test.rb`
 - Create: `test/services/commercial/calculations/*_test.rb`
 
-- [ ] **Step 1: Write RED resolver contract tests**
+- [x] **Step 1: Write RED resolver contract tests**
 
 Create a compact matrix proving:
 
@@ -350,7 +370,7 @@ Create a compact matrix proving:
 - basis values come only from allowlisted trusted inputs;
 - 0%, min/max boundaries, large values, and every supported currency behave without floats.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
@@ -359,7 +379,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
   test/services/commercial/calculations
 ```
 
-- [ ] **Step 3: Implement immutable value objects and strategy registries**
+- [x] **Step 3: Implement immutable value objects and strategy registries**
 
 `Resolution::Context` accepts server-owned IDs/codes plus integer subtotals and a fixed `quoted_at`. Reject unknown keys. `SelectComponent` sorts candidates by explicit precedence/specificity tuples and verifies a single winner. Calculator dispatch uses a constant allowlist; never call `constantize` on persisted/user input.
 
@@ -370,7 +390,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
 - ordered component results;
 - each component's schedule/version/component IDs, calculation, basis, rate/fixed/min/max, tier/window, payer, funder, refund policy, amount, and scope evidence.
 
-- [ ] **Step 4: Run GREEN and query-count test**
+- [x] **Step 4: Run GREEN and query-count test**
 
 The resolver must preload candidate versions/components/amounts/tiers and must not perform one query per component.
 
@@ -380,7 +400,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/commercial/r
 RUBOCOP_CACHE_ROOT=tmp/rubocop bundle exec rubocop app/services/commercial test/services/commercial
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/services/commercial test/services/commercial
@@ -418,7 +438,7 @@ git commit -m "feat(commercial): resolve and calculate platform charges"
 - Create: `test/services/commercial/assignments/*_test.rb`
 - Create: `test/services/commercial/defaults/*_test.rb`
 
-- [ ] **Step 1: Generate table skeletons, then write RED tests**
+- [x] **Step 1: Generate table skeletons, then write RED tests**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails generate domain_module Commercial::Simulation \
@@ -447,7 +467,7 @@ Rename migrations to the canonical timestamps. Tests must prove:
 - break glass cannot bypass acceptance and emits a security event;
 - all commands are idempotent and conflicting request fingerprints fail.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
@@ -456,13 +476,13 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
   test/services/commercial/assignments test/services/commercial/defaults
 ```
 
-- [ ] **Step 3: Implement evidence tables and commands**
+- [x] **Step 3: Implement evidence tables and commands**
 
 Simulation stores only definition/scenario digests, normalized outputs/warnings, pass/fail, actor, and time. Approval is append-only with decision/reason/digest/actor/target. Use an explicit target type allowlist if the approval target is polymorphic. `Commercial::TermNotice` stores the exact organization, default version, published Legal version, delivery method/state, timestamps, and evidence digest. It is a durable Commercial terms inbox record, not a replacement for Messaging.
 
 Every transition locks the target, rechecks state/digest/authorization preconditions, writes `Core::Audit::Record`, publishes a bounded `Core::Outbox::Publish` event, and commits once. Never enqueue the controller audit job for these transitions.
 
-- [ ] **Step 4: Run GREEN, migration tests, and lint**
+- [x] **Step 4: Run GREEN, migration tests, and lint**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:migrate
@@ -471,7 +491,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/commercial tes
 RUBOCOP_CACHE_ROOT=tmp/rubocop bundle exec rubocop app/models/commercial app/services/commercial test/models/commercial test/services/commercial
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add db/migrate app/models/commercial app/services/commercial test/models/commercial \
@@ -497,7 +517,7 @@ git commit -m "feat(commercial): govern pricing lifecycle and approvals"
 - Create: `test/jobs/commercial/handle_event_published_job_test.rb`
 - Modify: `test/services/events/publish_test.rb`
 
-- [ ] **Step 1: Generate skeleton and write RED tests**
+- [x] **Step 1: Generate skeleton and write RED tests**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails generate domain_module Commercial::ProgramEntitlement \
@@ -506,7 +526,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails generate domain_module Commerci
 
 Prove available → reserved → consumed/released/expired state/timestamp checks; unique program/organization entitlement; earliest `(published_at, event_id)` wins under concurrent or reversed outbox delivery; duplicate publication is idempotent; first accepted paid order consumes; event end/cancellation with no accepted paid order releases; cancellation after consumption does not restore.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
@@ -516,11 +536,11 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
   test/services/events/publish_test.rb
 ```
 
-- [ ] **Step 3: Implement without an Events → Commercial dependency**
+- [x] **Step 3: Implement without an Events → Commercial dependency**
 
 Do not modify `Events::Publish` to call Commercial. It already emits `event.published`. The Commercial handler and the future checkout reconciliation both call the same idempotent `ReconcileFirstEvent`, locking organization entitlements and comparing authoritative event publication timestamps.
 
-- [ ] **Step 4: Run GREEN and commit**
+- [x] **Step 4: Run GREEN and commit**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:migrate
@@ -558,7 +578,7 @@ Do not create a seed order or temporary table to bypass this dependency.
 - Modify: `app/models/commercial/program.rb`
 - Create: `test/models/commercial/subsidy_budget_test.rb`
 
-- [ ] **Step 1: Generate the budget skeleton and write RED tests**
+- [x] **Step 1: Generate the budget skeleton and write RED tests**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails generate domain_module Commercial::SubsidyBudget \
@@ -571,14 +591,14 @@ component/currency compatibility, positive limits, nonnegative counters,
 `reserved + consumed <= limit`, database check constraints, unique owner /
 component / currency budgets, and safe Ransack contracts.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
   test/models/commercial/subsidy_budget_test.rb
 ```
 
-- [ ] **Step 3: Implement database-backed budget invariants**
+- [x] **Step 3: Implement database-backed budget invariants**
 
 Use UUIDv7, explicit restrictive foreign keys, partial unique indexes for
 assignment-owned and program-owned budgets, and database checks for owner
@@ -587,7 +607,7 @@ the hard counter cap. The model mirrors those checks and documents that
 `lock_version` is reserved for the later transactional reservation command;
 no order-linked mutation service belongs in this subtask.
 
-- [ ] **Step 4: Run GREEN, migration tests, and lint**
+- [x] **Step 4: Run GREEN, migration tests, and lint**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:migrate
@@ -602,11 +622,10 @@ RUBOCOP_CACHE_ROOT=tmp/rubocop bundle exec rubocop \
 
 ### Task 7B: Implement order-linked subsidy reservations after Orders Task 2
 
-This remains planned but intentionally deferred until
-`orders_orders` is created and verified by Orders Task 2. It must be completed
-before Orders Task 3 begins, because checkout consumes its reservation
-commands. Do not weaken the foreign key or introduce a placeholder Orders
-table to change this ordering.
+This boundary is now complete: `orders_orders` was created and verified by
+Orders Task 2, then the reservation schema and transactional commands landed
+before Orders Task 3. Keep the restrictive foreign key and do not introduce a
+placeholder Orders table to change this ordering.
 
 **Files:**
 
@@ -629,9 +648,8 @@ in one transaction, record SHA-256 evidence, and retain terminal reservations.
 
 ## Task 8: Implement prospective volume tiers and event payer selections after Task 7B
 
-**Prerequisite:** Orders Task 2 and Commercial Task 7B must be complete. This
-task must finish before Orders Task 3 because checkout consumes its volume and
-payer-selection contracts.
+**Status:** Complete after Orders Task 2 and Commercial Task 7B. The volume and
+payer-selection contracts are available to the Orders Task 3 checkout tranche.
 
 **Files:**
 
@@ -652,7 +670,7 @@ payer-selection contracts.
 - Create: `test/services/commercial/event_payer_selections/set_test.rb`
 - Modify: `test/services/commercial/resolve_charges_test.rb`
 
-- [ ] **Step 1: Generate skeletons and write RED tests**
+- [x] **Step 1: Generate skeletons and write RED tests**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails generate domain_module Commercial::VolumeCounter \
@@ -667,7 +685,7 @@ Rename the migrations to the canonical timestamps above.
 
 Prove all event/month/quarter/year/agreement-term window boundaries; gross metrics require matching currency; usages are immutable and unique per accepted order/component/window; counters never decrement for accepted activity; duplicate accepted-payment events do not double count; prospective threshold selection uses the counter value before this order; reconciliation detects/repairs cache drift from immutable usage; payer selection is only buyer/organizer, belongs to the event/component, and becomes invalid when current terms no longer permit choice.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
@@ -677,11 +695,11 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
   test/services/commercial/resolve_charges_test.rb
 ```
 
-- [ ] **Step 3: Implement and integrate**
+- [x] **Step 3: Implement and integrate**
 
 Use immutable usage as truth and counter as a locked cache. Store exact window start/end, metric, currency, component, organization, optional event, accepted order, and value. Update resolver evidence with counter-before, selected tier, and window identity.
 
-- [ ] **Step 4: Run GREEN and commit**
+- [x] **Step 4: Run GREEN and commit**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:migrate
@@ -721,8 +739,18 @@ git commit -m "feat(commercial): track prospective tiers and payer choice"
 - Create: `app/serializers/commercial/subsidy_budget_serializer.rb`
 - Create: `app/serializers/commercial/organization_terms_serializer.rb`
 - Create: `app/serializers/commercial/event_payer_selection_serializer.rb`
+- Create: `app/serializers/commercial/fee_amount_serializer.rb`
+- Create: `app/serializers/commercial/fee_tier_serializer.rb`
+- Create: `app/serializers/commercial/term_notice_serializer.rb`
+- Create: `app/models/commercial/organization_terms.rb`
+- Create: `app/services/commercial/admin/persist_record.rb`
+- Create: `app/services/commercial/admin/upsert_version.rb`
+- Create: `app/services/commercial/admin/create_assignment.rb`
+- Create: `app/services/commercial/assignments/reject.rb`
+- Create: `app/services/commercial/queries/organization_terms.rb`
+- Create: `app/services/commercial/versions/reject.rb`
 - Modify: `config/routes.rb`
-- Create: `config/locales/commercial.en.yml`
+- Modify: `config/locales/commercial/governance.en.yml`
 - Create: `test/integration/admin/commercial/fee_schedules_test.rb`
 - Create: `test/integration/admin/commercial/fee_schedule_versions_test.rb`
 - Create: `test/integration/admin/commercial/programs_test.rb`
@@ -733,7 +761,7 @@ git commit -m "feat(commercial): track prospective tiers and payer choice"
 - Create: `test/integration/commercial/event_payer_selections_test.rb`
 - Modify: `postman/Digis API_collection.json`
 
-- [ ] **Step 1: Write RED policy and integration tests**
+- [x] **Step 1: Write RED policy and integration tests**
 
 Test the full permission matrix and serializer privacy:
 
@@ -746,24 +774,24 @@ Test the full permission matrix and serializer privacy:
 - all mutations reject a missing `Idempotency-Key` with `missing_idempotency_key` and replay safely;
 - no public arbitrary commercial-rule CRUD exists.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
   test/policies/commercial test/integration/admin/commercial test/integration/commercial
 ```
 
-- [ ] **Step 3: Implement controllers/policies/serializers/routes**
+- [x] **Step 3: Implement controllers/policies/serializers/routes**
 
 Controllers normalize params, authorize, call one command/query, and render via `Core::CommandResponse`/`Core::JsonResponse`. Do not use controller callbacks as the authoritative audit for financial transitions. Add root-level routes consistent with the repository; do not introduce `/api/v1`.
 
 Admin flow endpoints must support draft, simulate, submit, approve/reject, schedule/activate, terminate, and inspect. Organizer endpoints are read-only terms/explanation plus payer selection. The returned representation should directly support the approved grant/agreement wizard and organizer Commercial Terms page.
 
-- [ ] **Step 4: Update Postman in the same change**
+- [x] **Step 4: Update Postman in the same change**
 
 Add positive, forbidden, missing-key, and replay examples. Keep request bodies aligned with allowlisted fields; never publish internal-only response examples in organizer folders.
 
-- [ ] **Step 5: Run GREEN and lint**
+- [x] **Step 5: Run GREEN and lint**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
@@ -781,6 +809,13 @@ git commit -m "feat(commercial): expose governed pricing workflows"
 ```
 
 ## Task 10: Integrate immutable Commercial results into Orders and provider selection
+
+**Current boundary:** The Commercial-owned portion is complete: Orders quotes
+and checkout carry immutable `Commercial::Resolution::ChargeResult` evidence,
+project exact adjustment rows, and expose a deterministic provider-context
+signature. The payment-attempt/provider-adapter half remains pending until the
+corresponding Orders payment tasks create those tables and services. Do not
+create placeholder payment structures in Commercial to close that gap.
 
 **Prerequisite:** Begin only after Orders Tasks 1–2 and Commercial Tasks 7B–8
 exist. Execute this task together with Orders Task 3 and its checkout race

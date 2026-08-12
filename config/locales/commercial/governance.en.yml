@@ -6,6 +6,7 @@ en:
         invalid_idempotency_key: "the commercial operation requires a valid idempotency key"
         idempotency_conflict: "the idempotency key was already used with different commercial request data"
         invalid_record: "the commercial evidence record is invalid"
+        replay_not_found: "the original commercial result could not be found for replay"
         state_conflict: "the commercial record is not in a state that accepts this operation"
         assignment_version_mismatch: "the simulation assignment must use the same fee schedule version"
         immutable_simulation: "commercial simulation evidence is immutable"

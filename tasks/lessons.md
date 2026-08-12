@@ -1,5 +1,7 @@
 # Lessons
 
+- When a user asks to finish a plan, reconcile the canonical plan checkboxes with the actual committed code before advancing; distinguish completed implementation from remaining gated tasks and update the plan as each tranche is verified.
+
 - For pre-launch invitation delivery, use the hybrid boundary: persist the
   one-time token encrypted alongside its lookup digest, publish only the
   invitation ID through the outbox, and let a provider-injection job decrypt
