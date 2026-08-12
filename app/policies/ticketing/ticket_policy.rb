@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 module Ticketing
-  # Owner-only policy for package lifecycle commands. Organizer/manager
-  # overrides are intentionally deferred until the later suspension and
-  # operational-management tasks define their audit and scope rules.
+  # Owner-only policy for attendee package commands. Organizer/manager
+  # suspension actions are separately authorized against the event catalogue
+  # scope so an organizer cannot operate on another event's ticket.
   class TicketPolicy < Core::ApplicationPolicy
     FIELDS = %i[
       id event_id event_product_id unit_number admissions_per_unit_snapshot owner_user_id
@@ -16,13 +16,19 @@ module Ticketing
     def cancel_delegation? = owner?
     def reassign_slot? = owner?
     def transfer? = owner?
+    def suspend? = manage_event?
+    def restore_suspension? = manage_event?
+    def resolve_suspension? = manage_event?
 
     VISIBILITY = {
       show: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
       delegate: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
       cancel_delegation: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
       reassign_slot: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
-      transfer: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } }
+      transfer: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
+      suspend: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
+      restore_suspension: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
+      resolve_suspension: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } }
     }.freeze
 
     class Scope < Core::ApplicationPolicy::Scope
@@ -37,6 +43,11 @@ module Ticketing
 
     def owner?
       user.present? && record.owner_user_id == user.id
+    end
+
+    def manage_event?
+      user.present? && record&.event.present? &&
+        Events::AuthorizationResolver.can_manage_catalog?(user, record.event)
     end
   end
 end

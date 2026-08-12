@@ -46,6 +46,10 @@ module Ticketing
     has_one :revocation,
             class_name: "Ticketing::Revocation",
             dependent: :restrict_with_exception
+    has_many :ticket_suspensions,
+             class_name: "Ticketing::TicketSuspension",
+             inverse_of: :ticket,
+             dependent: :restrict_with_exception
 
     validates :unit_number, :admissions_per_unit_snapshot, :credential_version,
               numericality: { only_integer: true, greater_than: 0 }
@@ -74,7 +78,16 @@ module Ticketing
 
     def self.ransackable_associations(_auth_object = nil)
       %w[event event_product registration order_item owner_user current_credential_generation
-         admission_slots credential_generations credentials attendee_index_entries ticket_transfers revocation]
+         admission_slots credential_generations credentials attendee_index_entries ticket_transfers revocation
+         ticket_suspensions]
+    end
+
+    def package_dead?
+      status.in?(%w[refunded void]) || revocation&.is_dead == true
+    end
+
+    def package_suspended?
+      revocation&.is_suspended == true
     end
 
     private
