@@ -22,6 +22,10 @@ module Orders
              class_name: "Orders::PaymentEvent",
              inverse_of: :payment,
              dependent: :restrict_with_exception
+    has_many :refunds,
+             class_name: "Orders::Refund",
+             inverse_of: :payment,
+             dependent: :restrict_with_exception
 
     before_validation :normalize_fields
 
@@ -63,13 +67,13 @@ module Orders
         id order_id attempt_number provider payment_method status amount_minor currency
         commercial_signature buyer_fee_minor organizer_fee_minor provider_fee_minor
         provider_fee_currency idempotency_key provider_reference failure_code raw_status
-        settlement_grace_minutes settlement_grace_expires_at accepted_at superseded_at
+        settlement_grace_minutes settlement_grace_expires_at succeeded_at accepted_at superseded_at
         created_at updated_at
       ]
     end
 
     def self.ransackable_associations(_auth_object = nil)
-      %w[order payment_events]
+      %w[order payment_events refunds]
     end
 
     private
@@ -85,7 +89,9 @@ module Orders
     end
 
     def order_payment_state
-      return if order.blank? || order.pending_payment?
+      # Provider callbacks may arrive after checkout closes; status evidence
+      # must remain writable so late successes can be reversed audibly.
+      return if order.blank? || order.status.in?(%w[pending_payment paid fulfilled expired cancelled partially_refunded refunded])
 
       errors.add(:order, :invalid)
     end

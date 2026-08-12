@@ -7,7 +7,7 @@ module Payments
     # payment state and expose only capability/grace metadata synchronously.
     class Adapter
       REQUIRED_METHODS = %i[
-        create cancel verify refund verify_refund available_balance capabilities
+        create cancel verify verify_webhook refund verify_refund available_balance capabilities
         settlement_grace_minutes
       ].freeze
 

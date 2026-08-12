@@ -20,6 +20,12 @@ module Payments
 
       def verify(**request) = delegate(:verify, **request)
 
+      def verify_webhook(**request)
+        return false unless @client
+
+        !!@client.public_send(:verify_webhook, **request)
+      end
+
       def refund(**request) = delegate(:refund, **request)
 
       def verify_refund(**request) = delegate(:verify_refund, **request)

@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 module Orders
-  # Durable provider-event identity. Task 7 will add receipt and processing
-  # commands; this model already owns the deduplication key so callbacks can
-  # never create two histories for one provider event.
+  # Durable provider-event inbox row. The unique provider identity makes HTTP
+  # retries safe, while the attempt/error fields let a worker resume after a
+  # crash without retaining provider secrets in operational diagnostics.
   class PaymentEvent < Orders::ApplicationRecord
     self.table_name = "orders_payment_events"
 
@@ -21,11 +21,14 @@ module Orders
     validates :status, presence: true, inclusion: { in: STATUSES }
     validates :payload, presence: true
     validates :payload_digest, format: { with: /\A[0-9a-f]{64}\z/ }
+    validates :attempts_count, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 
     def processed? = status == "processed"
 
+    def terminal? = status.in?(%w[processed ignored])
+
     def self.ransackable_attributes(_auth_object = nil)
-      %w[id payment_id provider provider_event_id event_type status occurred_at received_at processed_at created_at updated_at]
+      %w[id payment_id provider provider_event_id event_type status occurred_at received_at processed_at attempts_count created_at updated_at]
     end
 
     def self.ransackable_associations(_auth_object = nil)
