@@ -81,13 +81,13 @@ domain prerequisites, but it is not a reason to introduce a temporary
   adjustment projection, provider contract, and sequential payment-attempt
   behavior are verified. Commercial Task 11 remains intentionally deferred to
   Controlled Resale; Task 12 remains last.
-- Orders Tasks 1–8 are implemented and focused-verified in the current branch,
+- Orders Tasks 1–9 are implemented and verified in the current branch,
   including checkout, payment-attempt persistence, provider compatibility,
   sequential attempt start/switch behavior, durable webhook receipt, exactly-
   once acceptance, full reversal obligations, the Orders fulfillment boundary,
-  and bounded checkout expiry/settlement grace. Orders Task 9 remains pending
-  on the full repository gate because unrelated Ticketing/Consent/Retention
-  regressions still fail serially.
+  bounded checkout expiry/settlement grace, and the final repository gate. The
+  full serial `N_PLUS_ONE=1` suite passes with 2,155 tests, 8,044 assertions,
+  zero failures, and zero errors. The user review/commit remains pending.
 - Ticket Packages Task 1 (schema/models) was committed early and is retained
   because it is a valid prerequisite. That early schema does **not** open the
   Ticket Packages wave; do not start Ticket Packages Task 2 until Orders Tasks
@@ -98,20 +98,18 @@ domain prerequisites, but it is not a reason to introduce a temporary
 
 The next human-visible action is therefore:
 
-1. Resolve the unrelated full-suite regressions, then resume
-   `2026-07-17-orders-payments-implementation.md` at Task 9 Step 4 and commit
-   the verified Orders tranche.
-2. Resume `2026-07-17-ticket-packages-credentials-implementation.md` at Task
-   2, then Tasks 3–6.
-3. Run the Scanner and Refunds/Finance plans as the Wave 5 parallel tracks.
-4. After Wave 5 is green, run Controlled Resale Tasks 1–2 and the Streaming /
+1. Review and commit the verified Orders tranche, then resume
+   `2026-07-17-ticket-packages-credentials-implementation.md` at Task 2, then
+   Tasks 3–6.
+2. Run the Scanner and Refunds/Finance plans as the Wave 5 parallel tracks.
+3. After Wave 5 is green, run Controlled Resale Tasks 1–2 and the Streaming /
    Add-ons / Links plan. These are Wave 6 work and may run in parallel when
    ownership is explicit.
-5. Execute Commercial Task 11 together with Controlled Resale Task 3, then
+4. Execute Commercial Task 11 together with Controlled Resale Task 3, then
    finish the remaining Controlled Resale tasks.
-6. Execute Commercial Task 12 only after resale, Finance, and the required
+5. Execute Commercial Task 12 only after resale, Finance, and the required
    operational evidence exist.
-7. Finish Launch Hardening only after all plans 0–9 are green.
+6. Finish Launch Hardening only after all plans 0–9 are green.
 
 Do not use a plan's numeric task number by itself as the next-task signal. Use
 the current checkpoint above and the explicit gate at the top of each dependent

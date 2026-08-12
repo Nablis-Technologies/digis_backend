@@ -43,11 +43,11 @@ Implementation must preserve these decisions:
 ## Current implementation status and navigation (verified 2026-08-12)
 
 The dependency-ordered Commercial tranche is complete through Task 10's
-Commercial-owned projection/provider boundary. The current branch has passed
-the focused Commercial/Orders closure gate; the current roadmap task is Orders
-Task 9. Orders Task 8's checkout expiry and settlement-grace boundary is now
-implemented and focused-verified. The Orders final repository gate remains
-pending on unrelated Ticketing/Consent/Retention regressions.
+Commercial-owned projection/provider boundary. Orders Tasks 1–9 have now
+passed their focused and full repository gates; the remaining action is user
+review/commit. The next implementation task is Ticket Packages Task 2. Do not
+start Commercial Task 11 until the controlled-resale handoff prerequisites
+listed below exist.
 
 | Task | Status | Evidence / boundary |
 |---|---|---|
@@ -64,10 +64,9 @@ pending on unrelated Ticketing/Consent/Retention regressions.
 
 1. Stop this Commercial tranche at Task 10. Do not start Commercial Task 11
    from this branch yet.
-2. Follow the master roadmap to Orders Task 9 and its full-suite gate. After
-   Orders is fully green,
-   resume Ticket Packages Tasks 2–6, then the Scanner and Refunds/Finance Wave
-   5 tracks. After Wave 5,
+2. Review and commit the verified Orders tranche, then resume Ticket Packages
+   Tasks 2–6, followed by the Scanner and Refunds/Finance Wave 5 tracks. After
+   Wave 5,
    Streaming/Add-ons/Links is a separate Wave 6 track and may run alongside
    Controlled Resale.
 3. Return to this plan at Task 11 only when the Controlled Resale plan reaches
