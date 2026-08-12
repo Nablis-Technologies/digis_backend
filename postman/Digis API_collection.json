@@ -169,6 +169,16 @@
       "key": "ticketTransferToken",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "scannerDeviceIdentifier",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "scannerToken",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -543,6 +553,69 @@
                   "  pm.expect(json).to.have.property(\"data\");",
                   "  pm.expect(json.data).to.have.property(\"user\");",
                   "  pm.expect(json.data.user).to.have.property(\"id\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Scanner",
+      "item": [
+        {
+          "name": "Authenticate Scanner",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Scanner-Token",
+                "value": "{{scannerToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_id\": \"{{eventId}}\",\n  \"device_identifier\": \"{{scannerDeviceIdentifier}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/scanner/auth",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "scanner",
+                "auth"
+              ]
+            },
+            "description": "Authenticate the scanner device for an event using the signed-in operator JWT and the scanner token returned at registration."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response contains scanner context\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property(\"success\", true);",
+                  "  pm.expect(json.data).to.have.property(\"device_id\");",
+                  "  pm.expect(json.data).to.have.property(\"assignment_id\");",
                   "});"
                 ],
                 "type": "text/javascript"
