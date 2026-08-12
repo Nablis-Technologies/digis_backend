@@ -1214,6 +1214,222 @@ $$;
 
 
 --
+-- Name: ticketing_admission_slot_shape_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_admission_slot_shape_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  expected_admission_count integer;
+BEGIN
+  SELECT admissions_per_unit_snapshot
+    INTO expected_admission_count
+    FROM ticketing_tickets
+   WHERE id = NEW.ticket_id;
+
+  IF NEW.position > expected_admission_count THEN
+    RAISE EXCEPTION 'admission slot position exceeds the package snapshot'
+      USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: ticketing_credential_generation_cardinality_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_credential_generation_cardinality_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  generation_id uuid;
+  generation_mode text;
+  generation_ticket_id uuid;
+  expected_slot_count integer;
+  package_count integer;
+  individual_count integer;
+  invalid_positions boolean;
+BEGIN
+  generation_id := COALESCE(NEW.credential_generation_id, OLD.credential_generation_id);
+
+  SELECT mode, ticket_id
+    INTO generation_mode, generation_ticket_id
+    FROM ticketing_credential_generations
+   WHERE id = generation_id;
+
+  SELECT COUNT(*)
+    INTO expected_slot_count
+    FROM ticketing_admission_slots
+   WHERE ticket_id = generation_ticket_id;
+
+  IF expected_slot_count <> (
+    SELECT admissions_per_unit_snapshot
+      FROM ticketing_tickets
+     WHERE id = generation_ticket_id
+  ) OR EXISTS (
+    SELECT 1
+      FROM ticketing_admission_slots slot
+     WHERE slot.ticket_id = generation_ticket_id
+       AND slot.position NOT BETWEEN 1 AND (
+         SELECT admissions_per_unit_snapshot
+           FROM ticketing_tickets
+          WHERE id = generation_ticket_id
+       )
+  ) THEN
+    RAISE EXCEPTION 'package admission slots must match the package snapshot'
+      USING ERRCODE = '23514';
+  END IF;
+
+  SELECT COUNT(*) FILTER (WHERE type = 'package'),
+         COUNT(*) FILTER (WHERE type = 'individual')
+    INTO package_count, individual_count
+    FROM ticketing_credentials
+   WHERE credential_generation_id = generation_id;
+
+  IF generation_mode = 'group' THEN
+    IF package_count <> 1 OR individual_count <> 0 THEN
+      RAISE EXCEPTION 'group generations require one package credential only'
+        USING ERRCODE = '23514';
+    END IF;
+
+    SELECT EXISTS (
+      SELECT 1
+        FROM ticketing_credentials credential
+       WHERE credential.credential_generation_id = generation_id
+         AND (cardinality(credential.slot_positions) <> expected_slot_count OR
+              EXISTS (
+                SELECT 1
+                  FROM ticketing_admission_slots slot
+                 WHERE slot.ticket_id = generation_ticket_id
+                   AND NOT (slot.position = ANY (credential.slot_positions))
+              ))
+    )
+      INTO invalid_positions;
+    IF invalid_positions THEN
+      RAISE EXCEPTION 'group credential must cover every admission slot'
+        USING ERRCODE = '23514';
+    END IF;
+  ELSIF generation_mode = 'delegated' THEN
+    IF package_count <> 0 OR individual_count <> expected_slot_count THEN
+      RAISE EXCEPTION 'delegated generations require one individual credential per slot'
+        USING ERRCODE = '23514';
+    END IF;
+
+    IF EXISTS (
+      SELECT 1
+        FROM ticketing_admission_slots slot
+       WHERE slot.ticket_id = generation_ticket_id
+         AND NOT EXISTS (
+           SELECT 1
+             FROM ticketing_credentials credential
+            WHERE credential.credential_generation_id = generation_id
+              AND credential.type = 'individual'
+              AND credential.admission_slot_id = slot.id
+         )
+    ) THEN
+      RAISE EXCEPTION 'delegated generations must cover every admission slot'
+        USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: ticketing_credential_shape_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_credential_shape_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  generation_mode text;
+  expected_ticket_id uuid;
+  current_generation_id uuid;
+  current_generation_status text;
+  ticket_event_id uuid;
+  duplicate_count integer;
+  invalid_position_count integer;
+BEGIN
+  SELECT mode, ticket_id
+    INTO generation_mode, expected_ticket_id
+    FROM ticketing_credential_generations
+   WHERE id = NEW.credential_generation_id;
+
+  IF NEW.ticket_id IS DISTINCT FROM expected_ticket_id THEN
+    RAISE EXCEPTION 'credential ticket and generation do not match'
+      USING ERRCODE = '23514';
+  END IF;
+
+  SELECT event_id, current_credential_generation_id
+    INTO ticket_event_id, current_generation_id
+    FROM ticketing_tickets
+   WHERE id = NEW.ticket_id;
+
+  IF NEW.event_id IS DISTINCT FROM ticket_event_id THEN
+    RAISE EXCEPTION 'credential event and ticket do not match'
+      USING ERRCODE = '23514';
+  END IF;
+
+  SELECT status
+    INTO current_generation_status
+    FROM ticketing_credential_generations
+   WHERE id = current_generation_id;
+
+  IF NEW.status IN ('active', 'pending_claim', 'pending_requirements') AND
+     (current_generation_id IS DISTINCT FROM NEW.credential_generation_id OR
+      current_generation_status IS DISTINCT FROM 'active') THEN
+    RAISE EXCEPTION 'usable credentials must belong to the ticket current active generation'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.type = 'package' AND generation_mode IS DISTINCT FROM 'group' THEN
+    RAISE EXCEPTION 'package credentials require group generations'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.type = 'individual' AND generation_mode IS DISTINCT FROM 'delegated' THEN
+    RAISE EXCEPTION 'individual credentials require delegated generations'
+      USING ERRCODE = '23514';
+  END IF;
+
+  SELECT COUNT(*) - COUNT(DISTINCT position), COUNT(*) FILTER (WHERE position <= 0)
+    INTO duplicate_count, invalid_position_count
+    FROM unnest(NEW.slot_positions) AS positions(position);
+
+  IF duplicate_count <> 0 OR invalid_position_count <> 0 THEN
+    RAISE EXCEPTION 'credential slot positions must be positive and unique'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.type = 'individual' AND cardinality(NEW.slot_positions) <> 1 THEN
+    RAISE EXCEPTION 'individual credentials must contain one slot position'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.admission_slot_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1
+      FROM ticketing_admission_slots slot
+     WHERE slot.id = NEW.admission_slot_id
+       AND slot.ticket_id = NEW.ticket_id
+       AND slot.position = NEW.slot_positions[1]
+  ) THEN
+    RAISE EXCEPTION 'credential admission slot does not match ticket position'
+      USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: ticketing_registration_answer_integrity_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1789,6 +2005,83 @@ BEGIN
       form_ticket_type_id IS DISTINCT FROM registration_ticket_type_id) THEN
     RAISE EXCEPTION 'registration submissions must reference a form from the same event and product scope'
       USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: ticketing_ticket_scope_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_ticket_scope_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  product_event_id uuid;
+  product_type text;
+  registration_event_id uuid;
+  order_event_id uuid;
+  acquisition_order_event_id uuid;
+  generation_ticket_id uuid;
+  generation_mode text;
+  generation_version integer;
+  generation_status text;
+BEGIN
+  SELECT event_id, type INTO product_event_id, product_type
+    FROM catalog_event_products
+   WHERE id = NEW.event_product_id;
+  IF product_event_id IS DISTINCT FROM NEW.event_id OR product_type IS DISTINCT FROM 'ticket' THEN
+    RAISE EXCEPTION 'ticket product and event do not match'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.registration_id IS NOT NULL THEN
+    SELECT event_id INTO registration_event_id
+      FROM ticketing_registrations
+     WHERE id = NEW.registration_id;
+    IF registration_event_id IS DISTINCT FROM NEW.event_id THEN
+      RAISE EXCEPTION 'ticket registration and event do not match'
+        USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  IF NEW.order_item_id IS NOT NULL THEN
+    SELECT order_record.event_id INTO order_event_id
+      FROM orders_order_items item
+      JOIN orders_orders order_record ON order_record.id = item.order_id
+     WHERE item.id = NEW.order_item_id;
+    IF order_event_id IS DISTINCT FROM NEW.event_id THEN
+      RAISE EXCEPTION 'ticket order item and event do not match'
+        USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  IF NEW.current_acquisition_order_item_id IS NOT NULL THEN
+    SELECT order_record.event_id INTO acquisition_order_event_id
+      FROM orders_order_items item
+      JOIN orders_orders order_record ON order_record.id = item.order_id
+     WHERE item.id = NEW.current_acquisition_order_item_id;
+    IF acquisition_order_event_id IS DISTINCT FROM NEW.event_id THEN
+      RAISE EXCEPTION 'ticket acquisition order item and event do not match'
+        USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  IF NEW.current_credential_generation_id IS NOT NULL THEN
+    SELECT ticket_id, mode, version, status
+      INTO generation_ticket_id, generation_mode, generation_version, generation_status
+      FROM ticketing_credential_generations
+     WHERE id = NEW.current_credential_generation_id;
+    IF generation_ticket_id IS DISTINCT FROM NEW.id OR
+       generation_mode IS DISTINCT FROM NEW.credential_mode OR
+       generation_version IS DISTINCT FROM NEW.credential_version OR
+       generation_status IS DISTINCT FROM 'active' THEN
+      RAISE EXCEPTION 'ticket current credential generation does not match the ticket'
+        USING ERRCODE = '23514';
+    END IF;
   END IF;
 
   RETURN NEW;
@@ -3610,6 +3903,25 @@ CREATE TABLE public.ticketing_access_codes (
 
 
 --
+-- Name: ticketing_admission_slots; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_admission_slots (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    ticket_id uuid NOT NULL,
+    "position" smallint NOT NULL,
+    assigned_user_id uuid,
+    assignment_status character varying DEFAULT 'unassigned'::character varying NOT NULL,
+    claimed_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_admission_slots_claimed_at_check CHECK (((((assignment_status)::text = 'claimed'::text) AND (claimed_at IS NOT NULL)) OR (((assignment_status)::text <> 'claimed'::text) AND (claimed_at IS NULL)))),
+    CONSTRAINT ticketing_admission_slots_position_check CHECK (("position" > 0)),
+    CONSTRAINT ticketing_admission_slots_status_check CHECK (((assignment_status)::text = ANY (ARRAY[('unassigned'::character varying)::text, ('pending_claim'::character varying)::text, ('claimed'::character varying)::text])))
+);
+
+
+--
 -- Name: ticketing_attendee_exports; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3661,6 +3973,133 @@ CREATE TABLE public.ticketing_attendee_exports (
     CONSTRAINT ticketing_attendee_exports_row_mode_check CHECK (((row_mode)::text = ANY (ARRAY[('registration'::character varying)::text, ('admission'::character varying)::text]))),
     CONSTRAINT ticketing_attendee_exports_state_timestamps_check CHECK (((((status)::text = 'pending'::text) AND (processing_started_at IS NULL) AND (ready_at IS NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL)) OR (((status)::text = 'processing'::text) AND (processing_started_at IS NOT NULL) AND (ready_at IS NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL)) OR (((status)::text = 'ready'::text) AND (processing_started_at IS NOT NULL) AND (ready_at IS NOT NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL) AND (row_count IS NOT NULL) AND (file_sha256 IS NOT NULL)) OR (((status)::text = 'failed'::text) AND (processing_started_at IS NOT NULL) AND (ready_at IS NULL) AND (failed_at IS NOT NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL)) OR (((status)::text = 'expiring'::text) AND (expiring_at IS NOT NULL) AND (expired_at IS NULL)) OR (((status)::text = 'expired'::text) AND (expired_at IS NOT NULL)))),
     CONSTRAINT ticketing_attendee_exports_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('processing'::character varying)::text, ('ready'::character varying)::text, ('failed'::character varying)::text, ('expiring'::character varying)::text, ('expired'::character varying)::text])))
+);
+
+
+--
+-- Name: ticketing_attendee_index_entries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_attendee_index_entries (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    event_id uuid NOT NULL,
+    lookup_code character varying(8) NOT NULL,
+    phone_hash character varying(64),
+    owner_phone_hash character varying(64),
+    holder_name text,
+    credential_id uuid NOT NULL,
+    ticket_id uuid NOT NULL,
+    slot_positions smallint[] DEFAULT '{}'::smallint[] NOT NULL,
+    credential_mode character varying NOT NULL,
+    generation_version integer NOT NULL,
+    entry_limit smallint NOT NULL,
+    ticket_type character varying NOT NULL,
+    ticket_type_label character varying,
+    perks jsonb DEFAULT '[]'::jsonb NOT NULL,
+    product_access_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
+    entry_validation_mode character varying DEFAULT 'qr'::character varying NOT NULL,
+    index_version bigint DEFAULT 0 NOT NULL,
+    removed boolean DEFAULT false NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_attendee_index_entries_mode_check CHECK (((credential_mode)::text = ANY (ARRAY[('group'::character varying)::text, ('delegated'::character varying)::text]))),
+    CONSTRAINT ticketing_attendee_index_entries_owner_phone_hash_check CHECK (((owner_phone_hash IS NULL) OR ((owner_phone_hash)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT ticketing_attendee_index_entries_phone_hash_check CHECK (((phone_hash IS NULL) OR ((phone_hash)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT ticketing_attendee_index_entries_shape_check CHECK (((cardinality(slot_positions) > 0) AND (entry_limit = cardinality(slot_positions)) AND (entry_limit > 0) AND (generation_version > 0) AND (index_version >= 0))),
+    CONSTRAINT ticketing_attendee_index_entries_validation_mode_check CHECK (((entry_validation_mode)::text = ANY (ARRAY[('qr'::character varying)::text, ('qr_and_id'::character varying)::text])))
+);
+
+
+--
+-- Name: ticketing_credential_claims; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_credential_claims (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    credential_id uuid NOT NULL,
+    invited_user_id uuid,
+    claimed_by_user_id uuid,
+    contact_digest character varying(64) NOT NULL,
+    token_digest character varying(64) NOT NULL,
+    status character varying DEFAULT 'pending'::character varying NOT NULL,
+    expires_at timestamp with time zone,
+    accepted_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_credential_claims_acceptance_check CHECK ((((status)::text <> 'accepted'::text) OR ((claimed_by_user_id IS NOT NULL) AND (accepted_at IS NOT NULL)))),
+    CONSTRAINT ticketing_credential_claims_digest_check CHECK ((((contact_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((token_digest)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT ticketing_credential_claims_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('accepted'::character varying)::text, ('revoked'::character varying)::text, ('expired'::character varying)::text])))
+);
+
+
+--
+-- Name: ticketing_credential_generations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_credential_generations (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    ticket_id uuid NOT NULL,
+    version integer NOT NULL,
+    mode character varying NOT NULL,
+    status character varying DEFAULT 'active'::character varying NOT NULL,
+    activated_at timestamp with time zone NOT NULL,
+    revoked_at timestamp with time zone,
+    revocation_reason character varying,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_credential_generations_mode_check CHECK (((mode)::text = ANY (ARRAY[('group'::character varying)::text, ('delegated'::character varying)::text]))),
+    CONSTRAINT ticketing_credential_generations_revocation_check CHECK (((((status)::text = 'active'::text) AND (revoked_at IS NULL)) OR (((status)::text = 'revoked'::text) AND (revoked_at IS NOT NULL)))),
+    CONSTRAINT ticketing_credential_generations_status_check CHECK (((status)::text = ANY (ARRAY[('active'::character varying)::text, ('revoked'::character varying)::text]))),
+    CONSTRAINT ticketing_credential_generations_version_check CHECK ((version > 0))
+);
+
+
+--
+-- Name: ticketing_credential_revocations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_credential_revocations (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    event_id uuid NOT NULL,
+    credential_id uuid NOT NULL,
+    reason character varying NOT NULL,
+    revoked_at timestamp with time zone NOT NULL,
+    revocation_version bigint DEFAULT 0 NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_credential_revocations_values_check CHECK (((revocation_version >= 0) AND ((reason)::text <> ''::text)))
+);
+
+
+--
+-- Name: ticketing_credentials; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_credentials (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    ticket_id uuid NOT NULL,
+    credential_generation_id uuid NOT NULL,
+    admission_slot_id uuid,
+    event_id uuid NOT NULL,
+    type character varying NOT NULL,
+    holder_user_id uuid,
+    holder_name text,
+    status character varying DEFAULT 'pending_claim'::character varying NOT NULL,
+    slot_positions smallint[] DEFAULT '{}'::smallint[] NOT NULL,
+    entry_limit smallint NOT NULL,
+    qr_token text,
+    lookup_code character varying(8),
+    issued_at timestamp with time zone,
+    revoked_at timestamp with time zone,
+    revocation_reason character varying,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_credentials_activation_check CHECK (((((status)::text = ANY (ARRAY[('pending_claim'::character varying)::text, ('pending_requirements'::character varying)::text])) AND (qr_token IS NULL) AND (lookup_code IS NULL) AND (issued_at IS NULL)) OR (((status)::text = 'active'::text) AND (qr_token IS NOT NULL) AND (lookup_code IS NOT NULL) AND (issued_at IS NOT NULL)) OR ((status)::text = 'revoked'::text))),
+    CONSTRAINT ticketing_credentials_admission_slot_check CHECK (((((type)::text = 'package'::text) AND (admission_slot_id IS NULL)) OR (((type)::text = 'individual'::text) AND (admission_slot_id IS NOT NULL) AND (entry_limit = 1)))),
+    CONSTRAINT ticketing_credentials_revocation_check CHECK (((((status)::text = 'revoked'::text) AND (revoked_at IS NOT NULL)) OR (((status)::text <> 'revoked'::text) AND (revoked_at IS NULL)))),
+    CONSTRAINT ticketing_credentials_slot_shape_check CHECK (((cardinality(slot_positions) > 0) AND (entry_limit = cardinality(slot_positions)) AND (entry_limit > 0))),
+    CONSTRAINT ticketing_credentials_status_check CHECK (((status)::text = ANY (ARRAY[('pending_claim'::character varying)::text, ('pending_requirements'::character varying)::text, ('active'::character varying)::text, ('revoked'::character varying)::text]))),
+    CONSTRAINT ticketing_credentials_type_check CHECK (((type)::text = ANY (ARRAY[('package'::character varying)::text, ('individual'::character varying)::text])))
 );
 
 
@@ -3991,15 +4430,37 @@ CREATE TABLE public.ticketing_registrations (
     lock_version integer DEFAULT 0 NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
+    idempotency_request_digest character varying(64),
+    next_action_snapshot character varying,
     CONSTRAINT ticketing_registrations_complimentary_reason_check CHECK (((complimentary_reason IS NULL) OR ((complimentary_reason)::text = ANY (ARRAY[('accessibility'::character varying)::text, ('accommodation'::character varying)::text, ('community_partner'::character varying)::text, ('service_recovery'::character varying)::text, ('sponsor_guest'::character varying)::text, ('staff_guest'::character varying)::text])))),
     CONSTRAINT ticketing_registrations_decision_exclusive_check CHECK ((NOT ((approved_at IS NOT NULL) AND (rejected_at IS NOT NULL)))),
+    CONSTRAINT ticketing_registrations_idempotency_request_digest_check CHECK (((idempotency_request_digest IS NULL) OR ((idempotency_request_digest)::text ~ '^[0-9a-f]{64}$'::text))),
     CONSTRAINT ticketing_registrations_identity_digest_check CHECK (((identity_digest)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT ticketing_registrations_next_action_snapshot_check CHECK (((next_action_snapshot IS NULL) OR ((next_action_snapshot)::text = ANY (ARRAY[('requires_confirmation'::character varying)::text, ('requires_order'::character varying)::text, ('awaiting_approval'::character varying)::text])))),
     CONSTRAINT ticketing_registrations_party_size_check CHECK ((party_size = (package_quantity * admissions_per_unit_snapshot))),
     CONSTRAINT ticketing_registrations_quantities_positive_check CHECK (((package_quantity > 0) AND (admissions_per_unit_snapshot > 0) AND (party_size > 0))),
     CONSTRAINT ticketing_registrations_source_check CHECK (((source)::text = ANY (ARRAY[('self_service'::character varying)::text, ('organizer_complimentary'::character varying)::text, ('walk_up'::character varying)::text]))),
     CONSTRAINT ticketing_registrations_source_metadata_check CHECK (((((source)::text = 'organizer_complimentary'::text) AND (complimentary_reason IS NOT NULL) AND ((complimentary_reason)::text <> ''::text) AND (issuance_idempotency_key IS NOT NULL) AND ((issuance_idempotency_key)::text <> ''::text)) OR (((source)::text <> 'organizer_complimentary'::text) AND (complimentary_reason IS NULL)))),
     CONSTRAINT ticketing_registrations_state_timestamps_check CHECK ((((((status)::text = 'waitlisted'::text) AND (waitlisted_at IS NOT NULL)) OR (((status)::text <> 'waitlisted'::text) AND (waitlisted_at IS NULL))) AND ((((status)::text = 'offered'::text) AND (offered_at IS NOT NULL) AND (offer_expires_at IS NOT NULL) AND (offer_expires_at > offered_at)) OR (((status)::text <> 'offered'::text) AND (offered_at IS NULL) AND (offer_expires_at IS NULL))))),
     CONSTRAINT ticketing_registrations_status_check CHECK (((status)::text = ANY (ARRAY[('pending_payment'::character varying)::text, ('pending_approval'::character varying)::text, ('waitlisted'::character varying)::text, ('offered'::character varying)::text, ('confirmed'::character varying)::text, ('rejected'::character varying)::text, ('cancelled'::character varying)::text, ('expired'::character varying)::text])))
+);
+
+
+--
+-- Name: ticketing_revocations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_revocations (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    event_id uuid NOT NULL,
+    ticket_id uuid NOT NULL,
+    revoked_through_version integer DEFAULT 0 NOT NULL,
+    is_dead boolean DEFAULT false NOT NULL,
+    is_suspended boolean DEFAULT false NOT NULL,
+    revocation_version bigint DEFAULT 0 NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_revocations_versions_check CHECK (((revoked_through_version >= 0) AND (revocation_version >= 0)))
 );
 
 
@@ -4041,6 +4502,43 @@ CREATE TABLE public.ticketing_ticket_types (
     CONSTRAINT ticketing_ticket_types_resale_cap_check CHECK (((resale_price_cap_type IS NULL) OR (((resale_price_cap_type)::text = 'fixed'::text) AND (resale_fixed_cap_minor IS NOT NULL) AND (resale_fixed_cap_currency IS NOT NULL) AND (resale_percentage_cap_bps IS NULL)) OR (((resale_price_cap_type)::text = 'percentage'::text) AND (resale_percentage_cap_bps IS NOT NULL) AND (resale_fixed_cap_minor IS NULL) AND (resale_fixed_cap_currency IS NULL)))),
     CONSTRAINT ticketing_ticket_types_resale_cutoff_check CHECK ((resale_cutoff_seconds_before_start >= 0)),
     CONSTRAINT ticketing_ticket_types_transfer_cutoff_check CHECK ((transfer_cutoff_seconds_before_start >= 0))
+);
+
+
+--
+-- Name: ticketing_tickets; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_tickets (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    event_id uuid NOT NULL,
+    event_product_id uuid NOT NULL,
+    registration_id uuid,
+    order_item_id uuid,
+    unit_number integer NOT NULL,
+    admissions_per_unit_snapshot smallint NOT NULL,
+    owner_user_id uuid NOT NULL,
+    current_acquisition_type character varying NOT NULL,
+    current_acquisition_order_item_id uuid,
+    current_acquisition_product_value_minor bigint DEFAULT 0 CONSTRAINT ticketing_tickets_current_acquisition_product_value_mi_not_null NOT NULL,
+    current_acquisition_currency character varying(3) NOT NULL,
+    completed_resale_count smallint DEFAULT 0 NOT NULL,
+    credential_mode character varying DEFAULT 'group'::character varying NOT NULL,
+    credential_version integer DEFAULT 1 NOT NULL,
+    current_credential_generation_id uuid,
+    status character varying DEFAULT 'active'::character varying NOT NULL,
+    issued_at timestamp with time zone NOT NULL,
+    lock_version integer DEFAULT 0 NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_tickets_acquisition_source_check CHECK (((((current_acquisition_type)::text = ANY (ARRAY[('primary_purchase'::character varying)::text, ('resale_purchase'::character varying)::text])) AND (current_acquisition_order_item_id IS NOT NULL)) OR (((current_acquisition_type)::text = ANY (ARRAY[('free_registration'::character varying)::text, ('free_transfer'::character varying)::text, ('complimentary'::character varying)::text])) AND (current_acquisition_order_item_id IS NULL)))),
+    CONSTRAINT ticketing_tickets_acquisition_type_check CHECK (((current_acquisition_type)::text = ANY (ARRAY[('primary_purchase'::character varying)::text, ('resale_purchase'::character varying)::text, ('free_registration'::character varying)::text, ('free_transfer'::character varying)::text, ('complimentary'::character varying)::text]))),
+    CONSTRAINT ticketing_tickets_acquisition_value_check CHECK ((current_acquisition_product_value_minor >= 0)),
+    CONSTRAINT ticketing_tickets_credential_mode_check CHECK (((credential_mode)::text = ANY (ARRAY[('group'::character varying)::text, ('delegated'::character varying)::text]))),
+    CONSTRAINT ticketing_tickets_currency_check CHECK (((current_acquisition_currency)::text ~ '^[A-Z]{3}$'::text)),
+    CONSTRAINT ticketing_tickets_positive_values_check CHECK (((unit_number > 0) AND (admissions_per_unit_snapshot > 0) AND (completed_resale_count >= 0) AND (credential_version > 0))),
+    CONSTRAINT ticketing_tickets_source_check CHECK (((registration_id IS NOT NULL) OR (order_item_id IS NOT NULL))),
+    CONSTRAINT ticketing_tickets_status_check CHECK (((status)::text = ANY (ARRAY[('active'::character varying)::text, ('suspended'::character varying)::text, ('refunded'::character varying)::text, ('void'::character varying)::text])))
 );
 
 
@@ -4685,11 +5183,59 @@ ALTER TABLE ONLY public.ticketing_access_codes
 
 
 --
+-- Name: ticketing_admission_slots ticketing_admission_slots_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_admission_slots
+    ADD CONSTRAINT ticketing_admission_slots_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: ticketing_attendee_exports ticketing_attendee_exports_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.ticketing_attendee_exports
     ADD CONSTRAINT ticketing_attendee_exports_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_attendee_index_entries ticketing_attendee_index_entries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_attendee_index_entries
+    ADD CONSTRAINT ticketing_attendee_index_entries_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_credential_claims ticketing_credential_claims_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_credential_claims
+    ADD CONSTRAINT ticketing_credential_claims_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_credential_generations ticketing_credential_generations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_credential_generations
+    ADD CONSTRAINT ticketing_credential_generations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_credential_revocations ticketing_credential_revocations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_credential_revocations
+    ADD CONSTRAINT ticketing_credential_revocations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_credentials ticketing_credentials_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_credentials
+    ADD CONSTRAINT ticketing_credentials_pkey PRIMARY KEY (id);
 
 
 --
@@ -4797,11 +5343,27 @@ ALTER TABLE ONLY public.ticketing_registrations
 
 
 --
+-- Name: ticketing_revocations ticketing_revocations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_revocations
+    ADD CONSTRAINT ticketing_revocations_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: ticketing_ticket_types ticketing_ticket_types_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.ticketing_ticket_types
     ADD CONSTRAINT ticketing_ticket_types_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_tickets ticketing_tickets_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_tickets
+    ADD CONSTRAINT ticketing_tickets_pkey PRIMARY KEY (id);
 
 
 --
@@ -5078,6 +5640,13 @@ CREATE INDEX idx_on_aggregate_type_aggregate_id_occurred_at_dc800603ae ON public
 
 
 --
+-- Name: idx_on_assigned_user_id_assignment_status_027d423ff0; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_assigned_user_id_assignment_status_027d423ff0 ON public.ticketing_admission_slots USING btree (assigned_user_id, assignment_status);
+
+
+--
 -- Name: idx_on_category_jurisdiction_code_status_effective__957fab264b; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5106,10 +5675,31 @@ CREATE INDEX idx_on_event_id_category_released_at_73cc832cb9 ON public.core_data
 
 
 --
+-- Name: idx_on_event_id_index_version_b5781801d2; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_event_id_index_version_b5781801d2 ON public.ticketing_attendee_index_entries USING btree (event_id, index_version);
+
+
+--
+-- Name: idx_on_event_id_lookup_code_13c6942e6c; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_on_event_id_lookup_code_13c6942e6c ON public.ticketing_attendee_index_entries USING btree (event_id, lookup_code);
+
+
+--
 -- Name: idx_on_event_id_organization_id_ee33770ea4; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX idx_on_event_id_organization_id_ee33770ea4 ON public.events_event_organizations USING btree (event_id, organization_id);
+
+
+--
+-- Name: idx_on_event_id_revocation_version_4b798feea0; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_event_id_revocation_version_4b798feea0 ON public.ticketing_credential_revocations USING btree (event_id, revocation_version);
 
 
 --
@@ -5218,6 +5808,13 @@ CREATE INDEX idx_on_submitted_by_user_id_b8cd03fa99 ON public.ticketing_registra
 
 
 --
+-- Name: idx_on_ticket_id_version_545ec11116; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_on_ticket_id_version_545ec11116 ON public.ticketing_credential_generations USING btree (ticket_id, version);
+
+
+--
 -- Name: idx_on_ticket_type_id_contact_digest_bd3fd90acf; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5260,6 +5857,13 @@ CREATE UNIQUE INDEX idx_one_active_checkout_per_buyer_event ON public.orders_ord
 
 
 --
+-- Name: idx_one_active_generation_per_ticket; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_one_active_generation_per_ticket ON public.ticketing_credential_generations USING btree (ticket_id) WHERE ((status)::text = 'active'::text);
+
+
+--
 -- Name: idx_one_active_subsidy_reservation_per_order_budget; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5281,6 +5885,13 @@ CREATE UNIQUE INDEX idx_one_current_payment_attempt ON public.orders_payments US
 
 
 --
+-- Name: idx_one_individual_credential_per_slot; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_one_individual_credential_per_slot ON public.ticketing_credentials USING btree (credential_generation_id, admission_slot_id) WHERE ((type)::text = 'individual'::text);
+
+
+--
 -- Name: idx_one_order_item_per_registration; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5299,6 +5910,13 @@ CREATE UNIQUE INDEX idx_one_order_item_per_resale_listing ON public.orders_order
 --
 
 CREATE UNIQUE INDEX idx_one_owner_per_org ON public.organizations_memberships USING btree (organization_id) WHERE ((role)::text = 'owner'::text);
+
+
+--
+-- Name: idx_one_package_credential_per_generation; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_one_package_credential_per_generation ON public.ticketing_credentials USING btree (credential_generation_id) WHERE ((type)::text = 'package'::text);
 
 
 --
@@ -5631,6 +6249,13 @@ CREATE UNIQUE INDEX idx_ticketing_access_codes_on_ticket_type_and_idempotency ON
 
 
 --
+-- Name: idx_ticketing_credentials_event_lookup; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_ticketing_credentials_event_lookup ON public.ticketing_credentials USING btree (event_id, lookup_code) WHERE (lookup_code IS NOT NULL);
+
+
+--
 -- Name: idx_ticketing_invitations_on_ticket_type_and_idempotency; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5698,6 +6323,20 @@ CREATE UNIQUE INDEX idx_ticketing_registrations_issuance_idempotency ON public.t
 --
 
 CREATE INDEX idx_ticketing_registrations_queue ON public.ticketing_registrations USING btree (ticket_type_id, selected_event_date_id, status, waitlisted_at, id);
+
+
+--
+-- Name: idx_ticketing_tickets_order_item_unit; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_ticketing_tickets_order_item_unit ON public.ticketing_tickets USING btree (order_item_id, unit_number) WHERE (order_item_id IS NOT NULL);
+
+
+--
+-- Name: idx_ticketing_tickets_registration_unit; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_ticketing_tickets_registration_unit ON public.ticketing_tickets USING btree (registration_id, unit_number) WHERE (registration_id IS NOT NULL);
 
 
 --
@@ -6765,6 +7404,13 @@ CREATE UNIQUE INDEX index_ticketing_access_codes_on_ticket_type_id_and_code_dige
 
 
 --
+-- Name: index_ticketing_admission_slots_on_ticket_id_and_position; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_ticketing_admission_slots_on_ticket_id_and_position ON public.ticketing_admission_slots USING btree (ticket_id, "position");
+
+
+--
 -- Name: index_ticketing_attendee_exports_on_event_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6800,6 +7446,69 @@ CREATE INDEX index_ticketing_attendee_exports_on_status ON public.ticketing_atte
 
 
 --
+-- Name: index_ticketing_attendee_index_entries_on_credential_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_ticketing_attendee_index_entries_on_credential_id ON public.ticketing_attendee_index_entries USING btree (credential_id);
+
+
+--
+-- Name: index_ticketing_attendee_index_entries_on_owner_phone_hash; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_ticketing_attendee_index_entries_on_owner_phone_hash ON public.ticketing_attendee_index_entries USING btree (owner_phone_hash);
+
+
+--
+-- Name: index_ticketing_attendee_index_entries_on_phone_hash; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_ticketing_attendee_index_entries_on_phone_hash ON public.ticketing_attendee_index_entries USING btree (phone_hash);
+
+
+--
+-- Name: index_ticketing_attendee_index_entries_on_ticket_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_ticketing_attendee_index_entries_on_ticket_id ON public.ticketing_attendee_index_entries USING btree (ticket_id);
+
+
+--
+-- Name: index_ticketing_credential_claims_on_credential_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_ticketing_credential_claims_on_credential_id ON public.ticketing_credential_claims USING btree (credential_id);
+
+
+--
+-- Name: index_ticketing_credential_claims_on_status_and_expires_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_ticketing_credential_claims_on_status_and_expires_at ON public.ticketing_credential_claims USING btree (status, expires_at);
+
+
+--
+-- Name: index_ticketing_credential_claims_on_token_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_ticketing_credential_claims_on_token_digest ON public.ticketing_credential_claims USING btree (token_digest);
+
+
+--
+-- Name: index_ticketing_credential_revocations_on_credential_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_ticketing_credential_revocations_on_credential_id ON public.ticketing_credential_revocations USING btree (credential_id);
+
+
+--
+-- Name: index_ticketing_credentials_on_ticket_id_and_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_ticketing_credentials_on_ticket_id_and_status ON public.ticketing_credentials USING btree (ticket_id, status);
+
+
+--
 -- Name: index_ticketing_invitations_on_token_digest; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6821,10 +7530,45 @@ CREATE INDEX index_ticketing_registration_forms_on_event_id_and_active ON public
 
 
 --
+-- Name: index_ticketing_revocations_on_event_id_and_revocation_version; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_ticketing_revocations_on_event_id_and_revocation_version ON public.ticketing_revocations USING btree (event_id, revocation_version);
+
+
+--
+-- Name: index_ticketing_revocations_on_ticket_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_ticketing_revocations_on_ticket_id ON public.ticketing_revocations USING btree (ticket_id);
+
+
+--
 -- Name: index_ticketing_ticket_types_on_event_product_id; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX index_ticketing_ticket_types_on_event_product_id ON public.ticketing_ticket_types USING btree (event_product_id);
+
+
+--
+-- Name: index_ticketing_tickets_on_current_credential_generation_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_ticketing_tickets_on_current_credential_generation_id ON public.ticketing_tickets USING btree (current_credential_generation_id);
+
+
+--
+-- Name: index_ticketing_tickets_on_event_id_and_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_ticketing_tickets_on_event_id_and_status ON public.ticketing_tickets USING btree (event_id, status);
+
+
+--
+-- Name: index_ticketing_tickets_on_owner_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_ticketing_tickets_on_owner_user_id ON public.ticketing_tickets USING btree (owner_user_id);
 
 
 --
@@ -7087,6 +7831,27 @@ CREATE TRIGGER trg_registration_source_locked BEFORE UPDATE ON public.ticketing_
 
 
 --
+-- Name: ticketing_admission_slots trg_ticketing_admission_slot_shape_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_ticketing_admission_slot_shape_guard BEFORE INSERT OR UPDATE ON public.ticketing_admission_slots FOR EACH ROW EXECUTE FUNCTION public.ticketing_admission_slot_shape_guard();
+
+
+--
+-- Name: ticketing_credentials trg_ticketing_credential_generation_cardinality; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER trg_ticketing_credential_generation_cardinality AFTER INSERT OR DELETE OR UPDATE ON public.ticketing_credentials DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.ticketing_credential_generation_cardinality_guard();
+
+
+--
+-- Name: ticketing_credentials trg_ticketing_credential_shape_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_ticketing_credential_shape_guard BEFORE INSERT OR UPDATE ON public.ticketing_credentials FOR EACH ROW EXECUTE FUNCTION public.ticketing_credential_shape_guard();
+
+
+--
 -- Name: ticketing_registration_answers trg_ticketing_registration_answer_integrity; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -7175,6 +7940,13 @@ CREATE TRIGGER trg_ticketing_registration_submission_immutable BEFORE DELETE OR 
 --
 
 CREATE TRIGGER trg_ticketing_registration_submission_scope BEFORE INSERT OR UPDATE ON public.ticketing_registration_form_submissions FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_submission_scope_guard();
+
+
+--
+-- Name: ticketing_tickets trg_ticketing_ticket_scope_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_ticketing_ticket_scope_guard BEFORE INSERT OR UPDATE ON public.ticketing_tickets FOR EACH ROW EXECUTE FUNCTION public.ticketing_ticket_scope_guard();
 
 
 --
@@ -7290,6 +8062,22 @@ ALTER TABLE ONLY public.events_events
 
 
 --
+-- Name: ticketing_admission_slots fk_rails_08f57594b9; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_admission_slots
+    ADD CONSTRAINT fk_rails_08f57594b9 FOREIGN KEY (ticket_id) REFERENCES public.ticketing_tickets(id);
+
+
+--
+-- Name: ticketing_credential_generations fk_rails_092fa3af60; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_credential_generations
+    ADD CONSTRAINT fk_rails_092fa3af60 FOREIGN KEY (ticket_id) REFERENCES public.ticketing_tickets(id);
+
+
+--
 -- Name: orders_promotion_redemptions fk_rails_0a2f4400d9; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7354,6 +8142,14 @@ ALTER TABLE ONLY public.events_event_date_changes
 
 
 --
+-- Name: ticketing_tickets fk_rails_1181b2a3a4; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_tickets
+    ADD CONSTRAINT fk_rails_1181b2a3a4 FOREIGN KEY (current_acquisition_order_item_id) REFERENCES public.orders_order_items(id);
+
+
+--
 -- Name: commercial_subsidy_budgets fk_rails_11847a9288; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7402,6 +8198,14 @@ ALTER TABLE ONLY public.catalog_product_access_zones
 
 
 --
+-- Name: ticketing_attendee_index_entries fk_rails_16fdbc2d17; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_attendee_index_entries
+    ADD CONSTRAINT fk_rails_16fdbc2d17 FOREIGN KEY (ticket_id) REFERENCES public.ticketing_tickets(id);
+
+
+--
 -- Name: events_event_cancellations fk_rails_181e9ab2b0; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7431,6 +8235,14 @@ ALTER TABLE ONLY public.catalog_product_inventories
 
 ALTER TABLE ONLY public.orders_payment_events
     ADD CONSTRAINT fk_rails_1de614fb3c FOREIGN KEY (payment_id) REFERENCES public.orders_payments(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: ticketing_tickets fk_rails_1ef2780902; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_tickets
+    ADD CONSTRAINT fk_rails_1ef2780902 FOREIGN KEY (event_product_id) REFERENCES public.catalog_event_products(id);
 
 
 --
@@ -7602,6 +8414,14 @@ ALTER TABLE ONLY public.events_access_zones
 
 
 --
+-- Name: ticketing_credentials fk_rails_35843446bb; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_credentials
+    ADD CONSTRAINT fk_rails_35843446bb FOREIGN KEY (event_id) REFERENCES public.events_events(id);
+
+
+--
 -- Name: core_data_retention_holds fk_rails_3662b882d2; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7698,6 +8518,14 @@ ALTER TABLE ONLY public.ticketing_registration_answer_revisions
 
 
 --
+-- Name: ticketing_revocations fk_rails_492547aca2; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_revocations
+    ADD CONSTRAINT fk_rails_492547aca2 FOREIGN KEY (ticket_id) REFERENCES public.ticketing_tickets(id);
+
+
+--
 -- Name: legal_document_versions fk_rails_49e0e9421c; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7762,6 +8590,14 @@ ALTER TABLE ONLY public.ticketing_registrations
 
 
 --
+-- Name: ticketing_attendee_index_entries fk_rails_55a4dd09ff; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_attendee_index_entries
+    ADD CONSTRAINT fk_rails_55a4dd09ff FOREIGN KEY (event_id) REFERENCES public.events_events(id);
+
+
+--
 -- Name: orders_order_adjustments fk_rails_55e4c64d49; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7815,6 +8651,14 @@ ALTER TABLE ONLY public.core_data_retention_policies
 
 ALTER TABLE ONLY public.ticketing_invitations
     ADD CONSTRAINT fk_rails_596dd5e6f4 FOREIGN KEY (created_by_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: ticketing_tickets fk_rails_5a58e723cb; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_tickets
+    ADD CONSTRAINT fk_rails_5a58e723cb FOREIGN KEY (owner_user_id) REFERENCES public.core_users(id);
 
 
 --
@@ -7890,6 +8734,14 @@ ALTER TABLE ONLY public.catalog_venue_capacity_reservations
 
 
 --
+-- Name: ticketing_tickets fk_rails_65628bf63c; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_tickets
+    ADD CONSTRAINT fk_rails_65628bf63c FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id);
+
+
+--
 -- Name: ticketing_registration_forms fk_rails_65c10bc3a2; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7946,6 +8798,14 @@ ALTER TABLE ONLY public.ticketing_registration_consents
 
 
 --
+-- Name: ticketing_tickets fk_rails_721a17e23c; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_tickets
+    ADD CONSTRAINT fk_rails_721a17e23c FOREIGN KEY (current_credential_generation_id) REFERENCES public.ticketing_credential_generations(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
 -- Name: commercial_event_payer_selections fk_rails_7357c14cd7; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7959,6 +8819,14 @@ ALTER TABLE ONLY public.commercial_event_payer_selections
 
 ALTER TABLE ONLY public.legal_acceptances
     ADD CONSTRAINT fk_rails_73b4597b95 FOREIGN KEY (accepted_by_user_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: ticketing_credential_claims fk_rails_73e23c34b2; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_credential_claims
+    ADD CONSTRAINT fk_rails_73e23c34b2 FOREIGN KEY (invited_user_id) REFERENCES public.core_users(id);
 
 
 --
@@ -8074,6 +8942,14 @@ ALTER TABLE ONLY public.catalog_promotion_codes
 
 
 --
+-- Name: ticketing_credentials fk_rails_8330f20be1; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_credentials
+    ADD CONSTRAINT fk_rails_8330f20be1 FOREIGN KEY (credential_generation_id) REFERENCES public.ticketing_credential_generations(id);
+
+
+--
 -- Name: commercial_simulations fk_rails_83d1a6fec2; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8095,6 +8971,14 @@ ALTER TABLE ONLY public.commercial_fee_schedules
 
 ALTER TABLE ONLY public.ticketing_purchase_limit_allocations
     ADD CONSTRAINT fk_rails_847accfc31 FOREIGN KEY (ticket_type_id) REFERENCES public.ticketing_ticket_types(id);
+
+
+--
+-- Name: ticketing_credential_claims fk_rails_84c1b3174c; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_credential_claims
+    ADD CONSTRAINT fk_rails_84c1b3174c FOREIGN KEY (credential_id) REFERENCES public.ticketing_credentials(id);
 
 
 --
@@ -8138,6 +9022,14 @@ ALTER TABLE ONLY public.events_event_categories
 
 
 --
+-- Name: ticketing_credentials fk_rails_8e26720914; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_credentials
+    ADD CONSTRAINT fk_rails_8e26720914 FOREIGN KEY (holder_user_id) REFERENCES public.core_users(id);
+
+
+--
 -- Name: events_event_dates fk_rails_8e99dedcd1; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8170,6 +9062,14 @@ ALTER TABLE ONLY public.active_storage_variant_records
 
 
 --
+-- Name: ticketing_credential_revocations fk_rails_9a62d49bf9; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_credential_revocations
+    ADD CONSTRAINT fk_rails_9a62d49bf9 FOREIGN KEY (credential_id) REFERENCES public.ticketing_credentials(id);
+
+
+--
 -- Name: events_consent_document_versions fk_rails_9b125d6d31; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8199,6 +9099,14 @@ ALTER TABLE ONLY public.ticketing_registration_consent_withdrawals
 
 ALTER TABLE ONLY public.ticketing_registration_form_versions
     ADD CONSTRAINT fk_rails_9d857dc56a FOREIGN KEY (published_by_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: ticketing_tickets fk_rails_9d9182e1f1; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_tickets
+    ADD CONSTRAINT fk_rails_9d9182e1f1 FOREIGN KEY (event_id) REFERENCES public.events_events(id);
 
 
 --
@@ -8298,11 +9206,27 @@ ALTER TABLE ONLY public.core_data_retention_holds
 
 
 --
+-- Name: ticketing_registration_consent_requirements fk_rails_b2527e9250; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_consent_requirements
+    ADD CONSTRAINT fk_rails_b2527e9250 FOREIGN KEY (admission_slot_id) REFERENCES public.ticketing_admission_slots(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
 -- Name: commercial_simulations fk_rails_b2983c3a53; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.commercial_simulations
     ADD CONSTRAINT fk_rails_b2983c3a53 FOREIGN KEY (assignment_id) REFERENCES public.commercial_assignments(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: ticketing_admission_slots fk_rails_b631cde906; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_admission_slots
+    ADD CONSTRAINT fk_rails_b631cde906 FOREIGN KEY (assigned_user_id) REFERENCES public.core_users(id);
 
 
 --
@@ -8319,6 +9243,14 @@ ALTER TABLE ONLY public.orders_promotion_redemptions
 
 ALTER TABLE ONLY public.events_event_video_links
     ADD CONSTRAINT fk_rails_b98836a298 FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ticketing_revocations fk_rails_bb0a8d8c5d; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_revocations
+    ADD CONSTRAINT fk_rails_bb0a8d8c5d FOREIGN KEY (event_id) REFERENCES public.events_events(id);
 
 
 --
@@ -8402,6 +9334,14 @@ ALTER TABLE ONLY public.events_event_organizations
 
 
 --
+-- Name: ticketing_attendee_index_entries fk_rails_ca756932ad; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_attendee_index_entries
+    ADD CONSTRAINT fk_rails_ca756932ad FOREIGN KEY (credential_id) REFERENCES public.ticketing_credentials(id);
+
+
+--
 -- Name: ticketing_registration_form_submissions fk_rails_cad9e55600; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8434,6 +9374,14 @@ ALTER TABLE ONLY public.commercial_subsidy_budgets
 
 
 --
+-- Name: ticketing_purchase_limit_allocations fk_rails_cfd8f75ecd; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_purchase_limit_allocations
+    ADD CONSTRAINT fk_rails_cfd8f75ecd FOREIGN KEY (ticket_id) REFERENCES public.ticketing_tickets(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
 -- Name: catalog_product_accesses fk_rails_d1fa2d2567; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8447,6 +9395,14 @@ ALTER TABLE ONLY public.catalog_product_accesses
 
 ALTER TABLE ONLY public.events_event_date_changes
     ADD CONSTRAINT fk_rails_d2b65b013d FOREIGN KEY (scheduled_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: ticketing_credentials fk_rails_d371ab54a9; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_credentials
+    ADD CONSTRAINT fk_rails_d371ab54a9 FOREIGN KEY (ticket_id) REFERENCES public.ticketing_tickets(id);
 
 
 --
@@ -8498,6 +9454,14 @@ ALTER TABLE ONLY public.ticketing_purchase_limit_overrides
 
 
 --
+-- Name: ticketing_credential_claims fk_rails_ddc2c6d9d0; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_credential_claims
+    ADD CONSTRAINT fk_rails_ddc2c6d9d0 FOREIGN KEY (claimed_by_user_id) REFERENCES public.core_users(id);
+
+
+--
 -- Name: ticketing_registrations fk_rails_de5c6ebe08; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8519,6 +9483,14 @@ ALTER TABLE ONLY public.core_user_roles
 
 ALTER TABLE ONLY public.commercial_assignments
     ADD CONSTRAINT fk_rails_e0088a0794 FOREIGN KEY (fee_schedule_version_id) REFERENCES public.commercial_fee_schedule_versions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: ticketing_tickets fk_rails_e0532d8876; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_tickets
+    ADD CONSTRAINT fk_rails_e0532d8876 FOREIGN KEY (order_item_id) REFERENCES public.orders_order_items(id);
 
 
 --
@@ -8562,6 +9534,14 @@ ALTER TABLE ONLY public.commercial_subsidy_reservations
 
 
 --
+-- Name: ticketing_credential_revocations fk_rails_e3e12f6332; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_credential_revocations
+    ADD CONSTRAINT fk_rails_e3e12f6332 FOREIGN KEY (event_id) REFERENCES public.events_events(id);
+
+
+--
 -- Name: events_event_staff_assignments fk_rails_e3e6cd98cf; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8578,6 +9558,14 @@ ALTER TABLE ONLY public.commercial_fee_schedule_versions
 
 
 --
+-- Name: ticketing_registration_answers fk_rails_e7291b9c65; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_registration_answers
+    ADD CONSTRAINT fk_rails_e7291b9c65 FOREIGN KEY (admission_slot_id) REFERENCES public.ticketing_admission_slots(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
 -- Name: orders_order_items fk_rails_e76003e058; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8591,6 +9579,14 @@ ALTER TABLE ONLY public.orders_order_items
 
 ALTER TABLE ONLY public.ticketing_attendee_exports
     ADD CONSTRAINT fk_rails_e7e49b4233 FOREIGN KEY (requested_by_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: ticketing_credentials fk_rails_e86b021690; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_credentials
+    ADD CONSTRAINT fk_rails_e86b021690 FOREIGN KEY (admission_slot_id) REFERENCES public.ticketing_admission_slots(id);
 
 
 --
@@ -8712,6 +9708,15 @@ ALTER TABLE ONLY public.catalog_product_access_zones
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260812090009'),
+('20260812090008'),
+('20260812090007'),
+('20260812090006'),
+('20260812090005'),
+('20260812090004'),
+('20260812090003'),
+('20260812090002'),
+('20260812090001'),
 ('20260811090010'),
 ('20260811090009'),
 ('20260811090008'),
