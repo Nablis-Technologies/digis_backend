@@ -127,32 +127,37 @@ scanner API tasks can add stable fixtures once their service contracts exist.
 - Create: `app/controllers/concerns/ticketing/scanner_authenticated.rb`
 - Create: `app/controllers/ticketing/scanner/auth_controller.rb`
 - Create: `app/policies/ticketing/scanner_device_assignment_policy.rb`
+- Create: `config/locales/ticketing/scanner.en.yml`
 - Modify: `config/routes.rb`
+- Modify: `app/models/ticketing/scanner_device.rb`
+- Modify: `app/models/ticketing/scanner_device_assignment.rb`
+- Modify: `app/models/organizations/organization.rb`
+- Modify: `postman/Digis API_collection.json`
 - Test: `test/services/ticketing/scanners/authenticate_test.rb`
 - Test: `test/services/ticketing/zones/authorize_admission_test.rb`
 - Test: `test/controllers/ticketing/scanner/auth_controller_test.rb`
 
-- [ ] **Step 1: RED — require device and operator authorization**
+- [x] **Step 1: RED — require device and operator authorization**
 
 Cover active/suspended/revoked device, assignment window, primary/collaborator organization, scanner/manager/admin roles, token rotation, multiple-zone scope, wrong date/type zone, and empty mapping meaning no permission when zones are enabled.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/scanners test/services/ticketing/zones test/controllers/ticketing/scanner/auth_controller_test.rb`
+Run: `N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/scanners test/services/ticketing/zones test/controllers/ticketing/scanner/auth_controller_test.rb`
 
 Expected: FAIL because authentication is missing.
 
-- [ ] **Step 3: GREEN — store token digests and authorize both principals**
+- [x] **Step 3: GREEN — store token digests and authorize both principals**
 
-Registration returns plaintext once; store a keyed digest and compare in constant time. Load one active event assignment and separately authorize the signed-in user through Pundit. Rotation invalidates the old token and audits. Zone authorization requires both product-access and assignment mappings; null zone is valid only when zones are disabled for that date/type. Controllers live under `Ticketing::Scanner`; `/api/v1` remains only the route path.
+Registration returns plaintext once; store a keyed digest and compare in constant time. Load one active event assignment and separately authorize the signed-in user through Pundit. Rotation invalidates the old token and audits. Zone authorization requires both product-access and assignment mappings; null zone is valid only when zones are disabled for that date/type. Controllers live under `Ticketing::Scanner`; the route follows the repository's current unversioned convention.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/scanners test/services/ticketing/zones test/controllers/ticketing/scanner`
+Run: `N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/scanners test/services/ticketing/zones test/controllers/ticketing/scanner`
 
 Expected: PASS.
 
-- [ ] **Step 5: REFACTOR — share request authentication, not admission policy**
+- [x] **Step 5: REFACTOR — share request authentication, not admission policy**
 
 The concern may set the assignment/operator; it cannot decide credential or zone eligibility.
 
@@ -162,6 +167,15 @@ The concern may set the assignment/operator; it cannot decide credential or zone
 git add app/services/ticketing/scanners app/services/ticketing/zones app/controllers/concerns/ticketing app/controllers/ticketing/scanner app/policies/ticketing config/routes.rb test/services/ticketing test/controllers/ticketing/scanner
 git commit -m "feat(scanner): authenticate devices and assignments"
 ```
+
+Task 2 uses the repository's current API convention: `POST /scanner/auth`
+keeps the signed-in operator's JWT in `Authorization` and receives the
+scanner credential in `X-Scanner-Token`. The scanner concern establishes the
+authenticated device/assignment context for later scanner endpoints; it does
+not authorize ticket eligibility. The current route is intentionally
+unversioned because the repository's existing routes are unversioned; a future
+versioned API mount may preserve this dual-principal contract without making
+the device credential a user JWT.
 
 ## Task 3: Publish atomic full and delta synchronization feeds
 
