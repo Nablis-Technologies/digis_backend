@@ -21,6 +21,10 @@ production:
     class: Catalog::ExpireInventoryReservationsJob
     queue: default
     schedule: every minute
+  enter_payment_settlement_grace:
+    class: Orders::EnterSettlementGraceJob
+    queue: payments
+    schedule: every minute
   reconcile_inventory:
     class: Catalog::ReconcileInventoryJob
     queue: default

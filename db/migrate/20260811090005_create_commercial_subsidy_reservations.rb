@@ -75,10 +75,10 @@ class CreateCommercialSubsidyReservations < ActiveRecord::Migration[8.1]
             END IF;
 
             IF (OLD.subsidy_budget_id, OLD.order_id, OLD.idempotency_key_digest,
-                OLD.request_fingerprint, OLD.amount_minor, OLD.currency, OLD.expires_at)
+                OLD.request_fingerprint, OLD.amount_minor, OLD.currency)
                IS DISTINCT FROM
                (NEW.subsidy_budget_id, NEW.order_id, NEW.idempotency_key_digest,
-                NEW.request_fingerprint, NEW.amount_minor, NEW.currency, NEW.expires_at) THEN
+                NEW.request_fingerprint, NEW.amount_minor, NEW.currency) THEN
               RAISE EXCEPTION 'commercial_subsidy_reservation_immutable' USING ERRCODE = '40001';
             END IF;
 
