@@ -524,6 +524,8 @@ git commit -m "feat(ticketing): sign and validate credential claims"
 This task owns the append-only `ticketing_ticket_transfers` history. Delegation changes credential mode; transfer changes package ownership. Both replace generations, but they are distinct commercial operations.
 
 **Files:**
+- Create: `db/migrate/20260812090010_create_ticketing_ticket_transfers.rb`
+- Create: `app/models/ticketing/ticket_transfer.rb`
 - Create: `app/services/ticketing/delegations/activate.rb`
 - Create: `app/services/ticketing/delegations/cancel.rb`
 - Create: `app/services/ticketing/delegations/reassign_slot.rb`
@@ -531,30 +533,45 @@ This task owns the append-only `ticketing_ticket_transfers` history. Delegation 
 - Create: `app/services/ticketing/credential_claims/accept.rb`
 - Create: `app/services/ticketing/transfers/initiate.rb`
 - Create: `app/services/ticketing/transfers/accept.rb`
+- Create: `app/services/ticketing/transfers/cancel.rb`
+- Create: `app/services/ticketing/transfers/decline.rb`
 - Create: `app/jobs/ticketing/expire_credential_claims_job.rb`
 - Create: `app/jobs/ticketing/expire_transfers_job.rb`
 - Create: `app/controllers/ticketing/delegations_controller.rb`
 - Create: `app/controllers/ticketing/credential_claims_controller.rb`
 - Create: `app/controllers/ticketing/transfers_controller.rb`
 - Create: `app/policies/ticketing/ticket_policy.rb`
+- Create: `app/policies/ticketing/credential_generation_policy.rb`
+- Create: `app/policies/ticketing/credential_claim_policy.rb`
+- Create: `app/policies/ticketing/ticket_transfer_policy.rb`
 - Create: `app/serializers/ticketing/credential_serializer.rb`
+- Create: `app/serializers/ticketing/credential_generation_serializer.rb`
+- Create: `app/serializers/ticketing/credential_claim_serializer.rb`
+- Create: `app/serializers/ticketing/ticket_transfer_serializer.rb`
+- Modify: `app/models/ticketing/ticket.rb`
+- Modify: `app/models/core/user.rb`
 - Modify: `config/routes.rb`
+- Modify: `config/recurring.yml`
+- Modify: `config/locales/ticketing/package_workflow.en.yml`
+- Modify: `postman/Digis API_collection.json`
 - Test: `test/services/ticketing/delegations/activate_test.rb`
+- Test: `test/models/ticketing/ticket_transfer_test.rb`
 - Test: `test/services/ticketing/credential_claims/accept_test.rb`
 - Test: `test/services/ticketing/transfers/accept_test.rb`
 - Test: `test/controllers/ticketing/delegations_controller_test.rb`
+- Test support: `test/support/ticketing/package_workflow_test_helpers.rb`
 
-- [ ] **Step 1: RED — specify lifecycle, recipient, cutoff, and privacy behavior**
+- [x] **Step 1: RED — specify lifecycle, recipient, cutoff, and privacy behavior**
 
 Cover existing/shadow/unclaimed recipients, wrong user, expired/replayed token, personal waiver gating, concurrent accept/cancel, rescheduled cutoff, current-open use rejection, closed prior use preservation, and separately purchased add-ons staying with their owner.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/delegations test/services/ticketing/credential_claims test/services/ticketing/transfers test/controllers/ticketing/delegations_controller_test.rb`
 
 Expected: FAIL because commands and controllers are missing.
 
-- [ ] **Step 3: GREEN — implement commands and thin route-path-independent controllers**
+- [x] **Step 3: GREEN — implement commands and thin route-path-independent controllers**
 
 ```ruby
 module Ticketing
@@ -577,15 +594,15 @@ end
 
 The route remains `/api/v1/...`; Ruby namespaces remain `Ticketing`. Delegation/cancellation call `CredentialGenerations::Replace`; slot reassignment replaces one CID in delegated mode. Claim acceptance locks claim/credential/slot and issues QR/PNR/index only after recipient authentication and personal requirements. Transfer acceptance locks transfer/ticket/generation/slots, changes owner, and calls `Replace` targeting group mode.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/delegations test/services/ticketing/credential_claims test/services/ticketing/transfers test/controllers/ticketing`
+Run: `N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing/ticket_transfer_test.rb test/services/ticketing/delegations test/services/ticketing/credential_claims test/services/ticketing/transfers test/controllers/ticketing/delegations_controller_test.rb`
 
-Expected: PASS.
+Result: PASS — 19 tests, 130 assertions, 0 failures, 0 errors, 0 skips.
 
-- [ ] **Step 5: REFACTOR — extract only proven recipient resolution**
+- [x] **Step 5: REFACTOR — keep recipient resolution on the existing phone-identity boundary**
 
-When duplication appears across invitations, claims, and transfers, use one enumeration-safe `Core::Recipients::Resolve`; do not create a workflow engine.
+Recipient resolution remains on `Core::PhoneIdentity::ResolveOrCreate`; no workflow engine was introduced. Reassignment invokes `Consent::SupersedeForReassignment` in the same transaction when the slot has a current personal requirement, and acceptance routes bind their plaintext token to the URL resource ID before invoking the command.
 
 - [ ] **Step 6: Commit**
 

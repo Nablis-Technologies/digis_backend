@@ -124,6 +124,46 @@
       "key": "payerSelectionId",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "ticketId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "credentialId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "claimId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "transferId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "recipientPhone",
+      "value": "251911000002",
+      "type": "string"
+    },
+    {
+      "key": "recipientUserId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "credentialClaimToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ticketTransferToken",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -504,6 +544,153 @@
               }
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Ticketing Package Workflow",
+      "item": [
+        {
+          "name": "Activate Delegation",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assignments\": {\n    \"1\": \"{{recipientUserId}}\",\n    \"2\": null,\n    \"3\": null\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/tickets/{{ticketId}}/delegation",
+            "description": "Replaces the package group credential with one delegated credential per admission slot. Only the ticket owner may call this command."
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Delegation",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "url": "{{baseUrl}}/tickets/{{ticketId}}/delegation/cancel",
+            "description": "Revokes the delegated generation and creates a newer group generation."
+          },
+          "response": []
+        },
+        {
+          "name": "Reassign Delegated Slot",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"position\": 2,\n  \"replacement_user_id\": \"{{recipientUserId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/tickets/{{ticketId}}/delegation/reassign",
+            "description": "Reassigns one delegated admission slot through a new credential generation."
+          },
+          "response": []
+        },
+        {
+          "name": "Invite Credential Recipient",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"credential_id\": \"{{credentialId}}\",\n  \"phone\": \"{{recipientPhone}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/tickets/{{ticketId}}/credential_claims",
+            "description": "Creates a one-time credential claim. The plaintext token is returned only in this response and is never persisted."
+          },
+          "response": []
+        },
+        {
+          "name": "Accept Credential Claim",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{credentialClaimToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/credential_claims/{{claimId}}/accept",
+            "description": "Authenticates the invited recipient and activates the slot only after personal requirements are complete."
+          },
+          "response": []
+        },
+        {
+          "name": "Initiate Package Transfer",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{recipientPhone}}\",\n  \"reason\": \"Recipient change\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/tickets/{{ticketId}}/transfers",
+            "description": "Creates a pending package transfer. Ownership and the current credential remain unchanged until acceptance."
+          },
+          "response": []
+        },
+        {
+          "name": "Accept Package Transfer",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{ticketTransferToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/ticket_transfers/{{transferId}}/accept",
+            "description": "Authenticates the recipient, changes package ownership, revokes delegated claims, and creates a newer group generation."
+          },
+          "response": []
+        },
+        {
+          "name": "Decline Package Transfer",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "url": "{{baseUrl}}/ticket_transfers/{{transferId}}/decline",
+            "description": "Declines a pending transfer as the intended recipient without changing ownership."
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Package Transfer",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "url": "{{baseUrl}}/ticket_transfers/{{transferId}}/cancel",
+            "description": "Cancels a pending transfer as the original owner without changing the current credential."
+          },
+          "response": []
         }
       ]
     },
