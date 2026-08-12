@@ -113,6 +113,10 @@ module Orders
         replaces_order:,
         status: "draft",
         charge_currency: quote.charge_currency,
+        commercial_signature: Orders::CommercialSignature.call(
+          commercial_results: quote.commercial_results,
+          charge_currency: quote.charge_currency
+        ),
         subtotal_minor: quote.subtotal_minor,
         discount_minor: quote.discount_minor,
         subsidy_minor: buyer_subsidy_minor,

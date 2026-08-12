@@ -16,7 +16,7 @@ module Orders
     IMMUTABLE_STATUSES = (STATUSES - [ "draft" ]).freeze
     SNAPSHOT_ATTRIBUTES = %w[
       event_id buyer_user_id sales_channel initiated_by_id replaces_order_id
-      charge_currency subtotal_minor discount_minor subsidy_minor fee_minor tax_minor
+      charge_currency commercial_signature subtotal_minor discount_minor subsidy_minor fee_minor tax_minor
       adjustment_minor total_minor settlement_currency settlement_total_minor exchange_rate
       exchange_rate_source exchange_rate_quoted_at exchange_rate_expires_at expires_at
       idempotency_key_digest creation_request_digest
@@ -70,6 +70,9 @@ module Orders
     validates :charge_currency, :settlement_currency,
               presence: true,
               format: { with: /\A[A-Z]{3}\z/ }
+    validates :commercial_signature,
+              presence: true,
+              format: { with: /\A[0-9a-f]{64}\z/ }
     validates :expires_at, presence: true
     validates :exchange_rate,
               presence: true,

@@ -13,6 +13,8 @@ module Orders
 
     def restart? = buyer? && record.status.in?(%w[draft pending_payment])
 
+    def start_payment_attempt? = buyer? && record.pending_payment?
+
     VISIBILITY = {
       create: {
         default: {
