@@ -48,3 +48,9 @@
   ticket commitments are derived through the product; do not reintroduce
   redundant `organization_id` or `ticket_type_id` columns just to satisfy an
   older query.
+
+- When canonical plans contain inter-plan dependency gates, do not interpret
+  “continue” as permission to start a different plan or to implement a later
+  dependent task early. Before coding, state the executable sequence and label
+  each task complete, pending by design, or prerequisite-gated; ask when the
+  requested scope conflicts with that sequence.
