@@ -6,6 +6,10 @@ module Payments
   module Providers
     class AdapterContractTest < ActiveSupport::TestCase
       class FakeClient
+        def verify_webhook(**)
+          true
+        end
+
         def create(**)
           { status: "paid", provider_reference: "chapa-ref", provider_fee_minor: 75,
             provider_fee_currency: "ETB", raw_status: "paid" }
