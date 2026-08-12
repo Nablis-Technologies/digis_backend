@@ -87,26 +87,27 @@ domain prerequisites, but it is not a reason to introduce a temporary
   once acceptance, full reversal obligations, the Orders fulfillment boundary,
   bounded checkout expiry/settlement grace, and the final repository gate. The
   prior Orders gate passed with 2,155 tests and 8,044 assertions. After
-  Ticket Packages Tasks 2–3, the full `N_PLUS_ONE=1` suite passes with 2,171
-  tests, 8,145 assertions,
+  Ticket Packages Tasks 2–4, the full `N_PLUS_ONE=1` suite passes with 2,179
+  tests, 8,225 assertions,
   zero failures, and zero errors. The user review/commit remains pending.
 - Ticket Packages Task 1 (schema/models) was committed early and is retained
-  because it is a valid prerequisite. Tasks 2–3 (deterministic fulfillment
+  because it is a valid prerequisite. Tasks 2–4 (deterministic fulfillment
   issuance, initial group credentials, PNR/index projection, outbox consumers,
-  generation replacement, revocation/index projection, and concurrency safety)
-  are implemented and verified in the current working tree. After review/commit,
-  resume the Ticket Packages plan at Task 4; do not start Task 5 until the QR,
-  PNR, and shared validator contract is complete.
+  generation replacement, revocation/index projection, concurrency safety,
+  signed QR claims, PNR reuse, and the shared validator contract) are
+  implemented and verified in the current working tree. After review/commit,
+  resume the Ticket Packages plan at Task 5; do not start Task 6 until
+  delegation/claim/transfer services use the replacement seam.
 - Commercial Task 11 remains intentionally queued until the controlled-resale
   tranche has the package/credential, Finance, and resale prerequisites.
   Commercial Task 12 remains the last Commercial/Phase 3.5 gate.
 
 The next human-visible action is therefore:
 
-1. Review and commit the verified Orders and Ticket Packages Task 2–3
+1. Review and commit the verified Orders and Ticket Packages Task 2–4
    tranches, then resume
-   `2026-07-17-ticket-packages-credentials-implementation.md` at Task 4, then
-   Tasks 5–6.
+   `2026-07-17-ticket-packages-credentials-implementation.md` at Task 5, then
+   Task 6.
 2. Run the Scanner and Refunds/Finance plans as the Wave 5 parallel tracks.
 3. After Wave 5 is green, run Controlled Resale Tasks 1–2 and the Streaming /
    Add-ons / Links plan. These are Wave 6 work and may run in parallel when

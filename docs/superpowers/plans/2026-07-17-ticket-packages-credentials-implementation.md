@@ -442,14 +442,14 @@ git commit -m "feat(ticketing): centralize credential replacement"
 - Reuse: `app/services/ticketing/qr/signer.rb` (introduced in Task 2)
 - Create: `app/services/ticketing/qr/verifier.rb`
 - Reuse: `app/services/core/lookup_code_service.rb` (introduced in Task 2)
-- Create: `app/value_objects/ticketing/credential_claims.rb`
+- Create: `app/values/ticketing/credential_claims.rb`
 - Create: `app/services/ticketing/credentials/validator.rb`
 - Create: `test/fixtures/files/ticketing/credential_contract_v1.json`
 - Test: `test/services/ticketing/qr/signer_test.rb`
 - Test: `test/services/core/lookup_code_service_test.rb`
 - Test: `test/contracts/ticketing/credential_contract_test.rb`
 
-- [ ] **Step 1: RED — add crypto and language-neutral contract tests**
+- [x] **Step 1: RED — add crypto and language-neutral contract tests**
 
 ```ruby
 test "QR and attendee-index claims have identical decisions" do
@@ -463,13 +463,14 @@ test "QR and attendee-index claims have identical decisions" do
 end
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/qr test/services/core/lookup_code_service_test.rb test/contracts/ticketing/credential_contract_test.rb`
+Run: `N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/qr test/services/core/lookup_code_service_test.rb test/contracts/ticketing/credential_contract_test.rb`
 
-Expected: FAIL because claim signing and validation are missing.
+Observed the expected missing-constant failures for `Ticketing::Qr::Verifier`
+and `Ticketing::CredentialClaims` before implementation.
 
-- [ ] **Step 3: GREEN — implement canonical Ed25519 claims**
+- [x] **Step 3: GREEN — implement canonical Ed25519 claims**
 
 ```ruby
 module Ticketing
@@ -488,25 +489,33 @@ end
 Reuse Task 2's deterministic Ed25519 signer and bounded event-scoped
 `LookupCodeService`; do not create alternate signing or PNR implementations.
 Task 4 adds verification and the shared claim/validator contract. Private keys
-remain in credentials/KMS; scanners receive only keyed public keys. Validate
-exact claims `kid,cid,tid,eid,mode,slots,entry_limit,v,accesses,exp`, signature,
-expiry, unique positive slots, group/individual shape, event/access/window/zone,
-package death/suspension/version, CID revocation, and use eligibility.
+remain in credentials/KMS; scanners receive only keyed public keys. The
+immutable claims object lives under the repository's established `app/values/`
+path and the language-neutral corpus uses a fixed test-only verification key.
+Validate exact claims `kid,cid,tid,eid,mode,slots,entry_limit,v,accesses,exp`,
+signature, expiry, unique positive slots, group/individual shape,
+event/access/window/zone, package death/suspension/version, CID revocation,
+and use eligibility.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/qr test/services/core/lookup_code_service_test.rb test/contracts/ticketing/credential_contract_test.rb`
+Run: `N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/qr test/services/core/lookup_code_service_test.rb test/contracts/ticketing/credential_contract_test.rb`
 
-Expected: PASS for known Ed25519, tamper, malformed claim, group, and individual cases.
+Result: PASS — 10 tests, 85 assertions, 0 failures, 0 errors. The contract
+corpus proves identical QR and attendee-index decisions across valid group and
+individual claims plus event, access, window, zone, package, generation, and
+credential revocation cases, including per-slot use-limit exhaustion.
 
-- [ ] **Step 5: REFACTOR — freeze the scanner boundary**
+- [x] **Step 5: REFACTOR — freeze the scanner boundary**
 
-Native scanner CI consumes this exact JSON corpus. Delete alternate QR/manual validation algorithms.
+Native scanner CI consumes this exact JSON corpus. QR verification and PNR or
+attendee-index validation now share `CredentialClaims` and
+`Credentials::Validator`; no alternate QR/manual decision tree was added.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add app/services/ticketing/qr app/services/ticketing/credentials app/services/core/lookup_code_service.rb app/value_objects/ticketing test/services test/contracts test/fixtures/files/ticketing
+git add app/services/ticketing/qr app/services/ticketing/credentials app/services/core/lookup_code_service.rb app/values/ticketing test/services test/contracts test/fixtures/files/ticketing config/initializers/ticketing_credentials.rb config/locales/ticketing/package_issuance.en.yml
 git commit -m "feat(ticketing): sign and validate credential claims"
 ```
 
