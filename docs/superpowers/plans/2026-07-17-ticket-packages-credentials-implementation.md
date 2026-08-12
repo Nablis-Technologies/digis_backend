@@ -19,6 +19,15 @@
 
 **Canonical lock order:** ticket, active generation, admission slots by position, current-access uses by `(product_access_id, admission_slot_id)`, package revocation, credential revocations, attendee-index rows. QR/PNR/index payloads never contain answers, consent evidence, ID documents, prices, fees, acquisition chains, payouts, or private notes.
 
+## Cross-plan start gate
+
+Ticket Packages Task 1 (the package/credential schema) is already committed in
+the current branch and is retained as an early prerequisite. It does not mean
+that the Ticket Packages wave is active. Wait until the Orders plan completes
+Tasks 7–9 before starting **Task 2: Issue packages deterministically after
+fulfillment**. Then execute Tasks 3–6 in order. Do not restart Task 1 or jump
+ahead to Scanner, Refunds, Finance, or Resale from this plan.
+
 ## Task 1: Create package, slot, generation, credential, and projection schema
 
 **Files:**
@@ -160,14 +169,23 @@ git commit -m "feat(ticketing): add package credential schema"
 **Files:**
 - Create: `app/services/ticketing/packages/issue.rb`
 - Create: `app/services/ticketing/credential_generations/create_initial_group.rb`
+- Create: `app/services/ticketing/credentials/activate.rb`
+- Create: `app/services/ticketing/qr/signer.rb`
+- Create: `app/services/core/lookup_code_service.rb`
+- Create: `app/services/ticketing/attendee_index/project_initial.rb`
 - Create: `app/services/ticketing/outbox_handlers/package_issued.rb`
-- Create: `config/initializers/outbox_handlers.rb`
+- Create: `app/services/ticketing/outbox_handlers/order_fulfilled.rb`
+- Create: `app/services/ticketing/outbox_handlers/registration_issuance_ready.rb`
+- Create: `config/initializers/ticketing_credentials.rb`
+- Update: `config/initializers/ticketing_outbox_handlers.rb`
+- Create: `config/locales/ticketing/package_issuance.en.yml`
 - Reuse: `app/models/core/outbox_event.rb`
 - Reuse: `app/services/core/outbox/publish.rb`
 - Reuse: `app/jobs/core/dispatch_outbox_event_job.rb`
 - Test: `test/services/ticketing/packages/issue_test.rb`
+- Test: `test/services/core/lookup_code_service_test.rb`
 
-- [ ] **Step 1: RED — specify retry-safe issuance**
+- [x] **Step 1: RED — specify retry-safe issuance**
 
 ```ruby
 test "issues one package and complete slot set once" do
@@ -185,13 +203,15 @@ test "issues one package and complete slot set once" do
 end
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/packages/issue_test.rb`
 
-Expected: FAIL because the issuance command is missing.
+Expected: FAIL because the issuance command and reusable credential activation
+seams are missing. Confirmed before implementation; the first red run also
+confirmed the new test constants were not yet defined.
 
-- [ ] **Step 3: GREEN — implement one issuance command**
+- [x] **Step 3: GREEN — implement one issuance command**
 
 ```ruby
 module Ticketing
@@ -256,22 +276,39 @@ module Ticketing
 end
 ```
 
-Paid, zero-price, complimentary, and walk-up fulfillment call this command. `CreateInitialGroup` creates/signs/indexes one complete group credential only when personal requirements permit it. The registered outbox handler delivers after commit using the event idempotency key.
+Paid, zero-price, complimentary, and walk-up fulfillment call this command.
+`CreateInitialGroup` creates the complete group slot set and activates one
+credential only when personal requirements permit it. QR signing, event-scoped
+PNR allocation, and the attendee-index projection are transaction-local
+seams introduced here because activation cannot safely publish a usable
+credential without them. Task 4 reuses these seams and adds verification,
+claim value objects, and the shared QR/PNR validator.
 
-- [ ] **Step 4: Run GREEN**
+Orders fulfillment and confirmed-registration outbox consumers invoke the same
+command. A batch issuance context locks the event once, preloads source
+tickets, reserves lookup codes, and allocates attendee-index versions without
+introducing N+1 queries. The package-issued handler delivers only durable IDs
+and the outbox idempotency key after commit.
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/packages/issue_test.rb test/services/orders`
+- [x] **Step 4: Run GREEN**
 
-Expected: PASS.
+Run: `N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/core/lookup_code_service_test.rb test/services/ticketing/packages/issue_test.rb`
+and the affected Orders/registration suite.
 
-- [ ] **Step 5: REFACTOR — remove caller-specific package construction**
+Result: PASS — focused Task 2 tests: 9 tests, 50 assertions; affected
+Orders/registration tests: 54 tests, 396 assertions; zero failures/errors.
 
-Keep financial, free, complimentary, and walk-up eligibility upstream; package construction remains identical.
+- [x] **Step 5: REFACTOR — remove caller-specific package construction**
+
+Financial, free, complimentary, and walk-up eligibility remains upstream;
+package construction is identical and all fulfillment paths share the same
+idempotent command. Changed Ticket scope validation to use already-loaded
+associations, preserving the `N_PLUS_ONE=1` contract for multi-unit fulfillment.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add app/services/ticketing/packages app/services/ticketing/credential_generations/create_initial_group.rb app/services/ticketing/outbox_handlers config/initializers/outbox_handlers.rb test/services/ticketing/packages
+git add app/models/ticketing/ticket.rb app/services/core/lookup_code_service.rb app/services/ticketing/attendee_index app/services/ticketing/credential_generations/create_initial_group.rb app/services/ticketing/credentials/activate.rb app/services/ticketing/outbox_handlers app/services/ticketing/packages app/services/ticketing/qr config/initializers/ticketing_credentials.rb config/initializers/ticketing_outbox_handlers.rb config/locales/ticketing/package_issuance.en.yml test/services/core/lookup_code_service_test.rb test/services/ticketing/packages
 git commit -m "feat(ticketing): issue packages idempotently"
 ```
 
@@ -377,9 +414,9 @@ git commit -m "feat(ticketing): centralize credential replacement"
 ## Task 4: Sign QR claims, issue PNRs, and implement one validator
 
 **Files:**
-- Create: `app/services/ticketing/qr/signer.rb`
+- Reuse: `app/services/ticketing/qr/signer.rb` (introduced in Task 2)
 - Create: `app/services/ticketing/qr/verifier.rb`
-- Create: `app/services/core/lookup_code_service.rb`
+- Reuse: `app/services/core/lookup_code_service.rb` (introduced in Task 2)
 - Create: `app/value_objects/ticketing/credential_claims.rb`
 - Create: `app/services/ticketing/credentials/validator.rb`
 - Create: `test/fixtures/files/ticketing/credential_contract_v1.json`
@@ -423,7 +460,13 @@ module Ticketing
 end
 ```
 
-Use deterministic canonical JSON and Ed25519. Private keys remain in credentials/KMS; scanners receive only keyed public keys. Validate exact claims `kid,cid,tid,eid,mode,slots,entry_limit,v,accesses,exp`, signature, expiry, unique positive slots, group/individual shape, event/access/window/zone, package death/suspension/version, CID revocation, and use eligibility. `LookupCodeService` issues seven random approved Crockford characters plus one Luhn-mod-alphabet digit and relies on `(event_id, lookup_code)` uniqueness with bounded retry.
+Reuse Task 2's deterministic Ed25519 signer and bounded event-scoped
+`LookupCodeService`; do not create alternate signing or PNR implementations.
+Task 4 adds verification and the shared claim/validator contract. Private keys
+remain in credentials/KMS; scanners receive only keyed public keys. Validate
+exact claims `kid,cid,tid,eid,mode,slots,entry_limit,v,accesses,exp`, signature,
+expiry, unique positive slots, group/individual shape, event/access/window/zone,
+package death/suspension/version, CID revocation, and use eligibility.
 
 - [ ] **Step 4: Run GREEN**
 
