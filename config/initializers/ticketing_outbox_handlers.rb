@@ -61,3 +61,9 @@ Rails.application.config.x.outbox_handlers["ticketing.package_issued"] = lambda 
   raise result.error if result.failure?
   result
 end
+
+Rails.application.config.x.outbox_handlers["ticketing.credential_generation_replaced"] = lambda do |outbox_event|
+  result = Ticketing::OutboxHandlers::CredentialGenerationReplaced.call(event: outbox_event)
+  raise result.error if result.failure?
+  result
+end

@@ -318,10 +318,13 @@ git commit -m "feat(ticketing): issue packages idempotently"
 - Create: `app/services/ticketing/credential_generations/replace.rb`
 - Create: `app/services/ticketing/revocations/publish_generation.rb`
 - Create: `app/services/ticketing/attendee_index/apply_generation.rb`
+- Create: `app/services/ticketing/outbox_handlers/credential_generation_replaced.rb`
+- Modify: `config/initializers/ticketing_outbox_handlers.rb`
+- Modify: `config/locales/ticketing/package_issuance.en.yml`
 - Test: `test/services/ticketing/credential_generations/replace_test.rb`
 - Test: `test/integration/ticketing/credential_generation_concurrency_test.rb`
 
-- [ ] **Step 1: RED — prove atomic all-or-nothing replacement**
+- [x] **Step 1: RED — prove atomic all-or-nothing replacement**
 
 ```ruby
 test "replaces group with one individual credential per slot" do
@@ -338,13 +341,13 @@ test "replaces group with one individual credential per slot" do
 end
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/credential_generations/replace_test.rb`
+Run: `N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/credential_generations/replace_test.rb`
 
-Expected: FAIL because replacement is missing.
+Observed the expected missing-constant failure for `Ticketing::CredentialGenerations::Replace` after correcting the test fixture setup.
 
-- [ ] **Step 3: GREEN — lock, revoke, replace, project, publish**
+- [x] **Step 3: GREEN — lock, revoke, replace, project, publish**
 
 ```ruby
 module Ticketing
@@ -383,7 +386,8 @@ module Ticketing
         end
       rescue ActiveRecord::RecordNotUnique => error
         failure Core::BusinessError.new(
-          "Credential generation changed concurrently", code: "credential_generation_conflict",
+          I18n.t("ticketing.package_issuance.errors.generation_conflict"),
+          code: "credential_generation_conflict",
           status: :conflict, meta: { ticket_id: @ticket.id, cause: error.class.name }
         )
       end
@@ -392,22 +396,43 @@ module Ticketing
 end
 ```
 
-Private methods enforce canonical locks, current-open-access use restrictions, cutoff/status/policy, exact group/delegated cardinality, personal-requirement states, never-reused CID/PNR, and revocation-before-index ordering. Failed transactions leave the prior generation active.
+The implementation locks the ticket, slots, current-use rows when the
+admission-use table exists, revocation projections, and attendee-index rows in
+the canonical transaction. It enforces status/event/cutoff/delegation policy,
+exact group/delegated cardinality, independent personal-requirement states,
+never-reused credential IDs/PNRs, and revocation-before-index ordering. The
+ticket pointer moves before usable credentials are inserted because the
+deferred database guard requires every usable credential to belong to the
+current active generation. The replacement event has a registered delivery
+handler and carries only ticket/version identifiers. Failed transactions leave
+the prior generation active.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/credential_generations/replace_test.rb test/integration/ticketing/credential_generation_concurrency_test.rb`
+Run: `N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/credential_generations/replace_test.rb test/integration/ticketing/credential_generation_concurrency_test.rb`
 
-Expected: PASS with one active complete generation under concurrent replacement.
+Result: PASS — 7 tests, 51 assertions, 0 failures, 0 errors. The separate
+connection race proves one active version-2 generation, one complete delegated
+credential set, and one replacement outbox event.
 
-- [ ] **Step 5: REFACTOR — route every generation transition through `Replace`**
+- [x] **Step 5: REFACTOR — route every generation transition through `Replace`**
 
-Delegation cancellation, accepted transfer, resale success/failure, date-scoped refund, and postponement do not construct generations independently.
+No pre-existing delegation, transfer, resale, refund, or postponement service
+constructs a replacement generation in the current tree. Future transition
+services must call `CredentialGenerations::Replace`; initial issuance remains
+owned by `CreateInitialGroup`.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add app/services/ticketing/credential_generations app/services/ticketing/revocations app/services/ticketing/attendee_index test/services/ticketing/credential_generations test/integration/ticketing
+git add app/services/ticketing/credential_generations/replace.rb \
+  app/services/ticketing/revocations/publish_generation.rb \
+  app/services/ticketing/attendee_index/apply_generation.rb \
+  app/services/ticketing/outbox_handlers/credential_generation_replaced.rb \
+  config/initializers/ticketing_outbox_handlers.rb \
+  config/locales/ticketing/package_issuance.en.yml \
+  test/services/ticketing/credential_generations/replace_test.rb \
+  test/integration/ticketing/credential_generation_concurrency_test.rb
 git commit -m "feat(ticketing): centralize credential replacement"
 ```
 
