@@ -11,7 +11,7 @@ module Commercial
 
     test "application controllers inherit from their platform boundaries" do
       assert_operator Commercial::ApplicationController, :<, Core::ApplicationController
-      assert_operator Admin::Commercial::ApplicationController, :<, Admin::ApplicationController
+      assert_operator ::Admin::Commercial::ApplicationController, :<, ::Admin::ApplicationController
     end
 
     test "fee schedule uses the commercial record boundary" do
