@@ -474,41 +474,53 @@ git commit -m "feat(payments): add canonical payment attempts"
 **Files:**
 - Create: `app/services/orders/start_payment_attempt.rb`
 - Create: `app/controllers/orders/payment_attempts_controller.rb`
+- Create: `app/policies/orders/payment_policy.rb`
+- Create: `app/serializers/orders/payment_serializer.rb`
+- Modify: `config/routes.rb`, `config/locales/orders/payments.en.yml`, `postman/Digis API_collection.json`
+- Modify: the original order/payment migrations and checked-in `db/structure.sql` so the
+  immutable order Commercial signature and provider superseding lifecycle are enforceable
 - Test: `test/services/orders/start_payment_attempt_test.rb`
 - Test: `test/controllers/orders/payment_attempts_controller_test.rb`
 
-- [ ] **Step 1: RED — test limits, capability, races, and idempotency**
+- [x] **Step 1: RED — test limits, capability, races, and idempotency**
 
 Cover ownership, deadline, provider/method/currency, immutable buyer processing fee, superseding, provider cancel intent, max three, accepted block, concurrent starts, replay, and ambiguous provider timeout.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/orders/start_payment_attempt_test.rb test/controllers/orders/payment_attempts_controller_test.rb
 ```
 
-Expected: FAIL.
+Verified first against the database: the new command/controller were absent,
+while the existing checkout tests passed once the canonical signature snapshot
+was added.
 
-- [ ] **Step 3: GREEN — serialize attempts under order lock**
+- [x] **Step 3: GREEN — serialize attempts under order lock**
 
-Lock order then attempts by number. Replay returns `success(existing_payment)`. Expected rejections use `failure Core::BusinessError.new(message, code:, status:, errors:)`. Persist a local attempt before provider creation; timeout stays processing for verification and never automatically creates another attempt. Controller invokes only this command.
+Lock order then attempts by number. Replay returns `success(existing_payment)`. Expected rejections use `failure Core::BusinessError.new(message, code:, status:, errors:)`. Persist a local attempt before provider creation; timeout stays processing for verification and never automatically creates another attempt. Controller invokes only this command. Superseded attempts retain their provider lifecycle status because cancellation is an intent, not proof that a remote charge stopped; the contradictory `superseded_state_check` was removed from the original payments migration for that reason.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
-Run the Task 6 command. Expected: PASS.
+With `N_PLUS_ONE=1`: 18 focused service/controller tests, 105 assertions,
+0 failures, 0 errors. The broader Orders/payment regression run passed 39
+tests and 259 assertions.
 
-- [ ] **Step 5: Refactor and repeat concurrency test**
+- [x] **Step 5: Refactor and repeat concurrency test**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/orders/start_payment_attempt_test.rb --seed 38711
 ```
 
-Expected: PASS; one current attempt.
+The concurrency case passed with one current attempt. Full RuboCop, Zeitwerk,
+route, locale, Postman JSON, and affected model/service checks also passed.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add app/services/orders/start_payment_attempt.rb app/controllers/orders/payment_attempts_controller.rb config/routes.rb test/services/orders test/controllers/orders
+git add app/controllers/orders/payment_attempts_controller.rb app/policies/orders/order_policy.rb app/policies/orders/payment_policy.rb app/serializers/orders/payment_serializer.rb app/services/orders/create_checkout.rb app/services/orders/start_payment_attempt.rb app/models/orders/order.rb
+git add config/locales/orders/payments.en.yml config/routes.rb postman/'Digis API_collection.json' db/migrate/20260811090001_create_orders.rb db/migrate/20260811090009_create_payments.rb db/structure.sql
+git add docs/superpowers/plans/2026-07-17-orders-payments-implementation.md test/controllers/orders/payment_attempts_controller_test.rb test/services/orders/start_payment_attempt_test.rb test/services/orders/create_checkout_test.rb test/integration/organizations/owner_organizations_test.rb test/models/orders/order_adjustment_test.rb test/models/orders/order_test.rb test/models/orders/payment_test.rb test/models/ticketing/ticket_type_test.rb test/services/orders/commercial_adjustment_writer_test.rb test/support/commercial/subsidy_reservation_test_helpers.rb test/support/commercial/volume_test_helpers.rb
 git commit -m "feat(payments): support bounded provider retries"
 ```
 

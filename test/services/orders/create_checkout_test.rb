@@ -31,6 +31,10 @@ module Orders
       assert_equal 10, order.fee_minor
       assert_equal 1_010, order.total_minor
       assert_equal 925, order.settlement_total_minor
+      assert_equal Orders::CommercialSignature.call(
+        commercial_results: @quote.commercial_results,
+        charge_currency: @quote.charge_currency
+      ), order.commercial_signature
       assert_equal 3, order.order_adjustments.count
       assert_equal 1, Catalog::InventoryReservation.where(order_item_id: order.order_items.first.id).count
       assert_equal 1, @product.inventories.reload.first.held_count

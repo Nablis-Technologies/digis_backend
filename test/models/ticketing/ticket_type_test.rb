@@ -106,6 +106,7 @@ module Ticketing
         sales_channel: "online",
         status: "draft",
         charge_currency: "ETB",
+        commercial_signature: "a" * 64,
         subtotal_minor: 10_000,
         discount_minor: 0,
         subsidy_minor: 0,

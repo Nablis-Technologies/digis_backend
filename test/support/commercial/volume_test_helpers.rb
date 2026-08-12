@@ -51,6 +51,7 @@ module Commercial
         sales_channel: "online",
         status:,
         charge_currency: settlement_currency,
+        commercial_signature: "a" * 64,
         subtotal_minor: settlement_total_minor,
         discount_minor: 0,
         subsidy_minor: 0,

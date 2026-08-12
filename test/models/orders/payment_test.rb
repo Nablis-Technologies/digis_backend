@@ -189,6 +189,7 @@ module Orders
         sales_channel: "online",
         status: "pending_payment",
         charge_currency: "ETB",
+        commercial_signature: "a" * 64,
         subtotal_minor: 10_000,
         discount_minor: 1_000,
         subsidy_minor: 500,

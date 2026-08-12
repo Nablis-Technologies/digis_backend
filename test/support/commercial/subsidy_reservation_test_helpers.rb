@@ -60,6 +60,7 @@ module Commercial
         sales_channel: "online",
         status:,
         charge_currency: currency,
+        commercial_signature: "a" * 64,
         subtotal_minor:,
         discount_minor: 0,
         subsidy_minor:,
