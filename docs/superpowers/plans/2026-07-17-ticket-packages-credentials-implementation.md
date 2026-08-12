@@ -22,7 +22,15 @@
 ## Task 1: Create package, slot, generation, credential, and projection schema
 
 **Files:**
-- Create: `db/migrate/20260727090114_create_ticketing_packages_and_credentials.rb`
+- Create: `db/migrate/20260812090001_create_ticketing_tickets.rb`
+- Create: `db/migrate/20260812090002_create_ticketing_admission_slots.rb`
+- Create: `db/migrate/20260812090003_create_ticketing_credential_generations.rb`
+- Create: `db/migrate/20260812090004_create_ticketing_credentials.rb`
+- Create: `db/migrate/20260812090005_create_ticketing_credential_claims.rb`
+- Create: `db/migrate/20260812090006_create_ticketing_revocations.rb`
+- Create: `db/migrate/20260812090007_create_ticketing_credential_revocations.rb`
+- Create: `db/migrate/20260812090008_create_ticketing_attendee_index_entries.rb`
+- Create: `db/migrate/20260812090009_add_ticketing_package_credential_constraints.rb`
 - Create: `app/models/ticketing/ticket.rb`
 - Create: `app/models/ticketing/admission_slot.rb`
 - Create: `app/models/ticketing/credential_generation.rb`
@@ -32,9 +40,13 @@
 - Create: `app/models/ticketing/credential_revocation.rb`
 - Create: `app/models/ticketing/attendee_index_entry.rb`
 - Test: `test/models/ticketing/package_credential_schema_test.rb`
-- Test fixtures: `test/fixtures/ticketing_tickets.yml`, `test/fixtures/ticketing_admission_slots.yml`, `test/fixtures/ticketing_credential_generations.yml`, `test/fixtures/ticketing_credentials.yml`
 
-- [ ] **Step 1: RED — write constraint tests**
+The schema test creates package records through the existing catalog and
+registration setup so event-product, access, and parent foreign-key contracts
+are exercised together; static fixtures are intentionally not added for these
+records.
+
+- [x] **Step 1: RED — write constraint tests**
 
 ```ruby
 require "test_helper"
@@ -76,13 +88,13 @@ class Ticketing::PackageCredentialSchemaTest < ActiveSupport::TestCase
 end
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing/package_credential_schema_test.rb`
 
 Expected: FAIL because the package tables and constraints do not exist.
 
-- [ ] **Step 3: GREEN — create exact database constraints**
+- [x] **Step 3: GREEN — create exact database constraints**
 
 ```ruby
 add_index :ticketing_tickets, %i[order_item_id unit_number], unique: true,
@@ -126,20 +138,20 @@ module Ticketing
 end
 ```
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:migrate && PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing/package_credential_schema_test.rb`
 
 Expected: PASS.
 
-- [ ] **Step 5: REFACTOR — retain friendly model validation while proving DB enforcement**
+- [x] **Step 5: REFACTOR — retain friendly model validation while proving DB enforcement**
 
 Exercise every partial index/check with validations bypassed. Do not add callbacks that create credentials or mutate versions.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add db/migrate/20260727090114_create_ticketing_packages_and_credentials.rb app/models/ticketing test/models/ticketing/package_credential_schema_test.rb test/fixtures/ticketing_*.yml
+git add db/migrate/20260812090001_create_ticketing_tickets.rb db/migrate/20260812090002_create_ticketing_admission_slots.rb db/migrate/20260812090003_create_ticketing_credential_generations.rb db/migrate/20260812090004_create_ticketing_credentials.rb db/migrate/20260812090005_create_ticketing_credential_claims.rb db/migrate/20260812090006_create_ticketing_revocations.rb db/migrate/20260812090007_create_ticketing_credential_revocations.rb db/migrate/20260812090008_create_ticketing_attendee_index_entries.rb db/migrate/20260812090009_add_ticketing_package_credential_constraints.rb app/models/ticketing test/models/ticketing/package_credential_schema_test.rb
 git commit -m "feat(ticketing): add package credential schema"
 ```
 
