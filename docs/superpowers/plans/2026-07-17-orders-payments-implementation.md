@@ -32,6 +32,23 @@ tasks in the following boundary order:
    integration; checkout is not complete until both plans' contracts and race
    tests pass.
 
+### Current execution route from the Commercial branch
+
+Orders Tasks 1–8 are implemented in the current branch, including the
+Commercial checkout projection, payment-attempt evidence, provider registry,
+sequential attempt start/switch behavior, durable webhook acceptance, and the
+Orders fulfillment and settlement-grace boundaries. The plan's historical commit
+checkboxes may remain unchecked even when the implementation commit exists;
+use the branch checkpoint and verification evidence rather than restarting
+completed work.
+
+The Commercial Task 9–10 verification gate is closed. Orders Task 8 is now
+implemented and verified; the next Orders feature task is **Task 9: Final
+phase gate**. After Orders Task 9 is green,
+begin the Ticket Packages plan at Task 2. Ticket Packages Task 1 is already
+present as an early schema prerequisite and must not be treated as permission
+to skip the remaining Orders payment tasks.
+
 Do not add a placeholder Orders table, a seed order, or a weakened foreign key
 to make the Commercial reservation work. Orders Task 2 is the authoritative
 owner of the order schema.
@@ -527,47 +544,77 @@ git commit -m "feat(payments): support bounded provider retries"
 ## Task 7: Build durable webhook inbox and exactly-once acceptance
 
 **Files:**
-- Create: webhook/record/process/accept/fulfill/reversal files from map
+- Modify: `app/services/payments/providers/adapter.rb`,
+  `app/services/payments/providers/chapa_adapter.rb`, and the original
+  `20260811090010_create_payment_events` migration/model for webhook
+  verification, retry counters, and scrubbed processing errors
+- Create: `db/migrate/20260812090011_create_refunds.rb`,
+  `app/models/orders/refund.rb`, and the webhook/record/process/accept/fulfill/
+  reversal service files from the map
+- Create: `config/initializers/orders_outbox_handlers.rb`
 - Test: `test/controllers/orders/payment_webhooks_controller_test.rb`
 - Test: `test/services/orders/process_payment_event_test.rb`
 - Test: `test/integration/orders/concurrent_payment_success_test.rb`
+- Test: `test/models/orders/refund_test.rb`, `test/jobs/orders/*`, and the
+  provider webhook contract coverage
 
-- [ ] **Step 1: RED — test signatures, dedupe, two successes, and crash recovery**
+- [x] **Step 1: RED — test signatures, dedupe, two successes, and crash recovery**
 
-Cover invalid signature, fast durable receipt, duplicate/out-of-order/unknown events, two attempts succeeding concurrently, superseded and late success, one fulfillment/ledger/ticket/outbox set, crash after inbox insert, and crash after fulfillment commit.
+Cover invalid signature, fast durable receipt, duplicate/out-of-order/unknown events, two attempts succeeding concurrently, superseded and late success, one Orders fulfillment/outbox set, crash after inbox insert, and crash after fulfillment commit. The RED pass exposed the missing webhook route/command/schema readiness before implementation.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/controllers/orders/payment_webhooks_controller_test.rb test/services/orders/process_payment_event_test.rb test/integration/orders/concurrent_payment_success_test.rb
 ```
 
-Expected: FAIL.
+Expected: FAIL. Confirmed before the implementation was added.
 
-- [ ] **Step 3: GREEN — implement durable inbox and winner transaction**
+- [x] **Step 3: GREEN — implement durable inbox and winner transaction**
 
-Webhook controller verifies signature and calls only `Orders::RecordPaymentEvent`; it inserts-or-returns `(provider,provider_event_id)` and publishes processing via `Core::Outbox::Publish`. Worker locks inbox then payment → order → reservations → promotion. Winner sets accepted state, commits inventory/promotion, fulfills, posts organizer source rows, and publishes effects in one transaction. Losing/superseded/late success creates one full `payment_reversal` and performs no fulfillment.
+Webhook controller verifies signature and calls only `Orders::RecordPaymentEvent`; it inserts-or-returns `(provider,provider_event_id)` and publishes processing via `Core::Outbox::Publish`. Worker locks inbox then payment → order → reservations → promotion. Winner sets accepted state, commits inventory/promotion, marks the Orders fulfillment boundary, and publishes one durable fulfillment event in the same transaction. Losing/superseded/late success creates one full `payment_reversal` and performs no fulfillment.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+Orders owns the accepted-payment boundary here: it commits the order's
+inventory/promotion/subsidy state, marks order items fulfilled, and publishes
+one durable fulfillment event keyed by the order. Ticket package issuance and
+finance-ledger posting consume that event in their later roadmap waves; Task 7
+does not introduce placeholder ticket or finance tables.
 
-Run the Task 7 command. Expected: PASS.
+- [x] **Step 4: Run tests and verify GREEN**
 
-- [ ] **Step 5: Refactor and verify failure injection**
+The focused Task 7 suite passed with `N_PLUS_ONE=1`: 20 tests, 101 assertions,
+0 failures, 0 errors. The complete Orders-focused suite also passed with
+`N_PLUS_ONE=1`: 93 tests, 564 assertions, 0 failures, 0 errors.
+
+- [x] **Step 5: Refactor and verify failure injection**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/orders test/integration/orders test/jobs/orders
 ```
 
-Expected: PASS without duplicate effects.
+The broader suite passed without duplicate effects. Failure-injection coverage
+proves inbox receipt rolls back when its outbox publication fails, and replay
+after fulfillment commit produces one fulfillment outbox event. The refund
+reconciliation job also records provider evidence with the durable idempotency
+key. Full RuboCop, Zeitwerk, route, locale, Postman JSON, and schema-contract
+checks passed.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add app/controllers/orders app/services/orders app/jobs/orders config/routes.rb test/controllers/orders test/services/orders test/integration/orders test/jobs/orders
+git add app/controllers/orders/payment_webhooks_controller.rb app/jobs/orders/process_payment_event_job.rb app/jobs/orders/reconcile_payment_job.rb
+git add app/models/orders/payment.rb app/models/orders/payment_event.rb app/models/orders/refund.rb app/services/orders/accept_payment.rb app/services/orders/fulfill_order.rb app/services/orders/process_payment_event.rb app/services/orders/record_payment_event.rb app/services/orders/reverse_unaccepted_payment.rb
+git add app/services/payments/providers/adapter.rb app/services/payments/providers/chapa_adapter.rb config/initializers/orders_outbox_handlers.rb config/locales/orders/payments.en.yml config/routes.rb
+git add db/migrate/20260811090009_create_payments.rb db/migrate/20260811090010_create_payment_events.rb db/migrate/20260812090011_create_refunds.rb db/structure.sql postman/'Digis API_collection.json'
+git add test/controllers/orders/payment_webhooks_controller_test.rb test/integration/orders/concurrent_payment_success_test.rb test/jobs/orders/process_payment_event_job_test.rb test/jobs/orders/reconcile_payment_job_test.rb test/models/orders/refund_test.rb test/services/orders/process_payment_event_test.rb test/services/payments/providers/adapter_contract_test.rb
 git commit -m "feat(payments): process webhooks exactly once"
 ```
 
 ## Task 8: Enforce checkout expiry and settlement grace
+
+**Status:** Implementation and verification complete on 2026-08-12. The
+working tree remains intentionally uncommitted; review and commit the changed
+files before beginning Task 9.
 
 **Files:**
 - Create: expiry commands/jobs from file map
@@ -575,11 +622,11 @@ git commit -m "feat(payments): process webhooks exactly once"
 - Test: `test/services/orders/expire_settlement_grace_test.rb`
 - Test: `test/integration/orders/payment_grace_race_test.rb`
 
-- [ ] **Step 1: RED — test deadline/grace/late-payment behavior**
+- [x] **Step 1: RED — test deadline/grace/late-payment behavior**
 
 Cover immediate release without current attempt, only current nonterminal attempt moving holds/promo to processing, 3..15 minute clamp, final verification, inside-grace fulfillment, unresolved release, concurrent webhook/worker, and late reversal without inventory reacquisition.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/orders/expire_checkout_test.rb test/services/orders/expire_settlement_grace_test.rb test/integration/orders/payment_grace_race_test.rb
@@ -587,15 +634,15 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/orders/expir
 
 Expected: FAIL.
 
-- [ ] **Step 3: GREEN — reuse the acceptance lock order**
+- [x] **Step 3: GREEN — reuse the acceptance lock order**
 
 Lock order → current attempt → reservations by ID → promotion. Verify provider outside locks, then reacquire and apply canonical eligibility. Never extend a snapshot, recreate a hold, or trust a timeout as terminal.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
 Run the Task 8 command. Expected: PASS.
 
-- [ ] **Step 5: Refactor and run phase suite**
+- [x] **Step 5: Refactor and run phase suite**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/orders test/services/orders test/services/payments test/controllers/orders test/jobs/orders test/integration/orders
@@ -603,12 +650,10 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/orders test/se
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Prepare handoff; commit remains user-controlled**
 
-```bash
-git add app/services/orders app/jobs/orders test/services/orders test/jobs/orders test/integration/orders
-git commit -m "feat(payments): enforce settlement grace"
-```
+The implementation is verified and ready for review. Do not begin Task 9
+until the changed files have been reviewed and committed by the user.
 
 ## Task 9: Final phase gate
 

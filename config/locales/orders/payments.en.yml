@@ -19,32 +19,32 @@ en:
         payment_succeeded_pending_acceptance: "This order has a payment awaiting acceptance"
         payment_attempt_limit_reached: "The maximum number of payment attempts has been reached"
         provider_result_invalid: "The payment provider returned an invalid result"
-    webhooks:
-      received: "Payment notification received"
-      errors:
-        invalid_webhook_payload: "The payment notification is invalid"
-        invalid_webhook_provider: "The payment notification provider is invalid"
-        invalid_webhook_signature: "The payment notification signature is invalid"
-        payment_event_not_found: "The payment notification could not be found"
-        payment_event_processing_failed: "The payment notification could not be processed"
-    fulfillment:
-      errors:
-        order_not_paid: "The order is not ready for fulfillment"
-        fulfillment_failed: "The order could not be fulfilled"
-        promotion_reservation_invalid: "The order promotion reservation is no longer available"
-    grace:
-      errors:
-        settlement_grace_not_found: "The payment settlement grace record could not be found"
-        settlement_grace_failed: "The payment settlement grace could not be finalized safely"
-    reversals:
-      errors:
-        invalid_reversal_reason: "The payment reversal reason is invalid"
-        payment_not_reversible: "The payment cannot be reversed"
-        reversal_failed: "The payment reversal could not be recorded"
-      reasons:
-        duplicate_payment: "A duplicate payment is being returned"
-        late_payment: "A payment received after checkout closure is being returned"
-        superseded_attempt: "A payment from a replaced checkout attempt is being returned"
+      webhooks:
+        received: "Payment notification received"
+        errors:
+          invalid_webhook_payload: "The payment notification is invalid"
+          invalid_webhook_provider: "The payment notification provider is invalid"
+          invalid_webhook_signature: "The payment notification signature is invalid"
+          payment_event_not_found: "The payment notification could not be found"
+          payment_event_processing_failed: "The payment notification could not be processed"
+      fulfillment:
+        errors:
+          order_not_paid: "The order is not ready for fulfillment"
+          fulfillment_failed: "The order could not be fulfilled"
+          promotion_reservation_invalid: "The order promotion reservation is no longer available"
+      grace:
+        errors:
+          settlement_grace_not_found: "The payment settlement grace record could not be found"
+          settlement_grace_failed: "The payment settlement grace could not be finalized safely"
+      reversals:
+        errors:
+          invalid_reversal_reason: "The payment reversal reason is invalid"
+          payment_not_reversible: "The payment cannot be reversed"
+          reversal_failed: "The payment reversal could not be recorded"
+        reasons:
+          duplicate_payment: "A duplicate payment is being returned"
+          late_payment: "A payment received after checkout closure is being returned"
+          superseded_attempt: "A payment from a replaced checkout attempt is being returned"
   payments:
     providers:
       errors:

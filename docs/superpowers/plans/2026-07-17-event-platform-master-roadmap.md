@@ -64,19 +64,54 @@ all-or-nothing phase:
 7. Complete Orders Task 6, which owns starting and switching sequential
    payment attempts and making the actual provider calls under the Task 5
    contract. Do not treat the provider contract as payment orchestration.
+8. Complete Orders Task 7, which owns the durable provider-webhook inbox,
+   exactly-once accepted-payment boundary, full reversal obligations for
+   losing or late successes, and the Orders fulfillment outbox event. It does
+   not create placeholder Ticketing or Finance records.
+9. Complete Orders Tasks 8–9 for expiry/settlement-grace behavior and the
+   final Orders payment phase gate. Only then begin Ticket Packages Task 2.
 
 Commercial Task 9 (admin and organizer API/UX) may follow its own documented
 domain prerequisites, but it is not a reason to introduce a temporary
 `orders_orders` table or to move 7B ahead of Orders Task 2.
 
-**2026-08-12 checkpoint:** Commercial Tasks 1–9 are complete. Task 10's
-Commercial projection and provider contract are complete: Orders checkout
-snapshots immutable Commercial evidence, and Orders Task 5 persists canonical
-payment-attempt/provider-event contracts without repricing on compatible
-provider switches. Actual attempt start/switch orchestration remains Orders
-Task 6. Commercial Task 11 remains intentionally queued with the controlled
-resale marketplace tranche; Commercial Task 12 remains the final
-reconciliation/operations gate after resale and Finance evidence exist.
+**2026-08-12 execution checkpoint — follow this queue:**
+
+- Commercial Tasks 1–10 are complete. The Commercial API, immutable checkout
+  adjustment projection, provider contract, and sequential payment-attempt
+  behavior are verified. Commercial Task 11 remains intentionally deferred to
+  Controlled Resale; Task 12 remains last.
+- Orders Tasks 1–8 are implemented and verified in the current branch,
+  including checkout, payment-attempt persistence, provider compatibility,
+  sequential attempt start/switch behavior, durable webhook receipt, exactly-
+  once acceptance, full reversal obligations, the Orders fulfillment boundary,
+  and bounded checkout expiry/settlement grace. Orders Task 9 remains.
+- Ticket Packages Task 1 (schema/models) was committed early and is retained
+  because it is a valid prerequisite. That early schema does **not** open the
+  Ticket Packages wave; do not start Ticket Packages Task 2 until Orders Tasks
+  7–9 are complete.
+- Commercial Task 11 remains intentionally queued until the controlled-resale
+  tranche has the package/credential, Finance, and resale prerequisites.
+  Commercial Task 12 remains the last Commercial/Phase 3.5 gate.
+
+The next human-visible action is therefore:
+
+1. Resume `2026-07-17-orders-payments-implementation.md` at Task 9.
+2. Resume `2026-07-17-ticket-packages-credentials-implementation.md` at Task
+   2, then Tasks 3–6.
+3. Run the Scanner and Refunds/Finance plans as the Wave 5 parallel tracks.
+4. After Wave 5 is green, run Controlled Resale Tasks 1–2 and the Streaming /
+   Add-ons / Links plan. These are Wave 6 work and may run in parallel when
+   ownership is explicit.
+5. Execute Commercial Task 11 together with Controlled Resale Task 3, then
+   finish the remaining Controlled Resale tasks.
+6. Execute Commercial Task 12 only after resale, Finance, and the required
+   operational evidence exist.
+7. Finish Launch Hardening only after all plans 0–9 are green.
+
+Do not use a plan's numeric task number by itself as the next-task signal. Use
+the current checkpoint above and the explicit gate at the top of each dependent
+plan.
 
 ## Delivery waves and safe parallel work
 

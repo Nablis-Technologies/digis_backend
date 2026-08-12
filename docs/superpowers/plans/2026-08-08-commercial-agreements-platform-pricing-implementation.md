@@ -40,10 +40,13 @@ Implementation must preserve these decisions:
 - Run focused tests after every task and full Commercial tests at each checkpoint. Run RuboCop on changed Ruby files before committing.
 - Never store legal bodies, internal negotiation prose, provider secrets, or arbitrary submitted JSON in audit/outbox/order evidence.
 
-## Current implementation status (verified 2026-08-12)
+## Current implementation status and navigation (verified 2026-08-12)
 
-The dependency-ordered Commercial tranche is complete through Task 9, with
-Task 10's Commercial-owned projection and provider contract complete:
+The dependency-ordered Commercial tranche is complete through Task 10's
+Commercial-owned projection/provider boundary. The current branch has passed
+the focused Commercial/Orders closure gate; the next roadmap task is Orders
+Task 9. Orders Task 8's checkout expiry and settlement-grace boundary is now
+implemented and verified.
 
 | Task | Status | Evidence / boundary |
 |---|---|---|
@@ -51,14 +54,28 @@ Task 10's Commercial-owned projection and provider contract complete:
 | 7A | Complete | Per-currency subsidy budgets and database invariants are committed and tested. |
 | 7B | Complete | Order-linked subsidy reservations now reference the real Orders schema and are committed/tested; the former placeholder-table gate is closed. |
 | 8 | Complete | Volume counters/usages and event payer selections are committed/tested for the Orders handoff. |
-| 9 | Complete pending user commit | Admin/organizer API, privacy policies, serializers, routes, locales, tests, and Postman synchronization are implemented; focused API tests pass with `N_PLUS_ONE=1`. |
-| 10 | Commercial projection and provider contract complete; attempt orchestration pending | Orders checkout snapshots immutable Commercial results, the provider contract persists payment-attempt evidence, and the registry rejects changed Commercial signatures; actual attempt start/switch orchestration remains Orders Task 6. |
+| 9 | Complete | Admin/organizer API, privacy policies, serializers, routes, locales, tests, and Postman synchronization are implemented and verified. |
+| 10 | Complete through the Orders Task 6 boundary | Orders checkout snapshots immutable Commercial results, the provider contract persists payment-attempt evidence, and sequential attempt start/switch behavior exists in Orders. Commercial owns the evidence contract; Orders owns payment orchestration. |
 | 11 | Pending by design | Starts only with the controlled-resale marketplace plan after package, credential, finance, and resale prerequisites exist. |
 | 12 | Pending by design | Starts last, after resale and operational/finance evidence exist; it is the final reconciliation and Phase 3.5 gate. |
 
-Do not interpret the historical step recipes below as permission to bypass the
-Orders payment, or Task 11/12, prerequisites. Task 9's commit step remains
-unchecked because the working-tree owner must review and commit it.
+### Current Commercial branch route
+
+1. Stop this Commercial tranche at Task 10. Do not start Commercial Task 11
+   from this branch yet.
+2. Follow the master roadmap to Orders Task 9. After Orders,
+   resume Ticket Packages Tasks 2–6, then the Scanner and Refunds/Finance Wave
+   5 tracks. After Wave 5,
+   Streaming/Add-ons/Links is a separate Wave 6 track and may run alongside
+   Controlled Resale.
+3. Return to this plan at Task 11 only when the Controlled Resale plan reaches
+   its Commercial handoff (Marketplace Task 3).
+4. Run Task 12 last, after the resale, Finance, and operational reconciliation
+   evidence exist.
+
+The historical task recipes below remain the implementation specification for
+each task. They are not a standalone execution queue; the route above and the
+master roadmap determine when a task is eligible to start.
 
 ## Task 1: Establish the Commercial namespace and permissions
 
@@ -800,7 +817,7 @@ RUBOCOP_CACHE_ROOT=tmp/rubocop bundle exec rubocop \
   app/controllers/admin/commercial app/controllers/commercial app/policies app/serializers/commercial test
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/controllers app/policies app/serializers config/routes.rb config/locales \
@@ -856,7 +873,7 @@ Orders Task 3 integration tranche.
 - Modify: `test/services/payments/providers/chapa_adapter_test.rb`
 - Modify: `test/integration/orders/checkout_concurrency_test.rb`
 
-- [ ] **Step 1: Write RED integration contract tests**
+- [x] **Step 1: Write RED integration contract tests**
 
 Prove:
 
@@ -872,7 +889,7 @@ Prove:
 - no provider adapter recalculates a fee;
 - accepted order records tier usage and consumes applicable entitlement exactly once.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
@@ -882,11 +899,11 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
   test/services/orders/commercial_adjustment_writer_test.rb
 ```
 
-- [ ] **Step 3: Evolve original migrations and implement projection**
+- [x] **Step 3: Evolve original migrations and implement projection**
 
 Because the project is not live, edit the original Orders migrations. Add `subsidy_minor` and exact commercial evidence/checks; do not add an alter-table cleanup migration. `CommercialAdjustmentWriter` accepts only the immutable value object, never active schedule records. Provider adapters translate stored results into provider instructions where supported and persist the projection/response separately.
 
-- [ ] **Step 4: Run GREEN plus end-to-end checkout tests**
+- [x] **Step 4: Run GREEN plus end-to-end checkout tests**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" RAILS_ENV=test bundle exec rails db:migrate:reset
@@ -896,7 +913,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
 RUBOCOP_CACHE_ROOT=tmp/rubocop bundle exec rubocop app/models/orders app/services/orders test
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add db/migrate app/models/orders app/services/orders test db/structure.sql
