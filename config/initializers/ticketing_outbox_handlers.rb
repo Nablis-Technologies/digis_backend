@@ -5,6 +5,7 @@
 Rails.application.config.x.invitation_delivery_sender ||= ->(**_details) { nil }
 Rails.application.config.x.consent_reminder_sender ||= ->(**_details) { nil }
 Rails.application.config.x.registration_notification_sender ||= ->(**_details) { nil }
+Rails.application.config.x.credential_delivery_sender ||= ->(**_details) { nil }
 Rails.application.config.x.credential_requirement_status_adapter ||= Ticketing::Credentials::NullRequirementStatusAdapter.new
 Rails.application.config.x.outbox_handlers["ticketing.invitation.created"] = lambda do |outbox_event|
   Ticketing::DeliverInvitationJob.perform_later(outbox_event.payload.fetch("invitation_id"))
@@ -33,7 +34,6 @@ end
 # injected sender decides whether SMS/email delivery is available.
 %w[
   ticketing.registration.waitlist_offer_created
-  ticketing.registration.issuance_ready
   ticketing.registration.rejected
 ].each do |event_type|
   Rails.application.config.x.outbox_handlers[event_type] = lambda do |outbox_event|
@@ -42,4 +42,22 @@ end
       outbox_event.event_type
     )
   end
+end
+
+Rails.application.config.x.outbox_handlers["ticketing.registration.issuance_ready"] = lambda do |outbox_event|
+  result = Ticketing::OutboxHandlers::RegistrationIssuanceReady.call(event: outbox_event)
+  raise result.error if result.failure?
+  result
+end
+
+Rails.application.config.x.outbox_handlers["orders.payment.fulfilled"] = lambda do |outbox_event|
+  result = Ticketing::OutboxHandlers::OrderFulfilled.call(event: outbox_event)
+  raise result.error if result.failure?
+  result
+end
+
+Rails.application.config.x.outbox_handlers["ticketing.package_issued"] = lambda do |outbox_event|
+  result = Ticketing::OutboxHandlers::PackageIssued.call(event: outbox_event)
+  raise result.error if result.failure?
+  result
 end

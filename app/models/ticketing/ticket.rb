@@ -93,15 +93,31 @@ module Ticketing
     end
 
     def event_scope_matches
-      product_event_id = Catalog::EventProduct.where(id: event_product_id).pick(:event_id)
+      product_event_id = if association(:event_product).loaded?
+        event_product&.event_id
+      else
+        Catalog::EventProduct.where(id: event_product_id).pick(:event_id)
+      end
       errors.add(:event_product, :invalid) if product_event_id.present? && product_event_id != event_id
-      product_type = Catalog::EventProduct.where(id: event_product_id).pick(:type)
+      product_type = if association(:event_product).loaded?
+        event_product&.type
+      else
+        Catalog::EventProduct.where(id: event_product_id).pick(:type)
+      end
       errors.add(:event_product, :invalid) if product_type.present? && product_type != "ticket"
 
-      registration_event_id = Ticketing::Registration.where(id: registration_id).pick(:event_id)
+      registration_event_id = if association(:registration).loaded?
+        registration&.event_id
+      else
+        Ticketing::Registration.where(id: registration_id).pick(:event_id)
+      end
       errors.add(:registration, :invalid) if registration_event_id.present? && registration_event_id != event_id
 
-      order_event_id = Orders::OrderItem.joins(:order).where(id: order_item_id).pick("orders_orders.event_id")
+      order_event_id = if association(:order_item).loaded?
+        order_item&.order&.event_id
+      else
+        Orders::OrderItem.joins(:order).where(id: order_item_id).pick("orders_orders.event_id")
+      end
       errors.add(:order_item, :invalid) if order_event_id.present? && order_event_id != event_id
     end
   end

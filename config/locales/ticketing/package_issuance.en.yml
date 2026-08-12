@@ -1,0 +1,24 @@
+en:
+  ticketing:
+    package_issuance:
+      errors:
+        invalid_unit_number: "Ticket unit number must be a positive integer"
+        source_required: "Exactly one ticket fulfillment source is required"
+        source_not_found: "The ticket fulfillment source could not be found"
+        source_not_fulfillable: "The ticket fulfillment source is not ready for ticket issuance"
+        source_type_invalid: "Only ticket products can issue admission packages"
+        product_access_missing: "The ticket product has no configured admission access"
+        issuance_failed: "The admission package could not be issued"
+        issuance_conflict: "The admission package changed during issuance; please retry"
+        initial_group_failed: "The initial ticket credential group could not be created"
+        credential_not_pending: "The ticket credential is not awaiting activation"
+        generation_not_active: "The ticket credential generation is not active"
+        credential_activation_failed: "The ticket credential could not be activated"
+        index_requires_active: "Only active credentials can be added to the attendee index"
+        index_projection_failed: "The attendee index could not be updated"
+        lookup_code_generation_failed: "A unique ticket lookup code could not be generated"
+        qr_signing_key_missing: "The ticket credential signing key is not configured"
+        credential_expiry_missing: "The ticket product has no valid access expiry"
+        invalid_package_issued_event: "The package-issued event is invalid"
+        invalid_fulfillment_event: "The fulfillment event is invalid"
+        invalid_registration_event: "The registration issuance event is invalid"
