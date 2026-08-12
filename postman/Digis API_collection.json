@@ -125,12 +125,17 @@
       "value": "",
       "type": "string"
     },
-    {
-      "key": "ticketId",
-      "value": "",
-      "type": "string"
-    },
-    {
+  {
+    "key": "ticketId",
+    "value": "",
+    "type": "string"
+  },
+  {
+    "key": "suspensionReviewDeadline",
+    "value": "",
+    "type": "string"
+  },
+  {
       "key": "credentialId",
       "value": "",
       "type": "string"
@@ -550,6 +555,91 @@
     {
       "name": "Ticketing Package Workflow",
       "item": [
+        {
+          "name": "Open Ticket Suspension",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason_code\": \"suspected_fraud\",\n  \"review_deadline_at\": \"{{suspensionReviewDeadline}}\",\n  \"internal_note\": \"Restricted review detail\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/tickets/{{ticketId}}/suspension",
+            "description": "Temporarily suspends admission for fraud or risk review without changing ticket ownership or financial history."
+          },
+          "response": []
+        },
+        {
+          "name": "Restore Ticket Suspension",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resolution_reason\": \"review_cleared\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/tickets/{{ticketId}}/suspension/restore",
+            "description": "Restores a suspended package only when no independent terminal refund, chargeback, event cancellation, or permanent revocation has won."
+          },
+          "response": []
+        },
+        {
+          "name": "Resolve Ticket Suspension",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resolution\": \"revoked_free\",\n  \"resolution_reason\": \"organizer_cancellation\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/tickets/{{ticketId}}/suspension/resolve",
+            "description": "Terminally invalidates a financially free package. Paid packages remain suspended until the later refund workflow provides durable success evidence."
+          },
+          "response": []
+        },
         {
           "name": "Activate Delegation",
           "request": {

@@ -614,28 +614,38 @@ git commit -m "feat(ticketing): add delegation claims and transfers"
 ## Task 6: Add reversible suspension and terminal invalidation
 
 **Files:**
-- Create: `db/migrate/20260717210003_create_ticketing_ticket_suspensions.rb`
+- Create: `db/migrate/20260812090012_create_ticketing_ticket_suspensions.rb`
 - Create: `app/models/ticketing/ticket_suspension.rb`
+- Create: `app/policies/ticketing/ticket_suspension_policy.rb`
+- Create: `app/serializers/ticketing/ticket_suspension_serializer.rb`
 - Create: `app/services/ticketing/suspensions/open.rb`
 - Create: `app/services/ticketing/suspensions/restore.rb`
 - Create: `app/services/ticketing/suspensions/resolve.rb`
 - Create: `app/jobs/ticketing/escalate_overdue_suspensions_job.rb`
 - Create: `app/controllers/ticketing/suspensions_controller.rb`
+- Modify: `app/models/ticketing/ticket.rb`
+- Modify: `app/policies/ticketing/ticket_policy.rb`
+- Modify: package workflow services to reject dead or suspended packages
+- Modify: `config/routes.rb`, `config/recurring.yml`, and ticketing locales
+- Modify: `postman/Digis API_collection.json`
 - Test: `test/services/ticketing/suspensions/open_test.rb`
 - Test: `test/services/ticketing/suspensions/restore_test.rb`
+- Test: `test/services/ticketing/suspensions/resolve_test.rb`
+- Test: `test/jobs/ticketing/escalate_overdue_suspensions_job_test.rb`
 - Test: `test/integration/ticketing/suspension_concurrency_test.rb`
+- Test: `test/integration/ticketing/suspensions_test.rb`
 
-- [ ] **Step 1: RED — specify review without financial mutation**
+- [x] **Step 1: RED — specify review without financial mutation**
 
 Prove one active case, idempotent retry, scan/stream/transfer/delegation blocking, safe restore, free terminal revocation, paid cancellation staying suspended until refund success, and overdue escalation never auto-restoring.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/suspensions test/integration/ticketing/suspension_concurrency_test.rb`
 
 Expected: FAIL because suspension is missing.
 
-- [ ] **Step 3: GREEN — create append-only review cases and revocation deltas**
+- [x] **Step 3: GREEN — create append-only review cases and revocation deltas**
 
 ```ruby
 add_index :ticketing_ticket_suspensions, :ticket_id, unique: true,
@@ -645,20 +655,49 @@ add_index :ticketing_ticket_suspensions, :idempotency_key, unique: true
 
 Commands lock ticket, suspension, and revocation in canonical order; bump event revocation version and write audit/outbox atomically. Restore is forbidden after refund/chargeback/death. Free tickets may become dead directly; paid organizer cancellation delegates to refunds and becomes dead only after refund success.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing test/integration/ticketing`
+Run: `N_PLUS_ONE=1 bundle exec rails test test/services/ticketing/suspensions test/jobs/ticketing/escalate_overdue_suspensions_job_test.rb test/integration/ticketing/suspension_concurrency_test.rb test/integration/ticketing/suspensions_test.rb`
 
 Expected: PASS.
 
-- [ ] **Step 5: REFACTOR — keep revocation writers behind lifecycle commands**
+- [x] **Step 5: REFACTOR — keep revocation writers behind lifecycle commands**
 
 Controllers and jobs cannot directly mutate package-dead/suspended projections.
+
+Paid organizer cancellation remains suspended until a later Refunds/Finance task
+provides durable successful-refund evidence. The `cancelled_refunded` resolution
+is intentionally reserved here and does not invent payment-provider state.
+
+The overdue job marks unresolved review cases as `expired` for support escalation;
+it never restores admission and never terminally invalidates a paid package.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add db/migrate/20260717210003_create_ticketing_ticket_suspensions.rb app/models/ticketing app/services/ticketing/suspensions app/jobs/ticketing app/controllers/ticketing test/services/ticketing/suspensions test/integration/ticketing
+git add \
+  app/controllers/ticketing/suspensions_controller.rb \
+  app/jobs/ticketing/escalate_overdue_suspensions_job.rb \
+  app/models/ticketing/ticket.rb app/models/ticketing/ticket_suspension.rb \
+  app/policies/ticketing/ticket_policy.rb app/policies/ticketing/ticket_suspension_policy.rb \
+  app/serializers/ticketing/ticket_suspension_serializer.rb \
+  app/services/ticketing/credential_claims/accept.rb \
+  app/services/ticketing/credential_claims/invite.rb \
+  app/services/ticketing/credential_generations/replace.rb \
+  app/services/ticketing/delegations/cancel.rb \
+  app/services/ticketing/delegations/reassign_slot.rb \
+  app/services/ticketing/suspensions \
+  app/services/ticketing/transfers/accept.rb app/services/ticketing/transfers/initiate.rb \
+  config/locales/ticketing/package_workflow.en.yml config/locales/ticketing/suspensions.en.yml \
+  config/recurring.yml config/routes.rb \
+  db/migrate/20260812090001_create_ticketing_tickets.rb \
+  db/migrate/20260812090009_add_ticketing_package_credential_constraints.rb \
+  db/migrate/20260812090012_create_ticketing_ticket_suspensions.rb db/structure.sql \
+  postman/Digis\ API_collection.json \
+  test/integration/ticketing/suspension_concurrency_test.rb \
+  test/integration/ticketing/suspensions_test.rb test/jobs/ticketing/escalate_overdue_suspensions_job_test.rb \
+  test/services/ticketing/suspensions \
+  docs/superpowers/plans/2026-07-17-ticket-packages-credentials-implementation.md
 git commit -m "feat(ticketing): add reversible suspension"
 ```
 
