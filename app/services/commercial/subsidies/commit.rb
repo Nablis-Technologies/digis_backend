@@ -8,8 +8,9 @@ module Commercial
     class Commit < Core::BaseService
       include Support
 
-      def initialize(reservation:)
+      def initialize(reservation:, at: Time.current)
         @reservation = reservation
+        @now = at.to_time.utc
       end
 
       def call
@@ -17,7 +18,7 @@ module Commercial
           locked_reservation, locked_budget = lock_reservation!(@reservation)
           return success(locked_reservation) if locked_reservation.committed?
           return failure(state_conflict) unless locked_reservation.active?
-          return failure(expired_error) if locked_reservation.expires_at <= Time.current
+          return failure(expired_error) if locked_reservation.expires_at < now
           return failure(counter_drift) if locked_budget.reserved_minor < locked_reservation.amount_minor
 
           from = locked_reservation.status
@@ -25,7 +26,7 @@ module Commercial
             reserved_minor: locked_budget.reserved_minor - locked_reservation.amount_minor,
             consumed_minor: locked_budget.consumed_minor + locked_reservation.amount_minor
           )
-          locked_reservation.update!(status: "committed", committed_at: Time.current)
+          locked_reservation.update!(status: "committed", committed_at: now)
           record_subsidy_transition!(
             reservation: locked_reservation,
             from:,
@@ -46,7 +47,7 @@ module Commercial
 
       private
 
-      attr_reader :reservation
+      attr_reader :reservation, :now
 
       def state_conflict
         subsidy_error("state_conflict", code: "subsidy_state_conflict")

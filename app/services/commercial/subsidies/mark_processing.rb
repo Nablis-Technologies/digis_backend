@@ -7,18 +7,25 @@ module Commercial
     class MarkProcessing < Core::BaseService
       include Support
 
-      def initialize(reservation:)
+      def initialize(reservation:, expires_at: nil, at: Time.current)
         @reservation = reservation
+        @expires_at = expires_at
+        @now = at.to_time.utc
       end
 
       def call
         ActiveRecord::Base.transaction do
           locked_reservation, = lock_reservation!(@reservation)
-          return success(locked_reservation) if locked_reservation.processing?
+          if locked_reservation.processing?
+            locked_reservation.update!(expires_at:) if expires_at.present? && locked_reservation.expires_at < expires_at
+            return success(locked_reservation)
+          end
           return failure(state_conflict) unless locked_reservation.held?
-          return failure(expired_error) if locked_reservation.expires_at <= Time.current
+          if locked_reservation.expires_at <= now
+            return failure(expired_error) unless expires_at.present? && expires_at > now
+          end
 
-          locked_reservation.update!(status: "processing")
+          locked_reservation.update!(status: "processing", expires_at: expires_at || locked_reservation.expires_at)
           record_subsidy_transition!(
             reservation: locked_reservation,
             from: "held",
@@ -39,7 +46,7 @@ module Commercial
 
       private
 
-      attr_reader :reservation
+      attr_reader :reservation, :expires_at, :now
 
       def state_conflict
         subsidy_error("state_conflict", code: "subsidy_state_conflict")

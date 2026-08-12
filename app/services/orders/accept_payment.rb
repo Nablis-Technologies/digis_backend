@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
 module Orders
-  # Serializes a verified success under payment → order → reservation locks.
+  # Serializes a verified success under order → payment → reservation locks.
   # The first eligible current success commits the order; every superseded,
   # late, or losing success remains succeeded evidence and creates a full
   # reversal without reacquiring released capacity.
   class AcceptPayment < Core::BaseService
-    def initialize(payment:, payment_event:, at: Time.current)
+    def initialize(payment:, payment_event: nil, at: Time.current)
       @payment = payment
       @payment_event = payment_event
       @now = at.to_time.utc
@@ -14,8 +14,9 @@ module Orders
 
     def call
       ActiveRecord::Base.transaction do
+        order_id = Orders::Payment.where(id: @payment.id).pick(:order_id)
+        order = Orders::Order.lock.find(order_id)
         payment = Orders::Payment.lock.find(@payment.id)
-        order = Orders::Order.lock.find(payment.order_id)
         payment.order = order
 
         payment.update!(status: "succeeded", succeeded_at: payment.succeeded_at || now)
@@ -75,9 +76,9 @@ module Orders
 
       reservations.all? do |reservation|
         if reservation.status == "held"
-          locked_order.expires_at > now && reservation.expires_at > now
+          locked_payment.settlement_grace_expires_at >= now && reservation.expires_at >= now
         elsif reservation.status == "processing"
-          locked_payment.settlement_grace_expires_at > now && reservation.expires_at > now
+          locked_payment.settlement_grace_expires_at >= now && reservation.expires_at >= now
         else
           false
         end
@@ -102,8 +103,8 @@ module Orders
         next unless Ticketing::PurchaseLimitAllocation.where(registration_id: registration.id, status: %w[reserved committed]).exists?
 
         result = Ticketing::PurchaseLimits::Commit.call(
-          registration:, user: locked_order.buyer_user,
-          idempotency_key: "orders-purchase-limit-#{item.id}"
+          registration:, user: Core::User.find(locked_order.buyer_user_id),
+          idempotency_key: "orders-purchase-limit-#{item.id}", at: now
         )
         raise AcceptanceFailure, result.error if result.failure?
       end
@@ -114,14 +115,14 @@ module Orders
       return unless redemption
       return if redemption.applied?
 
-      raise AcceptanceFailure, promotion_error unless redemption.reserved? && redemption.expires_at > now
+      raise AcceptanceFailure, promotion_error unless redemption.reserved? && redemption.expires_at >= now
 
       redemption.update!(status: "applied", applied_at: now)
     end
 
     def commit_subsidies!(locked_order)
-      locked_order.subsidy_reservations.order(:id).to_a.each do |reservation|
-        result = Commercial::Subsidies::Commit.call(reservation:)
+      Commercial::SubsidyReservation.where(order_id: locked_order.id).order(:id).lock.to_a.each do |reservation|
+        result = Commercial::Subsidies::Commit.call(reservation:, at: now)
         raise AcceptanceFailure, result.error if result.failure?
       end
     end

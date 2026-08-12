@@ -11,7 +11,7 @@ module Commercial
     ACTIVE_STATUSES = %w[held processing].freeze
     TERMINAL_STATUSES = %w[committed released].freeze
     SNAPSHOT_ATTRIBUTES = %w[
-      subsidy_budget_id order_id idempotency_key_digest request_fingerprint amount_minor currency expires_at
+      subsidy_budget_id order_id idempotency_key_digest request_fingerprint amount_minor currency
     ].freeze
 
     belongs_to :subsidy_budget,

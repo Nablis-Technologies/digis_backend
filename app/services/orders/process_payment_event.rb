@@ -45,12 +45,12 @@ module Orders
     attr_reader :event, :event_id
 
     def locate_payment(locked_event)
-      return Orders::Payment.lock.find(locked_event.payment_id) if locked_event.payment_id
+      return Orders::Payment.find(locked_event.payment_id) if locked_event.payment_id
 
       reference = locked_event.payload.values_at("provider_reference", "tx_ref", "reference").compact.find(&:present?)
       return unless reference
 
-      Orders::Payment.lock.find_by(provider: locked_event.provider, provider_reference: reference)
+      Orders::Payment.find_by(provider: locked_event.provider, provider_reference: reference)
     end
 
     def success_event?(locked_event)
