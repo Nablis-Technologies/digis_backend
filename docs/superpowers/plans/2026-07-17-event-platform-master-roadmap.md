@@ -58,16 +58,24 @@ all-or-nothing phase:
    inventory, promotion, purchase-limit, volume, and subsidy reservations,
    immutable commercial adjustments, and accepted-order usage all pass their
    shared concurrency and idempotency tests.
+6. Complete Orders Task 5, which owns the payment-attempt schema, canonical
+   provider result/adapter contract, durable provider-event identity, and
+   immutable Commercial-signature compatibility boundary.
+7. Complete Orders Task 6, which owns starting and switching sequential
+   payment attempts and making the actual provider calls under the Task 5
+   contract. Do not treat the provider contract as payment orchestration.
 
 Commercial Task 9 (admin and organizer API/UX) may follow its own documented
 domain prerequisites, but it is not a reason to introduce a temporary
 `orders_orders` table or to move 7B ahead of Orders Task 2.
 
-**2026-08-12 checkpoint:** Commercial Tasks 1–9 are complete. The
-Commercial-owned projection portion of Task 10 is complete with Orders
-checkout, while provider-attempt enforcement remains with the later Orders
-payment tasks. Commercial Task 11 remains intentionally queued with the
-controlled resale marketplace tranche; Commercial Task 12 remains the final
+**2026-08-12 checkpoint:** Commercial Tasks 1–9 are complete. Task 10's
+Commercial projection and provider contract are complete: Orders checkout
+snapshots immutable Commercial evidence, and Orders Task 5 persists canonical
+payment-attempt/provider-event contracts without repricing on compatible
+provider switches. Actual attempt start/switch orchestration remains Orders
+Task 6. Commercial Task 11 remains intentionally queued with the controlled
+resale marketplace tranche; Commercial Task 12 remains the final
 reconciliation/operations gate after resale and Finance evidence exist.
 
 ## Delivery waves and safe parallel work

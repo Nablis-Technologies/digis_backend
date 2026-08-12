@@ -43,7 +43,7 @@ Implementation must preserve these decisions:
 ## Current implementation status (verified 2026-08-12)
 
 The dependency-ordered Commercial tranche is complete through Task 9, with
-the Commercial-owned projection portion of Task 10 complete:
+Task 10's Commercial-owned projection and provider contract complete:
 
 | Task | Status | Evidence / boundary |
 |---|---|---|
@@ -52,7 +52,7 @@ the Commercial-owned projection portion of Task 10 complete:
 | 7B | Complete | Order-linked subsidy reservations now reference the real Orders schema and are committed/tested; the former placeholder-table gate is closed. |
 | 8 | Complete | Volume counters/usages and event payer selections are committed/tested for the Orders handoff. |
 | 9 | Complete pending user commit | Admin/organizer API, privacy policies, serializers, routes, locales, tests, and Postman synchronization are implemented; focused API tests pass with `N_PLUS_ONE=1`. |
-| 10 | Commercial projection complete; provider selection pending | Orders checkout snapshots immutable Commercial results and exposes the provider-context signature; actual payment-attempt/provider-adapter enforcement remains with the later Orders payment tasks. |
+| 10 | Commercial projection and provider contract complete; attempt orchestration pending | Orders checkout snapshots immutable Commercial results, the provider contract persists payment-attempt evidence, and the registry rejects changed Commercial signatures; actual attempt start/switch orchestration remains Orders Task 6. |
 | 11 | Pending by design | Starts only with the controlled-resale marketplace plan after package, credential, finance, and resale prerequisites exist. |
 | 12 | Pending by design | Starts last, after resale and operational/finance evidence exist; it is the final reconciliation and Phase 3.5 gate. |
 
@@ -810,12 +810,23 @@ git commit -m "feat(commercial): expose governed pricing workflows"
 
 ## Task 10: Integrate immutable Commercial results into Orders and provider selection
 
-**Current boundary:** The Commercial-owned portion is complete: Orders quotes
-and checkout carry immutable `Commercial::Resolution::ChargeResult` evidence,
-project exact adjustment rows, and expose a deterministic provider-context
-signature. The payment-attempt/provider-adapter half remains pending until the
-corresponding Orders payment tasks create those tables and services. Do not
-create placeholder payment structures in Commercial to close that gap.
+**Current boundary:** The Commercial-owned projection and provider contract are
+complete. Orders quotes and checkout carry immutable
+`Commercial::Resolution::ChargeResult` evidence, project exact adjustment
+rows, and expose a deterministic signature over the resolved Commercial
+evidence and charge currency. Orders Task 5 now persists payment-attempt
+snapshots, canonical provider results, durable provider-event identity, and
+the injectable adapter registry. Provider and payment-method changes alone do
+not change the signature; changed Commercial evidence does. Actual attempt
+start/switch orchestration remains Orders Task 6. Do not move that orchestration
+into Commercial or recalculate fees in a provider adapter.
+
+**Execution split:** The historical checklist below spans the interleaved
+Commercial/Orders work. The projection portion landed with Orders Task 3; the
+payment-attempt schema and provider contract landed with Orders Task 5; and
+attempt creation/switching, including provider calls, is intentionally tracked
+as Orders Task 6. Use the Orders plan as the execution checklist for those
+boundaries.
 
 **Prerequisite:** Begin only after Orders Tasks 1–2 and Commercial Tasks 7B–8
 exist. Execute this task together with Orders Task 3 and its checkout race
@@ -857,7 +868,7 @@ Prove:
 - first-event reconciliation runs synchronously before benefit resolution;
 - inventory, promotion, purchase-limit, volume, and subsidy locks follow the documented global order;
 - subsidy reservations hold with checkout, move to processing/payment, commit on accepted payment, and release on expiry/failure;
-- same provider/method commercial signature reuses the order; a changed signature returns `commercial_requote_required` and creates no payment attempt;
+- compatible provider/method retries reuse the order when the immutable Commercial signature matches; changed Commercial evidence returns `commercial_requote_required` and creates no payment attempt;
 - no provider adapter recalculates a fee;
 - accepted order records tier usage and consumes applicable entitlement exactly once.
 

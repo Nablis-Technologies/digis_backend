@@ -415,19 +415,22 @@ git commit -m "feat(api): expose authorized checkout commands"
 - Test: `test/models/orders/payment_test.rb`
 - Test: `test/services/payments/providers/adapter_contract_test.rb`
 
-- [ ] **Step 1: RED — test database and adapter invariants**
+- [x] **Step 1: RED — test database and adapter invariants**
 
-Test attempt 1..3, unique attempt/provider keys/reference, one current attempt, one accepted payment, amount/currency equality, immutable Commercial signature equality, same-signature cross-provider retry, `commercial_requote_required` when provider/method would change any buyer/organizer fee, subsidy, payer, currency, or refund policy, fee triple, grace 3..15 minutes, event dedupe, and canonical success/failure/cancelled/unknown/timeout responses.
+Test attempt 1..3, unique attempt/provider keys/reference, one current attempt, one accepted payment, amount/currency equality, immutable Commercial signature equality, same-signature cross-provider retry, `commercial_requote_required` when the newly resolved Commercial evidence changes any buyer/organizer fee, subsidy, payer, currency, or refund policy, fee triple, grace 3..15 minutes, event dedupe, and canonical success/failure/cancelled/unknown/timeout responses.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/orders/payment_test.rb test/services/payments/providers/adapter_contract_test.rb
 ```
 
 Expected: FAIL because payment schema/contract is absent.
+Verified before implementation: 13 tests, 10 assertions, 1 failure, and 11
+errors with the missing payment/provider constants and the intentionally
+provider-sensitive signature expectation.
 
-- [ ] **Step 3: GREEN — add partial indexes and canonical adapter result**
+- [x] **Step 3: GREEN — add partial indexes and canonical adapter result**
 
 ```ruby
 add_index :orders_payments, %i[order_id attempt_number], unique: true
@@ -444,17 +447,20 @@ add_index :orders_payment_events, %i[provider provider_event_id], unique: true
 
 Provider `Result = Data.define(:status, :provider_reference, :failure_code, :provider_fee_minor, :provider_fee_currency, :raw_status)`. Adapter defines create/cancel/verify/refund/verify_refund/available_balance/capabilities/grace. Every enabled adapter passes the contract.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
-Run the Task 5 command. Expected: PASS.
+Run the Task 5 command with `N_PLUS_ONE=1`. Verified: 13 tests, 67
+assertions, 0 failures, 0 errors, and 0 skips.
 
-- [ ] **Step 5: Refactor and verify adapters**
+- [x] **Step 5: Refactor and verify adapters**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/orders/payment_test.rb test/services/payments/providers
 ```
 
-Expected: PASS.
+Expected: PASS. The focused provider/model suite and the broader Orders
+checkout suite were also run with `N_PLUS_ONE=1`; the latter required
+refreshing the stale checked-in structure trigger before it passed.
 
 - [ ] **Step 6: Commit**
 
