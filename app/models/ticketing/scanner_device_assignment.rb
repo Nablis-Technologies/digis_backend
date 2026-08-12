@@ -7,6 +7,8 @@ module Ticketing
   class ScannerDeviceAssignment < Ticketing::ApplicationRecord
     self.table_name = "ticketing_scanner_device_assignments"
 
+    include Core::AuditableModel
+
     STATUSES = %w[active suspended revoked expired].freeze
 
     belongs_to :scanner_device,
@@ -38,6 +40,14 @@ module Ticketing
     validate :ends_after_starts
 
     scope :active, -> { where(status: "active") }
+
+    def active?
+      status == "active"
+    end
+
+    def active_now?(at = Time.current)
+      active? && (starts_at.blank? || starts_at <= at) && (ends_at.blank? || ends_at > at)
+    end
 
     def self.ransackable_attributes(_auth_object = nil)
       %w[id scanner_device_id event_id assigned_by_id status starts_at ends_at

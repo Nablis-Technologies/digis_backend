@@ -170,6 +170,7 @@ Rails.application.routes.draw do
   end
 
   post "ticketing/audience_authorizations", to: "ticketing/audience_authorizations#create"
+  post "scanner/auth", to: "ticketing/scanner/auth#create"
 
   resources :tickets, only: [] do
     resource :suspension, only: :create, controller: "ticketing/suspensions" do

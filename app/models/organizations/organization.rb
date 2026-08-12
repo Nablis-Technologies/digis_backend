@@ -18,6 +18,9 @@ module Organizations
     has_many :memberships,
              class_name: "Organizations::Membership",
              dependent: :destroy
+    has_many :scanner_devices,
+             class_name: "Ticketing::ScannerDevice",
+             dependent: :restrict_with_exception
     has_many :legal_acceptances,
              -> { where(subject_type: "organization") },
              class_name: "Legal::LegalAcceptance",
