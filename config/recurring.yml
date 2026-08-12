@@ -33,6 +33,14 @@ production:
     class: Ticketing::ExpireInvitationsJob
     queue: default
     schedule: every minute
+  expire_credential_claims:
+    class: Ticketing::ExpireCredentialClaimsJob
+    queue: default
+    schedule: every minute
+  expire_ticket_transfers:
+    class: Ticketing::ExpireTransfersJob
+    queue: default
+    schedule: every minute
   process_outbox:
     class: Core::ProcessOutboxJob
     queue: outbox

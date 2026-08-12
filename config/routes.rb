@@ -171,6 +171,25 @@ Rails.application.routes.draw do
 
   post "ticketing/audience_authorizations", to: "ticketing/audience_authorizations#create"
 
+  resources :tickets, only: [] do
+    resource :delegation, only: :create, controller: "ticketing/delegations" do
+      post :cancel
+      patch :reassign
+    end
+    resources :credential_claims, only: :create, controller: "ticketing/credential_claims"
+    resources :transfers, only: :create, controller: "ticketing/transfers"
+  end
+
+  resources :credential_claims, only: [] do
+    post :accept, on: :member, controller: "ticketing/credential_claims"
+  end
+
+  resources :ticket_transfers, only: [] do
+    post :accept, on: :member, controller: "ticketing/transfers"
+    post :decline, on: :member, controller: "ticketing/transfers"
+    post :cancel, on: :member, controller: "ticketing/transfers"
+  end
+
   namespace :admin do
     namespace :commercial do
       resources :fee_schedules, only: %i[index show create update] do
