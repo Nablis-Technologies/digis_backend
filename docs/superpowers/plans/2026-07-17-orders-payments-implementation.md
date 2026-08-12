@@ -43,8 +43,8 @@ use the branch checkpoint and verification evidence rather than restarting
 completed work.
 
 The Commercial Task 9–10 verification gate is closed. Orders Task 8 is now
-implemented and verified; the next Orders feature task is **Task 9: Final
-phase gate**. After Orders Task 9 is green,
+implemented and focused-verified; Task 9 is the current final phase gate.
+After the full repository suite is green,
 begin the Ticket Packages plan at Task 2. Ticket Packages Task 1 is already
 present as an early schema prerequisite and must not be treated as permission
 to skip the remaining Orders payment tasks.
@@ -657,24 +657,41 @@ until the changed files have been reviewed and committed by the user.
 
 ## Task 9: Final phase gate
 
+**Status:** Orders-focused verification passed on 2026-08-12. The final
+repository gate remains pending because the full suite currently has 14
+failures and 9 errors in unrelated Ticketing attendee-export, Registration
+Consent, Events consent immutability, and Core retention tests. These failures
+reproduce serially and are not in the Orders Task 9 diff; resolve them in their
+own plans before marking this task complete or beginning Ticket Packages Task
+2.
+
 **Files:**
 - Modify only files introduced above when correcting findings
 
-- [ ] **Step 1: RED audit — map every invariant to a named test**
+- [x] **Step 1: RED audit — map every invariant to a named test**
 
-Map event ownership, `Core::Money`/FX immutability, adjustment reconciliation, ten-minute hold, bounded restart, three attempts, one current/accepted payment, durable inbox, reversals, grace, authorization/privacy, and failure recovery. Missing evidence is RED.
+Mapped event ownership, `Core::Money`/FX immutability, adjustment reconciliation,
+ten-minute hold, bounded restart, three attempts, one current/accepted payment,
+durable inbox, reversals, grace, authorization/privacy, and failure recovery to
+named Orders model/service/controller/job/integration tests. The audit also
+found and corrected the Orders payment locale hierarchy.
 
-- [ ] **Step 2: Run full suite**
+- [x] **Step 2: Run full suite**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test
 ```
 
-Expected: PASS; fix every failure.
+Observed: 2,155 tests, 7,988 assertions, 14 failures, and 9 errors. The
+Orders locale failure was corrected; the remaining failures are external to
+Orders and reproduce serially in Ticketing attendee exports, Ticketing
+Registration Consent, Events consent immutability, and Core retention tests.
 
-- [ ] **Step 3: GREEN — remove obsolete development paths**
+- [x] **Step 3: GREEN — remove obsolete development paths**
 
-Delete superseded order/payment implementations instead of dual writes or compatibility branches.
+Audited the Orders tree and references. No obsolete or parallel order/payment
+implementation, dual-write path, placeholder table, or compatibility branch
+remains.
 
 - [ ] **Step 4: Run full suite and verify GREEN**
 
@@ -684,14 +701,17 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test
 
 Expected: zero failures/errors.
 
-- [ ] **Step 5: Refactor and inspect database evidence**
+- [x] **Step 5: Refactor and inspect database evidence**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:migrate:status
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/orders --seed 50321
 ```
 
-Expected: migrations up and race tests PASS.
+Orders integration seed `50321` passed: 4 tests, 31 assertions. Orders
+migrations are up through payment events; later Ticketing/Refund migrations
+remain down by design. Full RuboCop, Zeitwerk, locale/YAML, Postman JSON, and
+route checks pass.
 
 - [ ] **Step 6: Commit**
 
@@ -702,4 +722,10 @@ git commit -m "test(orders): prove checkout and payment invariants"
 
 ## Completion evidence
 
-Complete only when the full suite proves immutable multi-currency checkout, exact adjustments, concurrency-safe inventory/promotions, one active checkout, bounded restarts/attempts, durable verified webhooks, one accepted payment, reversal of all unaccepted success, bounded grace, exactly-once fulfillment/outbox/ledger behavior, Pundit/AMS privacy, and injected-failure recovery.
+Complete only when the full suite proves immutable multi-currency checkout,
+exact adjustments, concurrency-safe inventory/promotions, one active checkout,
+bounded restarts/attempts, durable verified webhooks, one accepted payment,
+reversal of all unaccepted success, bounded grace, exactly-once
+fulfillment/outbox/ledger behavior, Pundit/AMS privacy, and injected-failure
+recovery. This remains pending until the unrelated full-suite regressions are
+resolved and the user reviews/commits the worktree.

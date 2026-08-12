@@ -81,11 +81,13 @@ domain prerequisites, but it is not a reason to introduce a temporary
   adjustment projection, provider contract, and sequential payment-attempt
   behavior are verified. Commercial Task 11 remains intentionally deferred to
   Controlled Resale; Task 12 remains last.
-- Orders Tasks 1–8 are implemented and verified in the current branch,
+- Orders Tasks 1–8 are implemented and focused-verified in the current branch,
   including checkout, payment-attempt persistence, provider compatibility,
   sequential attempt start/switch behavior, durable webhook receipt, exactly-
   once acceptance, full reversal obligations, the Orders fulfillment boundary,
-  and bounded checkout expiry/settlement grace. Orders Task 9 remains.
+  and bounded checkout expiry/settlement grace. Orders Task 9 remains pending
+  on the full repository gate because unrelated Ticketing/Consent/Retention
+  regressions still fail serially.
 - Ticket Packages Task 1 (schema/models) was committed early and is retained
   because it is a valid prerequisite. That early schema does **not** open the
   Ticket Packages wave; do not start Ticket Packages Task 2 until Orders Tasks
@@ -96,7 +98,9 @@ domain prerequisites, but it is not a reason to introduce a temporary
 
 The next human-visible action is therefore:
 
-1. Resume `2026-07-17-orders-payments-implementation.md` at Task 9.
+1. Resolve the unrelated full-suite regressions, then resume
+   `2026-07-17-orders-payments-implementation.md` at Task 9 Step 4 and commit
+   the verified Orders tranche.
 2. Resume `2026-07-17-ticket-packages-credentials-implementation.md` at Task
    2, then Tasks 3–6.
 3. Run the Scanner and Refunds/Finance plans as the Wave 5 parallel tracks.
