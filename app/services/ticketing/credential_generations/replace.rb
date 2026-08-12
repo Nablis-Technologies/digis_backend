@@ -119,6 +119,7 @@ module Ticketing
         Ticketing::Ticket.includes(
           :event,
           :owner_user,
+          :revocation,
           current_credential_generation: :credentials,
           admission_slots: :assigned_user,
           registration: :consent_requirements,
@@ -173,6 +174,8 @@ module Ticketing
         return failure(replacement_error(:invalid_generation_mode, "invalid_generation_mode", :unprocessable_entity)) unless
           Ticketing::Ticket::CREDENTIAL_MODES.include?(@target_mode)
         return failure(replacement_error(:revocation_reason_required, "revocation_reason_required", :unprocessable_entity)) if @reason.blank?
+        return failure(replacement_error(:package_dead, "package_dead", :conflict)) if ticket.package_dead?
+        return failure(replacement_error(:ticket_suspended, "ticket_suspended", :conflict)) if ticket.package_suspended?
         return failure(replacement_error(:ticket_not_active, "ticket_not_active", :conflict)) unless ticket.status == "active"
         return failure(replacement_error(:event_not_active, "event_not_active", :conflict)) if ticket.event.status.in?(%w[cancelled completed])
         return failure(replacement_error(:generation_not_current, "generation_not_current", :conflict)) unless current_generation_matches_ticket?(ticket)

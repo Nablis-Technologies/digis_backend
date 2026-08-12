@@ -65,3 +65,7 @@ production:
     class: Ticketing::ExpireWaitlistOffersJob
     queue: default
     schedule: every minute
+  escalate_overdue_ticket_suspensions:
+    class: Ticketing::EscalateOverdueSuspensionsJob
+    queue: default
+    schedule: every hour at minute 20

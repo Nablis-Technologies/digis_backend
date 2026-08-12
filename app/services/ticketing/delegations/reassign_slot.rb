@@ -19,10 +19,19 @@ module Ticketing
         Ticketing::Ticket.transaction do
           ticket = Ticketing::Ticket.includes(
             :owner_user,
+            :revocation,
             current_credential_generation: { credentials: [ :admission_slot, :holder_user ] }
           ).lock.find(@ticket.id)
           unless owner?(ticket)
             outcome = failure(error(:delegation_forbidden, :forbidden))
+            raise ActiveRecord::Rollback
+          end
+          if ticket.package_dead?
+            outcome = failure(error(:package_dead, :conflict))
+            raise ActiveRecord::Rollback
+          end
+          if ticket.package_suspended?
+            outcome = failure(error(:ticket_suspended, :conflict))
             raise ActiveRecord::Rollback
           end
           unless ticket.credential_mode == "delegated"

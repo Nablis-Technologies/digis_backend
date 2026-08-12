@@ -193,7 +193,8 @@ class AddTicketingPackageCredentialConstraints < ActiveRecord::Migration[8.1]
           IF generation_ticket_id IS DISTINCT FROM NEW.id OR
              generation_mode IS DISTINCT FROM NEW.credential_mode OR
              generation_version IS DISTINCT FROM NEW.credential_version OR
-             generation_status IS DISTINCT FROM 'active' THEN
+             (generation_status IS DISTINCT FROM 'active' AND
+              NOT (NEW.status IN ('void', 'refunded') AND generation_status = 'revoked')) THEN
             RAISE EXCEPTION 'ticket current credential generation does not match the ticket'
               USING ERRCODE = '23514';
           END IF;

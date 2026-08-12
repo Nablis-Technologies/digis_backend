@@ -64,6 +64,7 @@ class CreateTicketingTickets < ActiveRecord::Migration[8.1]
       where: "registration_id IS NOT NULL",
       name: "idx_ticketing_tickets_registration_unit"
     add_index :ticketing_tickets, %i[event_id status]
+    add_index :ticketing_tickets, %i[id event_id], unique: true, name: "idx_ticketing_tickets_id_event"
     add_index :ticketing_tickets, :owner_user_id
     add_index :ticketing_tickets, :current_credential_generation_id, unique: true
 

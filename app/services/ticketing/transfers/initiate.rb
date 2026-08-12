@@ -90,6 +90,7 @@ module Ticketing
         Ticketing::Ticket.includes(
           :event,
           :owner_user,
+          :revocation,
           :current_credential_generation,
           :ticket_transfers,
           event_product: [ :ticket_type, { product_accesses: :event_date } ]
@@ -98,6 +99,8 @@ module Ticketing
 
       def validate(ticket)
         return error(:transfer_forbidden, :forbidden) unless @actor.is_a?(Core::User) && ticket.owner_user_id == @actor.id
+        return error(:package_dead, :conflict) if ticket.package_dead?
+        return error(:ticket_suspended, :conflict) if ticket.package_suspended?
         return error(:ticket_not_active, :conflict) unless ticket.status == "active"
         return error(:event_not_active, :conflict) if ticket.event.status.in?(%w[cancelled completed])
         return error(:transfer_not_enabled, :unprocessable_entity) unless ticket.event_product.ticket_type.transferable?

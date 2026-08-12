@@ -172,6 +172,10 @@ Rails.application.routes.draw do
   post "ticketing/audience_authorizations", to: "ticketing/audience_authorizations#create"
 
   resources :tickets, only: [] do
+    resource :suspension, only: :create, controller: "ticketing/suspensions" do
+      post :restore
+      post :resolve
+    end
     resource :delegation, only: :create, controller: "ticketing/delegations" do
       post :cancel
       patch :reassign

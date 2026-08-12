@@ -18,7 +18,7 @@ module Ticketing
       def call
         outcome = nil
         Ticketing::CredentialClaim.transaction do
-          claim = Ticketing::CredentialClaim.lock.find_by(
+          claim = Ticketing::CredentialClaim.includes(credential: { credential_generation: :ticket }).lock.find_by(
             token_digest: Ticketing::CredentialClaim.token_digest_for(token: @token)
           )
           unless claim
@@ -77,6 +77,9 @@ module Ticketing
 
       def validate_claim(claim)
         return error(:claim_recipient_mismatch, :forbidden) unless recipient?(claim)
+        ticket = claim.credential.credential_generation.ticket
+        return error(:package_dead, :conflict) if ticket.package_dead?
+        return error(:ticket_suspended, :conflict) if ticket.package_suspended?
         return error(:claim_expired, :conflict) if claim.expires_at.present? && claim.expires_at <= Time.current
         return error(:claim_not_pending, :conflict) unless claim.status == "pending"
         return error(:claim_recipient_unverified, :unprocessable_entity) unless @actor.verified_at.present?
@@ -95,6 +98,7 @@ module Ticketing
           ticket: [
             :event,
             :owner_user,
+            :revocation,
             :current_credential_generation,
             { event_product: [ :ticket_type, { product_accesses: :event_date } ], registration: :consent_requirements }
           ]

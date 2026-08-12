@@ -2104,7 +2104,8 @@ BEGIN
     IF generation_ticket_id IS DISTINCT FROM NEW.id OR
        generation_mode IS DISTINCT FROM NEW.credential_mode OR
        generation_version IS DISTINCT FROM NEW.credential_version OR
-       generation_status IS DISTINCT FROM 'active' THEN
+       (generation_status IS DISTINCT FROM 'active' AND
+        NOT (NEW.status IN ('void', 'refunded') AND generation_status = 'revoked')) THEN
       RAISE EXCEPTION 'ticket current credential generation does not match the ticket'
         USING ERRCODE = '23514';
     END IF;
@@ -2286,9 +2287,9 @@ CREATE TABLE public.catalog_product_accesses (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT catalog_product_accesses_offset_check CHECK (((opens_offset_seconds IS NULL) OR (closes_offset_seconds IS NULL) OR ((closes_offset_seconds - opens_offset_seconds) > 0))),
-    CONSTRAINT catalog_product_accesses_protection_check CHECK (((required_access_protection IS NULL) OR ((required_access_protection)::text = ANY (ARRAY[('public'::character varying)::text, ('soft_gated'::character varying)::text, ('signed'::character varying)::text])))),
+    CONSTRAINT catalog_product_accesses_protection_check CHECK (((required_access_protection IS NULL) OR ((required_access_protection)::text = ANY ((ARRAY['public'::character varying, 'soft_gated'::character varying, 'signed'::character varying])::text[])))),
     CONSTRAINT catalog_product_accesses_protection_stream_check CHECK ((((required_access_protection IS NULL) AND ((type)::text <> 'stream'::text)) OR ((required_access_protection IS NOT NULL) AND ((type)::text = 'stream'::text)))),
-    CONSTRAINT catalog_product_accesses_type_check CHECK (((type)::text = ANY (ARRAY[('venue'::character varying)::text, ('stream'::character varying)::text, ('parking'::character varying)::text]))),
+    CONSTRAINT catalog_product_accesses_type_check CHECK (((type)::text = ANY ((ARRAY['venue'::character varying, 'stream'::character varying, 'parking'::character varying])::text[]))),
     CONSTRAINT catalog_product_accesses_usage_limit_check CHECK (((usage_limit > 0) OR (usage_limit IS NULL)))
 );
 
@@ -2416,8 +2417,8 @@ CREATE TABLE public.catalog_promotions (
     CONSTRAINT catalog_promotions_per_user_limit_check CHECK ((per_user_limit > 0)),
     CONSTRAINT catalog_promotions_percentage_check CHECK ((((percentage_basis_points >= 1) AND (percentage_basis_points <= 10000)) OR (percentage_basis_points IS NULL))),
     CONSTRAINT catalog_promotions_redemption_limit_check CHECK (((redemption_limit > 0) OR (redemption_limit IS NULL))),
-    CONSTRAINT catalog_promotions_status_check CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('active'::character varying)::text, ('disabled'::character varying)::text]))),
-    CONSTRAINT catalog_promotions_type_check CHECK (((type)::text = ANY (ARRAY[('percentage'::character varying)::text, ('fixed'::character varying)::text]))),
+    CONSTRAINT catalog_promotions_status_check CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'active'::character varying, 'disabled'::character varying])::text[]))),
+    CONSTRAINT catalog_promotions_type_check CHECK (((type)::text = ANY ((ARRAY['percentage'::character varying, 'fixed'::character varying])::text[]))),
     CONSTRAINT catalog_promotions_window_check CHECK (((ends_at IS NULL) OR (starts_at IS NULL) OR (ends_at > starts_at)))
 );
 
@@ -2466,9 +2467,9 @@ CREATE TABLE public.commercial_approvals (
     request_fingerprint character varying(64) NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT commercial_approvals_decision_check CHECK (((decision)::text = ANY (ARRAY[('approved'::character varying)::text, ('rejected'::character varying)::text]))),
+    CONSTRAINT commercial_approvals_decision_check CHECK (((decision)::text = ANY ((ARRAY['approved'::character varying, 'rejected'::character varying])::text[]))),
     CONSTRAINT commercial_approvals_request_evidence_check CHECK ((((definition_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((request_fingerprint)::text ~ '^[0-9a-f]{64}$'::text))),
-    CONSTRAINT commercial_approvals_target_type_check CHECK (((target_type)::text = ANY (ARRAY[('Commercial::FeeScheduleVersion'::character varying)::text, ('Commercial::Assignment'::character varying)::text])))
+    CONSTRAINT commercial_approvals_target_type_check CHECK (((target_type)::text = ANY ((ARRAY['Commercial::FeeScheduleVersion'::character varying, 'Commercial::Assignment'::character varying])::text[])))
 );
 
 
@@ -2504,16 +2505,16 @@ CREATE TABLE public.commercial_assignments (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT commercial_assignments_active_metadata_check CHECK ((((status)::text <> 'active'::text) OR ((activated_by_id IS NOT NULL) AND (activated_at IS NOT NULL)))),
-    CONSTRAINT commercial_assignments_assignment_type_check CHECK (((assignment_type)::text = ANY (ARRAY[('program'::character varying)::text, ('platform_grant'::character varying)::text, ('mutual_agreement'::character varying)::text]))),
+    CONSTRAINT commercial_assignments_assignment_type_check CHECK (((assignment_type)::text = ANY ((ARRAY['program'::character varying, 'platform_grant'::character varying, 'mutual_agreement'::character varying])::text[]))),
     CONSTRAINT commercial_assignments_baseline_digest_check CHECK (((baseline_resolution_digest IS NULL) OR ((baseline_resolution_digest)::text ~ '^[0-9a-f]{64}$'::text))),
     CONSTRAINT commercial_assignments_effective_interval_check CHECK (((effective_until IS NULL) OR (effective_until > effective_from))),
     CONSTRAINT commercial_assignments_external_acceptance_metadata_check CHECK (((external_reference IS NULL) OR ((external_accepted_by_id IS NOT NULL) AND (external_accepted_at IS NOT NULL)))),
     CONSTRAINT commercial_assignments_external_reference_check CHECK (((external_reference IS NULL) OR (NULLIF(btrim((external_reference)::text), ''::text) IS NOT NULL))),
     CONSTRAINT commercial_assignments_lock_version_check CHECK ((lock_version >= 0)),
-    CONSTRAINT commercial_assignments_mutual_evidence_check CHECK ((((assignment_type)::text <> 'mutual_agreement'::text) OR ((status)::text <> ALL (ARRAY[('scheduled'::character varying)::text, ('active'::character varying)::text])) OR (legal_acceptance_id IS NOT NULL) OR (NULLIF(btrim((external_reference)::text), ''::text) IS NOT NULL))),
+    CONSTRAINT commercial_assignments_mutual_evidence_check CHECK ((((assignment_type)::text <> 'mutual_agreement'::text) OR ((status)::text <> ALL ((ARRAY['scheduled'::character varying, 'active'::character varying])::text[])) OR (legal_acceptance_id IS NOT NULL) OR (NULLIF(btrim((external_reference)::text), ''::text) IS NOT NULL))),
     CONSTRAINT commercial_assignments_platform_grant_baseline_check CHECK ((((assignment_type)::text <> 'platform_grant'::text) OR (baseline_resolution_digest IS NOT NULL))),
-    CONSTRAINT commercial_assignments_risk_level_check CHECK (((risk_level)::text = ANY (ARRAY[('low'::character varying)::text, ('medium'::character varying)::text, ('high'::character varying)::text]))),
-    CONSTRAINT commercial_assignments_status_check CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('pending_acceptance'::character varying)::text, ('pending_approval'::character varying)::text, ('scheduled'::character varying)::text, ('active'::character varying)::text, ('expired'::character varying)::text, ('terminated'::character varying)::text]))),
+    CONSTRAINT commercial_assignments_risk_level_check CHECK (((risk_level)::text = ANY ((ARRAY['low'::character varying, 'medium'::character varying, 'high'::character varying])::text[]))),
+    CONSTRAINT commercial_assignments_status_check CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'pending_acceptance'::character varying, 'pending_approval'::character varying, 'scheduled'::character varying, 'active'::character varying, 'expired'::character varying, 'terminated'::character varying])::text[]))),
     CONSTRAINT commercial_assignments_terminated_metadata_check CHECK ((((status)::text <> 'terminated'::text) OR ((terminated_by_id IS NOT NULL) AND (terminated_at IS NOT NULL))))
 );
 
@@ -2533,7 +2534,7 @@ CREATE TABLE public.commercial_event_payer_selections (
     request_fingerprint character varying(64) NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT commercial_event_payer_selections_payer_check CHECK (((charged_to)::text = ANY (ARRAY[('buyer'::character varying)::text, ('organizer'::character varying)::text]))),
+    CONSTRAINT commercial_event_payer_selections_payer_check CHECK (((charged_to)::text = ANY ((ARRAY['buyer'::character varying, 'organizer'::character varying])::text[]))),
     CONSTRAINT commercial_event_payer_selections_request_evidence_check CHECK ((((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((request_fingerprint)::text ~ '^[0-9a-f]{64}$'::text)))
 );
 
@@ -2585,21 +2586,21 @@ CREATE TABLE public.commercial_fee_components (
     label character varying NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT commercial_fee_components_basis_shape_check CHECK (((((calculation_type)::text = ANY (ARRAY[('percentage'::character varying)::text, ('blended'::character varying)::text, ('tiered'::character varying)::text])) AND (basis_type IS NOT NULL)) OR (((calculation_type)::text = ANY (ARRAY[('explicit_zero'::character varying)::text, ('fixed'::character varying)::text])) AND (basis_type IS NULL)))),
-    CONSTRAINT commercial_fee_components_calculation_type_check CHECK (((calculation_type)::text = ANY (ARRAY[('explicit_zero'::character varying)::text, ('percentage'::character varying)::text, ('fixed'::character varying)::text, ('blended'::character varying)::text, ('tiered'::character varying)::text]))),
-    CONSTRAINT commercial_fee_components_charged_to_check CHECK (((charged_to)::text = ANY (ARRAY[('buyer'::character varying)::text, ('organizer'::character varying)::text]))),
-    CONSTRAINT commercial_fee_components_component_type_check CHECK (((component_type)::text = ANY (ARRAY[('platform_commission'::character varying)::text, ('buyer_service_fee'::character varying)::text, ('processing_cost_recovery'::character varying)::text, ('platform_subsidy'::character varying)::text, ('resale_platform_fee'::character varying)::text]))),
+    CONSTRAINT commercial_fee_components_basis_shape_check CHECK (((((calculation_type)::text = ANY ((ARRAY['percentage'::character varying, 'blended'::character varying, 'tiered'::character varying])::text[])) AND (basis_type IS NOT NULL)) OR (((calculation_type)::text = ANY ((ARRAY['explicit_zero'::character varying, 'fixed'::character varying])::text[])) AND (basis_type IS NULL)))),
+    CONSTRAINT commercial_fee_components_calculation_type_check CHECK (((calculation_type)::text = ANY ((ARRAY['explicit_zero'::character varying, 'percentage'::character varying, 'fixed'::character varying, 'blended'::character varying, 'tiered'::character varying])::text[]))),
+    CONSTRAINT commercial_fee_components_charged_to_check CHECK (((charged_to)::text = ANY ((ARRAY['buyer'::character varying, 'organizer'::character varying])::text[]))),
+    CONSTRAINT commercial_fee_components_component_type_check CHECK (((component_type)::text = ANY ((ARRAY['platform_commission'::character varying, 'buyer_service_fee'::character varying, 'processing_cost_recovery'::character varying, 'platform_subsidy'::character varying, 'resale_platform_fee'::character varying])::text[]))),
     CONSTRAINT commercial_fee_components_currency_check CHECK (((currency IS NULL) OR ((currency)::text ~ '^[A-Z]{3}$'::text))),
-    CONSTRAINT commercial_fee_components_funded_by_check CHECK (((funded_by)::text = ANY (ARRAY[('buyer'::character varying)::text, ('organizer'::character varying)::text, ('platform'::character varying)::text]))),
-    CONSTRAINT commercial_fee_components_offset_type_check CHECK (((offset_component_type IS NULL) OR ((offset_component_type)::text = ANY (ARRAY[('platform_commission'::character varying)::text, ('buyer_service_fee'::character varying)::text, ('processing_cost_recovery'::character varying)::text, ('resale_platform_fee'::character varying)::text])))),
-    CONSTRAINT commercial_fee_components_payment_method_check CHECK (((payment_method IS NULL) OR ((payment_method)::text = ANY (ARRAY[('telebirr'::character varying)::text, ('card'::character varying)::text, ('bank'::character varying)::text])))),
-    CONSTRAINT commercial_fee_components_product_type_check CHECK (((product_type IS NULL) OR ((product_type)::text = ANY (ARRAY[('ticket'::character varying)::text, ('parking'::character varying)::text, ('merchandise'::character varying)::text, ('food'::character varying)::text, ('donation'::character varying)::text, ('digital_addon'::character varying)::text, ('other'::character varying)::text])))),
-    CONSTRAINT commercial_fee_components_provider_check CHECK (((provider IS NULL) OR ((provider)::text = ANY (ARRAY[('chapa'::character varying)::text, ('stripe'::character varying)::text])))),
+    CONSTRAINT commercial_fee_components_funded_by_check CHECK (((funded_by)::text = ANY ((ARRAY['buyer'::character varying, 'organizer'::character varying, 'platform'::character varying])::text[]))),
+    CONSTRAINT commercial_fee_components_offset_type_check CHECK (((offset_component_type IS NULL) OR ((offset_component_type)::text = ANY ((ARRAY['platform_commission'::character varying, 'buyer_service_fee'::character varying, 'processing_cost_recovery'::character varying, 'resale_platform_fee'::character varying])::text[])))),
+    CONSTRAINT commercial_fee_components_payment_method_check CHECK (((payment_method IS NULL) OR ((payment_method)::text = ANY ((ARRAY['telebirr'::character varying, 'card'::character varying, 'bank'::character varying])::text[])))),
+    CONSTRAINT commercial_fee_components_product_type_check CHECK (((product_type IS NULL) OR ((product_type)::text = ANY ((ARRAY['ticket'::character varying, 'parking'::character varying, 'merchandise'::character varying, 'food'::character varying, 'donation'::character varying, 'digital_addon'::character varying, 'other'::character varying])::text[])))),
+    CONSTRAINT commercial_fee_components_provider_check CHECK (((provider IS NULL) OR ((provider)::text = ANY ((ARRAY['chapa'::character varying, 'stripe'::character varying])::text[])))),
     CONSTRAINT commercial_fee_components_rate_check CHECK (((rate_bps IS NULL) OR ((rate_bps >= 0) AND (rate_bps <= 10000)))),
-    CONSTRAINT commercial_fee_components_rate_shape_check CHECK (((((calculation_type)::text = ANY (ARRAY[('percentage'::character varying)::text, ('blended'::character varying)::text])) AND (rate_bps IS NOT NULL)) OR (((calculation_type)::text = ANY (ARRAY[('explicit_zero'::character varying)::text, ('fixed'::character varying)::text, ('tiered'::character varying)::text])) AND (rate_bps IS NULL)))),
-    CONSTRAINT commercial_fee_components_refund_policy_check CHECK (((refund_policy)::text = ANY (ARRAY[('refundable'::character varying)::text, ('event_cancellation_only'::character varying)::text, ('nonrefundable'::character varying)::text]))),
-    CONSTRAINT commercial_fee_components_sale_context_check CHECK (((sale_context IS NULL) OR ((sale_context)::text = ANY (ARRAY[('primary'::character varying)::text, ('resale'::character varying)::text])))),
-    CONSTRAINT commercial_fee_components_sales_channel_check CHECK (((sales_channel IS NULL) OR ((sales_channel)::text = ANY (ARRAY[('online'::character varying)::text, ('walk_up'::character varying)::text, ('resale'::character varying)::text])))),
+    CONSTRAINT commercial_fee_components_rate_shape_check CHECK (((((calculation_type)::text = ANY ((ARRAY['percentage'::character varying, 'blended'::character varying])::text[])) AND (rate_bps IS NOT NULL)) OR (((calculation_type)::text = ANY ((ARRAY['explicit_zero'::character varying, 'fixed'::character varying, 'tiered'::character varying])::text[])) AND (rate_bps IS NULL)))),
+    CONSTRAINT commercial_fee_components_refund_policy_check CHECK (((refund_policy)::text = ANY ((ARRAY['refundable'::character varying, 'event_cancellation_only'::character varying, 'nonrefundable'::character varying])::text[]))),
+    CONSTRAINT commercial_fee_components_sale_context_check CHECK (((sale_context IS NULL) OR ((sale_context)::text = ANY ((ARRAY['primary'::character varying, 'resale'::character varying])::text[])))),
+    CONSTRAINT commercial_fee_components_sales_channel_check CHECK (((sales_channel IS NULL) OR ((sales_channel)::text = ANY ((ARRAY['online'::character varying, 'walk_up'::character varying, 'resale'::character varying])::text[])))),
     CONSTRAINT commercial_fee_components_subsidy_shape_check CHECK (((((component_type)::text = 'platform_subsidy'::text) AND ((funded_by)::text = 'platform'::text) AND (offset_component_type IS NOT NULL)) OR (((component_type)::text <> 'platform_subsidy'::text) AND ((funded_by)::text <> 'platform'::text) AND (offset_component_type IS NULL))))
 );
 
@@ -2631,12 +2632,12 @@ CREATE TABLE public.commercial_fee_schedule_versions (
     lock_version integer DEFAULT 0 NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT commercial_fee_schedule_versions_acceptance_policy_check CHECK (((acceptance_policy)::text = ANY (ARRAY[('none'::character varying)::text, ('notice_only'::character varying)::text, ('explicit'::character varying)::text]))),
-    CONSTRAINT commercial_fee_schedule_versions_authoritative_start_check CHECK ((((status)::text <> ALL (ARRAY[('scheduled'::character varying)::text, ('active'::character varying)::text])) OR (effective_from IS NOT NULL))),
+    CONSTRAINT commercial_fee_schedule_versions_acceptance_policy_check CHECK (((acceptance_policy)::text = ANY ((ARRAY['none'::character varying, 'notice_only'::character varying, 'explicit'::character varying])::text[]))),
+    CONSTRAINT commercial_fee_schedule_versions_authoritative_start_check CHECK ((((status)::text <> ALL ((ARRAY['scheduled'::character varying, 'active'::character varying])::text[])) OR (effective_from IS NOT NULL))),
     CONSTRAINT commercial_fee_schedule_versions_digest_check CHECK (((definition_digest)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT commercial_fee_schedule_versions_effective_interval_check CHECK (((effective_until IS NULL) OR (effective_from IS NULL) OR (effective_until > effective_from))),
     CONSTRAINT commercial_fee_schedule_versions_lock_version_check CHECK ((lock_version >= 0)),
-    CONSTRAINT commercial_fee_schedule_versions_status_check CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('simulated'::character varying)::text, ('pending_approval'::character varying)::text, ('approved'::character varying)::text, ('scheduled'::character varying)::text, ('active'::character varying)::text, ('superseded'::character varying)::text, ('expired'::character varying)::text, ('terminated'::character varying)::text]))),
+    CONSTRAINT commercial_fee_schedule_versions_status_check CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'simulated'::character varying, 'pending_approval'::character varying, 'approved'::character varying, 'scheduled'::character varying, 'active'::character varying, 'superseded'::character varying, 'expired'::character varying, 'terminated'::character varying])::text[]))),
     CONSTRAINT commercial_fee_schedule_versions_version_check CHECK ((version > 0))
 );
 
@@ -2654,7 +2655,7 @@ CREATE TABLE public.commercial_fee_schedules (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT commercial_fee_schedules_code_check CHECK (((code)::text ~ '^[a-z0-9]+(_[a-z0-9]+)*$'::text)),
-    CONSTRAINT commercial_fee_schedules_schedule_type_check CHECK (((schedule_type)::text = ANY (ARRAY[('platform_default'::character varying)::text, ('program'::character varying)::text, ('custom'::character varying)::text])))
+    CONSTRAINT commercial_fee_schedules_schedule_type_check CHECK (((schedule_type)::text = ANY ((ARRAY['platform_default'::character varying, 'program'::character varying, 'custom'::character varying])::text[])))
 );
 
 
@@ -2680,13 +2681,13 @@ CREATE TABLE public.commercial_fee_tiers (
     CONSTRAINT commercial_fee_tiers_fixed_amount_check CHECK (((fixed_amount_minor IS NULL) OR (fixed_amount_minor >= 0))),
     CONSTRAINT commercial_fee_tiers_gross_currency_check CHECK ((((metric_type)::text <> 'accepted_gross'::text) OR (currency IS NOT NULL))),
     CONSTRAINT commercial_fee_tiers_maximum_check CHECK (((maximum_minor IS NULL) OR (maximum_minor >= 0))),
-    CONSTRAINT commercial_fee_tiers_metric_type_check CHECK (((metric_type)::text = ANY (ARRAY[('accepted_paid_units'::character varying)::text, ('accepted_gross'::character varying)::text]))),
+    CONSTRAINT commercial_fee_tiers_metric_type_check CHECK (((metric_type)::text = ANY ((ARRAY['accepted_paid_units'::character varying, 'accepted_gross'::character varying])::text[]))),
     CONSTRAINT commercial_fee_tiers_minimum_check CHECK (((minimum_minor IS NULL) OR (minimum_minor >= 0))),
     CONSTRAINT commercial_fee_tiers_ordered_bounds_check CHECK (((minimum_minor IS NULL) OR (maximum_minor IS NULL) OR (maximum_minor >= minimum_minor))),
     CONSTRAINT commercial_fee_tiers_position_check CHECK (("position" > 0)),
     CONSTRAINT commercial_fee_tiers_rate_check CHECK (((rate_bps IS NULL) OR ((rate_bps >= 0) AND (rate_bps <= 10000)))),
     CONSTRAINT commercial_fee_tiers_threshold_check CHECK ((starts_at_value >= 0)),
-    CONSTRAINT commercial_fee_tiers_window_type_check CHECK (((window_type)::text = ANY (ARRAY[('event'::character varying)::text, ('calendar_month'::character varying)::text, ('calendar_quarter'::character varying)::text, ('calendar_year'::character varying)::text, ('agreement_term'::character varying)::text])))
+    CONSTRAINT commercial_fee_tiers_window_type_check CHECK (((window_type)::text = ANY ((ARRAY['event'::character varying, 'calendar_month'::character varying, 'calendar_quarter'::character varying, 'calendar_year'::character varying, 'agreement_term'::character varying])::text[])))
 );
 
 
@@ -2709,7 +2710,7 @@ CREATE TABLE public.commercial_program_entitlements (
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT commercial_program_entitlements_lock_version_check CHECK ((lock_version >= 0)),
     CONSTRAINT commercial_program_entitlements_state_check CHECK (((((status)::text = 'available'::text) AND (reserved_event_id IS NULL) AND (reserved_at IS NULL) AND (consumed_at IS NULL) AND (released_at IS NULL)) OR (((status)::text = 'reserved'::text) AND (reserved_event_id IS NOT NULL) AND (reserved_at IS NOT NULL) AND (consumed_at IS NULL) AND (released_at IS NULL)) OR (((status)::text = 'consumed'::text) AND (reserved_event_id IS NULL) AND (reserved_at IS NULL) AND (consumed_at IS NOT NULL) AND (released_at IS NULL)) OR (((status)::text = 'released'::text) AND (reserved_event_id IS NULL) AND (reserved_at IS NULL) AND (consumed_at IS NULL) AND (released_at IS NOT NULL)) OR (((status)::text = 'expired'::text) AND (reserved_event_id IS NULL) AND (reserved_at IS NULL) AND (consumed_at IS NULL) AND (released_at IS NULL) AND (expires_at IS NOT NULL)))),
-    CONSTRAINT commercial_program_entitlements_status_check CHECK (((status)::text = ANY (ARRAY[('available'::character varying)::text, ('reserved'::character varying)::text, ('consumed'::character varying)::text, ('released'::character varying)::text, ('expired'::character varying)::text])))
+    CONSTRAINT commercial_program_entitlements_status_check CHECK (((status)::text = ANY ((ARRAY['available'::character varying, 'reserved'::character varying, 'consumed'::character varying, 'released'::character varying, 'expired'::character varying])::text[])))
 );
 
 
@@ -2729,8 +2730,8 @@ CREATE TABLE public.commercial_programs (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT commercial_programs_effective_interval_check CHECK (((ends_at IS NULL) OR (starts_at IS NULL) OR (ends_at > starts_at))),
-    CONSTRAINT commercial_programs_enrollment_mode_check CHECK (((enrollment_mode)::text = ANY (ARRAY[('automatic'::character varying)::text, ('manual'::character varying)::text]))),
-    CONSTRAINT commercial_programs_program_type_check CHECK (((program_type)::text = ANY (ARRAY[('first_monetized_event'::character varying)::text, ('charity'::character varying)::text, ('partnership'::character varying)::text, ('volume'::character varying)::text]))),
+    CONSTRAINT commercial_programs_enrollment_mode_check CHECK (((enrollment_mode)::text = ANY ((ARRAY['automatic'::character varying, 'manual'::character varying])::text[]))),
+    CONSTRAINT commercial_programs_program_type_check CHECK (((program_type)::text = ANY ((ARRAY['first_monetized_event'::character varying, 'charity'::character varying, 'partnership'::character varying, 'volume'::character varying])::text[]))),
     CONSTRAINT commercial_programs_use_limit_check CHECK (((per_organization_use_limit IS NULL) OR (per_organization_use_limit > 0)))
 );
 
@@ -2807,8 +2808,8 @@ CREATE TABLE public.commercial_subsidy_reservations (
     CONSTRAINT commercial_subsidy_reservations_amount_check CHECK ((amount_minor > 0)),
     CONSTRAINT commercial_subsidy_reservations_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
     CONSTRAINT commercial_subsidy_reservations_request_evidence_check CHECK ((((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((request_fingerprint)::text ~ '^[0-9a-f]{64}$'::text))),
-    CONSTRAINT commercial_subsidy_reservations_state_check CHECK (((((status)::text = ANY (ARRAY[('held'::character varying)::text, ('processing'::character varying)::text])) AND (expires_at IS NOT NULL) AND (committed_at IS NULL) AND (released_at IS NULL)) OR (((status)::text = 'committed'::text) AND (committed_at IS NOT NULL) AND (released_at IS NULL)) OR (((status)::text = 'released'::text) AND (released_at IS NOT NULL) AND (committed_at IS NULL)))),
-    CONSTRAINT commercial_subsidy_reservations_status_check CHECK (((status)::text = ANY (ARRAY[('held'::character varying)::text, ('processing'::character varying)::text, ('committed'::character varying)::text, ('released'::character varying)::text])))
+    CONSTRAINT commercial_subsidy_reservations_state_check CHECK (((((status)::text = ANY ((ARRAY['held'::character varying, 'processing'::character varying])::text[])) AND (expires_at IS NOT NULL) AND (committed_at IS NULL) AND (released_at IS NULL)) OR (((status)::text = 'committed'::text) AND (committed_at IS NOT NULL) AND (released_at IS NULL)) OR (((status)::text = 'released'::text) AND (released_at IS NOT NULL) AND (committed_at IS NULL)))),
+    CONSTRAINT commercial_subsidy_reservations_status_check CHECK (((status)::text = ANY ((ARRAY['held'::character varying, 'processing'::character varying, 'committed'::character varying, 'released'::character varying])::text[])))
 );
 
 
@@ -2832,7 +2833,7 @@ CREATE TABLE public.commercial_term_notices (
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT commercial_term_notices_delivery_method_check CHECK (((delivery_method)::text = 'in_app'::text)),
     CONSTRAINT commercial_term_notices_evidence_check CHECK ((((evidence_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text))),
-    CONSTRAINT commercial_term_notices_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('delivered'::character varying)::text, ('failed'::character varying)::text]))),
+    CONSTRAINT commercial_term_notices_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'delivered'::character varying, 'failed'::character varying])::text[]))),
     CONSTRAINT commercial_term_notices_status_metadata_check CHECK (((((status)::text = 'delivered'::text) AND (delivered_at IS NOT NULL) AND (failed_at IS NULL)) OR (((status)::text = 'failed'::text) AND (failed_at IS NOT NULL) AND (delivered_at IS NULL)) OR (((status)::text = 'pending'::text) AND (delivered_at IS NULL) AND (failed_at IS NULL))))
 );
 
@@ -2857,10 +2858,10 @@ CREATE TABLE public.commercial_volume_counters (
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT commercial_volume_counters_currency_check CHECK (((((metric_type)::text = 'accepted_gross'::text) AND (currency IS NOT NULL) AND ((currency)::text ~ '^[A-Z]{3}'::text)) OR (((metric_type)::text = 'accepted_paid_units'::text) AND (currency IS NULL)))),
     CONSTRAINT commercial_volume_counters_event_window_check CHECK ((((window_type)::text <> 'event'::text) OR (event_id IS NOT NULL))),
-    CONSTRAINT commercial_volume_counters_metric_type_check CHECK (((metric_type)::text = ANY (ARRAY[('accepted_paid_units'::character varying)::text, ('accepted_gross'::character varying)::text]))),
+    CONSTRAINT commercial_volume_counters_metric_type_check CHECK (((metric_type)::text = ANY ((ARRAY['accepted_paid_units'::character varying, 'accepted_gross'::character varying])::text[]))),
     CONSTRAINT commercial_volume_counters_value_check CHECK (((value >= 0) AND (lock_version >= 0))),
     CONSTRAINT commercial_volume_counters_window_bounds_check CHECK (((window_end_at IS NULL) OR (window_end_at > window_start_at))),
-    CONSTRAINT commercial_volume_counters_window_type_check CHECK (((window_type)::text = ANY (ARRAY[('event'::character varying)::text, ('calendar_month'::character varying)::text, ('calendar_quarter'::character varying)::text, ('calendar_year'::character varying)::text, ('agreement_term'::character varying)::text])))
+    CONSTRAINT commercial_volume_counters_window_type_check CHECK (((window_type)::text = ANY ((ARRAY['event'::character varying, 'calendar_month'::character varying, 'calendar_quarter'::character varying, 'calendar_year'::character varying, 'agreement_term'::character varying])::text[])))
 );
 
 
@@ -2885,10 +2886,10 @@ CREATE TABLE public.commercial_volume_usages (
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT commercial_volume_usages_currency_check CHECK (((((metric_type)::text = 'accepted_gross'::text) AND (currency IS NOT NULL) AND ((currency)::text ~ '^[A-Z]{3}'::text)) OR (((metric_type)::text = 'accepted_paid_units'::text) AND (currency IS NULL)))),
     CONSTRAINT commercial_volume_usages_event_window_check CHECK ((((window_type)::text <> 'event'::text) OR (event_id IS NOT NULL))),
-    CONSTRAINT commercial_volume_usages_metric_type_check CHECK (((metric_type)::text = ANY (ARRAY[('accepted_paid_units'::character varying)::text, ('accepted_gross'::character varying)::text]))),
+    CONSTRAINT commercial_volume_usages_metric_type_check CHECK (((metric_type)::text = ANY ((ARRAY['accepted_paid_units'::character varying, 'accepted_gross'::character varying])::text[]))),
     CONSTRAINT commercial_volume_usages_value_check CHECK ((value >= 0)),
     CONSTRAINT commercial_volume_usages_window_bounds_check CHECK (((window_end_at IS NULL) OR (window_end_at > window_start_at))),
-    CONSTRAINT commercial_volume_usages_window_type_check CHECK (((window_type)::text = ANY (ARRAY[('event'::character varying)::text, ('calendar_month'::character varying)::text, ('calendar_quarter'::character varying)::text, ('calendar_year'::character varying)::text, ('agreement_term'::character varying)::text])))
+    CONSTRAINT commercial_volume_usages_window_type_check CHECK (((window_type)::text = ANY ((ARRAY['event'::character varying, 'calendar_month'::character varying, 'calendar_quarter'::character varying, 'calendar_year'::character varying, 'agreement_term'::character varying])::text[])))
 );
 
 
@@ -2933,9 +2934,9 @@ CREATE TABLE public.core_data_retention_holds (
     idempotency_key character varying NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT core_retention_holds_category_check CHECK (((category IS NULL) OR ((category)::text = ANY (ARRAY[('registration_free_text'::character varying)::text, ('registration_structured'::character varying)::text, ('consent_evidence'::character varying)::text, ('security_audit'::character varying)::text, ('financial_record'::character varying)::text])))),
+    CONSTRAINT core_retention_holds_category_check CHECK (((category IS NULL) OR ((category)::text = ANY ((ARRAY['registration_free_text'::character varying, 'registration_structured'::character varying, 'consent_evidence'::character varying, 'security_audit'::character varying, 'financial_record'::character varying])::text[])))),
     CONSTRAINT core_retention_holds_one_scope_check CHECK ((num_nonnulls(event_id, registration_id, user_id) = 1)),
-    CONSTRAINT core_retention_holds_reason_check CHECK (((reason_code)::text = ANY (ARRAY[('legal_hold'::character varying)::text, ('litigation'::character varying)::text, ('regulatory_investigation'::character varying)::text, ('security_incident'::character varying)::text, ('security_hold'::character varying)::text, ('fraud_investigation'::character varying)::text, ('law_enforcement_request'::character varying)::text]))),
+    CONSTRAINT core_retention_holds_reason_check CHECK (((reason_code)::text = ANY ((ARRAY['legal_hold'::character varying, 'litigation'::character varying, 'regulatory_investigation'::character varying, 'security_incident'::character varying, 'security_hold'::character varying, 'fraud_investigation'::character varying, 'law_enforcement_request'::character varying])::text[]))),
     CONSTRAINT core_retention_holds_release_pair_check CHECK ((((released_at IS NULL) AND (released_by_id IS NULL)) OR ((released_at IS NOT NULL) AND (released_by_id IS NOT NULL)))),
     CONSTRAINT core_retention_holds_release_time_check CHECK (((released_at IS NULL) OR (released_at >= starts_at))),
     CONSTRAINT core_retention_holds_window_check CHECK (((expires_at IS NULL) OR (expires_at > starts_at)))
@@ -2958,11 +2959,11 @@ CREATE TABLE public.core_data_retention_policies (
     created_by_id uuid NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT core_retention_policies_action_check CHECK (((action)::text = ANY (ARRAY[('erase_payload'::character varying)::text, ('retain'::character varying)::text]))),
-    CONSTRAINT core_retention_policies_category_check CHECK (((category)::text = ANY (ARRAY[('registration_free_text'::character varying)::text, ('registration_structured'::character varying)::text, ('consent_evidence'::character varying)::text, ('security_audit'::character varying)::text, ('financial_record'::character varying)::text]))),
+    CONSTRAINT core_retention_policies_action_check CHECK (((action)::text = ANY ((ARRAY['erase_payload'::character varying, 'retain'::character varying])::text[]))),
+    CONSTRAINT core_retention_policies_category_check CHECK (((category)::text = ANY ((ARRAY['registration_free_text'::character varying, 'registration_structured'::character varying, 'consent_evidence'::character varying, 'security_audit'::character varying, 'financial_record'::character varying])::text[]))),
     CONSTRAINT core_retention_policies_configuration_check CHECK (((((action)::text = 'retain'::text) OR (retention_days IS NOT NULL)) AND (((status)::text <> 'active'::text) OR (effective_at IS NOT NULL)))),
     CONSTRAINT core_retention_policies_days_check CHECK (((retention_days IS NULL) OR (retention_days > 0))),
-    CONSTRAINT core_retention_policies_status_check CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('active'::character varying)::text, ('retired'::character varying)::text]))),
+    CONSTRAINT core_retention_policies_status_check CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'active'::character varying, 'retired'::character varying])::text[]))),
     CONSTRAINT core_retention_policies_version_check CHECK ((version > 0))
 );
 
@@ -3048,7 +3049,7 @@ CREATE TABLE public.core_reauthentication_proofs (
     CONSTRAINT core_reauthentication_proofs_exact_lifetime CHECK ((expires_at = (issued_at + '00:05:00'::interval))),
     CONSTRAINT core_reauthentication_proofs_factor_allowlist CHECK (((factor_type)::text = 'password'::text)),
     CONSTRAINT core_reauthentication_proofs_ordered_window CHECK ((expires_at >= issued_at)),
-    CONSTRAINT core_reauthentication_proofs_purpose_allowlist CHECK (((purpose)::text = ANY (ARRAY[('attendee_export_request'::character varying)::text, ('attendee_export_download'::character varying)::text])))
+    CONSTRAINT core_reauthentication_proofs_purpose_allowlist CHECK (((purpose)::text = ANY ((ARRAY['attendee_export_request'::character varying, 'attendee_export_download'::character varying])::text[])))
 );
 
 
@@ -3575,7 +3576,7 @@ CREATE TABLE public.legal_acceptances (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT chk_legal_acceptance_method CHECK (((acceptance_method)::text = ANY (ARRAY[('checkbox'::character varying)::text, ('otp'::character varying)::text]))),
-    CONSTRAINT chk_legal_acceptance_subject_type CHECK (((subject_type)::text = ANY (ARRAY[('user'::character varying)::text, ('organization'::character varying)::text, ('order'::character varying)::text, ('commercial_assignment'::character varying)::text])))
+    CONSTRAINT chk_legal_acceptance_subject_type CHECK (((subject_type)::text = ANY ((ARRAY['user'::character varying, 'organization'::character varying, 'order'::character varying, 'commercial_assignment'::character varying])::text[])))
 );
 
 
@@ -3647,26 +3648,26 @@ CREATE TABLE public.orders_order_adjustments (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT order_adjustment_source_pair CHECK (((source_type IS NULL) = (source_id IS NULL))),
-    CONSTRAINT orders_adjustments_amount_sign_check CHECK (((((type)::text = ANY (ARRAY[('discount'::character varying)::text, ('subsidy'::character varying)::text])) AND (amount_minor < 0)) OR (((type)::text = ANY (ARRAY[('service_fee'::character varying)::text, ('platform_fee'::character varying)::text, ('processing_fee'::character varying)::text, ('resale_platform_fee'::character varying)::text, ('tax'::character varying)::text])) AND (amount_minor >= 0)) OR ((type)::text = 'manual_adjustment'::text))),
+    CONSTRAINT orders_adjustments_amount_sign_check CHECK (((((type)::text = ANY ((ARRAY['discount'::character varying, 'subsidy'::character varying])::text[])) AND (amount_minor < 0)) OR (((type)::text = ANY ((ARRAY['service_fee'::character varying, 'platform_fee'::character varying, 'processing_fee'::character varying, 'resale_platform_fee'::character varying, 'tax'::character varying])::text[])) AND (amount_minor >= 0)) OR ((type)::text = 'manual_adjustment'::text))),
     CONSTRAINT orders_adjustments_basis_amount_check CHECK (((basis_minor IS NULL) OR (basis_minor >= 0))),
-    CONSTRAINT orders_adjustments_basis_amount_shape_check CHECK (((calculation_type IS NULL) OR ((calculation_type)::text <> ALL (ARRAY[('explicit_zero'::character varying)::text, ('fixed'::character varying)::text])) OR (basis_minor IS NULL))),
-    CONSTRAINT orders_adjustments_basis_check CHECK (((basis_type IS NULL) OR ((basis_type)::text = ANY (ARRAY[('item_face_value'::character varying)::text, ('item_net_value_after_organizer_promotion'::character varying)::text, ('eligible_order_subtotal'::character varying)::text, ('resale_acquisition_amount'::character varying)::text, ('accepted_paid_units'::character varying)::text, ('accepted_gross'::character varying)::text])))),
-    CONSTRAINT orders_adjustments_basis_shape_check CHECK (((((calculation_type)::text = ANY (ARRAY[('percentage'::character varying)::text, ('blended'::character varying)::text, ('tiered'::character varying)::text])) AND (basis_type IS NOT NULL)) OR (((calculation_type)::text = ANY (ARRAY[('explicit_zero'::character varying)::text, ('fixed'::character varying)::text])) AND (basis_type IS NULL)) OR (calculation_type IS NULL))),
+    CONSTRAINT orders_adjustments_basis_amount_shape_check CHECK (((calculation_type IS NULL) OR ((calculation_type)::text <> ALL ((ARRAY['explicit_zero'::character varying, 'fixed'::character varying])::text[])) OR (basis_minor IS NULL))),
+    CONSTRAINT orders_adjustments_basis_check CHECK (((basis_type IS NULL) OR ((basis_type)::text = ANY ((ARRAY['item_face_value'::character varying, 'item_net_value_after_organizer_promotion'::character varying, 'eligible_order_subtotal'::character varying, 'resale_acquisition_amount'::character varying, 'accepted_paid_units'::character varying, 'accepted_gross'::character varying])::text[])))),
+    CONSTRAINT orders_adjustments_basis_shape_check CHECK (((((calculation_type)::text = ANY ((ARRAY['percentage'::character varying, 'blended'::character varying, 'tiered'::character varying])::text[])) AND (basis_type IS NOT NULL)) OR (((calculation_type)::text = ANY ((ARRAY['explicit_zero'::character varying, 'fixed'::character varying])::text[])) AND (basis_type IS NULL)) OR (calculation_type IS NULL))),
     CONSTRAINT orders_adjustments_bounds_check CHECK ((((fixed_amount_minor IS NULL) OR (fixed_amount_minor >= 0)) AND ((minimum_minor IS NULL) OR (minimum_minor >= 0)) AND ((maximum_minor IS NULL) OR (maximum_minor >= 0)) AND ((minimum_minor IS NULL) OR (maximum_minor IS NULL) OR (maximum_minor >= minimum_minor)))),
-    CONSTRAINT orders_adjustments_calculation_check CHECK (((calculation_type IS NULL) OR ((calculation_type)::text = ANY (ARRAY[('explicit_zero'::character varying)::text, ('percentage'::character varying)::text, ('fixed'::character varying)::text, ('blended'::character varying)::text, ('tiered'::character varying)::text])))),
-    CONSTRAINT orders_adjustments_charged_to_check CHECK (((charged_to)::text = ANY (ARRAY[('buyer'::character varying)::text, ('organizer'::character varying)::text]))),
-    CONSTRAINT orders_adjustments_commercial_shape_check CHECK ((((type)::text <> ALL (ARRAY[('service_fee'::character varying)::text, ('platform_fee'::character varying)::text, ('processing_fee'::character varying)::text, ('subsidy'::character varying)::text, ('resale_platform_fee'::character varying)::text])) OR ((calculation_type IS NOT NULL) AND (funded_by IS NOT NULL) AND (source_type IS NOT NULL) AND (source_id IS NOT NULL)))),
+    CONSTRAINT orders_adjustments_calculation_check CHECK (((calculation_type IS NULL) OR ((calculation_type)::text = ANY ((ARRAY['explicit_zero'::character varying, 'percentage'::character varying, 'fixed'::character varying, 'blended'::character varying, 'tiered'::character varying])::text[])))),
+    CONSTRAINT orders_adjustments_charged_to_check CHECK (((charged_to)::text = ANY ((ARRAY['buyer'::character varying, 'organizer'::character varying])::text[]))),
+    CONSTRAINT orders_adjustments_commercial_shape_check CHECK ((((type)::text <> ALL ((ARRAY['service_fee'::character varying, 'platform_fee'::character varying, 'processing_fee'::character varying, 'subsidy'::character varying, 'resale_platform_fee'::character varying])::text[])) OR ((calculation_type IS NOT NULL) AND (funded_by IS NOT NULL) AND (source_type IS NOT NULL) AND (source_id IS NOT NULL)))),
     CONSTRAINT orders_adjustments_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
     CONSTRAINT orders_adjustments_evidence_check CHECK (public.orders_order_adjustment_evidence_valid(resolution_evidence)),
     CONSTRAINT orders_adjustments_explicit_zero_check CHECK ((((calculation_type)::text <> 'explicit_zero'::text) OR ((fixed_amount_minor IS NULL) AND (minimum_minor IS NULL) AND (maximum_minor IS NULL)))),
-    CONSTRAINT orders_adjustments_fixed_shape_check CHECK ((((calculation_type)::text <> ALL (ARRAY[('fixed'::character varying)::text, ('blended'::character varying)::text])) OR (fixed_amount_minor IS NOT NULL) OR (calculation_type IS NULL))),
-    CONSTRAINT orders_adjustments_funded_by_check CHECK (((funded_by IS NULL) OR ((funded_by)::text = ANY (ARRAY[('buyer'::character varying)::text, ('organizer'::character varying)::text, ('platform'::character varying)::text])))),
+    CONSTRAINT orders_adjustments_fixed_shape_check CHECK ((((calculation_type)::text <> ALL ((ARRAY['fixed'::character varying, 'blended'::character varying])::text[])) OR (fixed_amount_minor IS NOT NULL) OR (calculation_type IS NULL))),
+    CONSTRAINT orders_adjustments_funded_by_check CHECK (((funded_by IS NULL) OR ((funded_by)::text = ANY ((ARRAY['buyer'::character varying, 'organizer'::character varying, 'platform'::character varying])::text[])))),
     CONSTRAINT orders_adjustments_rate_check CHECK (((rate_bps IS NULL) OR ((rate_bps >= 0) AND (rate_bps <= 10000)))),
-    CONSTRAINT orders_adjustments_rate_shape_check CHECK (((((calculation_type)::text = ANY (ARRAY[('percentage'::character varying)::text, ('blended'::character varying)::text])) AND (rate_bps IS NOT NULL)) OR (((calculation_type)::text = ANY (ARRAY[('explicit_zero'::character varying)::text, ('fixed'::character varying)::text, ('tiered'::character varying)::text])) AND (rate_bps IS NULL)) OR (calculation_type IS NULL))),
-    CONSTRAINT orders_adjustments_refund_policy_check CHECK (((refund_policy)::text = ANY (ARRAY[('refundable'::character varying)::text, ('event_cancellation_only'::character varying)::text, ('nonrefundable'::character varying)::text]))),
-    CONSTRAINT orders_adjustments_source_type_check CHECK (((source_type IS NULL) OR ((source_type)::text = ANY (ARRAY[('Catalog::Promotion'::character varying)::text, ('Commercial::FeeComponent'::character varying)::text])))),
+    CONSTRAINT orders_adjustments_rate_shape_check CHECK (((((calculation_type)::text = ANY ((ARRAY['percentage'::character varying, 'blended'::character varying])::text[])) AND (rate_bps IS NOT NULL)) OR (((calculation_type)::text = ANY ((ARRAY['explicit_zero'::character varying, 'fixed'::character varying, 'tiered'::character varying])::text[])) AND (rate_bps IS NULL)) OR (calculation_type IS NULL))),
+    CONSTRAINT orders_adjustments_refund_policy_check CHECK (((refund_policy)::text = ANY ((ARRAY['refundable'::character varying, 'event_cancellation_only'::character varying, 'nonrefundable'::character varying])::text[]))),
+    CONSTRAINT orders_adjustments_source_type_check CHECK (((source_type IS NULL) OR ((source_type)::text = ANY ((ARRAY['Catalog::Promotion'::character varying, 'Commercial::FeeComponent'::character varying])::text[])))),
     CONSTRAINT orders_adjustments_subsidy_shape_check CHECK (((((type)::text <> 'subsidy'::text) OR ((funded_by)::text = 'platform'::text)) AND ((funded_by IS NULL) OR ((type)::text = 'subsidy'::text) OR ((funded_by)::text <> 'platform'::text)))),
-    CONSTRAINT orders_adjustments_type_check CHECK (((type)::text = ANY (ARRAY[('discount'::character varying)::text, ('service_fee'::character varying)::text, ('platform_fee'::character varying)::text, ('processing_fee'::character varying)::text, ('subsidy'::character varying)::text, ('resale_platform_fee'::character varying)::text, ('tax'::character varying)::text, ('manual_adjustment'::character varying)::text])))
+    CONSTRAINT orders_adjustments_type_check CHECK (((type)::text = ANY ((ARRAY['discount'::character varying, 'service_fee'::character varying, 'platform_fee'::character varying, 'processing_fee'::character varying, 'subsidy'::character varying, 'resale_platform_fee'::character varying, 'tax'::character varying, 'manual_adjustment'::character varying])::text[])))
 );
 
 
@@ -3699,8 +3700,8 @@ CREATE TABLE public.orders_order_items (
     CONSTRAINT orders_order_items_amounts_check CHECK (((base_unit_amount_minor >= 0) AND (charge_unit_amount_minor >= 0) AND (discount_minor >= 0) AND (total_minor >= 0))),
     CONSTRAINT orders_order_items_currency_check CHECK ((((base_currency)::text ~ '^[A-Z]{3}$'::text) AND ((charge_currency)::text ~ '^[A-Z]{3}$'::text))),
     CONSTRAINT orders_order_items_exchange_check CHECK ((((base_currency)::text = (charge_currency)::text) OR ((exchange_rate IS NOT NULL) AND (exchange_rate > (0)::numeric)))),
-    CONSTRAINT orders_order_items_fulfillment_check CHECK (((fulfillment_status)::text = ANY (ARRAY[('pending'::character varying)::text, ('fulfilled'::character varying)::text, ('cancelled'::character varying)::text, ('refunded'::character varying)::text]))),
-    CONSTRAINT orders_order_items_type_check CHECK (((type_snapshot)::text = ANY (ARRAY[('ticket'::character varying)::text, ('parking'::character varying)::text, ('merchandise'::character varying)::text, ('food'::character varying)::text, ('donation'::character varying)::text, ('digital_addon'::character varying)::text, ('other'::character varying)::text])))
+    CONSTRAINT orders_order_items_fulfillment_check CHECK (((fulfillment_status)::text = ANY ((ARRAY['pending'::character varying, 'fulfilled'::character varying, 'cancelled'::character varying, 'refunded'::character varying])::text[]))),
+    CONSTRAINT orders_order_items_type_check CHECK (((type_snapshot)::text = ANY ((ARRAY['ticket'::character varying, 'parking'::character varying, 'merchandise'::character varying, 'food'::character varying, 'donation'::character varying, 'digital_addon'::character varying, 'other'::character varying])::text[])))
 );
 
 
@@ -3739,16 +3740,16 @@ CREATE TABLE public.orders_orders (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT orders_orders_amounts_check CHECK (((subtotal_minor >= 0) AND (discount_minor >= 0) AND (subsidy_minor >= 0) AND (fee_minor >= 0) AND (tax_minor >= 0) AND (settlement_total_minor >= 0))),
-    CONSTRAINT orders_orders_closed_reason_check CHECK (((((status)::text = ANY (ARRAY[('expired'::character varying)::text, ('cancelled'::character varying)::text])) AND (closed_reason IS NOT NULL)) OR (((status)::text <> ALL (ARRAY[('expired'::character varying)::text, ('cancelled'::character varying)::text])) AND (closed_reason IS NULL)))),
+    CONSTRAINT orders_orders_closed_reason_check CHECK (((((status)::text = ANY ((ARRAY['expired'::character varying, 'cancelled'::character varying])::text[])) AND (closed_reason IS NOT NULL)) OR (((status)::text <> ALL ((ARRAY['expired'::character varying, 'cancelled'::character varying])::text[])) AND (closed_reason IS NULL)))),
     CONSTRAINT orders_orders_creation_digests_check CHECK ((((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((creation_request_digest)::text ~ '^[0-9a-f]{64}$'::text))),
     CONSTRAINT orders_orders_currency_check CHECK ((((charge_currency)::text ~ '^[A-Z]{3}$'::text) AND ((settlement_currency)::text ~ '^[A-Z]{3}$'::text))),
     CONSTRAINT orders_orders_exchange_metadata_check CHECK (((((charge_currency)::text = (settlement_currency)::text) AND (exchange_rate = (1)::numeric)) OR (((charge_currency)::text <> (settlement_currency)::text) AND (exchange_rate_quoted_at IS NOT NULL) AND (exchange_rate_expires_at IS NOT NULL) AND (exchange_rate_expires_at > exchange_rate_quoted_at)))),
     CONSTRAINT orders_orders_exchange_rate_check CHECK ((exchange_rate > (0)::numeric)),
     CONSTRAINT orders_orders_lock_version_check CHECK ((lock_version >= 0)),
-    CONSTRAINT orders_orders_paid_at_check CHECK (((((status)::text = ANY (ARRAY[('paid'::character varying)::text, ('fulfilled'::character varying)::text, ('partially_refunded'::character varying)::text, ('refunded'::character varying)::text])) AND (paid_at IS NOT NULL)) OR (((status)::text <> ALL (ARRAY[('paid'::character varying)::text, ('fulfilled'::character varying)::text, ('partially_refunded'::character varying)::text, ('refunded'::character varying)::text])) AND (paid_at IS NULL)))),
+    CONSTRAINT orders_orders_paid_at_check CHECK (((((status)::text = ANY ((ARRAY['paid'::character varying, 'fulfilled'::character varying, 'partially_refunded'::character varying, 'refunded'::character varying])::text[])) AND (paid_at IS NOT NULL)) OR (((status)::text <> ALL ((ARRAY['paid'::character varying, 'fulfilled'::character varying, 'partially_refunded'::character varying, 'refunded'::character varying])::text[])) AND (paid_at IS NULL)))),
     CONSTRAINT orders_orders_replacement_self_check CHECK (((replaces_order_id IS NULL) OR (replaces_order_id <> id))),
-    CONSTRAINT orders_orders_sales_channel_check CHECK (((sales_channel)::text = ANY (ARRAY[('online'::character varying)::text, ('walk_up'::character varying)::text, ('resale'::character varying)::text]))),
-    CONSTRAINT orders_orders_status_check CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('pending_payment'::character varying)::text, ('paid'::character varying)::text, ('fulfilled'::character varying)::text, ('expired'::character varying)::text, ('cancelled'::character varying)::text, ('partially_refunded'::character varying)::text, ('refunded'::character varying)::text]))),
+    CONSTRAINT orders_orders_sales_channel_check CHECK (((sales_channel)::text = ANY ((ARRAY['online'::character varying, 'walk_up'::character varying, 'resale'::character varying])::text[]))),
+    CONSTRAINT orders_orders_status_check CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'pending_payment'::character varying, 'paid'::character varying, 'fulfilled'::character varying, 'expired'::character varying, 'cancelled'::character varying, 'partially_refunded'::character varying, 'refunded'::character varying])::text[]))),
     CONSTRAINT orders_orders_total_reconciles CHECK ((total_minor = (((((subtotal_minor - discount_minor) - subsidy_minor) + fee_minor) + tax_minor) + adjustment_minor)))
 );
 
@@ -3775,7 +3776,7 @@ CREATE TABLE public.orders_payment_events (
     CONSTRAINT orders_payment_events_identity_check CHECK (((btrim((provider)::text) <> ''::text) AND (btrim((provider_event_id)::text) <> ''::text) AND (btrim((event_type)::text) <> ''::text))),
     CONSTRAINT orders_payment_events_payload_digest_check CHECK (((payload_digest)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT orders_payment_events_processed_state_check CHECK (((((status)::text = 'processed'::text) AND (processed_at IS NOT NULL)) OR ((status)::text <> 'processed'::text))),
-    CONSTRAINT orders_payment_events_status_check CHECK (((status)::text = ANY (ARRAY[('received'::character varying)::text, ('processing'::character varying)::text, ('processed'::character varying)::text, ('failed'::character varying)::text, ('ignored'::character varying)::text])))
+    CONSTRAINT orders_payment_events_status_check CHECK (((status)::text = ANY ((ARRAY['received'::character varying, 'processing'::character varying, 'processed'::character varying, 'failed'::character varying, 'ignored'::character varying])::text[])))
 );
 
 
@@ -3814,8 +3815,8 @@ CREATE TABLE public.orders_payments (
     CONSTRAINT orders_payments_currency_check CHECK ((((currency)::text ~ '^[A-Z]{3}$'::text) AND ((provider_fee_currency IS NULL) OR ((provider_fee_currency)::text ~ '^[A-Z]{3}$'::text)))),
     CONSTRAINT orders_payments_grace_minutes_check CHECK (((settlement_grace_minutes >= 3) AND (settlement_grace_minutes <= 15))),
     CONSTRAINT orders_payments_provider_fee_pair_check CHECK ((((provider_fee_minor IS NULL) = (provider_fee_currency IS NULL)) AND ((provider_fee_minor IS NULL) OR ((provider_fee_currency)::text = (currency)::text)))),
-    CONSTRAINT orders_payments_status_check CHECK (((status)::text = ANY (ARRAY[('created'::character varying)::text, ('processing'::character varying)::text, ('succeeded'::character varying)::text, ('failed'::character varying)::text, ('cancelled'::character varying)::text, ('unknown'::character varying)::text, ('timeout'::character varying)::text, ('reversed'::character varying)::text]))),
-    CONSTRAINT orders_payments_superseded_state_check CHECK (((superseded_at IS NULL) OR ((status)::text <> ALL (ARRAY[('created'::character varying)::text, ('processing'::character varying)::text]))))
+    CONSTRAINT orders_payments_status_check CHECK (((status)::text = ANY ((ARRAY['created'::character varying, 'processing'::character varying, 'succeeded'::character varying, 'failed'::character varying, 'cancelled'::character varying, 'unknown'::character varying, 'timeout'::character varying, 'reversed'::character varying])::text[]))),
+    CONSTRAINT orders_payments_superseded_state_check CHECK (((superseded_at IS NULL) OR ((status)::text <> ALL ((ARRAY['created'::character varying, 'processing'::character varying])::text[]))))
 );
 
 
@@ -3841,7 +3842,7 @@ CREATE TABLE public.orders_promotion_redemptions (
     CONSTRAINT promotion_redemptions_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
     CONSTRAINT promotion_redemptions_discount_check CHECK ((discount_minor > 0)),
     CONSTRAINT promotion_redemptions_state_check CHECK (((((status)::text = 'reserved'::text) AND (expires_at IS NOT NULL) AND (applied_at IS NULL) AND (released_at IS NULL)) OR (((status)::text = 'applied'::text) AND (applied_at IS NOT NULL) AND (released_at IS NULL)) OR (((status)::text = 'released'::text) AND (released_at IS NOT NULL) AND (applied_at IS NULL)) OR (((status)::text = 'expired'::text) AND (expires_at IS NOT NULL) AND (released_at IS NOT NULL) AND (applied_at IS NULL)))),
-    CONSTRAINT promotion_redemptions_status_check CHECK (((status)::text = ANY (ARRAY[('reserved'::character varying)::text, ('applied'::character varying)::text, ('released'::character varying)::text, ('expired'::character varying)::text])))
+    CONSTRAINT promotion_redemptions_status_check CHECK (((status)::text = ANY ((ARRAY['reserved'::character varying, 'applied'::character varying, 'released'::character varying, 'expired'::character varying])::text[])))
 );
 
 
@@ -3870,8 +3871,8 @@ CREATE TABLE public.orders_refunds (
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT orders_refunds_amount_currency_check CHECK (((amount_minor > 0) AND ((currency)::text ~ '^[A-Z]{3}$'::text))),
     CONSTRAINT orders_refunds_provider_fee_pair_check CHECK ((((provider_fee_minor IS NULL) AND (provider_fee_currency IS NULL) AND (provider_fee_recorded_at IS NULL)) OR ((provider_fee_minor IS NOT NULL) AND (provider_fee_minor >= 0) AND (provider_fee_currency IS NOT NULL) AND ((provider_fee_currency)::text ~ '^[A-Z]{3}$'::text) AND (provider_fee_recorded_at IS NOT NULL)))),
-    CONSTRAINT orders_refunds_status_check CHECK (((status)::text = ANY (ARRAY[('created'::character varying)::text, ('pending_funds'::character varying)::text, ('processing'::character varying)::text, ('succeeded'::character varying)::text, ('failed'::character varying)::text]))),
-    CONSTRAINT orders_refunds_type_check CHECK (((type)::text = ANY (ARRAY[('item_refund'::character varying)::text, ('payment_reversal'::character varying)::text])))
+    CONSTRAINT orders_refunds_status_check CHECK (((status)::text = ANY ((ARRAY['created'::character varying, 'pending_funds'::character varying, 'processing'::character varying, 'succeeded'::character varying, 'failed'::character varying])::text[]))),
+    CONSTRAINT orders_refunds_type_check CHECK (((type)::text = ANY ((ARRAY['item_refund'::character varying, 'payment_reversal'::character varying])::text[])))
 );
 
 
@@ -3972,7 +3973,7 @@ CREATE TABLE public.ticketing_admission_slots (
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_admission_slots_claimed_at_check CHECK (((((assignment_status)::text = 'claimed'::text) AND (claimed_at IS NOT NULL)) OR (((assignment_status)::text <> 'claimed'::text) AND (claimed_at IS NULL)))),
     CONSTRAINT ticketing_admission_slots_position_check CHECK (("position" > 0)),
-    CONSTRAINT ticketing_admission_slots_status_check CHECK (((assignment_status)::text = ANY (ARRAY[('unassigned'::character varying)::text, ('pending_claim'::character varying)::text, ('claimed'::character varying)::text])))
+    CONSTRAINT ticketing_admission_slots_status_check CHECK (((assignment_status)::text = ANY ((ARRAY['unassigned'::character varying, 'pending_claim'::character varying, 'claimed'::character varying])::text[])))
 );
 
 
@@ -4013,7 +4014,7 @@ CREATE TABLE public.ticketing_attendee_exports (
     CONSTRAINT ticketing_attendee_exports_attempt_count_check CHECK (((attempt_count >= 0) AND (attempt_count <= 3))),
     CONSTRAINT ticketing_attendee_exports_digest_key_version_check CHECK (((digest_key_version)::text ~ '^v[0-9]+$'::text)),
     CONSTRAINT ticketing_attendee_exports_expiry_window_check CHECK (((expires_at > data_cutoff_at) AND (expires_at <= (data_cutoff_at + '24:00:00'::interval)))),
-    CONSTRAINT ticketing_attendee_exports_failure_code_check CHECK (((failure_code IS NULL) OR ((failure_code)::text = ANY (ARRAY[('generation_failed'::character varying)::text, ('export_too_large'::character varying)::text, ('export_generation_failed'::character varying)::text, ('export_storage_unavailable'::character varying)::text])))),
+    CONSTRAINT ticketing_attendee_exports_failure_code_check CHECK (((failure_code IS NULL) OR ((failure_code)::text = ANY ((ARRAY['generation_failed'::character varying, 'export_too_large'::character varying, 'export_generation_failed'::character varying, 'export_storage_unavailable'::character varying])::text[])))),
     CONSTRAINT ticketing_attendee_exports_field_keys_shape_check CHECK (((field_keys IS NULL) OR ((jsonb_typeof(field_keys) = 'array'::text) AND (jsonb_array_length(field_keys) <= 100)))),
     CONSTRAINT ticketing_attendee_exports_field_set_digest_check CHECK (((field_set_digest)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT ticketing_attendee_exports_file_digest_shape_check CHECK (((file_sha256 IS NULL) OR ((file_sha256)::text ~ '^[0-9a-f]{64}$'::text))),
@@ -4022,12 +4023,12 @@ CREATE TABLE public.ticketing_attendee_exports (
     CONSTRAINT ticketing_attendee_exports_format_version_check CHECK (((format_version)::text = 'csv_v1'::text)),
     CONSTRAINT ticketing_attendee_exports_idempotency_digest_check CHECK (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT ticketing_attendee_exports_payload_state_check CHECK (((((status)::text = 'expired'::text) AND (field_keys IS NULL) AND (filters IS NULL)) OR (((status)::text <> 'expired'::text) AND (field_keys IS NOT NULL) AND (filters IS NOT NULL)))),
-    CONSTRAINT ticketing_attendee_exports_reason_code_check CHECK (((reason_code)::text = ANY (ARRAY[('event_operations'::character varying)::text, ('attendee_communication'::character varying)::text, ('dietary_accommodation'::character varying)::text, ('accessibility_accommodation'::character varying)::text, ('customer_support'::character varying)::text, ('legal_compliance'::character varying)::text]))),
+    CONSTRAINT ticketing_attendee_exports_reason_code_check CHECK (((reason_code)::text = ANY ((ARRAY['event_operations'::character varying, 'attendee_communication'::character varying, 'dietary_accommodation'::character varying, 'accessibility_accommodation'::character varying, 'customer_support'::character varying, 'legal_compliance'::character varying])::text[]))),
     CONSTRAINT ticketing_attendee_exports_request_fingerprint_check CHECK (((request_fingerprint)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT ticketing_attendee_exports_row_count_check CHECK (((row_count IS NULL) OR (row_count >= 0))),
-    CONSTRAINT ticketing_attendee_exports_row_mode_check CHECK (((row_mode)::text = ANY (ARRAY[('registration'::character varying)::text, ('admission'::character varying)::text]))),
+    CONSTRAINT ticketing_attendee_exports_row_mode_check CHECK (((row_mode)::text = ANY ((ARRAY['registration'::character varying, 'admission'::character varying])::text[]))),
     CONSTRAINT ticketing_attendee_exports_state_timestamps_check CHECK (((((status)::text = 'pending'::text) AND (processing_started_at IS NULL) AND (ready_at IS NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL)) OR (((status)::text = 'processing'::text) AND (processing_started_at IS NOT NULL) AND (ready_at IS NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL)) OR (((status)::text = 'ready'::text) AND (processing_started_at IS NOT NULL) AND (ready_at IS NOT NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL) AND (row_count IS NOT NULL) AND (file_sha256 IS NOT NULL)) OR (((status)::text = 'failed'::text) AND (processing_started_at IS NOT NULL) AND (ready_at IS NULL) AND (failed_at IS NOT NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL)) OR (((status)::text = 'expiring'::text) AND (expiring_at IS NOT NULL) AND (expired_at IS NULL)) OR (((status)::text = 'expired'::text) AND (expired_at IS NOT NULL)))),
-    CONSTRAINT ticketing_attendee_exports_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('processing'::character varying)::text, ('ready'::character varying)::text, ('failed'::character varying)::text, ('expiring'::character varying)::text, ('expired'::character varying)::text])))
+    CONSTRAINT ticketing_attendee_exports_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'processing'::character varying, 'ready'::character varying, 'failed'::character varying, 'expiring'::character varying, 'expired'::character varying])::text[])))
 );
 
 
@@ -4057,11 +4058,11 @@ CREATE TABLE public.ticketing_attendee_index_entries (
     removed boolean DEFAULT false NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT ticketing_attendee_index_entries_mode_check CHECK (((credential_mode)::text = ANY (ARRAY[('group'::character varying)::text, ('delegated'::character varying)::text]))),
+    CONSTRAINT ticketing_attendee_index_entries_mode_check CHECK (((credential_mode)::text = ANY ((ARRAY['group'::character varying, 'delegated'::character varying])::text[]))),
     CONSTRAINT ticketing_attendee_index_entries_owner_phone_hash_check CHECK (((owner_phone_hash IS NULL) OR ((owner_phone_hash)::text ~ '^[0-9a-f]{64}$'::text))),
     CONSTRAINT ticketing_attendee_index_entries_phone_hash_check CHECK (((phone_hash IS NULL) OR ((phone_hash)::text ~ '^[0-9a-f]{64}$'::text))),
     CONSTRAINT ticketing_attendee_index_entries_shape_check CHECK (((cardinality(slot_positions) > 0) AND (entry_limit = cardinality(slot_positions)) AND (entry_limit > 0) AND (generation_version > 0) AND (index_version >= 0))),
-    CONSTRAINT ticketing_attendee_index_entries_validation_mode_check CHECK (((entry_validation_mode)::text = ANY (ARRAY[('qr'::character varying)::text, ('qr_and_id'::character varying)::text])))
+    CONSTRAINT ticketing_attendee_index_entries_validation_mode_check CHECK (((entry_validation_mode)::text = ANY ((ARRAY['qr'::character varying, 'qr_and_id'::character varying])::text[])))
 );
 
 
@@ -4083,7 +4084,7 @@ CREATE TABLE public.ticketing_credential_claims (
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_credential_claims_acceptance_check CHECK ((((status)::text <> 'accepted'::text) OR ((claimed_by_user_id IS NOT NULL) AND (accepted_at IS NOT NULL)))),
     CONSTRAINT ticketing_credential_claims_digest_check CHECK ((((contact_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((token_digest)::text ~ '^[0-9a-f]{64}$'::text))),
-    CONSTRAINT ticketing_credential_claims_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('accepted'::character varying)::text, ('revoked'::character varying)::text, ('expired'::character varying)::text])))
+    CONSTRAINT ticketing_credential_claims_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'accepted'::character varying, 'revoked'::character varying, 'expired'::character varying])::text[])))
 );
 
 
@@ -4102,9 +4103,9 @@ CREATE TABLE public.ticketing_credential_generations (
     revocation_reason character varying,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT ticketing_credential_generations_mode_check CHECK (((mode)::text = ANY (ARRAY[('group'::character varying)::text, ('delegated'::character varying)::text]))),
+    CONSTRAINT ticketing_credential_generations_mode_check CHECK (((mode)::text = ANY ((ARRAY['group'::character varying, 'delegated'::character varying])::text[]))),
     CONSTRAINT ticketing_credential_generations_revocation_check CHECK (((((status)::text = 'active'::text) AND (revoked_at IS NULL)) OR (((status)::text = 'revoked'::text) AND (revoked_at IS NOT NULL)))),
-    CONSTRAINT ticketing_credential_generations_status_check CHECK (((status)::text = ANY (ARRAY[('active'::character varying)::text, ('revoked'::character varying)::text]))),
+    CONSTRAINT ticketing_credential_generations_status_check CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'revoked'::character varying])::text[]))),
     CONSTRAINT ticketing_credential_generations_version_check CHECK ((version > 0))
 );
 
@@ -4149,12 +4150,12 @@ CREATE TABLE public.ticketing_credentials (
     revocation_reason character varying,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT ticketing_credentials_activation_check CHECK (((((status)::text = ANY (ARRAY[('pending_claim'::character varying)::text, ('pending_requirements'::character varying)::text])) AND (qr_token IS NULL) AND (lookup_code IS NULL) AND (issued_at IS NULL)) OR (((status)::text = 'active'::text) AND (qr_token IS NOT NULL) AND (lookup_code IS NOT NULL) AND (issued_at IS NOT NULL)) OR ((status)::text = 'revoked'::text))),
+    CONSTRAINT ticketing_credentials_activation_check CHECK (((((status)::text = ANY ((ARRAY['pending_claim'::character varying, 'pending_requirements'::character varying])::text[])) AND (qr_token IS NULL) AND (lookup_code IS NULL) AND (issued_at IS NULL)) OR (((status)::text = 'active'::text) AND (qr_token IS NOT NULL) AND (lookup_code IS NOT NULL) AND (issued_at IS NOT NULL)) OR ((status)::text = 'revoked'::text))),
     CONSTRAINT ticketing_credentials_admission_slot_check CHECK (((((type)::text = 'package'::text) AND (admission_slot_id IS NULL)) OR (((type)::text = 'individual'::text) AND (admission_slot_id IS NOT NULL) AND (entry_limit = 1)))),
     CONSTRAINT ticketing_credentials_revocation_check CHECK (((((status)::text = 'revoked'::text) AND (revoked_at IS NOT NULL)) OR (((status)::text <> 'revoked'::text) AND (revoked_at IS NULL)))),
     CONSTRAINT ticketing_credentials_slot_shape_check CHECK (((cardinality(slot_positions) > 0) AND (entry_limit = cardinality(slot_positions)) AND (entry_limit > 0))),
-    CONSTRAINT ticketing_credentials_status_check CHECK (((status)::text = ANY (ARRAY[('pending_claim'::character varying)::text, ('pending_requirements'::character varying)::text, ('active'::character varying)::text, ('revoked'::character varying)::text]))),
-    CONSTRAINT ticketing_credentials_type_check CHECK (((type)::text = ANY (ARRAY[('package'::character varying)::text, ('individual'::character varying)::text])))
+    CONSTRAINT ticketing_credentials_status_check CHECK (((status)::text = ANY ((ARRAY['pending_claim'::character varying, 'pending_requirements'::character varying, 'active'::character varying, 'revoked'::character varying])::text[]))),
+    CONSTRAINT ticketing_credentials_type_check CHECK (((type)::text = ANY ((ARRAY['package'::character varying, 'individual'::character varying])::text[])))
 );
 
 
@@ -4207,9 +4208,9 @@ CREATE TABLE public.ticketing_purchase_limit_allocations (
     idempotency_key character varying NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT ticketing_purchase_limit_allocations_release_reason_check CHECK (((release_reason IS NULL) OR ((release_reason)::text = ANY (ARRAY[('expired'::character varying)::text, ('checkout_expired'::character varying)::text, ('cancelled'::character varying)::text, ('refunded'::character varying)::text, ('void'::character varying)::text, ('resale_replaced'::character varying)::text])))),
+    CONSTRAINT ticketing_purchase_limit_allocations_release_reason_check CHECK (((release_reason IS NULL) OR ((release_reason)::text = ANY ((ARRAY['expired'::character varying, 'checkout_expired'::character varying, 'cancelled'::character varying, 'refunded'::character varying, 'void'::character varying, 'resale_replaced'::character varying])::text[])))),
     CONSTRAINT ticketing_purchase_limit_allocations_state_check CHECK (((((status)::text = 'reserved'::text) AND (expires_at IS NOT NULL) AND (committed_at IS NULL) AND (released_at IS NULL) AND (release_reason IS NULL)) OR (((status)::text = 'committed'::text) AND (expires_at IS NULL) AND (committed_at IS NOT NULL) AND (released_at IS NULL) AND (release_reason IS NULL)) OR (((status)::text = 'released'::text) AND (expires_at IS NULL) AND (committed_at IS NULL) AND (released_at IS NOT NULL) AND (release_reason IS NOT NULL) AND ((release_reason)::text <> ''::text)))),
-    CONSTRAINT ticketing_purchase_limit_allocations_status_check CHECK (((status)::text = ANY (ARRAY[('reserved'::character varying)::text, ('committed'::character varying)::text, ('released'::character varying)::text]))),
+    CONSTRAINT ticketing_purchase_limit_allocations_status_check CHECK (((status)::text = ANY ((ARRAY['reserved'::character varying, 'committed'::character varying, 'released'::character varying])::text[]))),
     CONSTRAINT ticketing_purchase_limit_allocations_unit_check CHECK ((unit_number > 0))
 );
 
@@ -4231,7 +4232,7 @@ CREATE TABLE public.ticketing_purchase_limit_overrides (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_purchase_limit_overrides_packages_check CHECK ((additional_packages > 0)),
-    CONSTRAINT ticketing_purchase_limit_overrides_reason_check CHECK (((reason_code)::text = ANY (ARRAY[('accessibility'::character varying)::text, ('accommodation'::character varying)::text, ('community_partner'::character varying)::text, ('service_recovery'::character varying)::text, ('sponsor_guest'::character varying)::text, ('staff_guest'::character varying)::text, ('organizer_exception'::character varying)::text])))
+    CONSTRAINT ticketing_purchase_limit_overrides_reason_check CHECK (((reason_code)::text = ANY ((ARRAY['accessibility'::character varying, 'accommodation'::character varying, 'community_partner'::character varying, 'service_recovery'::character varying, 'sponsor_guest'::character varying, 'staff_guest'::character varying, 'organizer_exception'::character varying])::text[])))
 );
 
 
@@ -4258,8 +4259,8 @@ CREATE TABLE public.ticketing_registration_answer_revisions (
     CONSTRAINT ticketing_registration_answer_revisions_erasure_check CHECK ((((erased_at IS NULL) AND (answer_ciphertext IS NOT NULL)) OR ((erased_at IS NOT NULL) AND (answer_ciphertext IS NULL)))),
     CONSTRAINT ticketing_registration_answer_revisions_manager_reason_check CHECK ((((source)::text <> 'manager_correction'::text) OR (reason_code IS NOT NULL))),
     CONSTRAINT ticketing_registration_answer_revisions_positive_number_check CHECK ((revision_number > 0)),
-    CONSTRAINT ticketing_registration_answer_revisions_reason_code_check CHECK (((reason_code IS NULL) OR ((reason_code)::text = ANY (ARRAY[('attendee_request'::character varying)::text, ('data_quality'::character varying)::text, ('legal_requirement'::character varying)::text, ('accessibility_correction'::character varying)::text])))),
-    CONSTRAINT ticketing_registration_answer_revisions_source_check CHECK (((source)::text = ANY (ARRAY[('attendee_correction'::character varying)::text, ('manager_correction'::character varying)::text])))
+    CONSTRAINT ticketing_registration_answer_revisions_reason_code_check CHECK (((reason_code IS NULL) OR ((reason_code)::text = ANY ((ARRAY['attendee_request'::character varying, 'data_quality'::character varying, 'legal_requirement'::character varying, 'accessibility_correction'::character varying])::text[])))),
+    CONSTRAINT ticketing_registration_answer_revisions_source_check CHECK (((source)::text = ANY ((ARRAY['attendee_correction'::character varying, 'manager_correction'::character varying])::text[])))
 );
 
 
@@ -4287,9 +4288,9 @@ CREATE TABLE public.ticketing_registration_answers (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_registration_answers_erasure_check CHECK ((((erased_at IS NULL) AND (erasure_reason IS NULL) AND (answer_ciphertext IS NOT NULL)) OR ((erased_at IS NOT NULL) AND (erasure_reason IS NOT NULL) AND (answer_ciphertext IS NULL)))),
-    CONSTRAINT ticketing_registration_answers_erasure_reason_check CHECK (((erasure_reason IS NULL) OR ((erasure_reason)::text = ANY (ARRAY[('legal_request'::character varying)::text, ('policy_expiry'::character varying)::text, ('privacy_request'::character varying)::text, ('security_incident'::character varying)::text])))),
-    CONSTRAINT ticketing_registration_answers_question_type_check CHECK (((question_type_snapshot)::text = ANY (ARRAY[('short_text'::character varying)::text, ('long_text'::character varying)::text, ('single_choice'::character varying)::text, ('multiple_choice'::character varying)::text, ('checkbox'::character varying)::text, ('date'::character varying)::text]))),
-    CONSTRAINT ticketing_registration_answers_response_scope_check CHECK (((response_scope_snapshot)::text = ANY (ARRAY[('registration'::character varying)::text, ('admission_slot'::character varying)::text]))),
+    CONSTRAINT ticketing_registration_answers_erasure_reason_check CHECK (((erasure_reason IS NULL) OR ((erasure_reason)::text = ANY ((ARRAY['legal_request'::character varying, 'policy_expiry'::character varying, 'privacy_request'::character varying, 'security_incident'::character varying])::text[])))),
+    CONSTRAINT ticketing_registration_answers_question_type_check CHECK (((question_type_snapshot)::text = ANY ((ARRAY['short_text'::character varying, 'long_text'::character varying, 'single_choice'::character varying, 'multiple_choice'::character varying, 'checkbox'::character varying, 'date'::character varying])::text[]))),
+    CONSTRAINT ticketing_registration_answers_response_scope_check CHECK (((response_scope_snapshot)::text = ANY ((ARRAY['registration'::character varying, 'admission_slot'::character varying])::text[]))),
     CONSTRAINT ticketing_registration_answers_scope_coordinates_check CHECK (((((response_scope_snapshot)::text = 'registration'::text) AND (package_unit_number IS NULL) AND (admission_position IS NULL) AND (admission_slot_id IS NULL)) OR (((response_scope_snapshot)::text = 'admission_slot'::text) AND (package_unit_number > 0) AND (admission_position > 0))))
 );
 
@@ -4317,11 +4318,11 @@ CREATE TABLE public.ticketing_registration_consent_requirements (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_consent_requirements_coordinate_check CHECK (((((acceptance_scope)::text = 'buyer'::text) AND (package_unit_number IS NULL) AND (admission_position IS NULL) AND (admission_slot_id IS NULL) AND (subject_user_id IS NOT NULL)) OR (((acceptance_scope)::text = 'admission_slot'::text) AND (package_unit_number > 0) AND (admission_position > 0)))),
-    CONSTRAINT ticketing_consent_requirements_reason_check CHECK (((required_reason)::text = ANY (ARRAY[('initial_submission'::character varying)::text, ('reconsent'::character varying)::text]))),
+    CONSTRAINT ticketing_consent_requirements_reason_check CHECK (((required_reason)::text = ANY ((ARRAY['initial_submission'::character varying, 'reconsent'::character varying])::text[]))),
     CONSTRAINT ticketing_consent_requirements_required_by_check CHECK ((((required_reason)::text = 'initial_submission'::text) OR (required_by_id IS NOT NULL))),
-    CONSTRAINT ticketing_consent_requirements_scope_check CHECK (((acceptance_scope)::text = ANY (ARRAY[('buyer'::character varying)::text, ('admission_slot'::character varying)::text]))),
-    CONSTRAINT ticketing_consent_requirements_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('accepted'::character varying)::text, ('withdrawn'::character varying)::text, ('superseded'::character varying)::text]))),
-    CONSTRAINT ticketing_consent_requirements_subject_check CHECK ((((status)::text <> ALL (ARRAY[('accepted'::character varying)::text, ('withdrawn'::character varying)::text])) OR (subject_user_id IS NOT NULL))),
+    CONSTRAINT ticketing_consent_requirements_scope_check CHECK (((acceptance_scope)::text = ANY ((ARRAY['buyer'::character varying, 'admission_slot'::character varying])::text[]))),
+    CONSTRAINT ticketing_consent_requirements_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'accepted'::character varying, 'withdrawn'::character varying, 'superseded'::character varying])::text[]))),
+    CONSTRAINT ticketing_consent_requirements_subject_check CHECK ((((status)::text <> ALL ((ARRAY['accepted'::character varying, 'withdrawn'::character varying])::text[])) OR (subject_user_id IS NOT NULL))),
     CONSTRAINT ticketing_consent_requirements_superseded_at_check CHECK (((((status)::text = 'superseded'::text) AND (superseded_at IS NOT NULL)) OR (((status)::text <> 'superseded'::text) AND (superseded_at IS NULL))))
 );
 
@@ -4341,7 +4342,7 @@ CREATE TABLE public.ticketing_registration_consent_withdrawals (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_consent_withdrawals_idempotency_digest_check CHECK (((idempotency_key)::text ~ '^[0-9a-f]{64}$'::text)),
-    CONSTRAINT ticketing_consent_withdrawals_reason_check CHECK (((reason_code IS NULL) OR ((reason_code)::text = ANY (ARRAY[('attendee_request'::character varying)::text, ('privacy_request'::character varying)::text, ('legal_request'::character varying)::text, ('changed_mind'::character varying)::text]))))
+    CONSTRAINT ticketing_consent_withdrawals_reason_check CHECK (((reason_code IS NULL) OR ((reason_code)::text = ANY ((ARRAY['attendee_request'::character varying, 'privacy_request'::character varying, 'legal_request'::character varying, 'changed_mind'::character varying])::text[]))))
 );
 
 
@@ -4366,12 +4367,12 @@ CREATE TABLE public.ticketing_registration_consents (
     erased_at timestamp with time zone,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT ticketing_registration_consents_acceptance_method_check CHECK (((acceptance_method)::text = ANY (ARRAY[('checkbox'::character varying)::text, ('otp'::character varying)::text]))),
+    CONSTRAINT ticketing_registration_consents_acceptance_method_check CHECK (((acceptance_method)::text = ANY ((ARRAY['checkbox'::character varying, 'otp'::character varying])::text[]))),
     CONSTRAINT ticketing_registration_consents_digest_check CHECK ((((content_sha256)::text ~ '^[0-9a-f]{64}$'::text) AND ((evidence_digest)::text ~ '^[0-9a-f]{64}$'::text))),
     CONSTRAINT ticketing_registration_consents_erasure_time_check CHECK (((erased_at IS NULL) OR (erased_at >= accepted_at))),
     CONSTRAINT ticketing_registration_consents_idempotency_digest_check CHECK (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT ticketing_registration_consents_retention_window_check CHECK (((retain_until IS NULL) OR (retain_until > accepted_at))),
-    CONSTRAINT ticketing_registration_consents_signer_role_check CHECK (((signer_role)::text = ANY (ARRAY[('buyer'::character varying)::text, ('attendee'::character varying)::text])))
+    CONSTRAINT ticketing_registration_consents_signer_role_check CHECK (((signer_role)::text = ANY ((ARRAY['buyer'::character varying, 'attendee'::character varying])::text[])))
 );
 
 
@@ -4404,8 +4405,8 @@ CREATE TABLE public.ticketing_registration_form_versions (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_registration_form_versions_positive_version_check CHECK ((version > 0)),
-    CONSTRAINT ticketing_registration_form_versions_publish_metadata_check CHECK (((((status)::text = 'draft'::text) AND (published_by_id IS NULL) AND (published_at IS NULL)) OR (((status)::text = ANY (ARRAY[('published'::character varying)::text, ('retired'::character varying)::text])) AND (published_by_id IS NOT NULL) AND (published_at IS NOT NULL)))),
-    CONSTRAINT ticketing_registration_form_versions_status_check CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('published'::character varying)::text, ('retired'::character varying)::text])))
+    CONSTRAINT ticketing_registration_form_versions_publish_metadata_check CHECK (((((status)::text = 'draft'::text) AND (published_by_id IS NULL) AND (published_at IS NULL)) OR (((status)::text = ANY ((ARRAY['published'::character varying, 'retired'::character varying])::text[])) AND (published_by_id IS NOT NULL) AND (published_at IS NOT NULL)))),
+    CONSTRAINT ticketing_registration_form_versions_status_check CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'published'::character varying, 'retired'::character varying])::text[])))
 );
 
 
@@ -4445,9 +4446,9 @@ CREATE TABLE public.ticketing_registration_questions (
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_registration_questions_json_shape_check CHECK (((jsonb_typeof(options) = 'array'::text) AND (jsonb_typeof(validation_rules) = 'object'::text))),
     CONSTRAINT ticketing_registration_questions_position_check CHECK (("position" >= 0)),
-    CONSTRAINT ticketing_registration_questions_response_scope_check CHECK (((response_scope)::text = ANY (ARRAY[('registration'::character varying)::text, ('admission_slot'::character varying)::text]))),
-    CONSTRAINT ticketing_registration_questions_sensitivity_check CHECK (((sensitivity)::text = ANY (ARRAY[('standard'::character varying)::text, ('dietary'::character varying)::text, ('accessibility'::character varying)::text]))),
-    CONSTRAINT ticketing_registration_questions_type_check CHECK (((type)::text = ANY (ARRAY[('short_text'::character varying)::text, ('long_text'::character varying)::text, ('single_choice'::character varying)::text, ('multiple_choice'::character varying)::text, ('checkbox'::character varying)::text, ('date'::character varying)::text])))
+    CONSTRAINT ticketing_registration_questions_response_scope_check CHECK (((response_scope)::text = ANY ((ARRAY['registration'::character varying, 'admission_slot'::character varying])::text[]))),
+    CONSTRAINT ticketing_registration_questions_sensitivity_check CHECK (((sensitivity)::text = ANY ((ARRAY['standard'::character varying, 'dietary'::character varying, 'accessibility'::character varying])::text[]))),
+    CONSTRAINT ticketing_registration_questions_type_check CHECK (((type)::text = ANY ((ARRAY['short_text'::character varying, 'long_text'::character varying, 'single_choice'::character varying, 'multiple_choice'::character varying, 'checkbox'::character varying, 'date'::character varying])::text[])))
 );
 
 
@@ -4485,15 +4486,15 @@ CREATE TABLE public.ticketing_registrations (
     lock_version integer DEFAULT 0 NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT ticketing_registrations_complimentary_reason_check CHECK (((complimentary_reason IS NULL) OR ((complimentary_reason)::text = ANY (ARRAY[('accessibility'::character varying)::text, ('accommodation'::character varying)::text, ('community_partner'::character varying)::text, ('service_recovery'::character varying)::text, ('sponsor_guest'::character varying)::text, ('staff_guest'::character varying)::text])))),
+    CONSTRAINT ticketing_registrations_complimentary_reason_check CHECK (((complimentary_reason IS NULL) OR ((complimentary_reason)::text = ANY ((ARRAY['accessibility'::character varying, 'accommodation'::character varying, 'community_partner'::character varying, 'service_recovery'::character varying, 'sponsor_guest'::character varying, 'staff_guest'::character varying])::text[])))),
     CONSTRAINT ticketing_registrations_decision_exclusive_check CHECK ((NOT ((approved_at IS NOT NULL) AND (rejected_at IS NOT NULL)))),
     CONSTRAINT ticketing_registrations_identity_digest_check CHECK (((identity_digest)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT ticketing_registrations_party_size_check CHECK ((party_size = (package_quantity * admissions_per_unit_snapshot))),
     CONSTRAINT ticketing_registrations_quantities_positive_check CHECK (((package_quantity > 0) AND (admissions_per_unit_snapshot > 0) AND (party_size > 0))),
-    CONSTRAINT ticketing_registrations_source_check CHECK (((source)::text = ANY (ARRAY[('self_service'::character varying)::text, ('organizer_complimentary'::character varying)::text, ('walk_up'::character varying)::text]))),
+    CONSTRAINT ticketing_registrations_source_check CHECK (((source)::text = ANY ((ARRAY['self_service'::character varying, 'organizer_complimentary'::character varying, 'walk_up'::character varying])::text[]))),
     CONSTRAINT ticketing_registrations_source_metadata_check CHECK (((((source)::text = 'organizer_complimentary'::text) AND (complimentary_reason IS NOT NULL) AND ((complimentary_reason)::text <> ''::text) AND (issuance_idempotency_key IS NOT NULL) AND ((issuance_idempotency_key)::text <> ''::text)) OR (((source)::text <> 'organizer_complimentary'::text) AND (complimentary_reason IS NULL)))),
     CONSTRAINT ticketing_registrations_state_timestamps_check CHECK ((((((status)::text = 'waitlisted'::text) AND (waitlisted_at IS NOT NULL)) OR (((status)::text <> 'waitlisted'::text) AND (waitlisted_at IS NULL))) AND ((((status)::text = 'offered'::text) AND (offered_at IS NOT NULL) AND (offer_expires_at IS NOT NULL) AND (offer_expires_at > offered_at)) OR (((status)::text <> 'offered'::text) AND (offered_at IS NULL) AND (offer_expires_at IS NULL))))),
-    CONSTRAINT ticketing_registrations_status_check CHECK (((status)::text = ANY (ARRAY[('pending_payment'::character varying)::text, ('pending_approval'::character varying)::text, ('waitlisted'::character varying)::text, ('offered'::character varying)::text, ('confirmed'::character varying)::text, ('rejected'::character varying)::text, ('cancelled'::character varying)::text, ('expired'::character varying)::text])))
+    CONSTRAINT ticketing_registrations_status_check CHECK (((status)::text = ANY ((ARRAY['pending_payment'::character varying, 'pending_approval'::character varying, 'waitlisted'::character varying, 'offered'::character varying, 'confirmed'::character varying, 'rejected'::character varying, 'cancelled'::character varying, 'expired'::character varying])::text[])))
 );
 
 
@@ -4512,6 +4513,32 @@ CREATE TABLE public.ticketing_revocations (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_revocations_versions_check CHECK (((revoked_through_version >= 0) AND (revocation_version >= 0)))
+);
+
+
+--
+-- Name: ticketing_ticket_suspensions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_ticket_suspensions (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    ticket_id uuid NOT NULL,
+    event_id uuid NOT NULL,
+    initiated_by_id uuid NOT NULL,
+    reason_code character varying NOT NULL,
+    internal_note_ciphertext text,
+    status character varying DEFAULT 'active'::character varying NOT NULL,
+    review_deadline_at timestamp with time zone NOT NULL,
+    resolved_by_id uuid,
+    resolution_reason character varying,
+    resolved_at timestamp with time zone,
+    idempotency_key character varying NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_ticket_suspensions_reason_code_check CHECK (((reason_code)::text = ANY ((ARRAY['suspected_fraud'::character varying, 'identity_review'::character varying, 'chargeback_review'::character varying, 'safety_review'::character varying])::text[]))),
+    CONSTRAINT ticketing_ticket_suspensions_resolution_reason_check CHECK (((resolution_reason IS NULL) OR ((resolution_reason)::text = ANY ((ARRAY['review_cleared'::character varying, 'organizer_cancellation'::character varying, 'refund_succeeded'::character varying, 'review_deadline_expired'::character varying])::text[])))),
+    CONSTRAINT ticketing_ticket_suspensions_resolution_shape_check CHECK (((((status)::text = 'active'::text) AND (resolved_by_id IS NULL) AND (resolution_reason IS NULL) AND (resolved_at IS NULL)) OR (((status)::text <> 'active'::text) AND (resolved_by_id IS NOT NULL) AND (resolution_reason IS NOT NULL) AND (resolved_at IS NOT NULL)))),
+    CONSTRAINT ticketing_ticket_suspensions_status_check CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'restored'::character varying, 'revoked_free'::character varying, 'cancelled_refunded'::character varying, 'expired'::character varying])::text[])))
 );
 
 
@@ -4540,7 +4567,7 @@ CREATE TABLE public.ticketing_ticket_transfers (
     CONSTRAINT ticketing_ticket_transfers_cancellation_check CHECK (((((status)::text = 'cancelled'::text) AND (cancelled_at IS NOT NULL)) OR (((status)::text <> 'cancelled'::text) AND (cancelled_at IS NULL)))),
     CONSTRAINT ticketing_ticket_transfers_decline_check CHECK (((((status)::text = 'declined'::text) AND (declined_at IS NOT NULL)) OR (((status)::text <> 'declined'::text) AND (declined_at IS NULL)))),
     CONSTRAINT ticketing_ticket_transfers_recipient_check CHECK ((from_user_id <> to_user_id)),
-    CONSTRAINT ticketing_ticket_transfers_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('accepted'::character varying)::text, ('declined'::character varying)::text, ('cancelled'::character varying)::text, ('expired'::character varying)::text]))),
+    CONSTRAINT ticketing_ticket_transfers_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'accepted'::character varying, 'declined'::character varying, 'cancelled'::character varying, 'expired'::character varying])::text[]))),
     CONSTRAINT ticketing_ticket_transfers_values_check CHECK ((((token_digest)::text ~ '^[0-9a-f]{64}$'::text) AND (previous_version > 0)))
 );
 
@@ -4612,14 +4639,14 @@ CREATE TABLE public.ticketing_tickets (
     lock_version integer DEFAULT 0 NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT ticketing_tickets_acquisition_source_check CHECK (((((current_acquisition_type)::text = ANY (ARRAY[('primary_purchase'::character varying)::text, ('resale_purchase'::character varying)::text])) AND (current_acquisition_order_item_id IS NOT NULL)) OR (((current_acquisition_type)::text = ANY (ARRAY[('free_registration'::character varying)::text, ('free_transfer'::character varying)::text, ('complimentary'::character varying)::text])) AND (current_acquisition_order_item_id IS NULL)))),
-    CONSTRAINT ticketing_tickets_acquisition_type_check CHECK (((current_acquisition_type)::text = ANY (ARRAY[('primary_purchase'::character varying)::text, ('resale_purchase'::character varying)::text, ('free_registration'::character varying)::text, ('free_transfer'::character varying)::text, ('complimentary'::character varying)::text]))),
+    CONSTRAINT ticketing_tickets_acquisition_source_check CHECK (((((current_acquisition_type)::text = ANY ((ARRAY['primary_purchase'::character varying, 'resale_purchase'::character varying])::text[])) AND (current_acquisition_order_item_id IS NOT NULL)) OR (((current_acquisition_type)::text = ANY ((ARRAY['free_registration'::character varying, 'free_transfer'::character varying, 'complimentary'::character varying])::text[])) AND (current_acquisition_order_item_id IS NULL)))),
+    CONSTRAINT ticketing_tickets_acquisition_type_check CHECK (((current_acquisition_type)::text = ANY ((ARRAY['primary_purchase'::character varying, 'resale_purchase'::character varying, 'free_registration'::character varying, 'free_transfer'::character varying, 'complimentary'::character varying])::text[]))),
     CONSTRAINT ticketing_tickets_acquisition_value_check CHECK ((current_acquisition_product_value_minor >= 0)),
-    CONSTRAINT ticketing_tickets_credential_mode_check CHECK (((credential_mode)::text = ANY (ARRAY[('group'::character varying)::text, ('delegated'::character varying)::text]))),
+    CONSTRAINT ticketing_tickets_credential_mode_check CHECK (((credential_mode)::text = ANY ((ARRAY['group'::character varying, 'delegated'::character varying])::text[]))),
     CONSTRAINT ticketing_tickets_currency_check CHECK (((current_acquisition_currency)::text ~ '^[A-Z]{3}$'::text)),
     CONSTRAINT ticketing_tickets_positive_values_check CHECK (((unit_number > 0) AND (admissions_per_unit_snapshot > 0) AND (completed_resale_count >= 0) AND (credential_version > 0))),
     CONSTRAINT ticketing_tickets_source_check CHECK (((registration_id IS NOT NULL) OR (order_item_id IS NOT NULL))),
-    CONSTRAINT ticketing_tickets_status_check CHECK (((status)::text = ANY (ARRAY[('active'::character varying)::text, ('suspended'::character varying)::text, ('refunded'::character varying)::text, ('void'::character varying)::text])))
+    CONSTRAINT ticketing_tickets_status_check CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'suspended'::character varying, 'refunded'::character varying, 'void'::character varying])::text[])))
 );
 
 
@@ -5440,6 +5467,14 @@ ALTER TABLE ONLY public.ticketing_revocations
 
 
 --
+-- Name: ticketing_ticket_suspensions ticketing_ticket_suspensions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_ticket_suspensions
+    ADD CONSTRAINT ticketing_ticket_suspensions_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: ticketing_ticket_transfers ticketing_ticket_transfers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5495,7 +5530,7 @@ CREATE INDEX idx_commercial_approvals_on_target_time ON public.commercial_approv
 -- Name: idx_commercial_assignments_active_resolution; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_commercial_assignments_active_resolution ON public.commercial_assignments USING btree (organization_id, event_id, status, effective_from) INCLUDE (fee_schedule_version_id, program_id, effective_until) WHERE ((status)::text = ANY (ARRAY[('scheduled'::character varying)::text, ('active'::character varying)::text]));
+CREATE INDEX idx_commercial_assignments_active_resolution ON public.commercial_assignments USING btree (organization_id, event_id, status, effective_from) INCLUDE (fee_schedule_version_id, program_id, effective_until) WHERE ((status)::text = ANY ((ARRAY['scheduled'::character varying, 'active'::character varying])::text[]));
 
 
 --
@@ -5656,14 +5691,14 @@ CREATE INDEX idx_core_reviews_reviewer ON public.core_reviews USING btree (revie
 -- Name: idx_current_buyer_consent_requirement; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_current_buyer_consent_requirement ON public.ticketing_registration_consent_requirements USING btree (registration_id, consent_document_version_id) WHERE (((acceptance_scope)::text = 'buyer'::text) AND ((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('accepted'::character varying)::text])));
+CREATE UNIQUE INDEX idx_current_buyer_consent_requirement ON public.ticketing_registration_consent_requirements USING btree (registration_id, consent_document_version_id) WHERE (((acceptance_scope)::text = 'buyer'::text) AND ((status)::text = ANY ((ARRAY['pending'::character varying, 'accepted'::character varying])::text[])));
 
 
 --
 -- Name: idx_current_slot_consent_requirement; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_current_slot_consent_requirement ON public.ticketing_registration_consent_requirements USING btree (registration_id, consent_document_version_id, package_unit_number, admission_position) WHERE (((acceptance_scope)::text = 'admission_slot'::text) AND ((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('accepted'::character varying)::text])));
+CREATE UNIQUE INDEX idx_current_slot_consent_requirement ON public.ticketing_registration_consent_requirements USING btree (registration_id, consent_document_version_id, package_unit_number, admission_position) WHERE (((acceptance_scope)::text = 'admission_slot'::text) AND ((status)::text = ANY ((ARRAY['pending'::character varying, 'accepted'::character varying])::text[])));
 
 
 --
@@ -5950,7 +5985,7 @@ CREATE UNIQUE INDEX idx_one_accepted_payment_per_order ON public.orders_payments
 -- Name: idx_one_active_checkout_per_buyer_event; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_one_active_checkout_per_buyer_event ON public.orders_orders USING btree (buyer_user_id, event_id) WHERE ((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('pending_payment'::character varying)::text]));
+CREATE UNIQUE INDEX idx_one_active_checkout_per_buyer_event ON public.orders_orders USING btree (buyer_user_id, event_id) WHERE ((status)::text = ANY ((ARRAY['draft'::character varying, 'pending_payment'::character varying])::text[]));
 
 
 --
@@ -5964,7 +5999,14 @@ CREATE UNIQUE INDEX idx_one_active_generation_per_ticket ON public.ticketing_cre
 -- Name: idx_one_active_subsidy_reservation_per_order_budget; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_one_active_subsidy_reservation_per_order_budget ON public.commercial_subsidy_reservations USING btree (subsidy_budget_id, order_id) WHERE ((status)::text = ANY (ARRAY[('held'::character varying)::text, ('processing'::character varying)::text]));
+CREATE UNIQUE INDEX idx_one_active_subsidy_reservation_per_order_budget ON public.commercial_subsidy_reservations USING btree (subsidy_budget_id, order_id) WHERE ((status)::text = ANY ((ARRAY['held'::character varying, 'processing'::character varying])::text[]));
+
+
+--
+-- Name: idx_one_active_ticket_suspension; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_one_active_ticket_suspension ON public.ticketing_ticket_suspensions USING btree (ticket_id) WHERE ((status)::text = 'active'::text);
 
 
 --
@@ -5978,7 +6020,7 @@ CREATE UNIQUE INDEX idx_one_consent_acceptance_per_requirement ON public.ticketi
 -- Name: idx_one_current_payment_attempt; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_one_current_payment_attempt ON public.orders_payments USING btree (order_id) WHERE ((superseded_at IS NULL) AND ((status)::text = ANY (ARRAY[('created'::character varying)::text, ('processing'::character varying)::text])));
+CREATE UNIQUE INDEX idx_one_current_payment_attempt ON public.orders_payments USING btree (order_id) WHERE ((superseded_at IS NULL) AND ((status)::text = ANY ((ARRAY['created'::character varying, 'processing'::character varying])::text[])));
 
 
 --
@@ -6353,6 +6395,13 @@ CREATE INDEX idx_subsidy_reservations_on_status_and_expiry ON public.commercial_
 
 
 --
+-- Name: idx_ticket_suspensions_review_deadline; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ticket_suspensions_review_deadline ON public.ticketing_ticket_suspensions USING btree (event_id, status, review_deadline_at);
+
+
+--
 -- Name: idx_ticketing_access_codes_on_ticket_type_and_idempotency; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6419,7 +6468,7 @@ CREATE UNIQUE INDEX idx_ticketing_purchase_limit_overrides_registration ON publi
 -- Name: idx_ticketing_registrations_active_identity; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_ticketing_registrations_active_identity ON public.ticketing_registrations USING btree (ticket_type_id, identity_digest, COALESCE(selected_event_date_id, '00000000-0000-0000-0000-000000000000'::uuid)) WHERE ((status)::text = ANY (ARRAY[('pending_payment'::character varying)::text, ('pending_approval'::character varying)::text, ('waitlisted'::character varying)::text, ('offered'::character varying)::text, ('confirmed'::character varying)::text]));
+CREATE UNIQUE INDEX idx_ticketing_registrations_active_identity ON public.ticketing_registrations USING btree (ticket_type_id, identity_digest, COALESCE(selected_event_date_id, '00000000-0000-0000-0000-000000000000'::uuid)) WHERE ((status)::text = ANY ((ARRAY['pending_payment'::character varying, 'pending_approval'::character varying, 'waitlisted'::character varying, 'offered'::character varying, 'confirmed'::character varying])::text[]));
 
 
 --
@@ -6434,6 +6483,13 @@ CREATE UNIQUE INDEX idx_ticketing_registrations_issuance_idempotency ON public.t
 --
 
 CREATE INDEX idx_ticketing_registrations_queue ON public.ticketing_registrations USING btree (ticket_type_id, selected_event_date_id, status, waitlisted_at, id);
+
+
+--
+-- Name: idx_ticketing_tickets_id_event; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_ticketing_tickets_id_event ON public.ticketing_tickets USING btree (id, event_id);
 
 
 --
@@ -7680,6 +7736,13 @@ CREATE INDEX index_ticketing_revocations_on_event_id_and_revocation_version ON p
 --
 
 CREATE UNIQUE INDEX index_ticketing_revocations_on_ticket_id ON public.ticketing_revocations USING btree (ticket_id);
+
+
+--
+-- Name: index_ticketing_ticket_suspensions_on_idempotency_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_ticketing_ticket_suspensions_on_idempotency_key ON public.ticketing_ticket_suspensions USING btree (idempotency_key);
 
 
 --
@@ -8958,6 +9021,22 @@ ALTER TABLE ONLY public.commercial_term_notices
 
 
 --
+-- Name: ticketing_ticket_suspensions fk_rails_6d28fce768; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_ticket_suspensions
+    ADD CONSTRAINT fk_rails_6d28fce768 FOREIGN KEY (initiated_by_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: ticketing_ticket_suspensions fk_rails_6e1f401ddd; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_ticket_suspensions
+    ADD CONSTRAINT fk_rails_6e1f401ddd FOREIGN KEY (event_id) REFERENCES public.events_events(id);
+
+
+--
 -- Name: events_event_participants fk_rails_7025684e48; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9494,6 +9573,14 @@ ALTER TABLE ONLY public.active_storage_attachments
 
 
 --
+-- Name: ticketing_ticket_suspensions fk_rails_c4fc895d9d; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_ticket_suspensions
+    ADD CONSTRAINT fk_rails_c4fc895d9d FOREIGN KEY (resolved_by_id) REFERENCES public.core_users(id);
+
+
+--
 -- Name: events_event_settings fk_rails_c58f973380; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9643,6 +9730,14 @@ ALTER TABLE ONLY public.commercial_assignments
 
 ALTER TABLE ONLY public.ticketing_purchase_limit_overrides
     ADD CONSTRAINT fk_rails_dc9ec42e25 FOREIGN KEY (approved_by_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: ticketing_ticket_suspensions fk_rails_dd58c808d6; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_ticket_suspensions
+    ADD CONSTRAINT fk_rails_dd58c808d6 FOREIGN KEY (ticket_id) REFERENCES public.ticketing_tickets(id);
 
 
 --
@@ -9910,12 +10005,21 @@ ALTER TABLE ONLY public.catalog_product_access_zones
 
 
 --
+-- Name: ticketing_ticket_suspensions ticketing_ticket_suspensions_ticket_event_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_ticket_suspensions
+    ADD CONSTRAINT ticketing_ticket_suspensions_ticket_event_fk FOREIGN KEY (ticket_id, event_id) REFERENCES public.ticketing_tickets(id, event_id) ON DELETE RESTRICT;
+
+
+--
 -- PostgreSQL database dump complete
 --
 
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260812090012'),
 ('20260812090011'),
 ('20260812090010'),
 ('20260812090009'),

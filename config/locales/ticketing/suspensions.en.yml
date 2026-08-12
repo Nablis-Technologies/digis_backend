@@ -1,0 +1,22 @@
+en:
+  ticketing:
+    suspensions:
+      errors:
+        ticket_not_found: "The ticket could not be found"
+        suspension_not_found: "The ticket suspension could not be found"
+        suspension_forbidden: "Only an authorized event manager can manage this ticket suspension"
+        event_not_active: "Suspensions are unavailable for completed or cancelled events"
+        ticket_not_active: "Only active tickets can be suspended"
+        package_dead: "This ticket package is already permanently invalid"
+        reason_invalid: "The ticket suspension reason is invalid"
+        review_deadline_invalid: "The ticket suspension review deadline is invalid"
+        invalid_idempotency_key: "The ticket suspension idempotency key is invalid"
+        idempotency_conflict: "The ticket suspension idempotency key conflicts with another request"
+        suspension_already_active: "This ticket already has an active suspension"
+        suspension_invalid: "The ticket suspension could not be saved"
+        suspension_not_active: "The ticket suspension is no longer active"
+        suspension_not_restorable: "This ticket can no longer be restored"
+        resolution_invalid: "The ticket suspension resolution is invalid"
+        resolution_reason_invalid: "The ticket suspension resolution reason is invalid"
+        refund_evidence_required: "A successful refund is required before this paid ticket can be invalidated"
+        paid_refund_required: "Paid tickets remain suspended until the refund workflow succeeds"

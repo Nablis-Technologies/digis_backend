@@ -12,8 +12,10 @@ module Ticketing
       end
 
       def call
-        ticket = Ticketing::Ticket.find(@ticket.id)
+        ticket = Ticketing::Ticket.includes(:revocation).find(@ticket.id)
         return failure(error(:delegation_forbidden, :forbidden)) unless owner?(ticket)
+        return failure(error(:package_dead, :conflict)) if ticket.package_dead?
+        return failure(error(:ticket_suspended, :conflict)) if ticket.package_suspended?
         return failure(error(:delegation_not_active, :conflict)) unless ticket.credential_mode == "delegated"
 
         Ticketing::CredentialGenerations::Replace.call(

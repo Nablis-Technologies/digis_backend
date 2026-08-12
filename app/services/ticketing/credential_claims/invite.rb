@@ -73,13 +73,15 @@ module Ticketing
           :credential_generation,
           :credential_claim,
           :admission_slot,
-          ticket: [ :owner_user, { event_product: [ :ticket_type, { product_accesses: :event_date } ] } ]
+          ticket: [ :owner_user, :revocation, { event_product: [ :ticket_type, { product_accesses: :event_date } ] } ]
         ).lock.find(@credential.id)
       end
 
       def validate(credential)
         ticket = credential.ticket
         return error(:claim_forbidden, :forbidden) unless @actor.is_a?(Core::User) && ticket.owner_user_id == @actor.id
+        return error(:package_dead, :conflict) if ticket.package_dead?
+        return error(:ticket_suspended, :conflict) if ticket.package_suspended?
         return error(:claim_not_pending, :conflict) unless credential.status == "pending_claim"
         return error(:delegation_not_active, :conflict) unless credential.credential_generation.mode == "delegated"
         return error(:claim_already_exists, :conflict) if credential.credential_claim.present?

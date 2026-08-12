@@ -34,6 +34,14 @@ module Ticketing
             end
 
             ticket = load_ticket(transfer)
+            if ticket.package_dead?
+              outcome = failure(error(:package_dead, :conflict))
+              raise ActiveRecord::Rollback
+            end
+            if ticket.package_suspended?
+              outcome = failure(error(:ticket_suspended, :conflict))
+              raise ActiveRecord::Rollback
+            end
             if ticket.credential_version != transfer.previous_version
               outcome = failure(error(:transfer_stale, :conflict))
               raise ActiveRecord::Rollback
@@ -103,6 +111,7 @@ module Ticketing
         Ticketing::Ticket.includes(
           :event,
           :owner_user,
+          :revocation,
           current_credential_generation: :credentials,
           admission_slots: :assigned_user,
           event_product: [ :ticket_type, { product_accesses: :event_date } ]
