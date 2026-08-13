@@ -11,6 +11,14 @@ module Ticketing
     class Verifier < Core::BaseService
       MAX_TOKEN_BYTES = 8.kilobytes
 
+      # Scanners receive only raw Ed25519 public bytes. Private signing seeds
+      # stay in the server-side key configuration and never cross this API.
+      def self.public_keys
+        Rails.application.config.x.ticketing_qr_verify_keys.transform_values do |key|
+          Base64.strict_encode64(key.to_bytes)
+        end
+      end
+
       def initialize(token:, now: Time.current, verify_keys: nil)
         @token = token.to_s
         @now = now

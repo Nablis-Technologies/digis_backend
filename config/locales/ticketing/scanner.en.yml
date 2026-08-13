@@ -28,3 +28,10 @@ en:
         assignment_event_mismatch: "The scanner assignment and product access belong to different events"
         zone_required: "An access zone is required when zones are enabled"
         wrong_zone: "The scanner is not authorized for this access zone"
+    scanner_sync:
+      errors:
+        event_not_found: "The scanner event could not be found"
+        scanner_cursors_required: "All scanner synchronization cursors are required and must be non-negative"
+        scanner_cursor_ahead: "The scanner synchronization cursor is ahead of the server"
+        index_entry_removed: "A removed attendee index entry cannot be restored"
+        invalid_mode: "The scanner synchronization mode is invalid"

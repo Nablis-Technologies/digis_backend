@@ -5427,10 +5427,88 @@
                           "language": "json"
                         }
                       }
-                    }
-                  }
+            }
+          }
+        },
+        {
+          "name": "Download Full Scanner Snapshot",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Scanner-Token",
+                "value": "{{scannerToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/scanner/events/{{eventId}}/sync?mode=full&device_identifier={{scannerDeviceIdentifier}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "scanner",
+                "events",
+                "{{eventId}}",
+                "sync"
+              ],
+              "query": [
+                {
+                  "key": "mode",
+                  "value": "full"
+                },
+                {
+                  "key": "device_identifier",
+                  "value": "{{scannerDeviceIdentifier}}"
                 }
               ]
+            },
+            "description": "Download the complete scanner-safe event snapshot. The response contains public signing keys, revocations, attendee index, schedule/access mappings, server use IDs, and reversal rows without advancing server cursors."
+          },
+          "response": []
+        },
+        {
+          "name": "Download Scanner Delta",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Scanner-Token",
+                "value": "{{scannerToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/scanner/events/{{eventId}}/sync?mode=delta&device_identifier={{scannerDeviceIdentifier}}&cursors=%7B%22revocations%22%3A0%2C%22attendee_index%22%3A0%2C%22schedule%22%3A0%2C%22reversals%22%3A0%7D",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "scanner",
+                "events",
+                "{{eventId}}",
+                "sync"
+              ],
+              "query": [
+                {
+                  "key": "mode",
+                  "value": "delta"
+                },
+                {
+                  "key": "device_identifier",
+                  "value": "{{scannerDeviceIdentifier}}"
+                },
+                {
+                  "key": "cursors",
+                  "value": "{\"revocations\":0,\"attendee_index\":0,\"schedule\":0,\"reversals\":0}"
+                }
+              ]
+            },
+            "description": "Download scanner synchronization changes after applying the previous response locally. Revocations and attendee tombstones must be applied before active attendee additions."
+          },
+          "response": []
+        }
+      ]
             },
             {
               "name": "Event Dates",

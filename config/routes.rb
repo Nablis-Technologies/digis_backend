@@ -171,6 +171,7 @@ Rails.application.routes.draw do
 
   post "ticketing/audience_authorizations", to: "ticketing/audience_authorizations#create"
   post "scanner/auth", to: "ticketing/scanner/auth#create"
+  get "scanner/events/:event_id/sync", to: "ticketing/scanner/event_sync#show"
 
   resources :tickets, only: [] do
     resource :suspension, only: :create, controller: "ticketing/suspensions" do

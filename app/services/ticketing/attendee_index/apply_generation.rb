@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "set"
-
 module Ticketing
   module AttendeeIndex
     # Applies a generation transition to the scanner projection. Old rows are
@@ -26,8 +24,9 @@ module Ticketing
             raise ActiveRecord::Rollback
           end
 
-          Core::Database::AdvisoryLock.acquire!("ticketing-attendee-index", new_generation.ticket.event_id)
-          tombstone_old_entries(old_generation)
+          event = Events::Event.lock.find(new_generation.ticket.event_id)
+          Core::Database::AdvisoryLock.acquire!("ticketing-attendee-index", event.id)
+          tombstone_old_entries(old_generation, event)
           unless project_active_credentials(new_generation)
             outcome = failure(@projection_error)
             raise ActiveRecord::Rollback
@@ -52,23 +51,20 @@ module Ticketing
         Ticketing::CredentialGeneration.includes(:ticket, :credentials).lock.find(generation.id)
       end
 
-      def tombstone_old_entries(generation)
+      def tombstone_old_entries(generation, event)
         entries = Ticketing::AttendeeIndexEntry.where(
           credential_id: generation.credentials.select(:id), removed: false
         ).lock.to_a
-        next_version = next_index_version(generation.ticket.event_id)
+        next_version = event.attendee_index_version.to_i
 
         entries.each do |entry|
-          entry.update!(removed: true, index_version: next_version)
           next_version += 1
+          entry.update!(removed: true, index_version: next_version)
         end
+        event.update!(attendee_index_version: next_version) if entries.present?
       end
 
       def project_active_credentials(generation)
-        context = {
-          reserved_lookup_codes: reserved_lookup_codes(generation.ticket.event_id),
-          next_index_version: next_index_version(generation.ticket.event_id)
-        }
         credentials = Ticketing::Credential.includes(
           :credential_generation,
           :holder_user,
@@ -78,8 +74,7 @@ module Ticketing
         credentials.find_each do |credential|
           projection = Ticketing::AttendeeIndex::ProjectInitial.call(
             credential:,
-            loaded_credential: credential,
-            issuance_context: context
+            loaded_credential: credential
           )
           next if projection.success?
 
@@ -87,14 +82,6 @@ module Ticketing
           return false
         end
         true
-      end
-
-      def reserved_lookup_codes(event_id)
-        Ticketing::Credential.where(event_id:).where.not(lookup_code: nil).pluck(:lookup_code).to_set
-      end
-
-      def next_index_version(event_id)
-        Ticketing::AttendeeIndexEntry.where(event_id:).maximum(:index_version).to_i + 1
       end
     end
   end
