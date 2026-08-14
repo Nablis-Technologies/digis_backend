@@ -1,0 +1,10 @@
+# frozen_string_literal: true
+
+en:
+  marketplace:
+    resale_fee:
+      errors:
+        invalid_context: "the resale commercial context is invalid"
+        invalid_gross_amount: "the resale gross amount is invalid"
+        resale_fee_unavailable: "the resale commercial fee is unavailable"
+        resale_fee_exceeds_gross: "the resale commercial fee cannot exceed the resale gross amount"
