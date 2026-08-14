@@ -127,9 +127,14 @@ domain prerequisites, but it is not a reason to introduce a temporary
   The user review/commit remains pending.
 - Commercial Task 11 is implemented locally together with Controlled Resale
   Task 3. Its Marketplace adapter consumes Commercial's immutable
-  `resale_platform_fee` result; listing/sale snapshot consumers remain in the
-  later Controlled Resale tasks. User review/commit remains pending.
-  Commercial Task 12 remains the last Commercial/Phase 3.5 gate.
+  `resale_platform_fee` result. Controlled Resale Task 4 is also implemented
+  locally: eligible whole-package listing activation, idempotent cancellation,
+  policy-disable cleanup, immutable fee/cap snapshots, localized rejections,
+  and the single-listing concurrency gate are verified. User review/commit
+  remains pending. The next implementation task after that commit is
+  Controlled Resale Task 5. Listing/sale consumers from later tasks remain
+  intentionally unimplemented. Commercial Task 12 remains the last
+  Commercial/Phase 3.5 gate.
 
 The next human-visible action is therefore:
 
@@ -143,9 +148,9 @@ The next human-visible action is therefore:
    and the Streaming /
    Add-ons / Links plan. These are Wave 6 work and may run in parallel when
    ownership is explicit.
-4. Commercial Task 11 and Controlled Resale Task 3 are now complete locally;
-   review/commit them, then execute Controlled Resale Task 4 and finish the
-   remaining Controlled Resale tasks in order.
+4. Commercial Task 11 and Controlled Resale Tasks 3–4 are now complete
+   locally; review/commit them, then execute Controlled Resale Task 5 and
+   finish the remaining Controlled Resale tasks in order.
 5. Execute Commercial Task 12 only after resale, Finance, and the required
    operational evidence exist.
 6. Finish Launch Hardening only after all plans 0–9 are green.

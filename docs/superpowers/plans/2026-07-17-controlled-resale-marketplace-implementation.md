@@ -26,10 +26,12 @@ Marketplace Task 3 must consume `Commercial::ResolveCharges` for the distinct
 resale plan and Finance evidence are complete, return to Commercial Task 12
 for the final reconciliation and Phase 3.5 gate.
 
-Task 3 is now implemented locally together with Commercial Task 11. The next
-implementation task is Task 4 below; listing activation owns the first caller
-that snapshots this adapter's immutable result. The commit step remains
-unchecked until the user reviews and commits the current worktree.
+Task 4 is now implemented locally. It adds the first listing command that
+snapshots the adapter's immutable resale-fee result, plus the policy-disable
+cancellation hook and localized rejection messages. The commit step remains
+unchecked until the user reviews and commits the current worktree. After that
+commit, the next implementation task is Task 5 below; do not start Task 5 in
+the same change set.
 
 ## Approved AJ invariants
 
@@ -257,14 +259,16 @@ git commit -m "feat(marketplace): consume commercial resale fees"
 **Files:**
 - Create: `app/services/marketplace/activate_listing.rb`
 - Create: `app/services/marketplace/cancel_listing.rb`
+- Modify: `app/services/marketplace/configure_ticket_type_resale.rb`
+- Modify: `config/locales/marketplace/resale.en.yml`
 - Test: `test/services/marketplace/activate_listing_test.rb`
 - Test: `test/integration/marketplace/concurrent_listing_test.rb`
 
-- [ ] **Step 1: RED — encode AJ-A1 and snapshots**
+- [x] **Step 1: RED — encode AJ-A1 and snapshots**
 
 Accept only seller-owned, paid nonzero, group-mode, entirely unused/unstreamed, unrefunded, unsuspended package before cutoff with no transfer/claim and count remaining. Reject free/complimentary, slot, delegated, partially used pass, over-cap, wrong currency, disabled policy. Snapshot acquisition basis, one cap, count/max, cutoff, fee. Concurrent activation gives one listing; disabling policy cancels unsold listings idempotently.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/activate_listing_test.rb test/integration/marketplace/concurrent_listing_test.rb
@@ -272,21 +276,35 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/
 
 Expected: FAIL.
 
-- [ ] **Step 3: GREEN — lock complete eligibility**
+The tests were written before the Task 4 production commands. The first
+execution was blocked by the isolated PostgreSQL test-database permission
+boundary before assertions could run; the test database was then rebuilt from
+`db/structure.sql` for the implementation and verification runs.
 
-Lock ticket → active generation → slots → admission/stream uses → suspension → refunds → transfer/claims. Recheck policy/cutoff, resolve fee, calculate one cap, create listing by idempotency key. Return `success(listing)`; expected rejection uses `failure Core::BusinessError.new(message, code:, status:, errors:)`.
+- [x] **Step 3: GREEN — lock complete eligibility**
 
-- [ ] **Step 4: Run tests and verify GREEN**
+Lock ticket → active generation → slots → admission/stream uses → suspension → refunds → transfer/claims. Recheck policy/cutoff, resolve fee, calculate one cap, create listing by idempotency key. Return `success(listing)`; expected rejection uses `failure Core::BusinessError.new(message, code:, status:, errors:)`. Activation records audit/outbox evidence in the same transaction, and disabling resale cancels open listings through the idempotent cancellation command. Because no persisted stream-consumption model exists yet, stream-enabled products fail closed with a localized error.
+
+- [x] **Step 4: Run tests and verify GREEN**
 
 Run Task 4 command. Expected: PASS.
 
-- [ ] **Step 5: Refactor and repeat race test**
+Passed with `N_PLUS_ONE=1` and `PARALLEL_WORKERS=1`: 15 tests, 87
+assertions, 0 failures, and 0 errors.
+
+- [x] **Step 5: Refactor and repeat race test**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/marketplace/concurrent_listing_test.rb --seed 71593
 ```
 
 Expected: PASS.
+
+Passed with `N_PLUS_ONE=1`: 1 test, 4 assertions, 0 failures, and 0 errors.
+The focused pair also passes together without fixture contamination. Adjacent
+marketplace/commercial/ticketing regression coverage passes with 48 tests and
+264 assertions; targeted RuboCop reports no offenses and `git diff --check`
+is clean.
 
 - [ ] **Step 6: Commit**
 
