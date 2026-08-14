@@ -26,12 +26,13 @@ Marketplace Task 3 must consume `Commercial::ResolveCharges` for the distinct
 resale plan and Finance evidence are complete, return to Commercial Task 12
 for the final reconciliation and Phase 3.5 gate.
 
-Task 4 is now implemented locally. It adds the first listing command that
-snapshots the adapter's immutable resale-fee result, plus the policy-disable
-cancellation hook and localized rejection messages. The commit step remains
-unchecked until the user reviews and commits the current worktree. After that
-commit, the next implementation task is Task 5 below; do not start Task 5 in
-the same change set.
+Task 5 is now implemented locally. It adds the atomic resale reservation
+boundary: a quantity-one resale checkout, buyer purchase-limit hold, seller
+generation revocation, attendee-index tombstone, package suspension, audit,
+and transactional outbox evidence. The commit step remains unchecked until
+the user reviews and commits the current worktree. After that commit, the
+next implementation task is Task 6 below; do not start Task 6 in the same
+change set.
 
 ## Approved AJ invariants
 
@@ -317,16 +318,15 @@ git commit -m "feat(marketplace): list eligible whole packages"
 
 **Files:**
 - Create: `app/services/marketplace/reserve_listing.rb`
-- Create: `app/jobs/marketplace/expire_reservation_job.rb`
 - Test: `test/services/marketplace/reserve_listing_test.rb`
 - Test: `test/integration/marketplace/concurrent_purchase_test.rb`
 - Test: `test/integration/ticketing/resale_reservation_revocation_test.rb`
 
-- [ ] **Step 1: RED — encode AJ-G1 and reservation half of AJ-H1**
+- [x] **Step 1: RED — encode AJ-G1 and reservation half of AJ-H1**
 
 Two buyers race; one reserves. Create buyer registration, quantity-one resale order/item, buyer purchase allocation, no primary inventory, separate buyer processing adjustment. Seller allocation remains committed. Seller generation revoked/index tombstoned/package suspended before serialization. Replay returns same order; precommit failure changes nothing.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/reserve_listing_test.rb test/integration/marketplace/concurrent_purchase_test.rb test/integration/ticketing/resale_reservation_revocation_test.rb
@@ -334,15 +334,21 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/
 
 Expected: FAIL.
 
-- [ ] **Step 3: GREEN — reserve atomically**
+Passed through the intended RED phase: the five new tests loaded and failed
+because `Marketplace::ReserveListing` did not yet exist.
+
+- [x] **Step 3: GREEN — reserve atomically**
 
 Lock listing → ticket/generation/slots → buyer purchase-limit scope → registration/order scope. Recheck all eligibility. In one transaction create buyer registration/requirements/allocation, resale order/item/adjustments, reserve listing, revoke seller generation, suspend package, call `Core::Audit::Record`, and call `Core::Outbox::Publish` for `(tid,v)` revocation/index/payment effects. Expose checkout only after commit. Replay returns `success(existing_order)`.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
 Run Task 5 command. Expected: PASS.
 
-- [ ] **Step 5: Refactor and verify races**
+Passed with `N_PLUS_ONE=1` and `PARALLEL_WORKERS=1`: 5 tests, 72
+assertions, 0 failures, and 0 errors.
+
+- [x] **Step 5: Refactor and verify races**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/marketplace test/integration/ticketing/resale_reservation_revocation_test.rb --seed 34811
@@ -350,10 +356,16 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/marketpla
 
 Expected: PASS.
 
+Passed with `N_PLUS_ONE=1` and `PARALLEL_WORKERS=1`: 4 tests, 36
+assertions, 0 failures, and 0 errors. Related listing, purchase-limit, and
+registration regressions also passed: 51 tests, 307 assertions, 0 failures,
+and 0 errors. Repository-wide RuboCop (1,338 files), Ruby syntax checks, and
+`git diff --check` are clean.
+
 - [ ] **Step 6: Commit**
 
 ```bash
-git add app/services/marketplace app/jobs/marketplace test/services/marketplace test/integration/marketplace test/integration/ticketing
+git add app/services/marketplace test/services/marketplace test/integration/marketplace test/integration/ticketing
 git commit -m "feat(marketplace): reserve resale checkout safely"
 ```
 
@@ -405,6 +417,7 @@ git commit -m "feat(marketplace): fulfill resale exactly once"
 **Files:**
 - Create: `app/services/marketplace/expire_reservation.rb`
 - Create: `app/services/marketplace/restore_seller_access.rb`
+- Create: `app/jobs/marketplace/expire_reservation_job.rb`
 - Create: `app/jobs/marketplace/restore_seller_credential_job.rb`
 - Test: `test/services/marketplace/expire_reservation_test.rb`
 - Test: `test/integration/marketplace/resale_late_payment_test.rb`
