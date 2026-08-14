@@ -19,6 +19,7 @@ module Ticketing
     def suspend? = manage_event?
     def restore_suspension? = manage_event?
     def resolve_suspension? = manage_event?
+    def cancel? = manage_event?
 
     VISIBILITY = {
       show: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
@@ -28,7 +29,8 @@ module Ticketing
       transfer: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
       suspend: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
       restore_suspension: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
-      resolve_suspension: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } }
+      resolve_suspension: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
+      cancel: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } }
     }.freeze
 
     class Scope < Core::ApplicationPolicy::Scope
