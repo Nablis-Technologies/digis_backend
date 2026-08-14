@@ -1,9 +1,10 @@
 # frozen_string_literal: true
 
 module Marketplace
-  # Reserves a positive seller-ledger fact for one provider payout. The
-  # database trigger enforces seller, currency, sign, and remaining-amount
-  # scope so concurrent payout builders cannot over-allocate a balance.
+  # Reserves the absolute value of one signed seller-ledger fact for a provider
+  # payout. The database trigger enforces seller, currency, nonzero-ledger,
+  # and remaining-amount scope so negative corrections can offset proceeds
+  # without changing the allocation's positive reservation contract.
   class SellerPayoutAllocation < Marketplace::ApplicationRecord
     self.table_name = "marketplace_seller_payout_allocations"
 

@@ -8,6 +8,8 @@ module Marketplace
     self.table_name = "marketplace_seller_payout_accounts"
     self.inheritance_column = nil
 
+    include Core::AuditableModel
+
     TYPES = %w[mobile_money bank].freeze
     PROVIDERS = %w[telebirr chapa bank].freeze
     STATUSES = %w[pending_verification verified suspended closed].freeze
@@ -17,6 +19,8 @@ module Marketplace
              class_name: "Marketplace::SellerPayout",
              foreign_key: :seller_payout_account_id,
              dependent: :restrict_with_exception
+
+    encrypts :account_label_ciphertext, :holder_name_ciphertext
 
     before_validation :normalize_fields
 
@@ -32,8 +36,7 @@ module Marketplace
     end
 
     def self.ransackable_attributes(_auth_object = nil)
-      %w[id user_id type provider account_token account_label_ciphertext holder_name_ciphertext status
-         verified_at last_used_at created_at updated_at]
+      %w[id user_id type provider status verified_at last_used_at created_at updated_at]
     end
 
     def self.ransackable_associations(_auth_object = nil)
