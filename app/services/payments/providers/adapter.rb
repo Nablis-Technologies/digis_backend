@@ -20,6 +20,20 @@ module Payments
         end
       end
 
+      # Refund submission needs an explicit capability boundary because a
+      # payment adapter may support charges without supporting partial refunds
+      # or a reliable provider-side fee estimate.
+      def refund_capabilities
+        configured = capabilities.to_h.deep_symbolize_keys[:refunds]
+        return { supported: true, partial: true, fee_estimate_minor: 0 }.freeze unless configured.is_a?(Hash)
+
+        {
+          supported: configured.fetch(:supported, true),
+          partial: configured.fetch(:partial, configured.fetch(:partial_refunds, true)),
+          fee_estimate_minor: configured.fetch(:fee_estimate_minor, 0).to_i
+        }.freeze
+      end
+
       private
 
       def normalize_result(response)
