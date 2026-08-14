@@ -86,12 +86,19 @@ module Marketplace
         ticket_type_id: @product.ticket_type.id,
         user_id: buyer_ids
       ).pluck(:id)
-      order_ids = Orders::Order.where(
+      resale_order_ids = Orders::Order.where(
         event_id: @event.id,
         buyer_user_id: buyer_ids,
         sales_channel: "resale"
       ).pluck(:id)
-      order_item_ids = Orders::OrderItem.where(order_id: order_ids).pluck(:id)
+      current_acquisition_order_item_id = Ticketing::Ticket.where(id: @ticket.id).pick(
+        :current_acquisition_order_item_id
+      )
+      resale_order_item_ids = Orders::OrderItem.where(order_id: resale_order_ids).pluck(:id)
+      ticket_order_item_ids = [ @ticket.order_item_id, current_acquisition_order_item_id ].compact.uniq
+      order_ids = (
+        resale_order_ids + Orders::OrderItem.where(id: ticket_order_item_ids).pluck(:order_id)
+      ).uniq
 
       # Reopen the fixture orders before deleting immutable adjustment and item
       # snapshots. Production orders never use this path; it only makes the
@@ -104,16 +111,26 @@ module Marketplace
       ).delete_all
       ResaleListing.where(ticket_id: @ticket.id).delete_all
       Orders::OrderAdjustment.where(order_id: order_ids).delete_all
-      Orders::OrderItem.where(id: order_item_ids).delete_all
-      Orders::Order.where(id: order_ids).delete_all
+      if resale_order_item_ids.include?(current_acquisition_order_item_id)
+        # Fulfillment points the ticket at the buyer item. Detach that
+        # test-only pointer before deleting the buyer order graph; production
+        # services never clear an acquisition this way.
+        Ticketing::Ticket.where(id: @ticket.id).update_all(
+          current_acquisition_type: "free_registration",
+          current_acquisition_order_item_id: nil,
+          current_acquisition_product_value_minor: 0
+        )
+        @ticket.reload
+      end
+      Orders::OrderItem.where(id: resale_order_item_ids).delete_all
+      Orders::Order.where(id: resale_order_ids).delete_all
       Ticketing::RegistrationConsent.where(registration_id: registration_ids).delete_all
       Ticketing::RegistrationConsentRequirement.where(registration_id: registration_ids).delete_all
       Ticketing::RegistrationFormSubmission.where(registration_id: registration_ids).delete_all
       Ticketing::Registration.where(id: registration_ids).delete_all
-      Core::OutboxEvent.where(aggregate_id: [ @ticket.id, @listing&.id ].compact).delete_all
-
       cleanup_commercial_reservation_fixture
       cleanup_package_fixture_graph
+      Core::OutboxEvent.where(aggregate_id: [ @ticket.id, @listing&.id ].compact).delete_all
     end
 
     def cleanup_commercial_reservation_fixture
@@ -139,7 +156,10 @@ module Marketplace
       registration_id = @registration.id
       event_date_ids = @product.product_accesses.pluck(:event_date_id)
       product_access_ids = @product.product_accesses.pluck(:id)
-      order_item_ids = [ @ticket.current_acquisition_order_item_id ].compact
+      current_acquisition_order_item_id = Ticketing::Ticket.where(id: ticket_id).pick(
+        :current_acquisition_order_item_id
+      )
+      order_item_ids = [ @ticket.order_item_id, current_acquisition_order_item_id ].compact.uniq
       order_ids = Orders::OrderItem.where(id: order_item_ids).pluck(:order_id)
       generation_ids = Ticketing::CredentialGeneration.where(ticket_id: ticket_id).pluck(:id)
       credential_ids = Ticketing::Credential.where(ticket_id: ticket_id).pluck(:id)
