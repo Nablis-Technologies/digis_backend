@@ -15,16 +15,21 @@ module Orders
     def call
       ActiveRecord::Base.transaction do
         order_id = Orders::Payment.where(id: @payment.id).pick(:order_id)
-        order = Orders::Order.lock.find(order_id)
+        order = Orders::Order.includes(:event).lock.find(order_id)
+        event = Events::Event.lock.find(order.event_id)
         payment = Orders::Payment.lock.find(@payment.id)
+        order.event = event
         payment.order = order
 
         payment.update!(status: "succeeded", succeeded_at: payment.succeeded_at || now)
-        return success(payment) if payment.accepted?
+        if payment.accepted?
+          post_accepted_sale!(payment)
+          return success(payment)
+        end
 
         reason = rejection_reason(payment, order)
         if reason
-          reverse = Orders::ReverseUnacceptedPayment.call(payment:, reason_code: reason)
+          reverse = Orders::CreatePaymentReversal.call(payment:, reason_code: reason)
           raise AcceptanceFailure, reverse.error if reverse.failure?
           return success(payment)
         end
@@ -38,6 +43,7 @@ module Orders
 
         fulfillment = Orders::FulfillOrder.call(order:, payment:)
         raise AcceptanceFailure, fulfillment.error if fulfillment.failure?
+        post_accepted_sale!(payment)
 
         success(payment.reload)
       end
@@ -59,6 +65,7 @@ module Orders
 
     def rejection_reason(locked_payment, locked_order)
       return "superseded_attempt" if locked_payment.superseded_at.present?
+      return "event_cancelled" if locked_order.event.status == "cancelled"
       return "late_payment" if locked_order.closed?
       return "duplicate_payment" if Orders::Payment.where(order_id: locked_order.id).where.not(id: locked_payment.id).where.not(accepted_at: nil).exists?
       return "duplicate_payment" unless locked_order.pending_payment?
@@ -125,6 +132,13 @@ module Orders
         result = Commercial::Subsidies::Commit.call(reservation:, at: now)
         raise AcceptanceFailure, result.error if result.failure?
       end
+    end
+
+    # Ledger posting stays inside the acceptance transaction so an accepted
+    # payment cannot commit without its immutable organizer facts.
+    def post_accepted_sale!(locked_payment)
+      result = Finance::PostAcceptedSale.call(payment: locked_payment, at: now)
+      raise AcceptanceFailure, result.error if result.failure?
     end
 
     def promotion_error
