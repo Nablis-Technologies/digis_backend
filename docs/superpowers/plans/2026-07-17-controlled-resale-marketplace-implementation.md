@@ -34,7 +34,9 @@ and transactional outbox evidence. Task 6 is implemented and committed in
 `2d4beec`, `213e408`, and `ca3a3c6`; its accepted-payment fulfillment boundary
 is a separate changeset from Task 5. Task 7 is implemented and committed in
 `d76152a` and `2b6f603`; Task 8 is implemented and committed in `41ae8e7`,
-`19cc9df`, and `f8be224`. The next implementation task is Task 9 below.
+`19cc9df`, and `f8be224`. Task 9 was then implemented and verified at the
+current user review/commit boundary. The next implementation task is Task 10
+below.
 
 ## Approved AJ invariants
 
@@ -615,26 +617,28 @@ git add app/models/marketplace/seller_ledger_entry.rb app/services/events/cancel
 git commit -m "feat(marketplace): reverse cancelled resale acquisitions"
 ```
 
-The user review/commit boundary remains pending. After this commit, continue
-with Controlled Resale Task 10; do not begin Commercial Task 12 until the
-remaining resale API/failure-recovery gate and Finance/operational evidence
-are complete.
+Task 9's user review/commit boundary was completed before Task 10 began. Do
+not begin Commercial Task 12 until the remaining resale API/failure-recovery
+gate and Finance/operational evidence are complete.
 
 ## Task 10: Expose authorized marketplace APIs without scanner leakage
 
 **Files:**
 - Create: controllers/policies/serializers under domain paths
+- Modify: `app/services/marketplace/configure_ticket_type_resale.rb`
+- Modify: `config/locales/marketplace/resale.en.yml`
 - Modify: `config/routes.rb`
 - Test: `test/controllers/marketplace/resale_listings_controller_test.rb`
 - Test: `test/controllers/marketplace/resale_purchases_controller_test.rb`
 - Test: `test/controllers/marketplace/seller_payout_accounts_controller_test.rb`
+- Test: `test/services/marketplace/configure_ticket_type_resale_test.rb`
 - Test: `test/integration/ticketing/marketplace_scanner_privacy_test.rb`
 
-- [ ] **Step 1: RED — test routes, Pundit, one-command boundary, and privacy**
+- [x] **Step 1: RED — test routes, Pundit, one-command boundary, and privacy**
 
 Include root `tickets/:id/resale`, `resale_listings/:id/purchase`, cancellation, seller history/balance/accounts, organizer policy, and admin payout. Commercial's existing admin surface owns resale-platform-fee configuration. Seller sees own economics; buyer sees asking/fees/refund terms; scanner receives no cap/price/acquisition/fee/proceeds/payout/ledger data.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/controllers/marketplace test/controllers/admin/marketplace test/integration/ticketing/marketplace_scanner_privacy_test.rb
@@ -642,7 +646,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/controllers/marketpla
 
 Expected: FAIL.
 
-- [ ] **Step 3: GREEN — implement domain controller namespace**
+- [x] **Step 3: GREEN — implement domain controller namespace**
 
 ```ruby
 # frozen_string_literal: true
@@ -666,17 +670,23 @@ end
 
 Map root routes to `Marketplace::*Controller` and payout routes to `Admin::Marketplace::*Controller`; URL versioning remains deferred. Every mutation is authorize → one service → foundation renderer.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
 Run Task 10 command. Expected: PASS.
 
-- [ ] **Step 5: Refactor and audit surfaces**
+- [x] **Step 5: Refactor and audit surfaces**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/controllers/marketplace test/controllers/admin/marketplace test/policies/marketplace test/serializers/marketplace test/integration/ticketing/marketplace_scanner_privacy_test.rb
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/controllers/marketplace test/controllers/admin/marketplace test/integration/ticketing/marketplace_scanner_privacy_test.rb
 ```
 
-Expected: PASS.
+Passed: 22 tests and 110 assertions, 0 failures, and 0 errors. The broader
+Marketplace regression suite passed with 87 tests and 695 assertions under
+`N_PLUS_ONE=1`. Targeted RuboCop passed for all 28 changed Ruby files; routes,
+Postman JSON/coverage, locale YAML, and scanner privacy checks also passed.
+The policy and serializer surfaces are covered through these authorized
+controller responses; no separate policy/serializer test directories existed
+before this task.
 
 - [ ] **Step 6: Commit**
 
@@ -684,6 +694,10 @@ Expected: PASS.
 git add app/controllers/marketplace app/controllers/admin/marketplace app/policies/marketplace app/policies/admin/marketplace app/serializers/marketplace config/routes.rb test/controllers/marketplace test/controllers/admin/marketplace test/integration/ticketing
 git commit -m "feat(api): expose controlled resale marketplace"
 ```
+
+The implementation is complete locally and remains at the user review/commit
+boundary. After committing Task 10, continue with Controlled Resale Task 11.
+Commercial Task 12 remains last by design.
 
 ## Task 11: Final AJ/failure-recovery gate
 

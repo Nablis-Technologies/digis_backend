@@ -40,16 +40,16 @@ Implementation must preserve these decisions:
 - Run focused tests after every task and full Commercial tests at each checkpoint. Run RuboCop on changed Ruby files before committing.
 - Never store legal bodies, internal negotiation prose, provider secrets, or arbitrary submitted JSON in audit/outbox/order evidence.
 
-## Current implementation status and navigation (verified 2026-08-14)
+## Current implementation status and navigation (verified 2026-08-15)
 
 The dependency-ordered Commercial tranche is complete through Task 10's
 Commercial-owned projection/provider boundary. Orders Tasks 1–9 have passed
 their focused and full repository gates; the integrated Orders, Ticket
 Packages, Scanner, and Refunds/Finance tranches remain subject to the user's
-final review/commit boundary. Controlled Resale Tasks 1–8 are now committed
+final review/commit boundary. Controlled Resale Tasks 1–9 are now committed
 and verified, and Commercial Task 11 was completed with Controlled Resale Task
-3. The current implementation checkpoint is Controlled Resale Task 9 below;
-after it is committed, continue with Controlled Resale Task 10. Streaming /
+3. Controlled Resale Task 10 is implemented and focused-verified locally;
+after Task 10 is committed, continue with Controlled Resale Task 11. Streaming /
 Add-ons / Links remains a separate Wave 6 track. Commercial Task 12 remains
 last by design.
 
@@ -71,13 +71,14 @@ last by design.
 2. Review and commit the verified Orders, Ticket Packages, Scanner, and
    Refunds/Finance tranches. The native scanner SQLite acceptance row remains
    external and does not block the Rails dependency gate.
-3. Refunds/Finance Tasks 1–10 and Controlled Resale Tasks 1–8 are now green and
+3. Refunds/Finance Tasks 1–10 and Controlled Resale Tasks 1–9 are now green and
    committed. Streaming/Add-ons/Links is a separate Wave 6 track and may run
    alongside Controlled Resale when ownership is explicit.
-4. Commercial Task 11 and Controlled Resale Task 3 are committed. Controlled
-   Resale Tasks 4–8 are also committed and verified; the current worktree is
-   executing Controlled Resale Task 9. Review and commit that task, then
-   continue with Controlled Resale Task 10 in its plan's order; do not start
+4. Commercial Task 11 and Controlled Resale Tasks 3–9 are committed. Controlled
+   Resale Task 10 is implemented and focused-verified locally, including its
+   authorized marketplace APIs, seller/admin payout projections, Postman
+   requests, and scanner privacy contract. Review and commit Task 10, then
+   continue with Controlled Resale Task 11 in its plan's order; do not start
    Commercial Task 12 yet.
 5. Run Task 12 last, after the remaining resale, Finance, and operational
    reconciliation evidence exist.
@@ -977,9 +978,9 @@ Marketplace and Commercial regression coverage passes with `N_PLUS_ONE=1`:
 - [x] **Step 5: Commit**
 
 The Commercial Task 11/Controlled Resale Task 3 handoff was committed in
-`58f3718`; the current implementation checkpoint is Controlled Resale Task 9.
-Commercial Task 12 remains last after the remaining resale and operational
-evidence.
+`58f3718`; Controlled Resale Task 9 is committed and Task 10 is implemented
+and focused-verified locally at the user review/commit boundary. Commercial
+Task 12 remains last after the remaining resale and operational evidence.
 
 ## Task 12: Add reconciliation, shadow comparison, operations alerts, and phase gate
 
