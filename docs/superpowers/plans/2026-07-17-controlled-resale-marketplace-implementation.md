@@ -30,9 +30,10 @@ Task 5 is implemented and committed in `cf32fc3` and `9e5303a`; the sequencing
 checkpoint is recorded in `2ae5a5e`. It adds the atomic resale reservation
 boundary: a quantity-one resale checkout, buyer purchase-limit hold, seller
 generation revocation, attendee-index tombstone, package suspension, audit,
-and transactional outbox evidence. Task 6 is now implemented locally and
-focused-verified; its commit remains a separate changeset from Task 5. After
-review and commit, the next implementation task is Task 7 below.
+and transactional outbox evidence. Task 6 is implemented and committed in
+`2d4beec`, `213e408`, and `ca3a3c6`; its accepted-payment fulfillment boundary
+is a separate changeset from Task 5. The next implementation task is Task 7
+below.
 
 ## Approved AJ invariants
 
@@ -443,7 +444,9 @@ resale-fee-isolation regressions also passed with `N_PLUS_ONE=1`: 21 tests,
 teardown was repaired so both original seller and current buyer order-item
 foreign keys are removed in dependency order.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
+
+Committed in `2d4beec`, `213e408`, and `ca3a3c6`.
 
 ```bash
 git add app/services/marketplace app/services/orders app/services/ticketing/credential_generations/replace.rb config/locales/marketplace/resale.en.yml test/services/marketplace test/integration/marketplace test/support/marketplace/resale_fulfillment_test_helpers.rb test/support/marketplace/resale_reservation_test_helpers.rb
@@ -455,38 +458,43 @@ git commit -m "feat(marketplace): fulfill resale exactly once"
 **Files:**
 - Create: `app/services/marketplace/expire_reservation.rb`
 - Create: `app/services/marketplace/restore_seller_access.rb`
+- Modify: `app/services/marketplace/reserve_listing.rb`
+- Modify: `app/services/marketplace/cancel_listing.rb`
+- Modify: `app/services/ticketing/credential_generations/replace.rb`
+- Modify: `config/locales/marketplace/resale.en.yml`
 - Create: `app/jobs/marketplace/expire_reservation_job.rb`
 - Create: `app/jobs/marketplace/restore_seller_credential_job.rb`
+- Modify: `test/support/marketplace/resale_fulfillment_test_helpers.rb`
 - Test: `test/services/marketplace/expire_reservation_test.rb`
 - Test: `test/integration/marketplace/resale_late_payment_test.rb`
 
-- [ ] **Step 1: RED — complete AJ-H1 failure path**
+- [x] **Step 1: RED — complete AJ-H1 failure path**
 
-Failure/expiry releases buyer allocation and creates newer seller group generation before listing active; old seller credential stays revoked; disabled/cutoff/count reached expires listing; late success fully reverses without ownership; concurrent expiry/success yields complete sale or restoration, never both.
+Failure/expiry releases buyer allocation and creates a newer seller group generation before seller access is restored; the old seller credential stays revoked. Disabled/cutoff/current-policy-limit cases close the listing, late success fully reverses without ownership, and concurrent expiry/success yields complete sale or restoration, never both. The database's unique immutable resale order-item reference makes a failed listing terminal; a later seller retry creates a fresh listing row.
 
-- [ ] **Step 2: Run tests and verify RED**
-
-```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/expire_reservation_test.rb test/integration/marketplace/resale_late_payment_test.rb
-```
-
-Expected: FAIL.
-
-- [ ] **Step 3: GREEN — generation replacement only**
-
-Use fulfillment lock order. Create brand-new seller group generation/credential/PNR, clear suspension only afterward, release buyer allocation, and active-or-expire listing based on current policy. Never reactivate an old row.
-
-- [ ] **Step 4: Run tests and verify GREEN**
-
-Run Task 7 command. Expected: PASS.
-
-- [ ] **Step 5: Refactor and verify offline limitation**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/marketplace test/integration/ticketing --seed 46121
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/expire_reservation_test.rb test/integration/marketplace/resale_late_payment_test.rb
 ```
 
-Expected: PASS; stale scanner limitation is explicit, synchronized scanner rejects seller credential, high-risk near-gate flow can require online validation.
+The initial escalated RED run failed because `ExpireReservation` and its job boundary did not exist; the pre-existing ticket scope trigger also exposed that a test could not mutate the ticket count while the seller generation was revoked.
+
+- [x] **Step 3: GREEN — generation replacement only**
+
+Use fulfillment lock order. Create a brand-new seller group generation/credential/PNR, clear suspension only afterward, release buyer allocation, and close the failed listing as terminal `expired`. `ActivateListing` creates a new listing for a later seller retry; no old credential generation or immutable resale order item is reactivated. ReserveListing schedules expiry after commit, and reserved cancellation uses the same release/restoration boundary.
+
+- [x] **Step 4: Run tests and verify GREEN**
+
+The focused Task 7 command passes with `N_PLUS_ONE=1`: 9 tests, 107 assertions, 0 failures, and 0 errors.
+
+- [x] **Step 5: Refactor and verify offline limitation**
+
+```bash
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/marketplace test/integration/ticketing --seed 46121
+```
+
+The broader command passes with `N_PLUS_ONE=1`: 87 tests, 470 assertions, 0 failures, and 0 errors. The focused Marketplace, Ticketing credential-generation, reservation-revocation, resale-fee, and Orders reversal regression suite also passes: 40 tests, 326 assertions, 0 failures, and 0 errors. The existing scanner limitation remains explicit: offline clients must reject the revoked seller generation after synchronization, while high-risk near-gate validation may require online confirmation. No routes, serializers, Postman collection, seeds, or migrations changed because Task 7 is an internal command/job boundary.
 
 - [ ] **Step 6: Commit**
 

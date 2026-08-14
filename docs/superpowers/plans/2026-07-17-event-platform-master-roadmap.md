@@ -136,11 +136,18 @@ domain prerequisites, but it is not a reason to introduce a temporary
   transactional audit/outbox evidence are verified. Controlled Resale Task 6
   is now implemented locally and focused-verified with N+1 detection: accepted
   resale payment fulfillment, exactly-once ownership/generation transfer,
-  separate seller gross/fee ledger rows, and the Orders boundary are covered;
-  its commit remains pending. After that commit, the next implementation task
-  is Controlled Resale Task 7. Listing restoration, payout, and reconciliation
-  consumers from later tasks remain intentionally unimplemented. Commercial
-  Task 12 remains the last Commercial/Phase 3.5 gate.
+  separate seller gross/fee ledger rows, and the Orders boundary are covered.
+  Task 6 is committed in `2d4beec`, `213e408`, and `ca3a3c6`. Controlled Resale
+  Task 7 is implemented locally and focused-verified with N+1 detection: failed
+  or cancelled reservations release checkout state, restore seller access with
+  a newer credential generation, close the immutable listing terminally, and
+  handle late payment reversal plus expiry/fulfillment races. The focused Task
+  7 suite passes with 9 tests and 107 assertions; the related regression suite
+  passes with 40 tests and 326 assertions. User review/commit remains pending;
+  after that commit, the next implementation task is Controlled Resale Task 8.
+  Payout and reconciliation consumers from later tasks remain intentionally
+  unimplemented. Commercial Task 12 remains the last Commercial/Phase 3.5
+  gate.
 
 The next human-visible action is therefore:
 
@@ -154,9 +161,10 @@ The next human-visible action is therefore:
    and the Streaming /
    Add-ons / Links plan. These are Wave 6 work and may run in parallel when
    ownership is explicit.
-4. Commercial Task 11 and Controlled Resale Tasks 3–5 are committed through
-   `2ae5a5e`; review and commit Controlled Resale Task 6, then execute Task 7
-   and finish the remaining Controlled Resale tasks in order.
+4. Commercial Task 11 and Controlled Resale Tasks 3–6 are committed through
+   `ca3a3c6`; Controlled Resale Task 7 is implemented locally and awaits user
+   review/commit. After that commit, execute Controlled Resale Task 8 and
+   finish the remaining Controlled Resale tasks in order.
 5. Execute Commercial Task 12 only after resale, Finance, and the required
    operational evidence exist.
 6. Finish Launch Hardening only after all plans 0–9 are green.
