@@ -18,7 +18,8 @@ module Orders
 
     def initialize(
       payment:, order_item:, quantity:, reason_code:, idempotency_key:, ticket: nil,
-      event_date: nil, event_date_change: nil, event_cancellation: nil, restock: false
+      event_date: nil, event_date_change: nil, event_cancellation: nil, restock: false,
+      preloaded_scope: nil
     )
       @payment = payment
       @order_item = order_item
@@ -30,6 +31,7 @@ module Orders
       @event_date_change = event_date_change
       @event_cancellation = event_cancellation
       @restock = restock == true
+      @preloaded_scope = preloaded_scope
     rescue ArgumentError => error
       @initialization_error = error
     end
@@ -39,21 +41,22 @@ module Orders
       return failure(refund_error(:refund_reason_not_allowed, code: "refund_reason_not_allowed")) unless ITEM_REFUND_REASONS.include?(reason_code)
 
       refund = ActiveRecord::Base.transaction do
-        payment = Orders::Payment.lock.find(@payment.id)
-        locked_items = Orders::OrderItem.where(order_id: payment.order_id).order(:id).lock.to_a
-        locked_tickets = Ticketing::Ticket.where(order_item_id: locked_items.map(&:id)).order(:id).lock.to_a
-        locked_dates = lock_dates
-        prior_refunds = Orders::Refund.where(payment_id: payment.id).order(:id).lock.to_a
-        prior_items = Orders::RefundItem.where(refund_id: prior_refunds.map(&:id)).order(:id).lock.to_a
+        scope = preloaded_scope || load_scope
+        payment = scope.fetch(:payment)
+        locked_items = scope.fetch(:locked_items)
+        locked_tickets = scope.fetch(:locked_tickets)
+        locked_dates = scope.fetch(:locked_dates)
+        prior_refunds = scope.fetch(:prior_refunds)
+        prior_items = scope.fetch(:prior_items)
         refundable_statuses = prior_refunds.each_with_object({}) do |refund, statuses|
           statuses[refund.id] = refund.status
         end
         refundable_prior_items = prior_items.select do |prior_item|
           refundable_statuses[prior_item.refund_id].in?(%w[created pending_funds processing succeeded])
         end
-        locked_adjustments = Orders::OrderAdjustment.where(order_id: payment.order_id).order(:id).lock.to_a
+        locked_adjustments = scope.fetch(:locked_adjustments)
 
-        existing = Orders::Refund.lock.find_by(idempotency_key: idempotency_key.to_s)
+        existing = prior_refunds.find { |prior_refund| prior_refund.idempotency_key == idempotency_key.to_s }
         if existing
           unless existing.payment_id == payment.id && existing.type == "item_refund"
             raise RefundAbort, refund_error(:idempotency_conflict, code: "idempotency_conflict")
@@ -115,7 +118,26 @@ module Orders
     private
 
     attr_reader :payment, :order_item, :quantity, :reason_code, :idempotency_key,
-                :event_date_change, :event_cancellation, :restock
+                :event_date_change, :event_cancellation, :restock, :preloaded_scope
+
+    def load_scope
+      locked_payment = Orders::Payment.lock.find(@payment.id)
+      locked_items = Orders::OrderItem.where(order_id: locked_payment.order_id).order(:id).lock.to_a
+      locked_tickets = Ticketing::Ticket.where(order_item_id: locked_items.map(&:id)).order(:id).lock.to_a
+      locked_dates = lock_dates
+      prior_refunds = Orders::Refund.where(payment_id: locked_payment.id).order(:id).lock.to_a
+      prior_items = Orders::RefundItem.where(refund_id: prior_refunds.map(&:id)).order(:id).lock.to_a
+      locked_adjustments = Orders::OrderAdjustment.where(order_id: locked_payment.order_id).order(:id).lock.to_a
+      {
+        payment: locked_payment,
+        locked_items:,
+        locked_tickets:,
+        locked_dates:,
+        prior_refunds:,
+        prior_items:,
+        locked_adjustments:
+      }
+    end
 
     def lock_dates
       ids = [ @event_date&.id, @event_date_change&.event_date_id ].compact.uniq
@@ -133,7 +155,10 @@ module Orders
       abort_with(:refund_item_currency_invalid, code: "refund_item_currency_invalid") unless item.charge_currency == locked_payment.currency
 
       if item.type_snapshot == "ticket"
-        abort_with(:package_required, code: "package_required") unless ticket
+        # A resale order item is a paid acquisition snapshot, not the row that
+        # issued the continuing package ticket. Its chain refund deliberately
+        # omits ticket_id; only the original package acquisition owns that FK.
+        abort_with(:package_required, code: "package_required") unless ticket || item.resale_listing_id.present?
       elsif ticket
         abort_with(:refund_scope_invalid, code: "refund_scope_invalid") unless ticket.order_item_id == item.id
       end

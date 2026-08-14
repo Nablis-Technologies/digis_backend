@@ -81,8 +81,11 @@ module Marketplace
     def sale_scope
       return if resale_sale_id.blank?
 
-      sale_event_id, sale_seller_id, sale_currency = Marketplace::ResaleSale.where(id: resale_sale_id)
-        .pick(:event_id, :seller_user_id, :currency)
+      sale_event_id, sale_seller_id, sale_currency = if association(:resale_sale).loaded?
+        [ resale_sale&.event_id, resale_sale&.seller_user_id, resale_sale&.currency ]
+      else
+        Marketplace::ResaleSale.where(id: resale_sale_id).pick(:event_id, :seller_user_id, :currency)
+      end
       errors.add(:event, :invalid) unless sale_event_id == event_id
       errors.add(:seller_user, :invalid) unless sale_seller_id == seller_user_id
       errors.add(:currency, :invalid) unless sale_currency == currency
@@ -92,11 +95,17 @@ module Marketplace
       return if reverses_entry_id.blank?
       return errors.add(:reverses_entry, :invalid) if reverses_entry_id == id
 
-      original = self.class.where(id: reverses_entry_id)
-        .pick(:amount_minor, :currency, :seller_user_id, :event_id)
+      original = if association(:reverses_entry).loaded?
+        reverses_entry
+      else
+        self.class.find_by(id: reverses_entry_id)
+      end
       return errors.add(:reverses_entry, :invalid) unless original
 
-      original_amount, original_currency, original_seller_id, original_event_id = original
+      original_amount = original.amount_minor
+      original_currency = original.currency
+      original_seller_id = original.seller_user_id
+      original_event_id = original.event_id
       errors.add(:amount_minor, :invalid) unless amount_minor == -original_amount
       errors.add(:currency, :invalid) unless currency == original_currency
       errors.add(:seller_user, :invalid) unless seller_user_id == original_seller_id

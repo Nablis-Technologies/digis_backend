@@ -3,9 +3,10 @@
 module Events
   module Cancellation
     # Claims and resolves one durable cancellation-payment snapshot. Refund
-    # creation is deterministic per payment/item, provider I/O stays in the
-    # existing Orders command, and a pending-funds retry reuses the original
-    # refund row instead of creating a second financial obligation.
+    # creation is deterministic per payment/item; a resale chain may create
+    # obligations for several snapshots, but provider I/O remains scoped to
+    # the claimed payment. A pending-funds retry reuses the original refund
+    # row instead of creating a second financial obligation.
     class ProcessPayment < Core::BaseService
       RETRY_DELAY = 15.minutes
 
@@ -19,6 +20,11 @@ module Events
         return success(nil) unless snapshot
 
         refunds = create_refunds(snapshot)
+        # A chain command may materialize obligations for several payment
+        # snapshots. Each worker owns provider submission for its claimed
+        # payment only; the other snapshots will submit their own obligations
+        # on their next retry, keeping provider and finance work bounded.
+        refunds = refunds.select { |refund| refund.payment_id == snapshot.payment_id }
         submit_refunds(refunds)
         update_snapshot(snapshot, refunds)
       rescue ActiveRecord::RecordNotFound
@@ -65,6 +71,18 @@ module Events
 
       def create_refunds(snapshot)
         payment = Orders::Payment.includes(order: { order_items: :event_product }).lock.find(snapshot.payment_id)
+        chain_tickets = acquisition_chain_tickets(payment)
+        chain_refunds = chain_tickets.flat_map do |ticket|
+          result = Marketplace::CancelAcquisitionChainValue.call(
+            ticket:,
+            idempotency_key: "event-cancellation-acquisition-chain-#{@cancellation.id}-#{ticket.id}",
+            event_cancellation: @cancellation,
+            at: @now
+          )
+          raise result.error if result.failure?
+
+          result.value
+        end
         ticket_ids = payment.order.order_items.filter_map { |item| item.id if item.type_snapshot == "ticket" }
         tickets_by_item = Ticketing::Ticket.where(
           order_item_id: ticket_ids,
@@ -72,7 +90,7 @@ module Events
           current_acquisition_type: Ticketing::Ticket::PAID_ACQUISITION_TYPES
         ).order(:id).group_by(&:order_item_id)
         refunds = []
-        refundable_items(payment.order, tickets_by_item:).each do |item, ticket|
+        refundable_items(payment.order, tickets_by_item:, excluded_ticket_ids: chain_tickets.map(&:id)).each do |item, ticket|
           key = "event-cancellation-refund-#{@cancellation.id}-#{item.id}-#{ticket&.id || 'item'}"
           result = Orders::CreateItemRefund.call(
             payment:,
@@ -86,13 +104,32 @@ module Events
           raise result.error if result.failure?
           refunds << result.value
         end
-        refunds
+        chain_refunds + refunds
       end
 
-      def refundable_items(order, tickets_by_item:)
+      def acquisition_chain_tickets(payment)
+        original_ticket_ids = Ticketing::Ticket.where(
+          order_item_id: payment.order.order_items.select(:id)
+        ).select(:id)
+        sale_scope = Marketplace::ResaleSale.where(event_id: @cancellation.event_id)
+          .where(accepted_payment_id: payment.id)
+          .or(
+            Marketplace::ResaleSale.where(event_id: @cancellation.event_id)
+              .where(ticket_id: original_ticket_ids)
+          )
+        sale_ticket_ids = sale_scope.select(:ticket_id)
+
+        Ticketing::Ticket.where(id: sale_ticket_ids).order(:id).to_a
+      end
+
+      def refundable_items(order, tickets_by_item:, excluded_ticket_ids: [])
         order.order_items.flat_map do |item|
           if item.type_snapshot == "ticket"
-            tickets_by_item.fetch(item.id, []).map { |ticket| [ item, ticket ] }
+            tickets_by_item.fetch(item.id, []).filter_map do |ticket|
+              next if excluded_ticket_ids.include?(ticket.id)
+
+              [ item, ticket ]
+            end
           elsif !item.fulfilled?
             [ [ item, nil ] ]
           else
