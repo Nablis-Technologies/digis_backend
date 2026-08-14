@@ -29,7 +29,7 @@ module Events
     def destroy_generated_dates
       dates = event.event_dates
                   .where("source_key LIKE ?", "recurrence-#{id}-%")
-                  .preload(:event_participants, :access_zones, :event_stream)
+                  .preload(:event_participants, :access_zones, :event_stream, :refund_items)
                   .to_a
       dates.each(&:destroy!)
     end
