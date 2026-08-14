@@ -11,7 +11,7 @@ module Ticketing
     MODES = %w[group delegated].freeze
     ENTRY_VALIDATION_MODES = %w[qr qr_and_id].freeze
 
-    belongs_to :event, class_name: "Events::Event"
+    belongs_to :event, class_name: "Events::Event", inverse_of: :attendee_index_entries
     belongs_to :credential, class_name: "Ticketing::Credential"
     belongs_to :ticket, class_name: "Ticketing::Ticket"
 

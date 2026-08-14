@@ -7,7 +7,7 @@ module Ticketing
   class TicketSuspension < Ticketing::ApplicationRecord
     self.table_name = "ticketing_ticket_suspensions"
 
-    REASON_CODES = %w[suspected_fraud identity_review chargeback_review safety_review].freeze
+    REASON_CODES = %w[suspected_fraud identity_review chargeback_review safety_review organizer_cancellation].freeze
     STATUSES = %w[active restored revoked_free cancelled_refunded expired].freeze
     RESOLUTION_REASONS = %w[review_cleared organizer_cancellation refund_succeeded review_deadline_expired].freeze
 

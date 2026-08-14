@@ -7,7 +7,7 @@ module Ticketing
   class CredentialRevocation < Ticketing::ApplicationRecord
     self.table_name = "ticketing_credential_revocations"
 
-    belongs_to :event, class_name: "Events::Event"
+    belongs_to :event, class_name: "Events::Event", inverse_of: :credential_revocations
     belongs_to :credential, class_name: "Ticketing::Credential"
 
     validates :reason, presence: true

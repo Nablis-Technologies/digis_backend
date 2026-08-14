@@ -7,7 +7,7 @@ module Ticketing
   class AdmissionUseReversal < Ticketing::ApplicationRecord
     self.table_name = "ticketing_admission_use_reversals"
 
-    belongs_to :event, class_name: "Events::Event"
+    belongs_to :event, class_name: "Events::Event", inverse_of: :admission_use_reversals
     belongs_to :admission_use,
                class_name: "Ticketing::AdmissionUse",
                inverse_of: :reversal

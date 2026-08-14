@@ -7,7 +7,7 @@ module Ticketing
   class Revocation < Ticketing::ApplicationRecord
     self.table_name = "ticketing_revocations"
 
-    belongs_to :event, class_name: "Events::Event"
+    belongs_to :event, class_name: "Events::Event", inverse_of: :revocations
     belongs_to :ticket, class_name: "Ticketing::Ticket"
 
     validates :revoked_through_version, :revocation_version,
