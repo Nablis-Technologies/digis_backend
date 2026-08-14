@@ -6,6 +6,8 @@ module Orders
   class ConcurrentPaymentSuccessTest < ActiveSupport::TestCase
     self.use_transactional_tests = false
 
+    include Finance::LedgerTestHelpers
+
     class WebhookAdapter < Payments::Providers::Adapter
       def verify_webhook(**) = true
 
@@ -60,6 +62,7 @@ module Orders
       refund_ids = Orders::Refund.where(payment_id: @payments.map(&:id)).pluck(:id)
       Orders::Refund.where(id: refund_ids).delete_all
       Orders::PaymentEvent.where(id: @events.map(&:id)).delete_all
+      cleanup_payment_ledger_entries(payment_ids: @payments.map(&:id))
       Orders::Payment.where(id: @payments.map(&:id)).delete_all
       Core::OutboxEvent.where(aggregate_type: "Orders::Order", aggregate_id: @order.id).delete_all
       @order.update_columns(status: "draft", paid_at: nil, closed_reason: nil)

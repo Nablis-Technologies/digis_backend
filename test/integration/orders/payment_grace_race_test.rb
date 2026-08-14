@@ -6,6 +6,8 @@ module Orders
   class PaymentGraceRaceTest < ActiveSupport::TestCase
     self.use_transactional_tests = false
 
+    include Finance::LedgerTestHelpers
+
     class RaceAdapter < Payments::Providers::Adapter
       def verify(**)
         Payments::Providers::Result.success(provider_reference: "race-reference", raw_status: "paid")
@@ -47,6 +49,7 @@ module Orders
       Payments::Providers::Registry.instance_variable_set(:@adapters, {})
       Orders::Refund.where(payment_id: @payment.id).delete_all if @payment&.persisted?
       Orders::PaymentEvent.where(id: @event_record.id).delete_all if @event_record&.persisted?
+      cleanup_payment_ledger_entries(payment_ids: @payment.id) if @payment&.persisted?
       Orders::Payment.where(id: @payment.id).delete_all if @payment&.persisted?
       @order.update_columns(status: "draft", paid_at: nil, closed_reason: nil) if @order&.persisted?
       Orders::OrderItem.where(id: @item.id).delete_all if @item&.persisted?
