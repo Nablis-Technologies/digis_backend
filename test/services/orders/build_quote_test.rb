@@ -40,6 +40,22 @@ module Orders
       assert_equal quote.expires_at, quote.exchange_rate_expires_at
     end
 
+    test "rejects a quote after the event is cancelled" do
+      product = create_product(name: "Cancelled event parking", price_minor: 1_000)
+      @event.update!(status: "cancelled")
+
+      result = Orders::BuildQuote.call(
+        event: @event,
+        buyer: @buyer,
+        items: [ { product:, quantity: 1 } ],
+        charge_currency: "ETB",
+        quoted_at: @quoted_at
+      )
+
+      assert_predicate result, :failure?
+      assert_equal "event_cancelled", result.error.code
+    end
+
     test "fixed charge-currency override wins without using a base price" do
       product = create_product(name: "Override parking", price_minor: nil)
       Catalog::ProductPrice.create!(

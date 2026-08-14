@@ -76,6 +76,18 @@ module Ticketing
         assert_equal "registration_not_approvable", result.error.code
       end
 
+      test "does not approve a registration after event cancellation" do
+        ticket_type = create_ticket_type(approval_mode: "manual")
+        registration = create_registration(ticket_type:, status: "pending_approval")
+        @event.update!(status: "cancelled")
+
+        result = Approve.call(registration:, actor: @manager, idempotency_key: "approve-cancelled-event")
+
+        assert_predicate result, :failure?
+        assert_equal "event_cancelled", result.error.code
+        assert_equal "pending_approval", registration.reload.status
+      end
+
       private
 
       def create_ticket_type(approval_mode:)

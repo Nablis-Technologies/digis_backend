@@ -56,8 +56,9 @@ module Events
         assert_equal 2, @event.event_dates.count
       end
 
-      test "increments the event version once per change group" do
+    test "increments the event version once per change group" do
         assert_equal 1, @event.version
+        initial_schedule_version = @event.reload.schedule_version
 
         result = call(changes: [
           { event_date_id: @date1.id, new_start_at: at(23), new_end_at: at(25) },
@@ -66,6 +67,7 @@ module Events
         assert result.success?, result.error&.inspect
 
         assert_equal 2, @event.reload.version
+        assert_equal initial_schedule_version + 1, @event.reload.schedule_version
         assert_equal 2, Events::EventDateChange.where(event: @event).count
       end
 

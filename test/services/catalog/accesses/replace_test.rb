@@ -15,6 +15,7 @@ module Catalog
       end
 
       test "replaces accesses for a draft product" do
+        initial_schedule_version = @event.reload.schedule_version
         result = Replace.call(
           product: @product,
           accesses: [
@@ -27,6 +28,7 @@ module Catalog
         access = result.value.product_accesses.first
         assert_equal "venue", access.type
         assert_equal @date.id, access.event_date_id
+        assert_equal initial_schedule_version + 1, @event.reload.schedule_version
       end
 
       test "rejects active product" do

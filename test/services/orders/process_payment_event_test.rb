@@ -152,6 +152,18 @@ module Orders
       assert_nil @payment.reload.accepted_at
     end
 
+    test "reverses a provider success discovered after event cancellation" do
+      @event.update!(status: "cancelled")
+      event = record_event(event_id: "evt-cancelled-event", event_type: "payment.succeeded")
+
+      result = Orders::ProcessPaymentEvent.call(event:)
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "event_cancelled", Orders::Refund.find_by!(payment: @payment).reason_code
+      assert_equal "pending_payment", @order.reload.status
+      assert_nil @payment.reload.accepted_at
+    end
+
     test "rejects an invalid webhook signature before persisting the event" do
       @adapter.webhook_valid = false
 

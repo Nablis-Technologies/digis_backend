@@ -17,6 +17,7 @@ module Events
       assert_response :ok
       assert JSON.parse(response.body)["data"].is_a?(Array)
 
+      initial_schedule_version = @event.reload.schedule_version
       assert_difference -> { Events::EventDate.count }, 1 do
         post "/events/#{@event.id}/event_dates",
              params: { event_date: { starts_at: "2026-08-01T20:00:00Z", ends_at: "2026-08-01T22:00:00Z", status: "scheduled" } },
@@ -25,6 +26,7 @@ module Events
       assert_response :created
       body = JSON.parse(response.body)
       assert_equal "scheduled", body.dig("data", "status")
+      assert_equal initial_schedule_version + 1, @event.reload.schedule_version
     end
 
     test "outsider cannot create an event date" do
@@ -48,12 +50,40 @@ module Events
     end
 
     test "owner can manage access zones" do
+      initial_schedule_version = @event.reload.schedule_version
       assert_difference -> { Events::AccessZone.count }, 1 do
         post "/events/#{@event.id}/access_zones",
              params: { access_zone: { type: "venue", name: "Main Floor", code: "MAIN" } },
              headers: owner_headers, as: :json
       end
       assert_response :created
+      assert_equal initial_schedule_version + 1, @event.reload.schedule_version
+
+      zone_id = JSON.parse(response.body).dig("data", "id")
+      patch "/events/#{@event.id}/access_zones/#{zone_id}",
+            params: { access_zone: { name: "Main Floor Updated" } },
+            headers: owner_headers, as: :json
+      assert_response :success
+      assert_equal initial_schedule_version + 2, @event.reload.schedule_version
+
+      delete "/events/#{@event.id}/access_zones/#{zone_id}", headers: owner_headers, as: :json
+      assert_response :success
+      assert_equal initial_schedule_version + 3, @event.reload.schedule_version
+    end
+
+    test "destroying an event date advances the schedule version" do
+      date = Events::EventDate.create!(
+        event: @event,
+        starts_at: "2026-08-01T20:00:00Z",
+        ends_at: "2026-08-01T22:00:00Z",
+        status: "scheduled"
+      )
+      initial_schedule_version = @event.reload.schedule_version
+
+      delete "/events/#{@event.id}/event_dates/#{date.id}", headers: owner_headers, as: :json
+
+      assert_response :success
+      assert_equal initial_schedule_version + 1, @event.reload.schedule_version
     end
 
     test "outsider cannot manage access zones" do

@@ -70,6 +70,16 @@ module Ticketing
         assert_empty Ticketing::Ticket.where(order_item_id: item.id)
       end
 
+      test "does not issue a registration package after event cancellation" do
+        @event.update!(status: "cancelled")
+
+        result = Ticketing::Packages::Issue.call(registration: @registration, unit_number: 1)
+
+        assert_predicate result, :failure?
+        assert_equal "event_cancelled", result.error.code
+        assert_empty Ticketing::Ticket.where(registration_id: @registration.id)
+      end
+
       test "dispatches package delivery through the registered handler" do
         item = create_fulfilled_order_item
         ticket = Ticketing::Packages::Issue.call(order_item: item, unit_number: 1).value

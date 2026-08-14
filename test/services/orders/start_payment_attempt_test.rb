@@ -120,6 +120,16 @@ module Orders
       assert_empty Orders::Payment.where(order: @order)
     end
 
+    test "rejects a new payment attempt after the event is cancelled" do
+      @event.update!(status: "cancelled")
+
+      result = start(provider: "chapa", payment_method: "telebirr", key: "cancelled-event")
+
+      assert_predicate result, :failure?
+      assert_equal "event_cancelled", result.error.code
+      assert_empty Orders::Payment.where(order: @order)
+    end
+
     test "rejects an expired order before creating an attempt" do
       @order.update_columns(status: "draft")
       @order.update_columns(expires_at: @now - 1.minute)

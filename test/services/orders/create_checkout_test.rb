@@ -84,6 +84,21 @@ module Orders
       assert_equal 0, Orders::Order.where(buyer_user: @buyer, event: @event).count
     end
 
+    test "rejects a previously quoted checkout after the event is cancelled" do
+      @event.update!(status: "cancelled")
+
+      result = Orders::CreateCheckout.call(
+        quote: @quote,
+        event: @event,
+        buyer: @buyer,
+        idempotency_key: "cancelled-checkout-#{SecureRandom.hex(6)}"
+      )
+
+      assert_predicate result, :failure?
+      assert_equal "event_cancelled", result.error.code
+      assert_equal 0, Orders::Order.where(buyer_user: @buyer, event: @event).count
+    end
+
     test "snapshots cross-currency promotion bounds in the charge currency" do
       Catalog::ExchangeRate.create!(
         from_currency: "ETB", to_currency: "USD", rate: 0.1,
