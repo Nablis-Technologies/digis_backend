@@ -75,7 +75,7 @@ Commercial Task 9 (admin and organizer API/UX) may follow its own documented
 domain prerequisites, but it is not a reason to introduce a temporary
 `orders_orders` table or to move 7B ahead of Orders Task 2.
 
-**2026-08-13 execution checkpoint — follow this queue:**
+**2026-08-14 execution checkpoint — follow this queue:**
 
 - Commercial Tasks 1–10 are complete. The Commercial API, immutable checkout
   adjustment projection, provider contract, and sequential payment-attempt
@@ -138,22 +138,25 @@ domain prerequisites, but it is not a reason to introduce a temporary
   resale payment fulfillment, exactly-once ownership/generation transfer,
   separate seller gross/fee ledger rows, and the Orders boundary are covered.
   Task 6 is committed in `2d4beec`, `213e408`, and `ca3a3c6`. Controlled Resale
-  Task 7 is implemented locally and focused-verified with N+1 detection: failed
-  or cancelled reservations release checkout state, restore seller access with
-  a newer credential generation, close the immutable listing terminally, and
-  handle late payment reversal plus expiry/fulfillment races. The focused Task
-  7 suite passes with 9 tests and 107 assertions; the related regression suite
-  passes with 40 tests and 326 assertions. User review/commit remains pending.
-  Controlled Resale Task 8 is now implemented locally and focused-verified with
-  N+1 detection: tokenized/encrypted seller destinations, verified-account
-  gates, maturity and negative-first seller-ledger allocation, provider reserve
-  checks, crash-safe dispatch/reconciliation, audited account use, and payout
-  jobs pass 14 focused tests with 113 assertions. The broader Marketplace
-  service/integration/job suite passes with 64 tests and 538 assertions; the
-  related Marketplace model and Finance payout suite passes with 17 tests and
-  123 assertions. User review/commit remains pending; after that commit, the
-  next implementation task is Controlled Resale Task 9. Commercial Task 12
-  remains the last Commercial/Phase 3.5 gate.
+  Task 7 is implemented and committed in `d76152a` and `2b6f603`: failed or
+  cancelled reservations release checkout state, restore seller access with a
+  newer credential generation, close the immutable listing terminally, and
+  handle late payment reversal plus expiry/fulfillment races. Controlled Resale
+  Task 8 is implemented and committed in `41ae8e7`, `19cc9df`, and `f8be224`:
+  tokenized/encrypted seller destinations, verified-account gates, maturity and
+  negative-first seller-ledger allocation, provider reserve checks, crash-safe
+  dispatch/reconciliation, audited account use, and payout jobs are covered by
+  14 focused tests with 113 assertions plus the related Marketplace and Finance
+  regression suites. Controlled Resale Task 9 is implemented locally and
+  focused-verified with `N_PLUS_ONE=1`: payer-specific full-chain refunds,
+  append-only seller gross/fee reversals, current-versus-historical chargeback
+  handling, and event-cancellation worker integration pass 6 tests with 68
+  assertions. Date-scoped resale-chain cancellation fails closed because the
+  existing refund-item contract requires a credential ticket; the required
+  Orders/refund-schema design update remains an explicit follow-up. The user
+  review/commit remains pending; after that commit, the next implementation
+  task is Controlled Resale Task 10. Commercial Task 12 remains the last
+  Commercial/Phase 3.5 gate.
 
 The next human-visible action is therefore:
 
@@ -163,15 +166,13 @@ The next human-visible action is therefore:
 2. Keep the Scanner Task 8 contract files synchronized with the eventual
    Swift/Kotlin/Flutter client, then run that client-side SQLite acceptance
    gate when the client exists. It is independent of the next Rails task.
-3. After Refunds/Finance Tasks 1–10 are green, run Controlled Resale Tasks 1–2
-   and the Streaming /
-   Add-ons / Links plan. These are Wave 6 work and may run in parallel when
-   ownership is explicit.
-4. Commercial Task 11 and Controlled Resale Tasks 3–6 are committed through
-   `ca3a3c6`; Controlled Resale Task 7 is implemented locally and awaits user
-   review/commit. Controlled Resale Task 8 is implemented locally and awaits
-   user review/commit. After that commit, execute Controlled Resale Task 9 and
-   finish the remaining Controlled Resale tasks in order.
+3. Refunds/Finance Tasks 1–10 and Controlled Resale Tasks 1–8 are now green;
+   Streaming / Add-ons / Links remains a separate Wave 6 track and may run in
+   parallel when ownership is explicit.
+4. Commercial Task 11 and Controlled Resale Tasks 3–8 are committed through
+   `f8be224`; review the current Controlled Resale Task 9 changes and commit
+   them before executing Controlled Resale Task 10. Finish the remaining
+   Controlled Resale tasks in order.
 5. Execute Commercial Task 12 only after resale, Finance, and the required
    operational evidence exist.
 6. Finish Launch Hardening only after all plans 0–9 are green.

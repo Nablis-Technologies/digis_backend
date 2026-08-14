@@ -32,8 +32,9 @@ boundary: a quantity-one resale checkout, buyer purchase-limit hold, seller
 generation revocation, attendee-index tombstone, package suspension, audit,
 and transactional outbox evidence. Task 6 is implemented and committed in
 `2d4beec`, `213e408`, and `ca3a3c6`; its accepted-payment fulfillment boundary
-is a separate changeset from Task 5. The next implementation task is Task 7
-below.
+is a separate changeset from Task 5. Task 7 is implemented and committed in
+`d76152a` and `2b6f603`; Task 8 is implemented and committed in `41ae8e7`,
+`19cc9df`, and `f8be224`. The next implementation task is Task 9 below.
 
 ## Approved AJ invariants
 
@@ -496,7 +497,7 @@ N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails
 
 The broader command passes with `N_PLUS_ONE=1`: 87 tests, 470 assertions, 0 failures, and 0 errors. The focused Marketplace, Ticketing credential-generation, reservation-revocation, resale-fee, and Orders reversal regression suite also passes: 40 tests, 326 assertions, 0 failures, and 0 errors. The existing scanner limitation remains explicit: offline clients must reject the revoked seller generation after synchronization, while high-risk near-gate validation may require online confirmation. No routes, serializers, Postman collection, seeds, or migrations changed because Task 7 is an internal command/job boundary.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/services/marketplace app/jobs/marketplace test/services/marketplace test/integration/marketplace test/integration/ticketing
@@ -541,7 +542,7 @@ N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails
 
 The Marketplace service, integration, and job suite passes with `N_PLUS_ONE=1`: 64 tests, 538 assertions, 0 failures, and 0 errors. Related Marketplace model and Finance payout regressions pass with `N_PLUS_ONE=1`: 17 tests, 123 assertions, 0 failures, and 0 errors. Account verification stores only a provider token plus encrypted display values; provider failure releases reservations, timeout remains `processing` for reconciliation, and provider success consumes allocations exactly once. No routes, serializers, Postman collection, or seeds changed because Task 8 adds internal commands/jobs only.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/services/marketplace app/jobs/marketplace test/services/marketplace test/integration/marketplace test/jobs/marketplace
@@ -551,45 +552,73 @@ git commit -m "feat(marketplace): settle verified seller payouts"
 ## Task 9: Refund acquisition chain and handle chargebacks
 
 **Files:**
-- Create: chain cancellation/chargeback commands
+- Create: `app/services/marketplace/cancel_acquisition_chain_value.rb`
+- Create: `app/services/marketplace/freeze_chargeback_proceeds.rb`
+- Modify: `app/services/events/cancellation/process_payment.rb`
+- Modify: `app/services/orders/create_item_refund.rb`
+- Modify: `app/models/marketplace/seller_ledger_entry.rb`
+- Modify: `config/locales/marketplace/resale.en.yml`
 - Test: `test/services/marketplace/cancel_acquisition_chain_value_test.rb`
 - Test: `test/services/marketplace/freeze_chargeback_proceeds_test.rb`
 - Test: `test/integration/marketplace/multi_acquisition_cancellation_test.rb`
+- Test support: `test/support/marketplace/acquisition_chain_test_helpers.rb`
 
-- [ ] **Step 1: RED — prove payer-specific refunds and proportional reversals**
+- [x] **Step 1: RED — prove payer-specific refunds and proportional reversals**
 
 Primary → resale1 → resale2 cancellation refunds each payment's payer/value, reverses matching seller gross/fee, does not award reseller profit; current-acquisition chargeback suspends package; older chargeback does not steal current credential.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/cancel_acquisition_chain_value_test.rb test/services/marketplace/freeze_chargeback_proceeds_test.rb test/integration/marketplace/multi_acquisition_cancellation_test.rb
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/cancel_acquisition_chain_value_test.rb test/services/marketplace/freeze_chargeback_proceeds_test.rb test/integration/marketplace/multi_acquisition_cancellation_test.rb --seed 68143
 ```
 
-Expected: FAIL.
+Observed RED before implementation: the two new command constants were
+missing; the acceptance assertions loaded successfully.
 
-- [ ] **Step 3: GREEN — traverse immutable acquisitions**
+- [x] **Step 3: GREEN — traverse immutable acquisitions**
 
-Lock ticket → sales sequence → payments/refunds → seller ledger. Use each item's date allocation/adjustments; create normal idempotent refund per acquisition/date; append proportional ledger reversals. Never edit ownership history.
+Lock ticket → sales sequence → payments/refunds → seller ledger. Full
+event/package cancellation creates one normal idempotent refund obligation
+per paid acquisition, reverses matching seller gross/fee facts, and leaves
+immutable ownership history and the current credential unchanged. Event
+cancellation routes through this boundary and submits only the claimed
+payment's refund; other acquisition payments are handled by their own durable
+snapshots. A current-acquisition chargeback appends a seller-side hold and
+opens the existing temporary package suspension; an older-chain chargeback
+leaves the current credential valid. Date-scoped resale-chain cancellation
+fails closed before mutation because the existing refund-item database
+contract requires a credential ticket for date rows; implementing date-scoped
+resale refunds needs a separate Orders/refund-schema design update and remains
+an explicit follow-up.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
-Run Task 9 command. Expected: PASS.
+The N+1-enabled focused command passed: 6 tests, 68 assertions, 0 failures,
+and 0 errors.
 
-- [ ] **Step 5: Refactor and verify currencies**
+- [x] **Step 5: Refactor and verify currencies**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/marketplace/multi_acquisition_cancellation_test.rb --seed 68143
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/marketplace/multi_acquisition_cancellation_test.rb --seed 68143
 ```
 
-Expected: PASS; payer refunds original currency, seller reversal stays settlement currency.
+Passed: 2 tests, 19 assertions, 0 failures, and 0 errors. Payer refunds keep
+their original payment currency and seller reversals stay in the immutable
+resale settlement currency. Orders refund and ledger regressions also pass:
+15 tests, 77 assertions, 0 failures, and 0 errors. Targeted RuboCop passes.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add app/services/marketplace test/services/marketplace test/integration/marketplace
+git add app/models/marketplace/seller_ledger_entry.rb app/services/events/cancellation/process_payment.rb app/services/marketplace app/services/orders/create_item_refund.rb config/locales/marketplace/resale.en.yml test/services/marketplace test/integration/marketplace test/support/marketplace/acquisition_chain_test_helpers.rb
 git commit -m "feat(marketplace): reverse cancelled resale acquisitions"
 ```
+
+The user review/commit boundary remains pending. After this commit, continue
+with Controlled Resale Task 10; do not begin Commercial Task 12 until the
+remaining resale API/failure-recovery gate and Finance/operational evidence
+are complete.
 
 ## Task 10: Expose authorized marketplace APIs without scanner leakage
 
