@@ -28,7 +28,13 @@ module Marketplace
     def cleanup_resale_fulfillment_fixture
       sale_ids = ResaleSale.where(ticket_id: @ticket.id).pluck(:id)
       payment_ids = Orders::Payment.where(order_id: @order&.id).pluck(:id)
-      Core::OutboxEvent.where(aggregate_id: [ @ticket.id, @listing&.id, *sale_ids ].compact).delete_all
+      refund_ids = Orders::Refund.where(payment_id: payment_ids).pluck(:id)
+      refund_item_ids = Orders::RefundItem.where(refund_id: refund_ids).pluck(:id)
+      Core::OutboxEvent.where(aggregate_id: [ @ticket.id, @listing&.id, *sale_ids, *payment_ids ].compact).delete_all
+
+      Orders::RefundAdjustmentAllocation.where(refund_item_id: refund_item_ids).delete_all
+      Orders::RefundItem.where(id: refund_item_ids).delete_all
+      Orders::Refund.where(id: refund_ids).delete_all
 
       connection = Marketplace::ApplicationRecord.connection
       connection.execute(
