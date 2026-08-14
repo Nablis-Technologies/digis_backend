@@ -9,3 +9,9 @@ Rails.application.config.x.outbox_handlers["event.published"] = lambda do |outbo
   Events::RefreshDiscoveryJob.perform_later(event_id)
   Commercial::HandleEventPublishedJob.perform_later(event_id)
 end
+
+Rails.application.config.x.outbox_handlers["events.cancellation_initiated"] = lambda do |outbox_event|
+  result = Events::Cancellation::OutboxHandlers::CancellationInitiated.call(event: outbox_event)
+  raise result.error if result.failure?
+  result
+end
