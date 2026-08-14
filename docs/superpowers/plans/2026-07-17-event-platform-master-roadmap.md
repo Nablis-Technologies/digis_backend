@@ -143,11 +143,17 @@ domain prerequisites, but it is not a reason to introduce a temporary
   a newer credential generation, close the immutable listing terminally, and
   handle late payment reversal plus expiry/fulfillment races. The focused Task
   7 suite passes with 9 tests and 107 assertions; the related regression suite
-  passes with 40 tests and 326 assertions. User review/commit remains pending;
-  after that commit, the next implementation task is Controlled Resale Task 8.
-  Payout and reconciliation consumers from later tasks remain intentionally
-  unimplemented. Commercial Task 12 remains the last Commercial/Phase 3.5
-  gate.
+  passes with 40 tests and 326 assertions. User review/commit remains pending.
+  Controlled Resale Task 8 is now implemented locally and focused-verified with
+  N+1 detection: tokenized/encrypted seller destinations, verified-account
+  gates, maturity and negative-first seller-ledger allocation, provider reserve
+  checks, crash-safe dispatch/reconciliation, audited account use, and payout
+  jobs pass 14 focused tests with 113 assertions. The broader Marketplace
+  service/integration/job suite passes with 64 tests and 538 assertions; the
+  related Marketplace model and Finance payout suite passes with 17 tests and
+  123 assertions. User review/commit remains pending; after that commit, the
+  next implementation task is Controlled Resale Task 9. Commercial Task 12
+  remains the last Commercial/Phase 3.5 gate.
 
 The next human-visible action is therefore:
 
@@ -163,7 +169,8 @@ The next human-visible action is therefore:
    ownership is explicit.
 4. Commercial Task 11 and Controlled Resale Tasks 3–6 are committed through
    `ca3a3c6`; Controlled Resale Task 7 is implemented locally and awaits user
-   review/commit. After that commit, execute Controlled Resale Task 8 and
+   review/commit. Controlled Resale Task 8 is implemented locally and awaits
+   user review/commit. After that commit, execute Controlled Resale Task 9 and
    finish the remaining Controlled Resale tasks in order.
 5. Execute Commercial Task 12 only after resale, Finance, and the required
    operational evidence exist.

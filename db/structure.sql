@@ -1275,7 +1275,7 @@ BEGIN
   IF payout_seller_id IS NULL OR ledger_seller_id IS NULL OR
      payout_seller_id IS DISTINCT FROM ledger_seller_id OR
      payout_currency IS DISTINCT FROM ledger_currency OR
-     ledger_type = 'payout' OR ledger_amount <= 0 OR NEW.amount_minor <= 0 THEN
+     ledger_type = 'payout' OR ledger_amount = 0 OR NEW.amount_minor <= 0 THEN
     RAISE EXCEPTION 'marketplace_seller_payout_allocation_scope_invalid' USING ERRCODE = '23514';
   END IF;
 
@@ -1286,7 +1286,7 @@ BEGIN
     AND status IN ('reserved','consumed')
     AND id IS DISTINCT FROM NEW.id;
 
-  IF allocated_amount + NEW.amount_minor > ledger_amount THEN
+  IF allocated_amount + NEW.amount_minor > abs(ledger_amount) THEN
     RAISE EXCEPTION 'marketplace_seller_payout_allocation_exceeds_ledger'
       USING ERRCODE = '23514';
   END IF;

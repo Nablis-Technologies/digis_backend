@@ -2927,7 +2927,7 @@ Sale fulfillment posts positive gross proceeds and a separate negative marketpla
 
 Seller payout: `seller_user_id`, verified `seller_payout_account_id`, provider/reference, amount/currency, status (`pending`, `processing`, `succeeded`, `failed`, `cancelled`), idempotency key, requested/processed timestamps, and failure code. Allocation rows connect one payout to seller-ledger entries with positive same-currency `amount_minor`.
 
-The same ledger-allocation rules as organizer payouts apply: allocations are unique per payout/entry, cannot exceed remaining entry value, lock deterministically, and become consumed only on provider success. Payout dispatch rechecks event completion/buffer, unresolved refunds/chargebacks, seller/account status, and provider liquidity.
+The same ledger-allocation rules as organizer payouts apply: allocations are unique per payout/entry, cannot exceed remaining entry value, lock deterministically, and become consumed only on provider success. The allocation amount is always a positive reservation of the absolute signed ledger value; negative fee, refund, cancellation, or chargeback facts therefore offset positive proceeds without changing the allocation column's sign contract. Payout dispatch rechecks event completion/buffer, unresolved refunds/chargebacks, seller/account status, and provider liquidity. Because seller ledger entries retain a required `event_id`, the launch payout command batches one event's seller ledger facts at a time; a future cross-event treasury batch must preserve per-event payout ledger rows rather than inventing a nullable event scope.
 
 ### Resale cancellation/refund chain
 

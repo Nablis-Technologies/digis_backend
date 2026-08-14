@@ -511,34 +511,35 @@ git commit -m "feat(marketplace): recover resale checkout credentials"
 - Test: `test/services/marketplace/build_seller_payout_test.rb`
 - Test: `test/services/marketplace/dispatch_seller_payout_test.rb`
 - Test: `test/integration/marketplace/concurrent_seller_payout_test.rb`
+- Test: `test/jobs/marketplace/seller_payout_jobs_test.rb`
 
-- [ ] **Step 1: RED — encode AJ-E1/AJ-F1**
+- [x] **Step 1: RED — encode AJ-E1/AJ-F1**
 
 Raw credentials absent, token/encrypted display only, verified required, proceeds mature after completed+buffer, blocked for postponed/suspended/cancelled/refund/chargeback, negatives before positives, same currency, concurrent builders, ambiguous reconciliation, failure release, success once.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/verify_payout_account_test.rb test/services/marketplace/build_seller_payout_test.rb test/services/marketplace/dispatch_seller_payout_test.rb test/integration/marketplace/concurrent_seller_payout_test.rb
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/verify_payout_account_test.rb test/services/marketplace/build_seller_payout_test.rb test/services/marketplace/dispatch_seller_payout_test.rb test/integration/marketplace/concurrent_seller_payout_test.rb
 ```
 
-Expected: FAIL.
+The initial RED run failed at test load because the Task 8 provider adapter did not exist yet (`Marketplace::PayoutProviders` was unresolved).
 
-- [ ] **Step 3: GREEN — implement tokenized same-currency payout**
+- [x] **Step 3: GREEN — implement tokenized same-currency payout**
 
-Adapter tokenizes/verifies/submits/verifies and returns canonical result. Builder locks seller/account then matured rows by ID, includes negatives, creates reserved allocations. Dispatch persists intent, commits, calls provider, reconciles. Never pay original purchase method.
+Adapter tokenizes/verifies/submits/verifies and returns the canonical provider result. Builder locks seller/account then matured rows by ID, includes negative ledger facts before positive proceeds, and creates positive absolute-value reservations. Dispatch persists intent, commits, calls the provider, reconciles ambiguous outcomes, and never receives or uses the original purchase method. Seller payouts are constrained to one event's ledger facts because the existing required `seller_ledger_entries.event_id` is the accounting scope; a multi-event batch is rejected before provider dispatch. The allocation trigger now compares reservations with `abs(ledger.amount_minor)`, allowing negative refund/fee/chargeback facts to be reserved without changing the positive allocation amount contract.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
-Run Task 8 command. Expected: PASS.
+The focused Task 8 command passes with `N_PLUS_ONE=1`: 14 tests, 113 assertions, 0 failures, and 0 errors.
 
-- [ ] **Step 5: Refactor and verify crashes/races**
+- [x] **Step 5: Refactor and verify crashes/races**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace test/integration/marketplace test/jobs/marketplace --seed 52967
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace test/integration/marketplace test/jobs/marketplace --seed 52967
 ```
 
-Expected: PASS.
+The Marketplace service, integration, and job suite passes with `N_PLUS_ONE=1`: 64 tests, 538 assertions, 0 failures, and 0 errors. Related Marketplace model and Finance payout regressions pass with `N_PLUS_ONE=1`: 17 tests, 123 assertions, 0 failures, and 0 errors. Account verification stores only a provider token plus encrypted display values; provider failure releases reservations, timeout remains `processing` for reconciliation, and provider success consumes allocations exactly once. No routes, serializers, Postman collection, or seeds changed because Task 8 adds internal commands/jobs only.
 
 - [ ] **Step 6: Commit**
 
