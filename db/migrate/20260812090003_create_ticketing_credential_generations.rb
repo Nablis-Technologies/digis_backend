@@ -7,6 +7,10 @@ class CreateTicketingCredentialGenerations < ActiveRecord::Migration[8.1]
       t.integer :version, null: false
       t.string :mode, null: false
       t.string :status, null: false, default: "active"
+      # A replacement generation snapshots the dates that must no longer be
+      # admitted. The array is immutable generation history, not mutable ticket
+      # state, so a failed refund can restore access only through a newer row.
+      t.uuid :excluded_event_date_ids, array: true, null: false, default: []
       t.timestamptz :activated_at, null: false
       t.timestamptz :revoked_at
       t.string :revocation_reason

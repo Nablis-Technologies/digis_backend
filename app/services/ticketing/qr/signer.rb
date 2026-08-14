@@ -57,7 +57,9 @@ module Ticketing
           "mode" => generation.mode,
           "slots" => Array(credential.slot_positions).map(&:to_i),
           "entry_limit" => credential.entry_limit,
-          "accesses" => product.product_accesses.map { |access| access.id.to_s },
+          "accesses" => product.product_accesses.filter_map do |access|
+            access.id.to_s if generation.allows_event_date?(access.event_date_id)
+          end,
           "exp" => expiration.to_i
         }
       end
@@ -81,7 +83,9 @@ module Ticketing
       end
 
       def expiration
-        product.product_accesses.map { |access| access.event_date.ends_at }.compact.max ||
+        product.product_accesses.filter_map { |access|
+          access.event_date.ends_at if generation.allows_event_date?(access.event_date_id)
+        }.compact.max ||
           raise(Core::Error, I18n.t("ticketing.package_issuance.errors.credential_expiry_missing"))
       end
     end

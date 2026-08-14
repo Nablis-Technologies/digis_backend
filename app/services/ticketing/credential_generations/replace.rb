@@ -10,11 +10,16 @@ module Ticketing
     # the database shape guard, while the old generation is retained as a
     # revoked, scanner-visible history row.
     class Replace < Core::BaseService
-      def initialize(ticket:, target_mode:, reason:, assignments:, idempotency_key:)
+      def initialize(
+        ticket:, target_mode:, reason:, assignments:, idempotency_key:, excluded_event_date_ids: nil,
+        allow_suspended: false
+      )
         @ticket = ticket
         @target_mode = target_mode.to_s
         @reason = reason.to_s.strip
         @raw_assignments = assignments
+        @excluded_event_date_ids = normalize_excluded_event_date_ids(excluded_event_date_ids)
+        @allow_suspended = allow_suspended == true
         @idempotency_key = Core::IdempotencyKey.new(idempotency_key)
       rescue ArgumentError => error
         @idempotency_key_error = error
@@ -67,6 +72,7 @@ module Ticketing
             version: prior.version + 1,
             mode: @target_mode,
             status: "active",
+            excluded_event_date_ids: @excluded_event_date_ids,
             activated_at: Time.current
           )
           ticket.update!(
@@ -109,7 +115,7 @@ module Ticketing
         )
       rescue ActiveRecord::RecordNotUnique
         failure(replacement_error(:generation_conflict, "generation_conflict", :conflict))
-      rescue Core::Outbox::IdempotencyConflict
+      rescue Core::Outbox::Publish::IdempotencyConflict
         failure(replacement_error(:generation_idempotency_conflict, "generation_idempotency_conflict", :conflict))
       end
 
@@ -170,12 +176,17 @@ module Ticketing
         success(normalized)
       end
 
+      def normalize_excluded_event_date_ids(values)
+        Array(values).map(&:to_s).reject(&:blank?).uniq.sort
+      end
+
       def verify_transition(ticket, assignments, slots)
         return failure(replacement_error(:invalid_generation_mode, "invalid_generation_mode", :unprocessable_entity)) unless
           Ticketing::Ticket::CREDENTIAL_MODES.include?(@target_mode)
         return failure(replacement_error(:revocation_reason_required, "revocation_reason_required", :unprocessable_entity)) if @reason.blank?
         return failure(replacement_error(:package_dead, "package_dead", :conflict)) if ticket.package_dead?
-        return failure(replacement_error(:ticket_suspended, "ticket_suspended", :conflict)) if ticket.package_suspended?
+        return failure(replacement_error(:ticket_suspended, "ticket_suspended", :conflict)) if
+          ticket.package_suspended? && !@allow_suspended
         return failure(replacement_error(:ticket_not_active, "ticket_not_active", :conflict)) unless ticket.status == "active"
         return failure(replacement_error(:event_not_active, "event_not_active", :conflict)) if ticket.event.status.in?(%w[cancelled completed])
         return failure(replacement_error(:generation_not_current, "generation_not_current", :conflict)) unless current_generation_matches_ticket?(ticket)
@@ -206,7 +217,9 @@ module Ticketing
 
       def current_assignment?(generation, assignments)
         return false unless generation&.mode == @target_mode
-        return false if @target_mode == "group"
+        return false if @excluded_event_date_ids.empty?
+        return false unless Array(generation.excluded_event_date_ids).map(&:to_s).sort == @excluded_event_date_ids
+        return true if @target_mode == "group"
 
         generation.credentials.includes(:admission_slot).all? do |credential|
           position = credential.admission_slot.position
@@ -220,6 +233,7 @@ module Ticketing
 
         now = Time.current
         slot_ids = slots.map(&:id)
+        excluded_dates_clause = @excluded_event_date_ids.empty? ? "" : "AND event_dates.id NOT IN (?)"
         sql = <<~SQL
           SELECT admission_uses.id
             FROM ticketing_admission_uses admission_uses
@@ -229,12 +243,16 @@ module Ticketing
               ON event_dates.id = product_accesses.event_date_id
            WHERE admission_uses.admission_slot_id IN (?)
              AND event_dates.event_id = ?
+             #{excluded_dates_clause}
              AND event_dates.status = 'scheduled'
              AND event_dates.starts_at <= ?
              AND event_dates.ends_at > ?
-           FOR UPDATE
+          FOR UPDATE
         SQL
-        query = Ticketing::ApplicationRecord.sanitize_sql_array([ sql, slot_ids, ticket.event_id, now, now ])
+        binds = [ sql, slot_ids, ticket.event_id ]
+        binds << @excluded_event_date_ids unless @excluded_event_date_ids.empty?
+        binds.concat([ now, now ])
+        query = Ticketing::ApplicationRecord.sanitize_sql_array(binds)
         current_uses = connection.select_values(query)
         return success(false) if current_uses.empty?
 
@@ -242,7 +260,9 @@ module Ticketing
       end
 
       def cutoff_passed?(ticket)
-        dates = ticket.event_product.product_accesses.map(&:event_date).compact.reject { |date| date.status == "cancelled" }
+        dates = ticket.event_product.product_accesses.map(&:event_date).compact.reject do |date|
+          date.status == "cancelled" || @excluded_event_date_ids.include?(date.id.to_s)
+        end
         return false if dates.empty?
 
         seconds = ticket.event_product.ticket_type.transfer_cutoff_seconds_before_start.to_i
@@ -269,14 +289,14 @@ module Ticketing
 
       def activate_credentials!(ticket, credentials)
         context = {
-          reserved_lookup_codes: Ticketing::Credential.where(event_id: ticket.event_id).where.not(lookup_code: nil).pluck(:lookup_code).to_set,
-          next_index_version: Ticketing::AttendeeIndexEntry.where(event_id: ticket.event_id).maximum(:index_version).to_i + 1
+          reserved_lookup_codes: Ticketing::Credential.where(event_id: ticket.event_id).where.not(lookup_code: nil).pluck(:lookup_code).to_set
         }
         credentials.each do |credential|
           next unless activatable_credential?(ticket, credential)
 
           activation = Ticketing::Credentials::Activate.call(
-            credential:, loaded_credential: credential, issuance_context: context
+            credential:, loaded_credential: credential, issuance_context: context,
+            event: ticket.event, index_lock_held: true
           )
           return activation if activation.failure?
         end

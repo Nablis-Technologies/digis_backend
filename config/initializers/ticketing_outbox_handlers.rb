@@ -67,3 +67,26 @@ Rails.application.config.x.outbox_handlers["ticketing.credential_generation_repl
   raise result.error if result.failure?
   result
 end
+
+# Terminal refund events own the credential-side transition; failed date
+# refunds restore eligibility through a new generation rather than reviving a
+# historical QR/PNR generation.
+%w[orders.refund.succeeded orders.refund.failed].each do |event_type|
+  Rails.application.config.x.outbox_handlers[event_type] = lambda do |outbox_event|
+    refund = Orders::Refund.includes(refund_items: [ :ticket, :event_date ]).find(
+      outbox_event.payload.fetch("refund_id")
+    )
+    refund_item = refund.refund_items.one? ? refund.refund_items.first : nil
+    result = if event_type == "orders.refund.succeeded" && refund_item&.event_date_id
+      Ticketing::ApplyDateRefund.call(refund:)
+    elsif event_type == "orders.refund.succeeded" && refund_item&.ticket_id
+      Ticketing::CancelPaidPackage.call(ticket: refund_item.ticket, refund:)
+    elsif event_type == "orders.refund.failed" && refund_item&.event_date_id
+      Ticketing::RestoreFailedDateRefund.call(refund:)
+    else
+      Core::BaseService::Result.success(refund)
+    end
+    raise result.error if result.failure?
+    result
+  end
+end

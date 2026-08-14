@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class CreateTicketingTicketSuspensions < ActiveRecord::Migration[8.1]
-  REASON_CODES = %w[suspected_fraud identity_review chargeback_review safety_review].freeze
+  REASON_CODES = %w[suspected_fraud identity_review chargeback_review safety_review organizer_cancellation].freeze
   STATUSES = %w[active restored revoked_free cancelled_refunded expired].freeze
   RESOLUTION_REASONS = %w[review_cleared organizer_cancellation refund_succeeded review_deadline_expired].freeze
 
