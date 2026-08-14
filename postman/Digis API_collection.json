@@ -204,6 +204,21 @@
       "key": "financeIdempotencyKey",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "resaleListingId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "resaleTicketTypeId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "sellerPayoutId",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -12024,6 +12039,247 @@
               },
               "response": [],
               "event": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Marketplace",
+      "item": [
+        {
+          "name": "Create Resale Listing",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resale_listing\": {\n    \"asking_amount_minor\": 2500\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/tickets/{{ticketId}}/resale",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "tickets", "{{ticketId}}", "resale" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Active Resale Listings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/resale_listings",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "resale_listings" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Show Resale Listing",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/resale_listings/{{resaleListingId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "resale_listings", "{{resaleListingId}}" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Purchase Resale Listing",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"purchase\": {\n    \"answers\": {},\n    \"consents\": {}\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/resale_listings/{{resaleListingId}}/purchase",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "resale_listings", "{{resaleListingId}}", "purchase" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Resale Listing",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resale_listing\": {\n    \"reason\": \"seller_requested\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/resale_listings/{{resaleListingId}}/cancel",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "resale_listings", "{{resaleListingId}}", "cancel" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Resale Policy",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ticket_types/{{resaleTicketTypeId}}/resale_policy",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "ticket_types", "{{resaleTicketTypeId}}", "resale_policy" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Resale Policy",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resale_policy\": {\n    \"resale_enabled\": true,\n    \"resale_price_cap_type\": \"percentage\",\n    \"resale_percentage_cap_bps\": 10000,\n    \"max_completed_resales\": 2\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ticket_types/{{resaleTicketTypeId}}/resale_policy",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "ticket_types", "{{resaleTicketTypeId}}", "resale_policy" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Seller",
+          "item": [
+            {
+              "name": "Seller Balance",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/marketplace/seller/balance",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "marketplace", "seller", "balance" ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Seller History",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/marketplace/seller/history",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "marketplace", "seller", "history" ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "List Seller Payout Accounts",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/marketplace/seller/payout_accounts",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "marketplace", "seller", "payout_accounts" ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Verify Seller Payout Account",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json", "type": "text" },
+                  { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"payout_account\": {\n    \"type\": \"mobile_money\",\n    \"provider\": \"telebirr\",\n    \"account_details\": {\n      \"phone\": \"251911000003\"\n    },\n    \"account_label\": \"Primary wallet\",\n    \"holder_name\": \"Seller Holder\"\n  }\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/marketplace/seller/payout_accounts",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "marketplace", "seller", "payout_accounts" ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Admin Payouts",
+          "item": [
+            {
+              "name": "List Seller Payouts",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/marketplace/seller_payouts",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "admin", "marketplace", "seller_payouts" ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Dispatch Seller Payout",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/marketplace/seller_payouts/{{sellerPayoutId}}/dispatch",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "admin", "marketplace", "seller_payouts", "{{sellerPayoutId}}", "dispatch" ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Reconcile Seller Payout",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/marketplace/seller_payouts/{{sellerPayoutId}}/reconcile",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "admin", "marketplace", "seller_payouts", "{{sellerPayoutId}}", "reconcile" ]
+                }
+              },
+              "response": []
             }
           ]
         }
