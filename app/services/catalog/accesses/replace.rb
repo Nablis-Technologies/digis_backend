@@ -42,6 +42,8 @@ module Catalog
             end
           end
 
+          Events::Schedule::BumpVersion.call(event: @product.event)
+
           success(@product.reload)
         end
       rescue Core::Error => e

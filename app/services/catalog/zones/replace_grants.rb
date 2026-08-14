@@ -24,6 +24,8 @@ module Catalog
             @product_access.product_access_zones.create!(access_zone_id: zone_id)
           end
 
+          Events::Schedule::BumpVersion.call(event: @product_access.event_product.event)
+
           success(@product_access.reload)
         end
       rescue Core::Error => e
