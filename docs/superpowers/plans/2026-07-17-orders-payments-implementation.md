@@ -97,7 +97,7 @@ exists.
 - Create `app/services/orders/process_payment_event.rb`
 - Create `app/services/orders/accept_payment.rb`
 - Create `app/services/orders/fulfill_order.rb`
-- Create `app/services/orders/reverse_unaccepted_payment.rb`
+- Create `app/services/orders/create_payment_reversal.rb`
 - Create `app/services/orders/expire_checkout.rb`
 - Create `app/services/orders/expire_settlement_grace.rb`
 - Create `app/services/payments/providers/adapter.rb`, `registry.rb`, `result.rb`, and `chapa_adapter.rb`
@@ -110,7 +110,11 @@ exists.
 - Create `app/controllers/orders/payment_webhooks_controller.rb`
 - Create `app/policies/orders/order_policy.rb`
 - Create serializers under `app/serializers/orders/`
-- Create jobs under `app/jobs/orders/`: `process_payment_event_job.rb`, `enter_settlement_grace_job.rb`, `expire_settlement_grace_job.rb`, `reconcile_payment_job.rb`
+- Create jobs under `app/jobs/orders/`: `process_payment_event_job.rb`, `enter_settlement_grace_job.rb`, `expire_settlement_grace_job.rb`
+
+Refund provider submission, verification, and pending-liquidity retries are
+owned by Refunds/Finance Task 4. Orders owns only the durable reversal
+obligation created at payment acceptance.
 - Modify `config/routes.rb` with root routes mapped to domain controllers; URL versioning remains deferred by the master roadmap
 
 ### Tests
@@ -550,13 +554,14 @@ git commit -m "feat(payments): support bounded provider retries"
   verification, retry counters, and scrubbed processing errors
 - Create: `db/migrate/20260812090011_create_refunds.rb`,
   `app/models/orders/refund.rb`, and the webhook/record/process/accept/fulfill/
-  reversal service files from the map
+  payment-reversal service files from the map
 - Create: `config/initializers/orders_outbox_handlers.rb`
 - Test: `test/controllers/orders/payment_webhooks_controller_test.rb`
 - Test: `test/services/orders/process_payment_event_test.rb`
 - Test: `test/integration/orders/concurrent_payment_success_test.rb`
-- Test: `test/models/orders/refund_test.rb`, `test/jobs/orders/*`, and the
-  provider webhook contract coverage
+- Test: `test/models/orders/refund_test.rb`, the payment-event jobs, and the
+  provider webhook contract coverage. Refund provider jobs belong to
+  Refunds/Finance Task 4.
 
 - [x] **Step 1: RED — test signatures, dedupe, two successes, and crash recovery**
 
@@ -594,19 +599,18 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/orders test/
 
 The broader suite passed without duplicate effects. Failure-injection coverage
 proves inbox receipt rolls back when its outbox publication fails, and replay
-after fulfillment commit produces one fulfillment outbox event. The refund
-reconciliation job also records provider evidence with the durable idempotency
-key. Full RuboCop, Zeitwerk, route, locale, Postman JSON, and schema-contract
-checks passed.
+after fulfillment commit produces one fulfillment outbox event. Refund
+obligation submission and provider reconciliation are verified by
+Refunds/Finance Task 4, not this Orders task.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add app/controllers/orders/payment_webhooks_controller.rb app/jobs/orders/process_payment_event_job.rb app/jobs/orders/reconcile_payment_job.rb
-git add app/models/orders/payment.rb app/models/orders/payment_event.rb app/models/orders/refund.rb app/services/orders/accept_payment.rb app/services/orders/fulfill_order.rb app/services/orders/process_payment_event.rb app/services/orders/record_payment_event.rb app/services/orders/reverse_unaccepted_payment.rb
+git add app/controllers/orders/payment_webhooks_controller.rb app/jobs/orders/process_payment_event_job.rb
+git add app/models/orders/payment.rb app/models/orders/payment_event.rb app/models/orders/refund.rb app/services/orders/accept_payment.rb app/services/orders/create_payment_reversal.rb app/services/orders/fulfill_order.rb app/services/orders/process_payment_event.rb app/services/orders/record_payment_event.rb
 git add app/services/payments/providers/adapter.rb app/services/payments/providers/chapa_adapter.rb config/initializers/orders_outbox_handlers.rb config/locales/orders/payments.en.yml config/routes.rb
 git add db/migrate/20260811090009_create_payments.rb db/migrate/20260811090010_create_payment_events.rb db/migrate/20260812090011_create_refunds.rb db/structure.sql postman/'Digis API_collection.json'
-git add test/controllers/orders/payment_webhooks_controller_test.rb test/integration/orders/concurrent_payment_success_test.rb test/jobs/orders/process_payment_event_job_test.rb test/jobs/orders/reconcile_payment_job_test.rb test/models/orders/refund_test.rb test/services/orders/process_payment_event_test.rb test/services/payments/providers/adapter_contract_test.rb
+git add test/controllers/orders/payment_webhooks_controller_test.rb test/integration/orders/concurrent_payment_success_test.rb test/jobs/orders/process_payment_event_job_test.rb test/models/orders/refund_test.rb test/services/orders/process_payment_event_test.rb test/services/payments/providers/adapter_contract_test.rb
 git commit -m "feat(payments): process webhooks exactly once"
 ```
 
