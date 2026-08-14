@@ -77,10 +77,11 @@ domain prerequisites, but it is not a reason to introduce a temporary
 
 **2026-08-15 execution checkpoint — follow this queue:**
 
-- Commercial Tasks 1–10 are complete. The Commercial API, immutable checkout
-  adjustment projection, provider contract, and sequential payment-attempt
-  behavior are verified. Commercial Task 11 remains intentionally deferred to
-  Controlled Resale; Task 12 remains last.
+- Commercial Tasks 1–11 are complete through the documented Controlled Resale
+  Task 3 handoff. The Commercial API, immutable checkout adjustment
+  projection, provider contract, sequential payment-attempt behavior, and
+  distinct resale-platform-fee adapter are verified. Commercial Task 12
+  remains last and is gated on the completed resale/finance evidence below.
 - Orders Tasks 1–9 are implemented and verified in the current branch,
   including checkout, payment-attempt persistence, provider compatibility,
   sequential attempt start/switch behavior, durable webhook receipt, exactly-
@@ -157,9 +158,15 @@ domain prerequisites, but it is not a reason to introduce a temporary
   verified with `N_PLUS_ONE=1`: authorized marketplace APIs, seller/admin
   payout projections, Postman requests, and scanner privacy coverage pass 22
   tests with 110 assertions, plus 87 Marketplace regression tests with 695
-  assertions. The user review/commit remains pending; after that commit, the
-  next implementation task is Controlled Resale Task 11. Commercial Task 12
-  remains the last Commercial/Phase 3.5 gate.
+  assertions. Controlled Resale Task 10 is committed in `95ff701`, `e2cf09c`,
+  `016954f`, and `1cde82c`. Controlled Resale Task 11 then completed the final
+  AJ/failure-recovery gate. Its initial N+1-enabled full-suite run found and
+  its corrected rerun passed the locale contract; the final full suite passes
+  2,589 tests and 10,621 assertions, the seeded marketplace/ticketing
+  concurrency set passes 91 tests and 505 assertions, and all migrations are
+  up. The current Task 11 locale/plan checkpoint remains at the user
+  review/commit boundary. After that commit, the next implementation task is
+  Commercial Task 12, the last Commercial/Phase 3.5 gate.
 
 The next human-visible action is therefore:
 
@@ -169,14 +176,13 @@ The next human-visible action is therefore:
 2. Keep the Scanner Task 8 contract files synchronized with the eventual
    Swift/Kotlin/Flutter client, then run that client-side SQLite acceptance
    gate when the client exists. It is independent of the next Rails task.
-3. Refunds/Finance Tasks 1–10 and Controlled Resale Tasks 1–9 are now green
+3. Refunds/Finance Tasks 1–10 and Controlled Resale Tasks 1–10 are now green
    and committed; Streaming / Add-ons / Links remains a separate Wave 6 track
    and may run in parallel when ownership is explicit.
-4. Review and commit the current Controlled Resale Task 10 changes before
-   executing Controlled Resale Task 11. Finish the remaining Controlled Resale
-   tasks in order.
-5. Execute Commercial Task 12 only after resale, Finance, and the required
-   operational evidence exist.
+4. Review and commit the Controlled Resale Task 11 locale correction and plan
+   checkpoints. Controlled Resale Tasks 1–11 are then complete in order.
+5. Execute Commercial Task 12 next, and only after the resale, Finance, and
+   required operational evidence gates remain green.
 6. Finish Launch Hardening only after all plans 0–9 are green.
 
 Do not use a plan's numeric task number by itself as the next-task signal. Use

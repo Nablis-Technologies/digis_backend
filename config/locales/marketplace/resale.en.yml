@@ -113,9 +113,9 @@ en:
         chargeback_ledger_invalid: "the chargeback seller ledger fact is invalid"
         chargeback_suspension_conflict: "the package has a conflicting active suspension"
         payout_provider_operation_not_implemented: "%{adapter} does not implement %{operation}"
-        ledger_descriptions:
-          resale_proceeds: "Resale seller gross proceeds"
-          marketplace_fee: "Resale marketplace fee"
-          cancellation_reversal: "Reversal of cancelled resale value"
-          chargeback: "Resale chargeback hold"
-          seller_payout: "Seller payout"
+      ledger_descriptions:
+        resale_proceeds: "Resale seller gross proceeds"
+        marketplace_fee: "Resale marketplace fee"
+        cancellation_reversal: "Reversal of cancelled resale value"
+        chargeback: "Resale chargeback hold"
+        seller_payout: "Seller payout"

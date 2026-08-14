@@ -42,16 +42,20 @@ Implementation must preserve these decisions:
 
 ## Current implementation status and navigation (verified 2026-08-15)
 
-The dependency-ordered Commercial tranche is complete through Task 10's
-Commercial-owned projection/provider boundary. Orders Tasks 1–9 have passed
+The dependency-ordered Commercial tranche is complete through Task 11's
+Controlled Resale Task 3 handoff. Orders Tasks 1–9 have passed
 their focused and full repository gates; the integrated Orders, Ticket
 Packages, Scanner, and Refunds/Finance tranches remain subject to the user's
 final review/commit boundary. Controlled Resale Tasks 1–9 are now committed
 and verified, and Commercial Task 11 was completed with Controlled Resale Task
-3. Controlled Resale Task 10 is implemented and focused-verified locally;
-after Task 10 is committed, continue with Controlled Resale Task 11. Streaming /
-Add-ons / Links remains a separate Wave 6 track. Commercial Task 12 remains
-last by design.
+3. Controlled Resale Task 10 is implemented, verified, and committed in
+`95ff701`, `e2cf09c`, `016954f`, and `1cde82c`. Controlled Resale Task 11 is
+locally verified: the N+1-enabled full suite passes 2,589 tests and 10,621
+assertions, the seeded marketplace/ticketing concurrency set passes 91 tests
+and 505 assertions, and all migrations are up. Its locale correction and plan
+checkpoints remain at the user's review/commit boundary. After that commit,
+Commercial Task 12 is the next and final Commercial/Phase 3.5 task. Streaming /
+Add-ons / Links remains a separate Wave 6 track.
 
 | Task | Status | Evidence / boundary |
 |---|---|---|
@@ -66,20 +70,21 @@ last by design.
 
 ### Current Commercial branch route
 
-1. Commercial Tasks 1–10 remain the completed Commercial-owned boundary; Task
-   11 is executed only through the documented Controlled Resale handoff below.
+1. Commercial Tasks 1–11 are complete through the documented Controlled
+   Resale Task 3 handoff; Task 12 is intentionally reserved for the final
+   reconciliation and operational gate.
 2. Review and commit the verified Orders, Ticket Packages, Scanner, and
    Refunds/Finance tranches. The native scanner SQLite acceptance row remains
    external and does not block the Rails dependency gate.
-3. Refunds/Finance Tasks 1–10 and Controlled Resale Tasks 1–9 are now green and
+3. Refunds/Finance Tasks 1–10 and Controlled Resale Tasks 1–10 are now green and
    committed. Streaming/Add-ons/Links is a separate Wave 6 track and may run
    alongside Controlled Resale when ownership is explicit.
-4. Commercial Task 11 and Controlled Resale Tasks 3–9 are committed. Controlled
-   Resale Task 10 is implemented and focused-verified locally, including its
-   authorized marketplace APIs, seller/admin payout projections, Postman
-   requests, and scanner privacy contract. Review and commit Task 10, then
-   continue with Controlled Resale Task 11 in its plan's order; do not start
-   Commercial Task 12 yet.
+4. Commercial Task 11 and Controlled Resale Tasks 3–10 are committed. Controlled
+   Resale Task 11 is locally verified in its plan's order, including the AJ
+   evidence audit, full N+1-enabled suite, seeded concurrency gate, migration
+   status, locale contract, RuboCop, and Zeitwerk checks. Review and commit the
+   Task 11 locale/plan checkpoint, then start Commercial Task 12; do not skip
+   that final review boundary.
 5. Run Task 12 last, after the remaining resale, Finance, and operational
    reconciliation evidence exist.
 
@@ -978,9 +983,12 @@ Marketplace and Commercial regression coverage passes with `N_PLUS_ONE=1`:
 - [x] **Step 5: Commit**
 
 The Commercial Task 11/Controlled Resale Task 3 handoff was committed in
-`58f3718`; Controlled Resale Task 9 is committed and Task 10 is implemented
-and focused-verified locally at the user review/commit boundary. Commercial
-Task 12 remains last after the remaining resale and operational evidence.
+`58f3718`; Controlled Resale Tasks 9–10 are committed. Controlled Resale Task
+11 is locally verified at the user review/commit boundary; its only
+implementation correction in this gate moves resale ledger descriptions out
+of the `errors` locale namespace so the existing services resolve their
+translation keys correctly. Commercial Task 12 remains last after this Task
+11 commit and the remaining operational evidence review.
 
 ## Task 12: Add reconciliation, shadow comparison, operations alerts, and phase gate
 

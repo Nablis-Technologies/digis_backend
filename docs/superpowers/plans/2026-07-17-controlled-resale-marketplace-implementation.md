@@ -34,9 +34,9 @@ and transactional outbox evidence. Task 6 is implemented and committed in
 `2d4beec`, `213e408`, and `ca3a3c6`; its accepted-payment fulfillment boundary
 is a separate changeset from Task 5. Task 7 is implemented and committed in
 `d76152a` and `2b6f603`; Task 8 is implemented and committed in `41ae8e7`,
-`19cc9df`, and `f8be224`. Task 9 was then implemented and verified at the
-current user review/commit boundary. The next implementation task is Task 10
-below.
+`19cc9df`, and `f8be224`. Task 9 was then implemented and verified. Task 10
+was implemented, verified, and committed in `95ff701`, `e2cf09c`, `016954f`,
+and `1cde82c`. The final AJ/failure-recovery gate is Task 11 below.
 
 ## Approved AJ invariants
 
@@ -610,16 +610,17 @@ their original payment currency and seller reversals stay in the immutable
 resale settlement currency. Orders refund and ledger regressions also pass:
 15 tests, 77 assertions, 0 failures, and 0 errors. Targeted RuboCop passes.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/models/marketplace/seller_ledger_entry.rb app/services/events/cancellation/process_payment.rb app/services/marketplace app/services/orders/create_item_refund.rb config/locales/marketplace/resale.en.yml test/services/marketplace test/integration/marketplace test/support/marketplace/acquisition_chain_test_helpers.rb
 git commit -m "feat(marketplace): reverse cancelled resale acquisitions"
 ```
 
-Task 9's user review/commit boundary was completed before Task 10 began. Do
-not begin Commercial Task 12 until the remaining resale API/failure-recovery
-gate and Finance/operational evidence are complete.
+Task 9's user review/commit boundary was completed before Task 10 began. The
+Task 10 API and Task 11 failure-recovery gates are now complete locally; do not
+begin Commercial Task 12 until the Task 11 checkpoint is committed and the
+Finance/operational evidence is complete.
 
 ## Task 10: Expose authorized marketplace APIs without scanner leakage
 
@@ -688,62 +689,88 @@ The policy and serializer surfaces are covered through these authorized
 controller responses; no separate policy/serializer test directories existed
 before this task.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/controllers/marketplace app/controllers/admin/marketplace app/policies/marketplace app/policies/admin/marketplace app/serializers/marketplace config/routes.rb test/controllers/marketplace test/controllers/admin/marketplace test/integration/ticketing
 git commit -m "feat(api): expose controlled resale marketplace"
 ```
 
-The implementation is complete locally and remains at the user review/commit
-boundary. After committing Task 10, continue with Controlled Resale Task 11.
-Commercial Task 12 remains last by design.
+Task 10 was committed in `95ff701`, `e2cf09c`, `016954f`, and `1cde82c`.
+Continue with Controlled Resale Task 11. Commercial Task 12 remains last by
+design.
 
 ## Task 11: Final AJ/failure-recovery gate
 
 **Files:**
 - Modify only introduced files when correcting findings
 
-- [ ] **Step 1: RED audit — map AJ-A through AJ-H1 to tests**
+- [x] **Step 1: RED audit — map AJ-A through AJ-H1 to tests**
 
 Also map two-buyer race, one sale, late reversal, no primary inventory/organizer ledger, scanner privacy/staleness, authorization, and crash rollback. Missing direct evidence is RED.
 
-- [ ] **Step 2: Run full suite**
+The audit found direct evidence for every release-blocking invariant:
+
+| Invariant / gate | Direct evidence |
+|---|---|
+| AJ-A/A1 | `configure_ticket_type_resale_test.rb`, `activate_listing_test.rb`, `resale_listing_test.rb` |
+| AJ-B/C1 | `calculate_price_cap_test.rb`, `activate_listing_test.rb`, `resale_listing_test.rb`, `fulfill_sale_test.rb` |
+| AJ-D1 | `commercial_resale_fee_test.rb`, `resale_fee_isolation_test.rb`, `fulfill_sale_test.rb` |
+| AJ-E1/F1 | `build_seller_payout_test.rb`, `seller_payout_jobs_test.rb`, cancellation and chargeback tests |
+| AJ-G1/H1 | `reserve_listing_test.rb`, `fulfill_sale_test.rb`, reservation revocation/expiry/late-payment tests |
+| Races / rollback / privacy / authorization | concurrent listing/purchase/success/payout tests, fulfillment rollback tests, scanner privacy test, Task 10 controller/policy tests |
+
+- [x] **Step 2: Run full suite**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test
 ```
 
-Expected: PASS.
+The initial audit run exposed a locale-contract failure: the five resale
+ledger descriptions were nested under `errors` even though the services used
+the non-error translation scope.
 
-- [ ] **Step 3: GREEN — remove obsolete paths**
+- [x] **Step 3: GREEN — remove obsolete paths**
 
 Delete paid-transfer shortcuts and credential toggles; keep immutable listing/sale/acquisition/ledger plus generation replacement.
 
-- [ ] **Step 4: Run full suite and verify GREEN**
+The audit found no obsolete marketplace paid-transfer shortcut or credential
+toggle. Existing general transfer/reactivation paths are separate domains,
+and resale failure recovery already creates a newer credential generation, so
+no deletion was warranted.
+
+- [x] **Step 4: Run full suite and verify GREEN**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test
 ```
 
-Expected: zero failures/errors.
+Passed: 2,589 tests, 10,621 assertions, 0 failures, 0 errors, and 0 skips.
+The focused locale contract also passes with 2 tests and 4 assertions.
 
-- [ ] **Step 5: Refactor and stress concurrency**
+- [x] **Step 5: Refactor and stress concurrency**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/marketplace test/integration/ticketing --seed 83617
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/marketplace test/integration/ticketing --seed 83617
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:migrate:status
 ```
 
-Expected: PASS and migrations up.
+Passed: 91 tests, 505 assertions, 0 failures, 0 errors, and 0 skips. All
+migrations are up. Repository RuboCop reports no offenses across 1,397 files,
+and `rails zeitwerk:check` reports `All is good!`.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add app db config test
-git commit -m "test(marketplace): prove controlled resale invariants"
+git add config/locales/marketplace/resale.en.yml docs/superpowers/plans/2026-07-17-controlled-resale-marketplace-implementation.md docs/superpowers/plans/2026-07-17-event-platform-master-roadmap.md docs/superpowers/plans/2026-08-08-commercial-agreements-platform-pricing-implementation.md
+git commit -m "fix(marketplace): correct resale ledger translations"
 ```
 
 ## Completion evidence
 
 Complete only when credential-core gate and full suite pass, every AJ invariant maps to direct evidence, two buyers cannot reserve/buy the same package, callbacks/retries are idempotent, failed checkout restores only newer seller credential, success creates one sale/new owner generation, both historical seller/new buyer purchase-limit facts remain, proceeds cannot mature early, acquisition-chain cancellation refunds correctly, and no marketplace finance data enters scanner payloads.
+
+Task 11 is locally verified on 2026-08-15. The remaining boundary is the
+user's review/commit of the locale correction and canonical plan checkpoints;
+after that, the next implementation task is Commercial Task 12, which remains
+the final Phase 3.5 reconciliation and operational gate.
