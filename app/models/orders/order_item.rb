@@ -26,6 +26,10 @@ module Orders
              class_name: "Orders::OrderAdjustment",
              inverse_of: :order_item,
              dependent: :restrict_with_exception
+    has_many :refund_items,
+             class_name: "Orders::RefundItem",
+             inverse_of: :order_item,
+             dependent: :restrict_with_exception
 
     before_validation :normalize_currencies
     before_destroy :prevent_destroy_if_immutable

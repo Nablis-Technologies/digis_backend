@@ -32,6 +32,10 @@ module Orders
                class_name: "Orders::OrderItem",
                optional: true,
                inverse_of: :order_adjustments
+    has_many :refund_adjustment_allocations,
+             class_name: "Orders::RefundAdjustmentAllocation",
+             inverse_of: :order_adjustment,
+             dependent: :restrict_with_exception
 
     before_validation :normalize_currency
     before_destroy :prevent_destroy_if_immutable
