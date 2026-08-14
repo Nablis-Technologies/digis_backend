@@ -23,6 +23,7 @@ module Ticketing
 
       def publish_projection!(ticket:, event:, revocation:, is_dead:, is_suspended:, revoked_through_version: nil)
         version = [
+          event.revocation_version.to_i,
           Ticketing::Revocation.where(event_id: event.id).maximum(:revocation_version).to_i,
           Ticketing::CredentialRevocation.where(event_id: event.id).maximum(:revocation_version).to_i
         ].max + 1
@@ -34,6 +35,7 @@ module Ticketing
           revocation_version: version
         )
         revocation.save!
+        event.update!(revocation_version: version)
         version
       end
 

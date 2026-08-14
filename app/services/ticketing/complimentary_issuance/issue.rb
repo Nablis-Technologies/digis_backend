@@ -31,8 +31,11 @@ require "digest"
 
         issued = Ticketing::Registration.transaction do
           ticket_type = Ticketing::TicketType.lock
-            .includes(event_product: :prices)
+            .includes(event_product: [ :event, :prices ])
             .find(@ticket_type.id)
+          event = Events::Event.lock.find(ticket_type.event_product.event_id)
+          halt("event_cancelled") if event.status == "cancelled"
+          ticket_type.event_product.association(:event).target = event
           identity = unwrap(Core::PhoneIdentity::ResolveOrCreate.call(
             phone:,
             actor:,

@@ -69,6 +69,7 @@ module Orders
 
     def validate_request
       return checkout_error(:event_required, code: "event_required") unless event&.id
+      return checkout_error(:event_cancelled, code: "event_cancelled", status: :conflict) if event.status == "cancelled"
       return checkout_error(:unsupported_currency, code: "unsupported_currency") unless valid_currency?(charge_currency)
       return checkout_error(:unsupported_currency, code: "unsupported_currency") unless valid_currency?(settlement_currency)
       return checkout_error(:sales_channel_invalid, code: "sales_channel_invalid") unless Orders::Order::SALES_CHANNELS.include?(sales_channel)

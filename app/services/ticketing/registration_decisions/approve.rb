@@ -81,6 +81,7 @@ module Ticketing
         automatic = locked.ticket_type.approval_mode == "automatic"
         halt("reviewer_unauthorized") if actor.present? && !reviewer_authorized?(locked, actor)
         halt("reviewer_required") if !automatic && actor.blank?
+        halt("event_cancelled") if locked.event.status == "cancelled"
         halt("registration_not_approvable") unless locked.status.in?(%w[pending_approval pending_payment])
       end
     end

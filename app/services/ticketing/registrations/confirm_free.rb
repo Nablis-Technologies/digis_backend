@@ -15,10 +15,13 @@
 
       def call
         confirmed = Ticketing::Registration.transaction do
+          event_id = Ticketing::Registration.where(id: @registration.id).pick(:event_id)
+          event = Events::Event.lock.find(event_id)
           locked = Ticketing::Registration.lock
             .includes(:user, :consent_requirements)
             .find(@registration.id)
           return success(locked) if locked.confirmed?
+          return failure(workflow_error("event_cancelled")) if event.status == "cancelled"
           return failure(workflow_error("registration_not_confirmable")) unless
             locked.status.in?(%w[pending_payment offered])
           return failure(workflow_error("required_buyer_consent_missing")) unless

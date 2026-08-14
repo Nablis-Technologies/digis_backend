@@ -6,11 +6,16 @@ module Ticketing
     # always gets every snapshotted admission slot; only activation is delayed
     # when personal consent or the product's identity requirement is incomplete.
     class CreateInitialGroup < Core::BaseService
-      def initialize(ticket:, admission_slots: nil, issuance_context: nil, skip_existing_lookup: false)
+      def initialize(
+        ticket:, admission_slots: nil, issuance_context: nil, skip_existing_lookup: false,
+        event: nil, index_lock_held: false
+      )
         @ticket = ticket
         @admission_slots = admission_slots
         @issuance_context = issuance_context
         @skip_existing_lookup = skip_existing_lookup
+        @event = event
+        @index_lock_held = index_lock_held
       end
 
       def call
@@ -43,7 +48,9 @@ module Ticketing
         activation = Ticketing::Credentials::Activate.call(
           credential:,
           loaded_credential: credential,
-          issuance_context:
+          issuance_context:,
+          event: @event,
+          index_lock_held: @index_lock_held
         )
         return failure(activation.error) if activation.failure?
 

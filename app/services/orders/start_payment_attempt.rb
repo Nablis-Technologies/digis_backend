@@ -75,8 +75,9 @@ module Orders
     def reserve_attempt!(adapter)
       state = {}
       ActiveRecord::Base.transaction do
-        locked_order = Orders::Order.lock.find(order.id)
-        validate_order!(locked_order)
+        locked_order = Orders::Order.includes(:event).lock.find(order.id)
+        event = Events::Event.lock.find(locked_order.event_id)
+        validate_order!(locked_order, event)
         ensure_commercial_compatibility!(locked_order)
 
         existing = locked_order.payments.lock.find_by(idempotency_key:)
@@ -113,9 +114,10 @@ module Orders
         existing.commercial_signature == locked_order.commercial_signature
     end
 
-    def validate_order!(locked_order)
+    def validate_order!(locked_order, event)
       valid_owner = locked_order.buyer_user_id == buyer.id
       abort_with(payment_error(:payment_order_not_owned, code: "payment_order_not_owned", status: :forbidden)) unless valid_owner
+      abort_with(payment_error(:event_cancelled, code: "event_cancelled", status: :conflict)) if event.status == "cancelled"
       abort_with(payment_error(:payment_attempt_unavailable, code: "payment_attempt_unavailable", status: :conflict)) unless locked_order.pending_payment?
       abort_with(payment_error(:payment_attempt_expired, code: "payment_attempt_expired", status: :conflict)) if locked_order.expires_at <= now
       abort_with(payment_error(:payment_amount_invalid, code: "payment_amount_invalid")) unless locked_order.total_minor.positive?

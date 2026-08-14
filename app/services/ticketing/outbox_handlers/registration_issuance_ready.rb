@@ -17,7 +17,10 @@ module Ticketing
         ActiveRecord::Base.transaction do
           registration = load_registration
           event_id = registration.event_id
+          event = Events::Event.lock.find(event_id)
+          return success(registration) if event.status == "cancelled"
           Core::Database::AdvisoryLock.acquire!("ticketing-package-issuance", event_id)
+          Core::Database::AdvisoryLock.acquire!("ticketing-attendee-index", event_id)
           context = issuance_context(event_id)
           existing_tickets = Ticketing::Ticket.where(registration_id: registration.id).to_a.index_by(&:unit_number)
           1.upto(registration.package_quantity) do |unit_number|
@@ -27,7 +30,8 @@ module Ticketing
               source: registration,
               existing_ticket: existing_tickets[unit_number],
               reload_ticket: false,
-              issuance_context: context
+              issuance_context: context,
+              event:, index_lock_held: true
             )
             next if issuance.success?
 
@@ -53,6 +57,7 @@ module Ticketing
       def load_registration
         Ticketing::Registration.includes(
           :user,
+          :event,
           :consent_requirements,
           ticket_type: { event_product: [ :ticket_type, { product_accesses: :event_date } ] }
         ).find(@event.payload.fetch("registration_id"))
@@ -60,8 +65,7 @@ module Ticketing
 
       def issuance_context(event_id)
         {
-          reserved_lookup_codes: Ticketing::Credential.where(event_id:).where.not(lookup_code: nil).pluck(:lookup_code).to_set,
-          next_index_version: Ticketing::AttendeeIndexEntry.where(event_id:).maximum(:index_version).to_i + 1
+          reserved_lookup_codes: Ticketing::Credential.where(event_id:).where.not(lookup_code: nil).pluck(:lookup_code).to_set
         }
       end
     end

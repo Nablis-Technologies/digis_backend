@@ -27,7 +27,7 @@ module Ticketing
           event = Events::Event.lock.find(new_generation.ticket.event_id)
           Core::Database::AdvisoryLock.acquire!("ticketing-attendee-index", event.id)
           tombstone_old_entries(old_generation, event)
-          unless project_active_credentials(new_generation)
+          unless project_active_credentials(new_generation, event)
             outcome = failure(@projection_error)
             raise ActiveRecord::Rollback
           end
@@ -64,7 +64,7 @@ module Ticketing
         event.update!(attendee_index_version: next_version) if entries.present?
       end
 
-      def project_active_credentials(generation)
+      def project_active_credentials(generation, event)
         credentials = Ticketing::Credential.includes(
           :credential_generation,
           :holder_user,
@@ -74,7 +74,10 @@ module Ticketing
         credentials.find_each do |credential|
           projection = Ticketing::AttendeeIndex::ProjectInitial.call(
             credential:,
-            loaded_credential: credential
+            loaded_credential: credential,
+            skip_existing_lookup: true,
+            event:,
+            index_lock_held: true
           )
           next if projection.success?
 

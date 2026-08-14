@@ -115,8 +115,7 @@ module Ticketing
           credential:,
           loaded_credential: credential,
           issuance_context: {
-            reserved_lookup_codes: Ticketing::Credential.where(event_id: ticket.event_id).where.not(lookup_code: nil).pluck(:lookup_code).to_set,
-            next_index_version: Ticketing::AttendeeIndexEntry.where(event_id: ticket.event_id).maximum(:index_version).to_i + 1
+            reserved_lookup_codes: Ticketing::Credential.where(event_id: ticket.event_id).where.not(lookup_code: nil).pluck(:lookup_code).to_set
           }
         )
       end

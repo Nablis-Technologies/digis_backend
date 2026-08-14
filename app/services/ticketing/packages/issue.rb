@@ -13,7 +13,7 @@ module Ticketing
       UNSET = Object.new.freeze
 
       def initialize(order_item: nil, registration: nil, unit_number:, source: nil, existing_ticket: UNSET,
-        reload_ticket: true, issuance_context: nil)
+        reload_ticket: true, issuance_context: nil, event: nil, index_lock_held: false)
         @order_item = order_item
         @registration = registration
         @source = source
@@ -21,6 +21,8 @@ module Ticketing
         @existing_ticket_checked = !existing_ticket.equal?(UNSET)
         @reload_ticket = reload_ticket
         @issuance_context = issuance_context
+        @event = event
+        @index_lock_held = index_lock_held
         @unit_number = Integer(unit_number)
       rescue ArgumentError, TypeError
         @unit_number = nil
@@ -34,6 +36,7 @@ module Ticketing
 
         outcome = nil
         Ticketing::Ticket.transaction do
+          event = lock_event
           source = lock_source
           existing = @existing_ticket_checked ? @existing_ticket : Ticketing::Ticket.find_by(source_key)
           if existing
@@ -41,7 +44,7 @@ module Ticketing
             next
           end
 
-          verification = verify_source(source)
+          verification = verify_source(source, event:)
           if verification.failure?
             outcome = verification
             raise ActiveRecord::Rollback
@@ -53,7 +56,9 @@ module Ticketing
             ticket:,
             admission_slots: slots,
             issuance_context:,
-            skip_existing_lookup: @source.present?
+            skip_existing_lookup: @source.present?,
+            event:,
+            index_lock_held: @index_lock_held
           )
           if generation.failure?
             outcome = failure(generation.error)
@@ -121,15 +126,16 @@ module Ticketing
         end
       end
 
-      def verify_source(source)
+      def verify_source(source, event:)
         if source.is_a?(Orders::OrderItem)
-          verify_order_item(source)
+          verify_order_item(source, event:)
         else
-          verify_registration(source)
+          verify_registration(source, event:)
         end
       end
 
-      def verify_order_item(item)
+      def verify_order_item(item, event:)
+        return failure(issuance_error(:event_cancelled, "event_cancelled", :conflict)) if event.status == "cancelled"
         return failure(issuance_error(:source_not_fulfillable, "ticket_source_not_fulfillable", :conflict)) unless
           item.fulfilled? && item.order.status == "fulfilled" && @unit_number <= item.quantity
         return failure(issuance_error(:source_type_invalid, "ticket_source_type_invalid", :unprocessable_entity)) unless
@@ -140,7 +146,8 @@ module Ticketing
         success(item)
       end
 
-      def verify_registration(registration)
+      def verify_registration(registration, event:)
+        return failure(issuance_error(:event_cancelled, "event_cancelled", :conflict)) if event.status == "cancelled"
         return failure(issuance_error(:source_not_fulfillable, "ticket_source_not_fulfillable", :conflict)) unless
           registration.confirmed? && @unit_number <= registration.package_quantity
         return failure(issuance_error(:source_type_invalid, "ticket_source_type_invalid", :unprocessable_entity)) unless
@@ -149,6 +156,17 @@ module Ticketing
           registration.ticket_type.event_product.product_accesses.empty?
 
         success(registration)
+      end
+
+      def lock_event
+        return @event if @event
+
+        event_id = if @order_item
+          Orders::Order.joins(:order_items).where(orders_order_items: { id: @order_item.id }).pick(:event_id)
+        else
+          Ticketing::Registration.where(id: @registration.id).pick(:event_id)
+        end
+        Events::Event.lock.find(event_id)
       end
 
       def ticket_attributes(source)

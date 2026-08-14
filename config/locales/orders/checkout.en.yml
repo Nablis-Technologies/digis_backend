@@ -6,6 +6,7 @@ en:
       promotion_discount_label: "Promotion discount"
       errors:
         event_required: "An event is required for checkout"
+        event_cancelled: "Checkout is unavailable because this event has been cancelled"
         invalid_quote: "The checkout quote is invalid"
         quote_expired: "The checkout quote has expired"
         quote_expiry_invalid: "The checkout quote expiry is invalid"

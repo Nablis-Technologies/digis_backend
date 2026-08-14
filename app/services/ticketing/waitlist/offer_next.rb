@@ -20,6 +20,9 @@ require "securerandom"
       def call
         Core::IdempotencyKey.new(idempotency_key)
         offered = Ticketing::Registration.transaction do
+          event_id = Ticketing::TicketType.joins(:event_product).where(id: @ticket_type.id).pick(:event_id)
+          event = Events::Event.lock.find(event_id)
+          halt(waitlist_error("event_cancelled")) if event.status == "cancelled"
           ticket_type = Ticketing::TicketType.lock
             .includes(event_product: :inventories)
             .find(@ticket_type.id)

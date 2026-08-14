@@ -7,3 +7,4 @@ en:
         create: "Event cancellation initiated"
       errors:
         already_cancelled: "This event has already been cancelled"
+        cancellation_failed: "The event cancellation could not be completed"

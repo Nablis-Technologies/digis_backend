@@ -5,6 +5,7 @@ en:
         invalid_idempotency_key: "The Idempotency-Key value is invalid"
         idempotency_conflict: "The request conflicts with an existing idempotency key"
         invalid_registration: "The registration is invalid"
+        event_cancelled: "Registration is unavailable because this event has been cancelled"
         reviewer_unauthorized: "Only an authorized event manager may decide this registration"
         reviewer_required: "A manual registration decision requires an authorized reviewer"
         registration_not_approvable: "This registration cannot be approved in its current state"

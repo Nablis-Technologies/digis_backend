@@ -6,6 +6,7 @@ en:
         source_required: "Exactly one ticket fulfillment source is required"
         source_not_found: "The ticket fulfillment source could not be found"
         source_not_fulfillable: "The ticket fulfillment source is not ready for ticket issuance"
+        event_cancelled: "Tickets cannot be issued because this event has been cancelled"
         source_type_invalid: "Only ticket products can issue admission packages"
         product_access_missing: "The ticket product has no configured admission access"
         issuance_failed: "The admission package could not be issued"

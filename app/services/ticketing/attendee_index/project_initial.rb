@@ -6,10 +6,12 @@ module Ticketing
     # versions are event-scoped and allocated under a transaction advisory lock
     # so concurrent package fulfillment cannot publish duplicate versions.
     class ProjectInitial < Core::BaseService
-      def initialize(credential:, loaded_credential: nil, skip_existing_lookup: false)
+      def initialize(credential:, loaded_credential: nil, skip_existing_lookup: false, event: nil, index_lock_held: false)
         @credential = credential
         @loaded_credential = loaded_credential
         @skip_existing_lookup = skip_existing_lookup
+        @event = event
+        @index_lock_held = index_lock_held
       end
 
       def call
@@ -22,7 +24,10 @@ module Ticketing
 
           outcome = Ticketing::AttendeeIndex::Upsert.call(
             credential:,
-            loaded_credential: credential
+            loaded_credential: credential,
+            event: @event,
+            skip_existing_lookup: @event.present? && @index_lock_held,
+            index_lock_held: @index_lock_held
           )
         end
         outcome

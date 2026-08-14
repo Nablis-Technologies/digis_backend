@@ -1,0 +1,48 @@
+en:
+  finance:
+    permissions:
+      reserve_policy_update: "Update provider reserve policies"
+      payout_dispatch: "Dispatch organizer payouts"
+      payout_reconcile: "Reconcile organizer payouts"
+      payout_approve_no_balance_api: "Approve payouts without a provider balance API"
+    errors:
+      chargeback_amount_invalid: "The chargeback amount is invalid"
+      ledger_entry_invalid: "The finance ledger entry is invalid"
+      source_not_found: "The finance source could not be found"
+      payout_not_matured: "The organizer funds are not yet eligible for payout"
+      payout_balance_not_positive: "There is no positive organizer balance available for payout"
+      payout_amount_invalid: "The requested payout amount is invalid"
+      payout_scope_mismatch: "The payout scope does not match the ledger facts"
+      payout_already_allocated: "The organizer funds are already reserved for payout"
+      payout_not_dispatchable: "The payout is not ready for dispatch"
+      provider_reserve_breach: "The provider reserve would fall below its configured target"
+      treasury_approval_required: "Audited treasury approval is required when provider balance is unavailable"
+      treasury_approval_reason_required: "A reason is required for a no-balance provider approval"
+      provider_balance_invalid: "The provider returned an invalid balance"
+      payout_provider_unavailable: "The payout provider is unavailable"
+      payout_provider_result_invalid: "The payout provider returned an invalid result"
+      payout_not_found: "The payout could not be found"
+      payout_ledger_entry_invalid: "The payout ledger entry is invalid"
+      payout_reconciliation_pending: "The payout is awaiting provider reconciliation"
+      unauthorized: "You are not authorized to change finance configuration"
+      event_completion_unauthorized: "You are not authorized to complete this event"
+      idempotency_conflict: "The idempotency key conflicts with an earlier finance operation"
+      idempotency_key_invalid: "The idempotency key is invalid"
+      reserve_target_invalid: "The provider reserve target is invalid"
+      reserve_policy_invalid: "The provider reserve policy is invalid"
+      event_already_completed: "The event has already been completed"
+      event_not_completable: "The event cannot be completed from its current state"
+      event_dates_incomplete: "Every event date must be completed or cancelled first"
+      event_completion_invalid: "The event completion is invalid"
+    payout_providers:
+      errors:
+        adapter_operation_not_implemented: "%{adapter} does not implement %{operation}"
+        invalid_result: "The payout provider returned an invalid result"
+    ledger:
+      descriptions:
+        sale: "Accepted sale proceeds"
+        organizer_adjustment: "Organizer %{type} adjustment"
+        refund: "Refunded organizer proceeds"
+        chargeback: "Chargeback against accepted sale"
+        reversal: "Correction of finance ledger entry"
+        payout: "Organizer payout"

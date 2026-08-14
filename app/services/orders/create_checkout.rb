@@ -33,6 +33,8 @@ module Orders
 
       prepare_idempotency!
       ActiveRecord::Base.transaction do
+        locked_event = Events::Event.lock.find(event.id)
+        abort_with(checkout_error(:event_cancelled, code: "event_cancelled", status: :conflict)) if locked_event.status == "cancelled"
         Core::Database::AdvisoryLock.acquire!("orders-checkout", buyer.id, event.id)
         replay = replay_or_conflict!
         return replay if replay

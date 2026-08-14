@@ -17,6 +17,7 @@ module Ticketing
         outcome = nil
         Ticketing::Ticket.transaction do
           ticket = Ticketing::Ticket.includes(:event).lock.find(@ticket.id)
+          event = Events::Event.lock.find(ticket.event_id)
           generation = ticket.credential_generations.includes(:credentials).lock.find_by(
             version: @through_version
           )
@@ -29,11 +30,12 @@ module Ticketing
             raise ActiveRecord::Rollback
           end
 
-          version = next_revocation_version(ticket.event_id)
+          version = next_revocation_version(event)
           revoked_at = Time.current
           revoke_credentials!(generation, revoked_at, version)
           generation.update!(status: "revoked", revoked_at:, revocation_reason: @reason)
-          package_revocation = publish_package_revocation!(ticket, version)
+          package_revocation = publish_package_revocation!(ticket, event, version)
+          event.update!(revocation_version: version)
           outcome = success(package_revocation)
         end
         outcome
@@ -80,10 +82,10 @@ module Ticketing
         )
       end
 
-      def publish_package_revocation!(ticket, version)
+      def publish_package_revocation!(ticket, event, version)
         revocation = Ticketing::Revocation.lock.find_or_initialize_by(ticket_id: ticket.id)
         revocation.assign_attributes(
-          event: ticket.event,
+          event:,
           revoked_through_version: @through_version,
           revocation_version: version
         )
@@ -91,10 +93,11 @@ module Ticketing
         revocation
       end
 
-      def next_revocation_version(event_id)
+      def next_revocation_version(event)
         [
-          Ticketing::Revocation.where(event_id:).maximum(:revocation_version).to_i,
-          Ticketing::CredentialRevocation.where(event_id:).maximum(:revocation_version).to_i
+          event.revocation_version.to_i,
+          Ticketing::Revocation.where(event_id: event.id).maximum(:revocation_version).to_i,
+          Ticketing::CredentialRevocation.where(event_id: event.id).maximum(:revocation_version).to_i
         ].max + 1
       end
 

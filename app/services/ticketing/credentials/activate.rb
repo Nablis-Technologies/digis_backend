@@ -7,10 +7,12 @@ module Ticketing
     # attendee-index projection happen in one transaction, so no partial
     # activation can become visible to a scanner.
     class Activate < Core::BaseService
-      def initialize(credential:, loaded_credential: nil, issuance_context: nil)
+      def initialize(credential:, loaded_credential: nil, issuance_context: nil, event: nil, index_lock_held: false)
         @credential = credential
         @loaded_credential = loaded_credential
         @issuance_context = issuance_context
+        @event = event
+        @index_lock_held = index_lock_held
       end
 
       def call
@@ -32,8 +34,9 @@ module Ticketing
           projection = Ticketing::AttendeeIndex::ProjectInitial.call(
             credential:,
             loaded_credential: credential,
-            issuance_context:,
-            skip_existing_lookup: @loaded_credential.present?
+            skip_existing_lookup: @loaded_credential.present?,
+            event: @event,
+            index_lock_held: @index_lock_held
           )
           if projection.failure?
             outcome = failure(projection.error)

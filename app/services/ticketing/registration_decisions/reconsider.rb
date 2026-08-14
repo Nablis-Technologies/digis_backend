@@ -26,6 +26,7 @@ module Ticketing
             .includes(:event, :user, :consent_requirements, ticket_type: :event_product)
             .find(registration.id)
           halt("reviewer_unauthorized") unless reviewer_authorized?(locked, actor)
+          halt("event_cancelled") if locked.event.status == "cancelled"
           halt("invalid_reconsideration_decision") unless decision.in?(%w[approve reject])
           halt("registration_not_reconsiderable") unless locked.status == "rejected"
 

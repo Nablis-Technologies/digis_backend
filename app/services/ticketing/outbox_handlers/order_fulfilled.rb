@@ -22,7 +22,10 @@ module Ticketing
           end
 
           event_id = items.first&.order&.event_id || @event.payload.fetch("event_id")
+          event = Events::Event.lock.find(event_id)
+          return success(items) if event.status == "cancelled"
           Core::Database::AdvisoryLock.acquire!("ticketing-package-issuance", event_id)
+          Core::Database::AdvisoryLock.acquire!("ticketing-attendee-index", event_id)
           context = issuance_context(event_id)
           existing_tickets = Ticketing::Ticket.where(order_item_id: items.map(&:id)).to_a.index_by do |ticket|
             [ ticket.order_item_id, ticket.unit_number ]
@@ -38,7 +41,8 @@ module Ticketing
                 source: item,
                 existing_ticket: existing_tickets[[ item.id, unit_number ]],
                 reload_ticket: false,
-                issuance_context: context
+                issuance_context: context,
+                event:, index_lock_held: true
               )
               next if issuance.success?
 
@@ -65,8 +69,7 @@ module Ticketing
 
       def issuance_context(event_id)
         {
-          reserved_lookup_codes: Ticketing::Credential.where(event_id:).where.not(lookup_code: nil).pluck(:lookup_code).to_set,
-          next_index_version: Ticketing::AttendeeIndexEntry.where(event_id:).maximum(:index_version).to_i + 1
+          reserved_lookup_codes: Ticketing::Credential.where(event_id:).where.not(lookup_code: nil).pluck(:lookup_code).to_set
         }
       end
 
