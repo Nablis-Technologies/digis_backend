@@ -179,6 +179,7 @@ Rails.application.routes.draw do
   post "checkin_logs/:id/admission_use_reversal", to: "ticketing/admission_use_reversals#create"
 
   resources :tickets, only: [] do
+    post :resale, on: :member, controller: "marketplace/resale_listings", action: :create
     resource :suspension, only: :create, controller: "ticketing/suspensions" do
       post :restore
       post :resolve
@@ -192,6 +193,21 @@ Rails.application.routes.draw do
   end
 
   post "tickets/:ticket_id/cancel", to: "ticketing/cancellations#create"
+
+  resources :resale_listings, only: %i[index show], controller: "marketplace/resale_listings"
+  post "resale_listings/:resale_listing_id/purchase", to: "marketplace/resale_purchases#create"
+  post "resale_listings/:id/cancel", to: "marketplace/resale_listings#cancel"
+  resource :resale_policy, only: %i[show update],
+           path: "ticket_types/:ticket_type_id/resale_policy",
+           controller: "marketplace/resale_policies"
+
+  scope path: :marketplace do
+    get "seller/balance", to: "marketplace/seller_reports#balance"
+    get "seller/history", to: "marketplace/seller_reports#history"
+    scope path: "seller" do
+      resources :payout_accounts, only: %i[index create], controller: "marketplace/seller_payout_accounts"
+    end
+  end
 
   resources :credential_claims, only: [] do
     post :accept, on: :member, controller: "ticketing/credential_claims"
@@ -219,6 +235,13 @@ Rails.application.routes.draw do
   end
 
   namespace :admin do
+    namespace :marketplace do
+      resources :seller_payouts, only: %i[index show], controller: "seller_payouts" do
+        post :dispatch, on: :member, action: :dispatch_payout
+        post :reconcile, on: :member
+      end
+    end
+
     namespace :commercial do
       resources :fee_schedules, only: %i[index show create update] do
         resources :fee_schedule_versions, only: %i[index create], controller: "fee_schedule_versions"

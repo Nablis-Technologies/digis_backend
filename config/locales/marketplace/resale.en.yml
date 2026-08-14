@@ -12,6 +12,8 @@ en:
         invalid_resale_policy: "the resale policy is invalid"
         invalid_idempotency_key: "the listing idempotency key is invalid"
         idempotency_conflict: "the listing request conflicts with an earlier request using this key"
+        resale_policy_invalid_idempotency_key: "the resale policy idempotency key is invalid"
+        resale_policy_idempotency_conflict: "the resale policy request conflicts with an earlier request using this key"
         listing_not_found: "the resale listing could not be found"
         listing_forbidden: "only the current package owner can create a resale listing"
         listing_already_open: "this ticket already has an open resale listing"
