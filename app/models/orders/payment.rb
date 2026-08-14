@@ -26,6 +26,14 @@ module Orders
              class_name: "Orders::Refund",
              inverse_of: :payment,
              dependent: :restrict_with_exception
+    has_many :cancellation_payment_snapshots,
+             class_name: "Events::EventCancellationPayment",
+             inverse_of: :payment,
+             dependent: :restrict_with_exception
+    has_many :finance_ledger_entries,
+             class_name: "Finance::LedgerEntry",
+             dependent: :restrict_with_exception,
+             inverse_of: :payment
 
     before_validation :normalize_fields
 

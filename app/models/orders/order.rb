@@ -56,6 +56,10 @@ module Orders
              class_name: "Orders::Payment",
              inverse_of: :order,
              dependent: :restrict_with_exception
+    has_many :finance_ledger_entries,
+             class_name: "Finance::LedgerEntry",
+             dependent: :restrict_with_exception,
+             inverse_of: :order
     has_one :promotion_redemption,
             class_name: "Orders::PromotionRedemption",
             inverse_of: :order,
