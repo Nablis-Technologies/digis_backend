@@ -7,6 +7,7 @@ class CreateTicketingScanUploads < ActiveRecord::Migration[8.1]
       t.uuid :client_upload_id, null: false
       t.timestamptz :received_at, null: false
       t.timestamptz :completed_at
+      t.jsonb :results_snapshot
 
       t.timestamps
     end

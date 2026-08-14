@@ -45,14 +45,58 @@ COMMENT ON EXTENSION pgcrypto IS 'cryptographic functions';
 CREATE FUNCTION public.catalog_date_allocations_sum_guard() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
+DECLARE
+  product_id uuid;
+  granted_date_count bigint;
+  allocated_date_count bigint;
+  allocation_total bigint;
 BEGIN
-  IF (
-    SELECT COALESCE(SUM(allocation_basis_points), 0)
-    FROM catalog_product_date_allocations
-    WHERE event_product_id = NEW.event_product_id
-  ) <> 10000 THEN
-    RAISE EXCEPTION 'date allocations must sum to 10000 basis points for product %',
-      NEW.event_product_id USING ERRCODE = '23514';
+  product_id := CASE TG_TABLE_NAME
+    WHEN 'catalog_event_products' THEN COALESCE(NEW.id, OLD.id)
+    ELSE COALESCE(NEW.event_product_id, OLD.event_product_id)
+  END;
+
+  SELECT COUNT(DISTINCT event_date_id)
+    INTO granted_date_count
+  FROM catalog_product_accesses
+  WHERE event_product_id = product_id;
+
+  SELECT COUNT(DISTINCT event_date_id), COALESCE(SUM(allocation_basis_points), 0)
+    INTO allocated_date_count, allocation_total
+  FROM catalog_product_date_allocations
+  WHERE event_product_id = product_id;
+
+  IF EXISTS (
+    SELECT 1
+    FROM catalog_product_date_allocations AS allocations
+    WHERE allocations.event_product_id = product_id
+      AND NOT EXISTS (
+        SELECT 1
+        FROM catalog_product_accesses AS accesses
+        WHERE accesses.event_product_id = allocations.event_product_id
+          AND accesses.event_date_id = allocations.event_date_id
+      )
+  ) THEN
+    RAISE EXCEPTION 'date allocation requires a product access grant for product %', product_id
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF allocated_date_count > 0 AND
+     (allocation_total <> 10000 OR
+      (granted_date_count > 1 AND
+     EXISTS (
+       SELECT 1
+       FROM catalog_event_products
+       WHERE id = product_id
+         AND schedule_change_refund_policy = 'full_or_partial'
+     ) AND
+     allocated_date_count <> granted_date_count)) THEN
+    RAISE EXCEPTION 'multi-date product allocations must cover all granted dates and sum to 10000 for product %',
+      product_id USING ERRCODE = '23514';
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
   END IF;
   RETURN NEW;
 END;
@@ -209,6 +253,10 @@ BEGIN
     END IF;
   END IF;
 
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+
   RETURN NEW;
 END;
 $$;
@@ -283,10 +331,10 @@ BEGIN
   END IF;
 
   IF (OLD.subsidy_budget_id, OLD.order_id, OLD.idempotency_key_digest,
-      OLD.request_fingerprint, OLD.amount_minor, OLD.currency, OLD.expires_at)
+      OLD.request_fingerprint, OLD.amount_minor, OLD.currency)
      IS DISTINCT FROM
      (NEW.subsidy_budget_id, NEW.order_id, NEW.idempotency_key_digest,
-      NEW.request_fingerprint, NEW.amount_minor, NEW.currency, NEW.expires_at) THEN
+      NEW.request_fingerprint, NEW.amount_minor, NEW.currency) THEN
     RAISE EXCEPTION 'commercial_subsidy_reservation_immutable' USING ERRCODE = '40001';
   END IF;
 
@@ -517,6 +565,42 @@ $$;
 
 
 --
+-- Name: event_cancellation_payment_integrity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.event_cancellation_payment_integrity() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  cancellation_event_id uuid;
+  payment_event_id uuid;
+  payment_status text;
+  accepted_at timestamptz;
+BEGIN
+  SELECT event_id INTO cancellation_event_id
+  FROM events_event_cancellations
+  WHERE id = NEW.event_cancellation_id;
+
+  SELECT orders.event_id, payments.status, payments.accepted_at
+    INTO payment_event_id, payment_status, accepted_at
+  FROM orders_payments AS payments
+  JOIN orders_orders AS orders ON orders.id = payments.order_id
+  WHERE payments.id = NEW.payment_id;
+
+  IF cancellation_event_id IS DISTINCT FROM payment_event_id THEN
+    RAISE EXCEPTION 'event_cancellation_payment_event_scope' USING ERRCODE = '23514';
+  END IF;
+
+  IF payment_status IS DISTINCT FROM 'succeeded' OR accepted_at IS NULL THEN
+    RAISE EXCEPTION 'event_cancellation_payment_not_accepted' USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: event_date_change_immutable(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -531,6 +615,208 @@ $$;
 
 
 --
+-- Name: finance_ledger_entry_immutable(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.finance_ledger_entry_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  RAISE EXCEPTION 'finance_ledger_entry_immutable' USING ERRCODE = '40001';
+END;
+$$;
+
+
+--
+-- Name: finance_ledger_entry_integrity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.finance_ledger_entry_integrity() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  event_organization_id uuid;
+  order_event_id uuid;
+  order_currency text;
+  payment_order_id uuid;
+  refund_payment_id uuid;
+  original_amount bigint;
+  original_currency text;
+  original_organization_id uuid;
+  original_event_id uuid;
+  original_type text;
+BEGIN
+  IF NEW.event_id IS NULL AND NEW.type <> 'payout' THEN
+    IF NEW.type <> 'adjustment' OR NEW.reverses_entry_id IS NULL THEN
+      RAISE EXCEPTION 'finance_ledger_event_required' USING ERRCODE = '23514';
+    END IF;
+
+    SELECT type, event_id
+      INTO original_type, original_event_id
+    FROM finance_ledger_entries
+    WHERE id = NEW.reverses_entry_id;
+
+    IF original_type IS DISTINCT FROM 'payout' OR original_event_id IS NOT NULL THEN
+      RAISE EXCEPTION 'finance_ledger_event_required' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  IF NEW.event_id IS NOT NULL THEN
+    SELECT organization_id
+      INTO event_organization_id
+    FROM events_events
+    WHERE id = NEW.event_id;
+
+    IF event_organization_id IS NULL OR NEW.organization_id IS DISTINCT FROM event_organization_id THEN
+      RAISE EXCEPTION 'finance_ledger_event_organization_scope' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  IF NEW.order_id IS NOT NULL THEN
+    SELECT event_id, settlement_currency
+      INTO order_event_id, order_currency
+    FROM orders_orders
+    WHERE id = NEW.order_id;
+
+    IF NEW.event_id IS DISTINCT FROM order_event_id OR NEW.currency IS DISTINCT FROM order_currency THEN
+      RAISE EXCEPTION 'finance_ledger_order_event_scope' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  IF NEW.payment_id IS NOT NULL THEN
+    SELECT order_id
+      INTO payment_order_id
+    FROM orders_payments
+    WHERE id = NEW.payment_id;
+
+    IF NEW.order_id IS DISTINCT FROM payment_order_id THEN
+      RAISE EXCEPTION 'finance_ledger_payment_order_scope' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  IF NEW.refund_id IS NOT NULL THEN
+    SELECT payment_id
+      INTO refund_payment_id
+    FROM orders_refunds
+    WHERE id = NEW.refund_id;
+
+    IF NEW.payment_id IS DISTINCT FROM refund_payment_id THEN
+      RAISE EXCEPTION 'finance_ledger_refund_payment_scope' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  IF NEW.reverses_entry_id IS NOT NULL THEN
+    SELECT amount_minor, currency, organization_id, event_id
+      INTO original_amount, original_currency, original_organization_id, original_event_id
+    FROM finance_ledger_entries
+    WHERE id = NEW.reverses_entry_id;
+
+    IF original_amount IS NULL OR NEW.amount_minor IS DISTINCT FROM -original_amount OR
+       NEW.currency IS DISTINCT FROM original_currency OR
+       NEW.organization_id IS DISTINCT FROM original_organization_id OR
+       NEW.event_id IS DISTINCT FROM original_event_id THEN
+      RAISE EXCEPTION 'finance_ledger_reversal_scope' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: finance_payout_allocation_integrity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.finance_payout_allocation_integrity() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  payout_organization_id uuid;
+  payout_currency text;
+  ledger_organization_id uuid;
+  ledger_currency text;
+  ledger_type text;
+  ledger_amount bigint;
+  allocated_amount bigint;
+BEGIN
+  SELECT organization_id, currency
+    INTO payout_organization_id, payout_currency
+  FROM finance_payouts
+  WHERE id = NEW.payout_id;
+
+  SELECT organization_id, currency, type, amount_minor
+    INTO ledger_organization_id, ledger_currency, ledger_type, ledger_amount
+  FROM finance_ledger_entries
+  WHERE id = NEW.ledger_entry_id;
+
+  IF payout_organization_id IS NULL OR ledger_organization_id IS NULL OR
+     payout_organization_id IS DISTINCT FROM ledger_organization_id OR
+     payout_currency IS DISTINCT FROM ledger_currency THEN
+    RAISE EXCEPTION 'finance_payout_scope_mismatch' USING ERRCODE = '23514';
+  END IF;
+
+  IF ledger_type = 'payout' THEN
+    RAISE EXCEPTION 'finance_payout_cannot_allocate_payout' USING ERRCODE = '23514';
+  END IF;
+
+  IF (ledger_amount > 0 AND NEW.amount_minor <= 0) OR
+     (ledger_amount < 0 AND NEW.amount_minor >= 0) OR
+     abs(NEW.amount_minor) > abs(ledger_amount) THEN
+    RAISE EXCEPTION 'finance_payout_allocation_sign_or_amount_invalid' USING ERRCODE = '23514';
+  END IF;
+
+  SELECT COALESCE(sum(abs(amount_minor)), 0)
+    INTO allocated_amount
+  FROM finance_payout_allocations
+  WHERE ledger_entry_id = NEW.ledger_entry_id
+    AND status IN ('reserved', 'consumed')
+    AND id IS DISTINCT FROM NEW.id;
+
+  IF allocated_amount + abs(NEW.amount_minor) > abs(ledger_amount) THEN
+    RAISE EXCEPTION 'finance_payout_allocation_exceeds_ledger' USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: finance_payout_allocation_totals(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.finance_payout_allocation_totals() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  payout_status text;
+  payout_amount bigint;
+  allocated_amount bigint;
+BEGIN
+  SELECT status, amount_minor
+    INTO payout_status, payout_amount
+  FROM finance_payouts
+  WHERE id = COALESCE(NEW.payout_id, OLD.payout_id);
+
+  IF payout_status IN ('pending', 'processing', 'paid') THEN
+    SELECT COALESCE(sum(amount_minor), 0)
+      INTO allocated_amount
+    FROM finance_payout_allocations
+    WHERE payout_id = COALESCE(NEW.payout_id, OLD.payout_id)
+      AND status IN ('reserved', 'consumed');
+
+    IF allocated_amount IS DISTINCT FROM payout_amount THEN
+      RAISE EXCEPTION 'finance_payout_net_total_mismatch' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+
+--
 -- Name: legal_version_delete_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -538,6 +824,21 @@ CREATE FUNCTION public.legal_version_delete_guard() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.status = 'published' AND (NEW.published_by_id IS NULL OR NEW.published_at IS NULL) THEN
+      RAISE EXCEPTION 'published consent versions require publication metadata'
+        USING ERRCODE = '40001';
+    END IF;
+    IF NEW.status = 'draft' AND (NEW.published_by_id IS NOT NULL OR NEW.published_at IS NOT NULL) THEN
+      RAISE EXCEPTION 'draft consent versions cannot have publication metadata'
+        USING ERRCODE = '40001';
+    END IF;
+    IF NEW.status = 'retired' THEN
+      RAISE EXCEPTION 'consent versions must be published before retirement'
+        USING ERRCODE = '40001';
+    END IF;
+    RETURN NEW;
+  END IF;
   IF OLD.status = 'draft' THEN
     RETURN OLD;
   END IF;
@@ -555,10 +856,39 @@ CREATE FUNCTION public.lock_consent_version_on_update() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-  IF OLD.status = 'draft' THEN
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.status = 'published' AND (NEW.published_by_id IS NULL OR NEW.published_at IS NULL) THEN
+      RAISE EXCEPTION 'published consent versions require publication metadata'
+        USING ERRCODE = '40001';
+    END IF;
+    IF NEW.status = 'draft' AND (NEW.published_by_id IS NOT NULL OR NEW.published_at IS NOT NULL) THEN
+      RAISE EXCEPTION 'draft consent versions cannot have publication metadata'
+        USING ERRCODE = '40001';
+    END IF;
+    IF NEW.status = 'retired' THEN
+      RAISE EXCEPTION 'consent versions must be published before retirement'
+        USING ERRCODE = '40001';
+    END IF;
     RETURN NEW;
   END IF;
-  IF (OLD.body, OLD.content_sha256, OLD.title, OLD.required,
+  IF OLD.status = 'draft' THEN
+    IF NEW.status NOT IN ('draft', 'published') THEN
+      RAISE EXCEPTION 'consent version status must advance from draft to published'
+        USING ERRCODE = '40001';
+    END IF;
+    IF NEW.status = 'published' AND (NEW.published_by_id IS NULL OR NEW.published_at IS NULL) THEN
+      RAISE EXCEPTION 'published consent versions require publication metadata'
+        USING ERRCODE = '40001';
+    END IF;
+    IF NEW.status = 'draft' AND (NEW.published_by_id IS NOT NULL OR NEW.published_at IS NOT NULL) THEN
+      RAISE EXCEPTION 'draft consent versions cannot have publication metadata'
+        USING ERRCODE = '40001';
+    END IF;
+    RETURN NEW;
+  END IF;
+  IF (OLD.status = 'published' AND NEW.status NOT IN ('published', 'retired')) OR
+     (OLD.status = 'retired' AND NEW.status <> 'retired') OR
+     (OLD.body, OLD.content_sha256, OLD.title, OLD.required,
       OLD.acceptance_scope, OLD.consent_document_id, OLD.created_by_id,
       OLD.version, OLD.published_at, OLD.published_by_id)
      IS DISTINCT FROM
@@ -694,7 +1024,7 @@ BEGIN
     END IF;
 
     IF (OLD.event_id, OLD.buyer_user_id, OLD.sales_channel, OLD.initiated_by_id,
-        OLD.replaces_order_id, OLD.charge_currency, OLD.subtotal_minor,
+        OLD.replaces_order_id, OLD.charge_currency, OLD.commercial_signature, OLD.subtotal_minor,
         OLD.discount_minor, OLD.subsidy_minor, OLD.fee_minor, OLD.tax_minor,
         OLD.adjustment_minor, OLD.total_minor, OLD.settlement_currency,
         OLD.settlement_total_minor, OLD.exchange_rate, OLD.exchange_rate_source,
@@ -702,7 +1032,7 @@ BEGIN
         OLD.idempotency_key_digest, OLD.creation_request_digest)
        IS DISTINCT FROM
        (NEW.event_id, NEW.buyer_user_id, NEW.sales_channel, NEW.initiated_by_id,
-        NEW.replaces_order_id, NEW.charge_currency, NEW.subtotal_minor,
+        NEW.replaces_order_id, NEW.charge_currency, NEW.commercial_signature, NEW.subtotal_minor,
         NEW.discount_minor, NEW.subsidy_minor, NEW.fee_minor, NEW.tax_minor,
         NEW.adjustment_minor, NEW.total_minor, NEW.settlement_currency,
         NEW.settlement_total_minor, NEW.exchange_rate, NEW.exchange_rate_source,
@@ -893,6 +1223,74 @@ $$;
 
 
 --
+-- Name: orders_refund_adjustment_allocation_immutable(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.orders_refund_adjustment_allocation_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  RAISE EXCEPTION 'orders_refund_adjustment_allocation_immutable'
+    USING ERRCODE = '40001';
+END;
+$$;
+
+
+--
+-- Name: orders_refund_adjustment_allocation_integrity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.orders_refund_adjustment_allocation_integrity() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  refund_order_id uuid;
+  adjustment_order_id uuid;
+  adjustment_item_id uuid;
+  adjustment_amount bigint;
+BEGIN
+  SELECT payments.order_id
+    INTO refund_order_id
+  FROM orders_refund_items AS refund_items
+  JOIN orders_refunds AS refunds ON refunds.id = refund_items.refund_id
+  JOIN orders_payments AS payments ON payments.id = refunds.payment_id
+  WHERE refund_items.id = NEW.refund_item_id;
+
+  SELECT order_id, order_item_id, amount_minor
+    INTO adjustment_order_id, adjustment_item_id, adjustment_amount
+  FROM orders_order_adjustments
+  WHERE id = NEW.order_adjustment_id;
+
+  IF refund_order_id IS DISTINCT FROM adjustment_order_id OR
+     (adjustment_item_id IS NOT NULL AND NOT EXISTS (
+       SELECT 1
+       FROM orders_refund_items AS refund_items
+       WHERE refund_items.id = NEW.refund_item_id
+         AND refund_items.order_item_id = adjustment_item_id
+     )) OR
+     adjustment_amount IS NULL OR
+     adjustment_amount = 0 OR
+     (adjustment_amount < 0 AND NEW.amount_minor >= 0) OR
+     (adjustment_amount > 0 AND NEW.amount_minor <= 0) THEN
+    RAISE EXCEPTION 'orders_refund_adjustment_scope' USING ERRCODE = '23514';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM orders_order_adjustments
+    WHERE id = NEW.order_adjustment_id
+      AND (charged_to <> 'buyer' OR refund_policy = 'nonrefundable')
+  ) THEN
+    RAISE EXCEPTION 'orders_refund_adjustment_not_buyer_refundable'
+      USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: orders_refund_integrity(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -910,6 +1308,10 @@ BEGIN
   FROM orders_payments AS payments
   WHERE payments.id = NEW.payment_id;
 
+  IF NEW.currency IS DISTINCT FROM payment_currency THEN
+    RAISE EXCEPTION 'orders_refund_payment_currency_scope' USING ERRCODE = '23514';
+  END IF;
+
   IF NEW.type = 'payment_reversal' AND
      (payment_status IS DISTINCT FROM 'succeeded' OR accepted_at IS NOT NULL OR
       NEW.amount_minor IS DISTINCT FROM payment_amount OR
@@ -917,6 +1319,303 @@ BEGIN
     RAISE EXCEPTION 'orders_payment_reversal_integrity' USING ERRCODE = '23514';
   END IF;
 
+  IF NEW.event_cancellation_id IS NOT NULL AND EXISTS (
+    SELECT 1
+    FROM events_event_cancellations AS cancellations
+    JOIN orders_payments AS cancellation_payments
+      ON cancellation_payments.id = NEW.payment_id
+    JOIN orders_orders AS cancellation_orders
+      ON cancellation_orders.id = cancellation_payments.order_id
+    WHERE cancellations.id = NEW.event_cancellation_id
+      AND cancellations.event_id IS DISTINCT FROM cancellation_orders.event_id
+  ) THEN
+    RAISE EXCEPTION 'orders_refund_cancellation_event_scope' USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.status IN ('created', 'pending_funds', 'processing', 'succeeded') AND
+     (SELECT COALESCE(SUM(amount_minor), 0)
+      FROM orders_refunds
+      WHERE payment_id = NEW.payment_id
+        AND status IN ('created', 'pending_funds', 'processing', 'succeeded')
+        AND id IS DISTINCT FROM NEW.id) + NEW.amount_minor > payment_amount THEN
+    RAISE EXCEPTION 'orders_refunds_payment_amount_exceeded' USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: orders_refund_item_immutable(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.orders_refund_item_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  RAISE EXCEPTION 'orders_refund_item_immutable' USING ERRCODE = '40001';
+END;
+$$;
+
+
+--
+-- Name: orders_refund_item_integrity(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.orders_refund_item_integrity() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  refund_order_id uuid;
+  refund_event_id uuid;
+  refund_type text;
+  item_order_id uuid;
+  item_product_id uuid;
+  item_product_type text;
+  ticket_order_item_id uuid;
+  ticket_event_id uuid;
+  ticket_product_id uuid;
+  date_event_id uuid;
+  change_event_id uuid;
+  change_date_id uuid;
+BEGIN
+  SELECT payments.order_id, orders.event_id, refunds.type
+    INTO refund_order_id, refund_event_id, refund_type
+  FROM orders_refunds AS refunds
+  JOIN orders_payments AS payments ON payments.id = refunds.payment_id
+  JOIN orders_orders AS orders ON orders.id = payments.order_id
+  WHERE refunds.id = NEW.refund_id;
+
+  SELECT order_id, event_product_id, type_snapshot
+    INTO item_order_id, item_product_id, item_product_type
+  FROM orders_order_items
+  WHERE id = NEW.order_item_id;
+
+  IF item_order_id IS DISTINCT FROM refund_order_id THEN
+    RAISE EXCEPTION 'orders_refund_item_order_scope' USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.ticket_id IS NOT NULL THEN
+    SELECT order_item_id, event_id, event_product_id
+      INTO ticket_order_item_id, ticket_event_id, ticket_product_id
+    FROM ticketing_tickets
+    WHERE id = NEW.ticket_id;
+
+    IF ticket_order_item_id IS DISTINCT FROM NEW.order_item_id OR
+       ticket_event_id IS DISTINCT FROM refund_event_id OR
+       ticket_product_id IS DISTINCT FROM item_product_id OR
+       item_product_type IS DISTINCT FROM 'ticket' OR
+       NEW.quantity IS DISTINCT FROM 1 THEN
+      RAISE EXCEPTION 'orders_refund_item_ticket_scope' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  IF NEW.event_date_id IS NOT NULL THEN
+    IF NEW.ticket_id IS NULL THEN
+      RAISE EXCEPTION 'orders_refund_item_date_requires_ticket' USING ERRCODE = '23514';
+    END IF;
+
+    SELECT event_id INTO date_event_id
+    FROM events_event_dates
+    WHERE id = NEW.event_date_id;
+
+    IF date_event_id IS DISTINCT FROM refund_event_id OR NOT EXISTS (
+      SELECT 1
+      FROM catalog_product_accesses
+      WHERE event_product_id = item_product_id
+        AND event_date_id = NEW.event_date_id
+    ) OR NOT EXISTS (
+      SELECT 1
+      FROM catalog_product_date_allocations
+      WHERE event_product_id = item_product_id
+        AND event_date_id = NEW.event_date_id
+    ) THEN
+      RAISE EXCEPTION 'orders_refund_item_date_scope' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  IF NEW.event_date_change_id IS NOT NULL THEN
+    SELECT event_id, event_date_id
+      INTO change_event_id, change_date_id
+    FROM events_event_date_changes
+    WHERE id = NEW.event_date_change_id;
+
+    IF change_event_id IS DISTINCT FROM refund_event_id OR
+       change_date_id IS DISTINCT FROM NEW.event_date_id THEN
+      RAISE EXCEPTION 'orders_refund_item_date_change_scope' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  IF refund_type = 'payment_reversal' THEN
+    RAISE EXCEPTION 'orders_payment_reversal_cannot_have_items' USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: orders_refund_reconcile(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.orders_refund_reconcile(refund_uuid uuid) RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  refund_type text;
+  refund_amount bigint;
+  item_amount bigint;
+BEGIN
+  SELECT type, amount_minor
+    INTO refund_type, refund_amount
+  FROM orders_refunds
+  WHERE id = refund_uuid;
+
+  IF refund_type IS NULL THEN
+    RETURN;
+  END IF;
+
+  IF refund_type = 'payment_reversal' AND EXISTS (
+    SELECT 1 FROM orders_refund_items WHERE refund_id = refund_uuid
+  ) THEN
+    RAISE EXCEPTION 'orders_payment_reversal_cannot_have_items' USING ERRCODE = '23514';
+  END IF;
+
+  IF refund_type <> 'item_refund' THEN
+    RETURN;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM orders_refund_items WHERE refund_id = refund_uuid
+  ) THEN
+    RAISE EXCEPTION 'orders_item_refund_requires_items' USING ERRCODE = '23514';
+  END IF;
+
+  SELECT COALESCE(SUM(amount_minor), 0)
+    INTO item_amount
+  FROM orders_refund_items
+  WHERE refund_id = refund_uuid;
+
+  IF item_amount IS DISTINCT FROM refund_amount THEN
+    RAISE EXCEPTION 'orders_item_refund_amount_mismatch' USING ERRCODE = '23514';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM orders_refund_items AS refund_items
+    WHERE refund_items.refund_id = refund_uuid
+      AND refund_items.amount_minor IS DISTINCT FROM
+          refund_items.subtotal_minor + COALESCE((
+            SELECT SUM(allocations.amount_minor)
+            FROM orders_refund_adjustment_allocations AS allocations
+            WHERE allocations.refund_item_id = refund_items.id
+          ), 0)
+  ) THEN
+    RAISE EXCEPTION 'orders_refund_item_amount_mismatch' USING ERRCODE = '23514';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM orders_order_items AS order_items
+    WHERE (
+      SELECT COALESCE(SUM(refund_items.amount_minor), 0)
+      FROM orders_refund_items AS refund_items
+      JOIN orders_refunds AS refunds ON refunds.id = refund_items.refund_id
+      WHERE refund_items.order_item_id = order_items.id
+        AND refunds.status IN ('created', 'pending_funds', 'processing', 'succeeded')
+    ) > order_items.total_minor
+  ) THEN
+    RAISE EXCEPTION 'orders_refund_item_value_exceeded' USING ERRCODE = '23514';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM orders_refund_items AS refund_items
+    JOIN orders_refunds AS refunds ON refunds.id = refund_items.refund_id
+    WHERE refunds.status IN ('created', 'pending_funds', 'processing', 'succeeded')
+      AND refund_items.ticket_id IS NOT NULL
+      AND refund_items.event_date_id IS NULL
+    GROUP BY refund_items.ticket_id
+    HAVING COUNT(*) > 1
+  ) OR EXISTS (
+    SELECT 1
+    FROM orders_refund_items AS refund_items
+    JOIN orders_refunds AS refunds ON refunds.id = refund_items.refund_id
+    WHERE refunds.status IN ('created', 'pending_funds', 'processing', 'succeeded')
+      AND refund_items.ticket_id IS NOT NULL
+      AND refund_items.event_date_id IS NOT NULL
+    GROUP BY refund_items.ticket_id, refund_items.event_date_id
+    HAVING COUNT(*) > 1
+  ) OR EXISTS (
+    SELECT 1
+    FROM orders_refund_items AS refund_items
+    JOIN orders_refunds AS refunds ON refunds.id = refund_items.refund_id
+    WHERE refunds.status IN ('created', 'pending_funds', 'processing', 'succeeded')
+      AND refund_items.ticket_id IS NOT NULL
+    GROUP BY refund_items.ticket_id
+    HAVING COUNT(*) FILTER (WHERE refund_items.event_date_id IS NULL) > 0
+       AND COUNT(*) FILTER (WHERE refund_items.event_date_id IS NOT NULL) > 0
+  ) THEN
+    RAISE EXCEPTION 'orders_refund_ticket_value_exceeded' USING ERRCODE = '23514';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM orders_order_adjustments AS adjustments
+    WHERE (
+      SELECT COALESCE(SUM(allocations.amount_minor), 0)
+      FROM orders_refund_adjustment_allocations AS allocations
+      JOIN orders_refund_items AS refund_items
+        ON refund_items.id = allocations.refund_item_id
+      JOIN orders_refunds AS refunds ON refunds.id = refund_items.refund_id
+      WHERE allocations.order_adjustment_id = adjustments.id
+        AND refunds.status IN ('created', 'pending_funds', 'processing', 'succeeded')
+    ) < adjustments.amount_minor AND adjustments.amount_minor < 0
+  ) OR EXISTS (
+    SELECT 1
+    FROM orders_order_adjustments AS adjustments
+    WHERE (
+      SELECT COALESCE(SUM(allocations.amount_minor), 0)
+      FROM orders_refund_adjustment_allocations AS allocations
+      JOIN orders_refund_items AS refund_items
+        ON refund_items.id = allocations.refund_item_id
+      JOIN orders_refunds AS refunds ON refunds.id = refund_items.refund_id
+      WHERE allocations.order_adjustment_id = adjustments.id
+        AND refunds.status IN ('created', 'pending_funds', 'processing', 'succeeded')
+    ) > adjustments.amount_minor AND adjustments.amount_minor > 0
+  ) THEN
+    RAISE EXCEPTION 'orders_refund_adjustment_value_exceeded' USING ERRCODE = '23514';
+  END IF;
+END;
+$$;
+
+
+--
+-- Name: orders_refund_reconcile_trigger(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.orders_refund_reconcile_trigger() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF TG_TABLE_NAME = 'orders_refunds' THEN
+    PERFORM orders_refund_reconcile(NEW.id);
+  ELSIF TG_TABLE_NAME = 'orders_refund_items' THEN
+    PERFORM orders_refund_reconcile(COALESCE(NEW.refund_id, OLD.refund_id));
+  ELSE
+    PERFORM orders_refund_reconcile(
+      COALESCE(
+        (SELECT refund_id FROM orders_refund_items WHERE id = NEW.refund_item_id),
+        (SELECT refund_id FROM orders_refund_items WHERE id = OLD.refund_item_id)
+      )
+    );
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
   RETURN NEW;
 END;
 $$;
@@ -1398,6 +2097,63 @@ $$;
 
 
 --
+-- Name: ticketing_attendee_exports_filters_valid(jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_attendee_exports_filters_valid(filters jsonb) RETURNS boolean
+    LANGUAGE plpgsql IMMUTABLE
+    AS $_$
+DECLARE
+  filter_key text;
+  filter_values text[];
+BEGIN
+  IF filters IS NULL OR jsonb_typeof(filters) <> 'object' THEN
+    RETURN filters IS NULL;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM jsonb_object_keys(filters) AS keys(key)
+    WHERE key NOT IN ('ticket_type_ids', 'access_event_date_ids', 'registration_statuses')
+  ) THEN
+    RETURN FALSE;
+  END IF;
+
+  FOREACH filter_key IN ARRAY ARRAY['ticket_type_ids', 'access_event_date_ids', 'registration_statuses'] LOOP
+    CONTINUE WHEN NOT filters ? filter_key;
+    IF jsonb_typeof(filters -> filter_key) <> 'array'
+       OR jsonb_array_length(filters -> filter_key) > 100 THEN
+      RETURN FALSE;
+    END IF;
+
+    SELECT array_agg(value) INTO filter_values
+    FROM jsonb_array_elements_text(filters -> filter_key) AS element(value);
+    CONTINUE WHEN filter_values IS NULL;
+    IF cardinality(filter_values) <> (
+      SELECT count(DISTINCT value) FROM unnest(filter_values) AS items(value)
+    ) THEN
+      RETURN FALSE;
+    END IF;
+    IF filter_key IN ('ticket_type_ids', 'access_event_date_ids') AND EXISTS (
+      SELECT 1 FROM unnest(filter_values) AS items(value)
+      WHERE value !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ) THEN
+      RETURN FALSE;
+    END IF;
+    IF filter_key = 'registration_statuses' AND EXISTS (
+      SELECT 1 FROM unnest(filter_values) AS items(value)
+      WHERE value NOT IN ('pending_payment','pending_approval','waitlisted','offered','confirmed','rejected','cancelled','expired')
+    ) THEN
+      RETURN FALSE;
+    END IF;
+  END LOOP;
+
+  RETURN TRUE;
+END;
+$_$;
+
+
+--
 -- Name: ticketing_checkin_log_append_only(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1702,6 +2458,7 @@ DECLARE
   admissions_per_unit integer;
   retention_days integer;
   policy_category text;
+  policy_action text;
   policy_status text;
   policy_effective_at timestamptz;
 BEGIN
@@ -1746,11 +2503,16 @@ BEGIN
       USING ERRCODE = '23514';
   END IF;
 
-  SELECT policy.retention_days, policy.category, policy.status, policy.effective_at
-    INTO retention_days, policy_category, policy_status, policy_effective_at
+  SELECT policy.retention_days, policy.category, policy.action, policy.status, policy.effective_at
+    INTO retention_days, policy_category, policy_action, policy_status, policy_effective_at
     FROM core_data_retention_policies policy
    WHERE policy.id = NEW.retention_policy_id;
-  IF policy_status IS DISTINCT FROM 'active' OR
+  IF policy_status IS NULL OR
+     (policy_status NOT IN ('active', 'retired') OR
+      (policy_status = 'retired' AND NOT (
+        TG_OP = 'UPDATE' AND OLD.erased_at IS NULL AND NEW.erased_at IS NOT NULL AND
+        NEW.answer_ciphertext IS NULL AND policy_action = 'erase_payload'
+      ))) OR
      policy_effective_at IS NULL OR policy_effective_at > NEW.answered_at OR
      policy_category IS DISTINCT FROM (CASE
        WHEN question_type IN ('short_text', 'long_text') THEN 'registration_free_text'
@@ -1803,9 +2565,72 @@ $$;
 CREATE FUNCTION public.ticketing_registration_consent_append_only() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
+DECLARE
+  retention_action text;
 BEGIN
-  RAISE EXCEPTION 'registration consent evidence is immutable and append-only'
-    USING ERRCODE = '40001';
+  IF TG_OP = 'DELETE' OR OLD.erased_at IS NOT NULL OR NEW.erased_at IS NULL OR
+     NEW.erased_at < OLD.accepted_at OR NEW.accepted_by_user_id IS NOT NULL OR
+     NEW.evidence_digest IS NOT NULL OR NEW.idempotency_key_digest IS NOT NULL OR
+     NEW.request_uuid IS NOT NULL OR
+     (NEW.registration_consent_requirement_id, NEW.registration_id, NEW.signer_role,
+      NEW.acceptance_method, NEW.content_sha256, NEW.retention_policy_id,
+      NEW.retain_until, NEW.accepted_at)
+     IS DISTINCT FROM
+     (OLD.registration_consent_requirement_id, OLD.registration_id, OLD.signer_role,
+      OLD.acceptance_method, OLD.content_sha256, OLD.retention_policy_id,
+      OLD.retain_until, OLD.accepted_at) THEN
+    RAISE EXCEPTION 'registration consent evidence is immutable except for payload erasure'
+      USING ERRCODE = '40001';
+  END IF;
+
+  SELECT action INTO retention_action
+    FROM core_data_retention_policies
+   WHERE id = OLD.retention_policy_id;
+  IF retention_action IS DISTINCT FROM 'erase_payload' OR OLD.retain_until IS NULL OR
+     OLD.retain_until > clock_timestamp() THEN
+    RAISE EXCEPTION 'registration consent evidence cannot be erased before its retention policy permits it'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+     FROM core_data_retention_holds hold
+     JOIN ticketing_registrations registration ON registration.id = OLD.registration_id
+     WHERE hold.released_at IS NULL
+        AND hold.starts_at <= clock_timestamp()
+        AND (hold.expires_at IS NULL OR hold.expires_at > clock_timestamp())
+       AND (hold.category IS NULL OR hold.category = 'consent_evidence')
+       AND (hold.registration_id = OLD.registration_id OR
+            hold.event_id = registration.event_id OR
+            hold.user_id = OLD.accepted_by_user_id)
+  ) THEN
+    RAISE EXCEPTION 'registration consent evidence cannot be erased while a retention hold is active'
+      USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: ticketing_registration_consent_evidence_requirement_accepted(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_registration_consent_evidence_requirement_accepted() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+      FROM ticketing_registration_consent_requirements requirement
+     WHERE requirement.id = NEW.registration_consent_requirement_id
+       AND requirement.status = 'accepted'
+  ) THEN
+    RAISE EXCEPTION 'consent evidence requires an accepted consent requirement by transaction commit'
+      USING ERRCODE = '23514';
+  END IF;
+  RETURN NULL;
 END;
 $$;
 
@@ -1825,15 +2650,19 @@ DECLARE
   requirement_version_id uuid;
   version_digest text;
   registration_user_id uuid;
+  signer_verified_at timestamptz;
+  retention_days integer;
+  expected_evidence_digest text;
 BEGIN
   SELECT requirement.registration_id, requirement.acceptance_scope,
          requirement.subject_user_id, requirement.status,
          requirement.consent_document_version_id,
-         registration.user_id
+         registration.user_id, signer.verified_at
     INTO requirement_registration_id, requirement_scope, requirement_subject_id,
-         requirement_status, requirement_version_id, registration_user_id
+         requirement_status, requirement_version_id, registration_user_id, signer_verified_at
     FROM ticketing_registration_consent_requirements requirement
     JOIN ticketing_registrations registration ON registration.id = requirement.registration_id
+    JOIN core_users signer ON signer.id = NEW.accepted_by_user_id
    WHERE requirement.id = NEW.registration_consent_requirement_id;
   SELECT content_sha256 INTO version_digest
     FROM events_consent_document_versions
@@ -1853,6 +2682,41 @@ BEGIN
       (NEW.signer_role IS DISTINCT FROM 'attendee' OR
        requirement_subject_id IS DISTINCT FROM NEW.accepted_by_user_id)) THEN
     RAISE EXCEPTION 'consent evidence signer does not match the requirement subject'
+      USING ERRCODE = '23514';
+  END IF;
+  IF signer_verified_at IS NULL THEN
+    RAISE EXCEPTION 'consent evidence signer must have verified OTP identity'
+      USING ERRCODE = '23514';
+  END IF;
+  SELECT policy.retention_days
+    INTO retention_days
+    FROM core_data_retention_policies policy
+   WHERE policy.id = NEW.retention_policy_id
+     AND policy.status = 'active'
+     AND policy.category = 'consent_evidence'
+     AND policy.effective_at <= NEW.accepted_at;
+  IF NOT FOUND OR NEW.retain_until IS DISTINCT FROM (
+    CASE WHEN retention_days IS NULL THEN NULL
+         ELSE NEW.accepted_at + make_interval(days => retention_days)
+    END
+  ) THEN
+    RAISE EXCEPTION 'consent evidence must retain the active effective policy snapshot'
+      USING ERRCODE = '23514';
+  END IF;
+  expected_evidence_digest := encode(digest(
+    '{"registration_id":"' || NEW.registration_id::text ||
+    '","subject_user_id":"' || requirement_subject_id::text ||
+    '","accepted_by_user_id":"' || NEW.accepted_by_user_id::text ||
+    '","version_id":"' || requirement_version_id::text ||
+    '","content_sha256":"' || NEW.content_sha256 ||
+    '","signer_role":"' || NEW.signer_role ||
+    '","acceptance_method":"' || NEW.acceptance_method ||
+    '","accepted_at":"' || to_char(NEW.accepted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') ||
+    '","request_uuid":"' || NEW.request_uuid::text || '"}',
+    'sha256'
+  ), 'hex');
+  IF NEW.evidence_digest IS DISTINCT FROM expected_evidence_digest THEN
+    RAISE EXCEPTION 'consent evidence digest must be derived from the exact acceptance event'
       USING ERRCODE = '23514';
   END IF;
 
@@ -1877,7 +2741,7 @@ BEGIN
     RAISE EXCEPTION 'accepted consent requirements require acceptance evidence'
       USING ERRCODE = '23514';
   END IF;
-  RETURN NEW;
+  RETURN NULL;
 END;
 $$;
 
@@ -1899,6 +2763,11 @@ DECLARE
   version_required boolean;
   ticket_event_id uuid;
 BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'registration consent requirements are historical evidence'
+      USING ERRCODE = '40001';
+  END IF;
+
   IF TG_OP = 'INSERT' AND NEW.status IS DISTINCT FROM 'pending' THEN
     RAISE EXCEPTION 'new consent requirements must start pending'
       USING ERRCODE = '23514';
@@ -1920,10 +2789,15 @@ BEGIN
         USING ERRCODE = '23514';
     END IF;
 
-    IF NEW.subject_user_id IS DISTINCT FROM OLD.subject_user_id AND OLD.status <> 'pending' THEN
+     IF NEW.subject_user_id IS DISTINCT FROM OLD.subject_user_id AND OLD.status <> 'pending' THEN
       RAISE EXCEPTION 'consent requirement subjects are immutable after acceptance begins'
         USING ERRCODE = '23514';
-    END IF;
+     END IF;
+
+     IF OLD.superseded_at IS NOT NULL AND NEW.superseded_at IS DISTINCT FROM OLD.superseded_at THEN
+       RAISE EXCEPTION 'superseded consent requirement timestamps are immutable'
+         USING ERRCODE = '23514';
+     END IF;
 
     IF NEW.status IS DISTINCT FROM OLD.status AND NOT (
       (OLD.status = 'pending' AND NEW.status IN ('pending','accepted','withdrawn','superseded')) OR
@@ -2362,7 +3236,8 @@ BEGIN
     IF generation_ticket_id IS DISTINCT FROM NEW.id OR
        generation_mode IS DISTINCT FROM NEW.credential_mode OR
        generation_version IS DISTINCT FROM NEW.credential_version OR
-       generation_status IS DISTINCT FROM 'active' THEN
+       (generation_status IS DISTINCT FROM 'active' AND
+        NOT (NEW.status IN ('void', 'refunded') AND generation_status = 'revoked')) THEN
       RAISE EXCEPTION 'ticket current credential generation does not match the ticket'
         USING ERRCODE = '23514';
     END IF;
@@ -2441,6 +3316,8 @@ CREATE TABLE public.catalog_event_products (
     name character varying NOT NULL,
     description text,
     type character varying NOT NULL,
+    status character varying DEFAULT 'draft'::character varying NOT NULL,
+    inventory_mode character varying DEFAULT 'unlimited'::character varying NOT NULL,
     allow_custom_price boolean DEFAULT false NOT NULL,
     sales_start_at timestamp with time zone,
     sales_end_at timestamp with time zone,
@@ -2450,21 +3327,18 @@ CREATE TABLE public.catalog_event_products (
     sort_order integer DEFAULT 0 NOT NULL,
     metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
     lock_version integer DEFAULT 0 NOT NULL,
-    created_at timestamp(6) with time zone NOT NULL,
-    updated_at timestamp(6) with time zone NOT NULL,
-    status character varying DEFAULT 'draft'::character varying NOT NULL,
-    inventory_mode character varying DEFAULT 'unlimited'::character varying NOT NULL,
-    idempotency_key character varying,
     idempotency_key_digest character varying(64),
     creation_request_digest character varying(64),
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT catalog_event_products_creation_digests_check CHECK ((((idempotency_key_digest IS NULL) AND (creation_request_digest IS NULL)) OR (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((creation_request_digest)::text ~ '^[0-9a-f]{64}$'::text)))),
-    CONSTRAINT catalog_event_products_inventory_mode_check CHECK (((inventory_mode)::text = ANY (ARRAY[('unlimited'::character varying)::text, ('event_wide'::character varying)::text, ('per_date'::character varying)::text, ('event_wide_and_per_date'::character varying)::text]))),
+    CONSTRAINT catalog_event_products_inventory_mode_check CHECK (((inventory_mode)::text = ANY ((ARRAY['unlimited'::character varying, 'event_wide'::character varying, 'per_date'::character varying, 'event_wide_and_per_date'::character varying])::text[]))),
     CONSTRAINT catalog_event_products_max_per_order_check CHECK (((max_per_order IS NULL) OR (max_per_order >= min_per_order))),
     CONSTRAINT catalog_event_products_min_per_order_check CHECK ((min_per_order >= 1)),
-    CONSTRAINT catalog_event_products_refund_policy_check CHECK (((schedule_change_refund_policy)::text = ANY (ARRAY[('full_or_partial'::character varying)::text, ('full_only'::character varying)::text]))),
+    CONSTRAINT catalog_event_products_refund_policy_check CHECK (((schedule_change_refund_policy)::text = ANY ((ARRAY['full_or_partial'::character varying, 'full_only'::character varying])::text[]))),
     CONSTRAINT catalog_event_products_sales_window_check CHECK (((sales_end_at IS NULL) OR (sales_start_at IS NULL) OR (sales_end_at > sales_start_at))),
-    CONSTRAINT catalog_event_products_status_check CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('active'::character varying)::text, ('retired'::character varying)::text]))),
-    CONSTRAINT catalog_event_products_type_check CHECK (((type)::text = ANY (ARRAY[('ticket'::character varying)::text, ('parking'::character varying)::text, ('merchandise'::character varying)::text, ('food'::character varying)::text, ('donation'::character varying)::text, ('digital_addon'::character varying)::text, ('other'::character varying)::text])))
+    CONSTRAINT catalog_event_products_status_check CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'active'::character varying, 'retired'::character varying])::text[]))),
+    CONSTRAINT catalog_event_products_type_check CHECK (((type)::text = ANY ((ARRAY['ticket'::character varying, 'parking'::character varying, 'merchandise'::character varying, 'food'::character varying, 'donation'::character varying, 'digital_addon'::character varying, 'other'::character varying])::text[])))
 );
 
 
@@ -2504,14 +3378,15 @@ CREATE TABLE public.catalog_inventory_reservations (
     expires_at timestamp with time zone,
     committed_at timestamp with time zone,
     released_at timestamp with time zone,
+    request_fingerprint character varying(64) NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    request_fingerprint character varying(64) NOT NULL,
     CONSTRAINT catalog_inventory_reservations_admissions_check CHECK ((admissions_per_unit >= 1)),
+    CONSTRAINT catalog_inventory_reservations_expiry_check CHECK ((((status)::text = ANY ((ARRAY['committed'::character varying, 'released'::character varying, 'expired'::character varying])::text[])) OR (expires_at IS NOT NULL))),
     CONSTRAINT catalog_inventory_reservations_fingerprint_check CHECK (((request_fingerprint)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT catalog_inventory_reservations_owner_check CHECK ((NOT ((registration_id IS NOT NULL) AND (order_item_id IS NOT NULL)))),
     CONSTRAINT catalog_inventory_reservations_quantity_check CHECK ((quantity > 0)),
-    CONSTRAINT catalog_inventory_reservations_status_check CHECK (((status)::text = ANY (ARRAY[('held'::character varying)::text, ('processing'::character varying)::text, ('committed'::character varying)::text, ('released'::character varying)::text, ('expired'::character varying)::text])))
+    CONSTRAINT catalog_inventory_reservations_status_check CHECK (((status)::text = ANY ((ARRAY['held'::character varying, 'processing'::character varying, 'committed'::character varying, 'released'::character varying, 'expired'::character varying])::text[])))
 );
 
 
@@ -2605,7 +3480,7 @@ CREATE TABLE public.catalog_product_prices (
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT catalog_product_prices_amount_check CHECK ((amount_minor >= 0)),
     CONSTRAINT catalog_product_prices_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
-    CONSTRAINT catalog_product_prices_type_check CHECK (((type)::text = ANY (ARRAY[('base'::character varying)::text, ('override'::character varying)::text])))
+    CONSTRAINT catalog_product_prices_type_check CHECK (((type)::text = ANY ((ARRAY['base'::character varying, 'override'::character varying])::text[])))
 );
 
 
@@ -2699,11 +3574,11 @@ CREATE TABLE public.catalog_venue_capacity_reservations (
     request_fingerprint character varying(64) CONSTRAINT catalog_venue_capacity_reservation_request_fingerprint_not_null NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT catalog_venue_capacity_reservations_expiry_check CHECK ((((status)::text = ANY (ARRAY[('committed'::character varying)::text, ('released'::character varying)::text, ('expired'::character varying)::text])) OR (expires_at IS NOT NULL))),
+    CONSTRAINT catalog_venue_capacity_reservations_expiry_check CHECK ((((status)::text = ANY ((ARRAY['committed'::character varying, 'released'::character varying, 'expired'::character varying])::text[])) OR (expires_at IS NOT NULL))),
     CONSTRAINT catalog_venue_capacity_reservations_fingerprint_check CHECK (((request_fingerprint)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT catalog_venue_capacity_reservations_owner_check CHECK ((NOT ((registration_id IS NOT NULL) AND (order_item_id IS NOT NULL)))),
     CONSTRAINT catalog_venue_capacity_reservations_quantity_check CHECK ((quantity_people > 0)),
-    CONSTRAINT catalog_venue_capacity_reservations_status_check CHECK (((status)::text = ANY (ARRAY[('held'::character varying)::text, ('processing'::character varying)::text, ('committed'::character varying)::text, ('released'::character varying)::text, ('expired'::character varying)::text])))
+    CONSTRAINT catalog_venue_capacity_reservations_status_check CHECK (((status)::text = ANY ((ARRAY['held'::character varying, 'processing'::character varying, 'committed'::character varying, 'released'::character varying, 'expired'::character varying])::text[])))
 );
 
 
@@ -3424,7 +4299,7 @@ CREATE TABLE public.events_access_zones (
     sort_order integer DEFAULT 0 NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_access_zones_type CHECK (((type)::text = ANY (ARRAY[('venue'::character varying)::text, ('parking'::character varying)::text])))
+    CONSTRAINT chk_access_zones_type CHECK (((type)::text = ANY ((ARRAY['venue'::character varying, 'parking'::character varying])::text[])))
 );
 
 
@@ -3497,7 +4372,7 @@ CREATE TABLE public.events_consent_document_versions (
     created_by_id uuid NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_consent_version_status CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('published'::character varying)::text, ('retired'::character varying)::text])))
+    CONSTRAINT chk_consent_version_status CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'published'::character varying, 'retired'::character varying])::text[])))
 );
 
 
@@ -3514,7 +4389,29 @@ CREATE TABLE public.events_consent_documents (
     created_by_id uuid NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_consent_doc_type CHECK (((type)::text = ANY (ARRAY[('terms'::character varying)::text, ('liability_waiver'::character varying)::text, ('media_consent'::character varying)::text, ('age_declaration'::character varying)::text, ('other'::character varying)::text])))
+    CONSTRAINT chk_consent_doc_type CHECK (((type)::text = ANY ((ARRAY['terms'::character varying, 'liability_waiver'::character varying, 'media_consent'::character varying, 'age_declaration'::character varying, 'other'::character varying])::text[])))
+);
+
+
+--
+-- Name: events_event_cancellation_payments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.events_event_cancellation_payments (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    event_cancellation_id uuid CONSTRAINT events_event_cancellation_paymen_event_cancellation_id_not_null NOT NULL,
+    payment_id uuid NOT NULL,
+    status character varying DEFAULT 'pending'::character varying NOT NULL,
+    attempts integer DEFAULT 0 NOT NULL,
+    next_retry_at timestamp with time zone,
+    resolved_at timestamp with time zone,
+    last_error text,
+    lock_version integer DEFAULT 0 NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT event_cancellation_payments_counters_check CHECK (((attempts >= 0) AND (lock_version >= 0))),
+    CONSTRAINT event_cancellation_payments_resolved_shape_check CHECK (((((status)::text = 'resolved'::text) AND (resolved_at IS NOT NULL)) OR (((status)::text <> 'resolved'::text) AND (resolved_at IS NULL)))),
+    CONSTRAINT event_cancellation_payments_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'processing'::character varying, 'resolved'::character varying, 'failed'::character varying])::text[])))
 );
 
 
@@ -3526,15 +4423,25 @@ CREATE TABLE public.events_event_cancellations (
     id uuid DEFAULT uuidv7() NOT NULL,
     event_id uuid NOT NULL,
     initiated_by_id uuid NOT NULL,
-    reason text,
-    attendee_reason text,
-    status character varying DEFAULT 'initiated'::character varying NOT NULL,
+    status character varying DEFAULT 'pending'::character varying NOT NULL,
     idempotency_key character varying NOT NULL,
-    cancelled_at timestamp with time zone,
+    attendee_reason text NOT NULL,
+    internal_note text,
+    total_payments_count integer DEFAULT 0 NOT NULL,
+    resolved_payments_count integer DEFAULT 0 NOT NULL,
+    failed_payments_count integer DEFAULT 0 NOT NULL,
+    initiated_at timestamp with time zone NOT NULL,
+    refunds_started_at timestamp with time zone,
+    completed_at timestamp with time zone,
+    last_error text,
+    lock_version integer DEFAULT 0 NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_events_event_cancellations_cancelled_at CHECK ((cancelled_at IS NOT NULL)),
-    CONSTRAINT chk_events_event_cancellations_status CHECK (((status)::text = ANY (ARRAY[('initiated'::character varying)::text, ('completed'::character varying)::text])))
+    CONSTRAINT chk_events_event_cancellations_completed_counters CHECK ((((status)::text <> 'completed'::text) OR ((resolved_payments_count + failed_payments_count) = total_payments_count))),
+    CONSTRAINT chk_events_event_cancellations_counters_nonnegative CHECK (((total_payments_count >= 0) AND (resolved_payments_count >= 0) AND (failed_payments_count >= 0) AND (lock_version >= 0))),
+    CONSTRAINT chk_events_event_cancellations_counters_within_total CHECK (((resolved_payments_count + failed_payments_count) <= total_payments_count)),
+    CONSTRAINT chk_events_event_cancellations_partial_failure CHECK ((((status)::text <> 'partially_failed'::text) OR (failed_payments_count > 0))),
+    CONSTRAINT chk_events_event_cancellations_status CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'processing'::character varying, 'completed'::character varying, 'partially_failed'::character varying])::text[])))
 );
 
 
@@ -3560,14 +4467,17 @@ CREATE TABLE public.events_event_date_changes (
     id uuid DEFAULT uuidv7() NOT NULL,
     event_id uuid NOT NULL,
     event_date_id uuid NOT NULL,
+    event_cancellation_id uuid,
     change_type character varying DEFAULT 'reschedule'::character varying NOT NULL,
     old_start_at timestamp with time zone NOT NULL,
     old_end_at timestamp with time zone NOT NULL,
-    new_start_at timestamp with time zone NOT NULL,
-    new_end_at timestamp with time zone NOT NULL,
+    new_start_at timestamp with time zone,
+    new_end_at timestamp with time zone,
     scheduled_by_id uuid NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
-    updated_at timestamp(6) with time zone NOT NULL
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT events_event_date_changes_new_schedule_shape_check CHECK (((((change_type)::text = 'reschedule'::text) AND (new_start_at IS NOT NULL) AND (new_end_at IS NOT NULL)) OR (((change_type)::text = 'cancelled'::text) AND (new_start_at IS NULL) AND (new_end_at IS NULL)))),
+    CONSTRAINT events_event_date_changes_type_check CHECK (((change_type)::text = ANY ((ARRAY['reschedule'::character varying, 'cancelled'::character varying])::text[])))
 );
 
 
@@ -3612,7 +4522,7 @@ CREATE TABLE public.events_event_media (
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT chk_event_media_cover_position CHECK ((((type)::text <> 'cover'::text) OR ("position" = 0))),
     CONSTRAINT chk_event_media_position CHECK (("position" >= 0)),
-    CONSTRAINT chk_event_media_type CHECK (((type)::text = ANY (ARRAY[('cover'::character varying)::text, ('gallery'::character varying)::text])))
+    CONSTRAINT chk_event_media_type CHECK (((type)::text = ANY ((ARRAY['cover'::character varying, 'gallery'::character varying])::text[])))
 );
 
 
@@ -3632,8 +4542,8 @@ CREATE TABLE public.events_event_organizations (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT chk_event_organizations_no_primary_owner CHECK (((role)::text <> 'primary_owner'::text)),
-    CONSTRAINT chk_event_organizations_status CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('active'::character varying)::text, ('revoked'::character varying)::text]))),
-    CONSTRAINT chk_event_organizations_type CHECK (((type)::text = ANY (ARRAY[('co_organizer'::character varying)::text, ('venue_partner'::character varying)::text, ('promoter'::character varying)::text, ('sponsor'::character varying)::text])))
+    CONSTRAINT chk_event_organizations_status CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'active'::character varying, 'revoked'::character varying])::text[]))),
+    CONSTRAINT chk_event_organizations_type CHECK (((type)::text = ANY ((ARRAY['co_organizer'::character varying, 'venue_partner'::character varying, 'promoter'::character varying, 'sponsor'::character varying])::text[])))
 );
 
 
@@ -3653,7 +4563,7 @@ CREATE TABLE public.events_event_participants (
     metadata jsonb DEFAULT '{}'::jsonb,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_event_participants_type CHECK (((type)::text = ANY (ARRAY[('performer'::character varying)::text, ('speaker'::character varying)::text, ('host'::character varying)::text, ('instructor'::character varying)::text, ('panelist'::character varying)::text, ('team'::character varying)::text, ('guest'::character varying)::text])))
+    CONSTRAINT chk_event_participants_type CHECK (((type)::text = ANY ((ARRAY['performer'::character varying, 'speaker'::character varying, 'host'::character varying, 'instructor'::character varying, 'panelist'::character varying, 'team'::character varying, 'guest'::character varying])::text[])))
 );
 
 
@@ -3684,8 +4594,8 @@ CREATE TABLE public.events_event_staff_assignments (
     expires_at timestamp with time zone,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_event_staff_assignments_role CHECK (((role)::text = ANY (ARRAY[('manager'::character varying)::text, ('staff'::character varying)::text, ('scanner'::character varying)::text, ('contractor'::character varying)::text]))),
-    CONSTRAINT chk_event_staff_assignments_status CHECK (((status)::text = ANY (ARRAY[('active'::character varying)::text, ('suspended'::character varying)::text, ('revoked'::character varying)::text, ('expired'::character varying)::text])))
+    CONSTRAINT chk_event_staff_assignments_role CHECK (((role)::text = ANY ((ARRAY['manager'::character varying, 'staff'::character varying, 'scanner'::character varying, 'contractor'::character varying])::text[]))),
+    CONSTRAINT chk_event_staff_assignments_status CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'suspended'::character varying, 'revoked'::character varying, 'expired'::character varying])::text[])))
 );
 
 
@@ -3709,9 +4619,9 @@ CREATE TABLE public.events_event_streams (
     config jsonb DEFAULT '{}'::jsonb,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_event_streams_access_protection CHECK (((access_protection)::text = ANY (ARRAY[('public'::character varying)::text, ('soft_gated'::character varying)::text, ('signed'::character varying)::text]))),
+    CONSTRAINT chk_event_streams_access_protection CHECK (((access_protection)::text = ANY ((ARRAY['public'::character varying, 'soft_gated'::character varying, 'signed'::character varying])::text[]))),
     CONSTRAINT chk_event_streams_replay_until CHECK (((replay_available_until IS NOT NULL) OR (replay_enabled = false))),
-    CONSTRAINT chk_event_streams_status CHECK (((status)::text = ANY (ARRAY[('scheduled'::character varying)::text, ('live'::character varying)::text, ('ended'::character varying)::text, ('disabled'::character varying)::text])))
+    CONSTRAINT chk_event_streams_status CHECK (((status)::text = ANY ((ARRAY['scheduled'::character varying, 'live'::character varying, 'ended'::character varying, 'disabled'::character varying])::text[])))
 );
 
 
@@ -3750,17 +4660,24 @@ CREATE TABLE public.events_events (
     timezone character varying NOT NULL,
     currency character varying DEFAULT 'ETB'::character varying NOT NULL,
     version integer DEFAULT 1 NOT NULL,
+    revocation_version bigint DEFAULT 0 NOT NULL,
+    attendee_index_version bigint DEFAULT 0 NOT NULL,
+    schedule_version bigint DEFAULT 0 NOT NULL,
+    admission_use_reversal_version bigint DEFAULT 0 NOT NULL,
     published_at timestamp with time zone,
     cancelled_at timestamp with time zone,
+    completed_at timestamp with time zone,
     discovery_refreshed_at timestamp with time zone,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT chk_events_events_cancelled_at_requires_cancelled CHECK (((cancelled_at IS NULL) OR ((status)::text = 'cancelled'::text))),
+    CONSTRAINT chk_events_events_completed_at_requires_completed CHECK (((completed_at IS NULL) OR ((status)::text = 'completed'::text))),
     CONSTRAINT chk_events_events_currency_iso4217 CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
     CONSTRAINT chk_events_events_published_at_requires_published CHECK (((published_at IS NULL) OR ((status)::text = ANY (ARRAY['published'::text, 'cancelled'::text])))),
-    CONSTRAINT chk_events_events_status CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('published'::character varying)::text, ('cancelled'::character varying)::text, ('completed'::character varying)::text]))),
+    CONSTRAINT chk_events_events_scanner_versions_non_negative CHECK (((revocation_version >= 0) AND (attendee_index_version >= 0) AND (schedule_version >= 0) AND (admission_use_reversal_version >= 0))),
+    CONSTRAINT chk_events_events_status CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'published'::character varying, 'cancelled'::character varying, 'completed'::character varying])::text[]))),
     CONSTRAINT chk_events_events_version_non_negative CHECK ((version >= 0)),
-    CONSTRAINT chk_events_events_visibility CHECK (((visibility)::text = ANY (ARRAY[('private'::character varying)::text, ('public'::character varying)::text, ('unlisted'::character varying)::text])))
+    CONSTRAINT chk_events_events_visibility CHECK (((visibility)::text = ANY ((ARRAY['private'::character varying, 'public'::character varying, 'unlisted'::character varying])::text[])))
 );
 
 
@@ -3815,6 +4732,99 @@ CREATE TABLE public.events_venues (
 
 
 --
+-- Name: finance_ledger_entries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_ledger_entries (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    event_id uuid,
+    order_id uuid,
+    payment_id uuid,
+    refund_id uuid,
+    reverses_entry_id uuid,
+    type character varying NOT NULL,
+    amount_minor bigint NOT NULL,
+    currency character varying(3) NOT NULL,
+    available_at timestamp with time zone NOT NULL,
+    idempotency_key character varying NOT NULL,
+    description character varying,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT finance_ledger_entries_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
+    CONSTRAINT finance_ledger_entries_nonzero_amount CHECK ((amount_minor <> 0)),
+    CONSTRAINT finance_ledger_entries_sign_check CHECK (((((type)::text = 'sale'::text) AND (amount_minor > 0)) OR (((type)::text = ANY ((ARRAY['platform_fee'::character varying, 'processing_fee'::character varying, 'refund'::character varying, 'chargeback'::character varying, 'payout'::character varying])::text[])) AND (amount_minor < 0)) OR ((type)::text = 'adjustment'::text))),
+    CONSTRAINT finance_ledger_entries_type_check CHECK (((type)::text = ANY ((ARRAY['sale'::character varying, 'platform_fee'::character varying, 'processing_fee'::character varying, 'refund'::character varying, 'chargeback'::character varying, 'adjustment'::character varying, 'payout'::character varying])::text[])))
+);
+
+
+--
+-- Name: finance_payout_allocations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_payout_allocations (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    payout_id uuid NOT NULL,
+    ledger_entry_id uuid NOT NULL,
+    amount_minor bigint NOT NULL,
+    status character varying DEFAULT 'reserved'::character varying NOT NULL,
+    consumed_at timestamp with time zone,
+    released_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT finance_payout_allocations_consumed_at_check CHECK ((((status)::text = 'consumed'::text) = (consumed_at IS NOT NULL))),
+    CONSTRAINT finance_payout_allocations_nonzero_amount_check CHECK ((amount_minor <> 0)),
+    CONSTRAINT finance_payout_allocations_released_at_check CHECK ((((status)::text = 'released'::text) = (released_at IS NOT NULL))),
+    CONSTRAINT finance_payout_allocations_status_check CHECK (((status)::text = ANY ((ARRAY['reserved'::character varying, 'consumed'::character varying, 'released'::character varying])::text[])))
+);
+
+
+--
+-- Name: finance_payouts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_payouts (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    currency character varying(3) NOT NULL,
+    status character varying DEFAULT 'pending'::character varying NOT NULL,
+    amount_minor bigint NOT NULL,
+    provider character varying,
+    provider_reference character varying,
+    idempotency_key character varying NOT NULL,
+    period_start timestamp with time zone,
+    period_end timestamp with time zone,
+    requested_at timestamp with time zone NOT NULL,
+    paid_at timestamp with time zone,
+    failure_code character varying,
+    lock_version integer DEFAULT 0 NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT finance_payouts_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
+    CONSTRAINT finance_payouts_lock_version_check CHECK ((lock_version >= 0)),
+    CONSTRAINT finance_payouts_positive_amount_check CHECK ((amount_minor > 0)),
+    CONSTRAINT finance_payouts_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'processing'::character varying, 'paid'::character varying, 'failed'::character varying, 'cancelled'::character varying])::text[])))
+);
+
+
+--
+-- Name: finance_provider_reserve_policies; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_provider_reserve_policies (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    provider character varying NOT NULL,
+    currency character varying(3) NOT NULL,
+    target_minor bigint DEFAULT 0 NOT NULL,
+    lock_version integer DEFAULT 0 NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT finance_reserve_policies_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
+    CONSTRAINT finance_reserve_policies_lock_version_check CHECK ((lock_version >= 0)),
+    CONSTRAINT finance_reserve_policies_nonnegative_target_check CHECK ((target_minor >= 0))
+);
+
+
+--
 -- Name: legal_acceptances; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3832,7 +4842,7 @@ CREATE TABLE public.legal_acceptances (
     accepted_at timestamp(6) with time zone NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_legal_acceptance_method CHECK (((acceptance_method)::text = ANY (ARRAY[('checkbox'::character varying)::text, ('otp'::character varying)::text]))),
+    CONSTRAINT chk_legal_acceptance_method CHECK (((acceptance_method)::text = ANY ((ARRAY['checkbox'::character varying, 'otp'::character varying])::text[]))),
     CONSTRAINT chk_legal_acceptance_subject_type CHECK (((subject_type)::text = ANY ((ARRAY['user'::character varying, 'organization'::character varying, 'order'::character varying, 'commercial_assignment'::character varying])::text[])))
 );
 
@@ -3855,7 +4865,7 @@ CREATE TABLE public.legal_document_versions (
     created_by_id uuid NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_legal_version_status CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('published'::character varying)::text, ('retired'::character varying)::text])))
+    CONSTRAINT chk_legal_version_status CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'published'::character varying, 'retired'::character varying])::text[])))
 );
 
 
@@ -3873,7 +4883,7 @@ CREATE TABLE public.legal_documents (
     created_by_id uuid NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT chk_legal_doc_type CHECK (((document_type)::text = ANY (ARRAY[('platform_terms'::character varying)::text, ('privacy_policy'::character varying)::text, ('organizer_agreement'::character varying)::text, ('organizer_fee_schedule'::character varying)::text, ('buyer_purchase_terms'::character varying)::text])))
+    CONSTRAINT chk_legal_doc_type CHECK (((document_type)::text = ANY ((ARRAY['platform_terms'::character varying, 'privacy_policy'::character varying, 'organizer_agreement'::character varying, 'organizer_fee_schedule'::character varying, 'buyer_purchase_terms'::character varying])::text[])))
 );
 
 
@@ -3976,6 +4986,7 @@ CREATE TABLE public.orders_orders (
     status character varying DEFAULT 'draft'::character varying NOT NULL,
     closed_reason character varying,
     charge_currency character varying(3) NOT NULL,
+    commercial_signature character varying(64) NOT NULL,
     subtotal_minor bigint NOT NULL,
     discount_minor bigint DEFAULT 0 NOT NULL,
     subsidy_minor bigint DEFAULT 0 NOT NULL,
@@ -3998,6 +5009,7 @@ CREATE TABLE public.orders_orders (
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT orders_orders_amounts_check CHECK (((subtotal_minor >= 0) AND (discount_minor >= 0) AND (subsidy_minor >= 0) AND (fee_minor >= 0) AND (tax_minor >= 0) AND (settlement_total_minor >= 0))),
     CONSTRAINT orders_orders_closed_reason_check CHECK (((((status)::text = ANY ((ARRAY['expired'::character varying, 'cancelled'::character varying])::text[])) AND (closed_reason IS NOT NULL)) OR (((status)::text <> ALL ((ARRAY['expired'::character varying, 'cancelled'::character varying])::text[])) AND (closed_reason IS NULL)))),
+    CONSTRAINT orders_orders_commercial_signature_check CHECK (((commercial_signature)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT orders_orders_creation_digests_check CHECK ((((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((creation_request_digest)::text ~ '^[0-9a-f]{64}$'::text))),
     CONSTRAINT orders_orders_currency_check CHECK ((((charge_currency)::text ~ '^[A-Z]{3}$'::text) AND ((settlement_currency)::text ~ '^[A-Z]{3}$'::text))),
     CONSTRAINT orders_orders_exchange_metadata_check CHECK (((((charge_currency)::text = (settlement_currency)::text) AND (exchange_rate = (1)::numeric)) OR (((charge_currency)::text <> (settlement_currency)::text) AND (exchange_rate_quoted_at IS NOT NULL) AND (exchange_rate_expires_at IS NOT NULL) AND (exchange_rate_expires_at > exchange_rate_quoted_at)))),
@@ -4027,9 +5039,11 @@ CREATE TABLE public.orders_payment_events (
     occurred_at timestamp with time zone,
     received_at timestamp with time zone NOT NULL,
     processed_at timestamp with time zone,
-    processing_error character varying,
+    attempts_count integer DEFAULT 0 NOT NULL,
+    last_error text,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT orders_payment_events_attempts_count_check CHECK ((attempts_count >= 0)),
     CONSTRAINT orders_payment_events_identity_check CHECK (((btrim((provider)::text) <> ''::text) AND (btrim((provider_event_id)::text) <> ''::text) AND (btrim((event_type)::text) <> ''::text))),
     CONSTRAINT orders_payment_events_payload_digest_check CHECK (((payload_digest)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT orders_payment_events_processed_state_check CHECK (((((status)::text = 'processed'::text) AND (processed_at IS NOT NULL)) OR ((status)::text <> 'processed'::text))),
@@ -4061,6 +5075,7 @@ CREATE TABLE public.orders_payments (
     raw_status character varying,
     settlement_grace_minutes integer DEFAULT 5 NOT NULL,
     settlement_grace_expires_at timestamp with time zone NOT NULL,
+    succeeded_at timestamp with time zone,
     accepted_at timestamp with time zone,
     superseded_at timestamp with time zone,
     created_at timestamp(6) with time zone NOT NULL,
@@ -4073,7 +5088,7 @@ CREATE TABLE public.orders_payments (
     CONSTRAINT orders_payments_grace_minutes_check CHECK (((settlement_grace_minutes >= 3) AND (settlement_grace_minutes <= 15))),
     CONSTRAINT orders_payments_provider_fee_pair_check CHECK ((((provider_fee_minor IS NULL) = (provider_fee_currency IS NULL)) AND ((provider_fee_minor IS NULL) OR ((provider_fee_currency)::text = (currency)::text)))),
     CONSTRAINT orders_payments_status_check CHECK (((status)::text = ANY ((ARRAY['created'::character varying, 'processing'::character varying, 'succeeded'::character varying, 'failed'::character varying, 'cancelled'::character varying, 'unknown'::character varying, 'timeout'::character varying, 'reversed'::character varying])::text[]))),
-    CONSTRAINT orders_payments_superseded_state_check CHECK (((superseded_at IS NULL) OR ((status)::text <> ALL ((ARRAY['created'::character varying, 'processing'::character varying])::text[]))))
+    CONSTRAINT orders_payments_succeeded_state_check CHECK (((succeeded_at IS NULL) OR ((status)::text = 'succeeded'::text)))
 );
 
 
@@ -4104,6 +5119,43 @@ CREATE TABLE public.orders_promotion_redemptions (
 
 
 --
+-- Name: orders_refund_adjustment_allocations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.orders_refund_adjustment_allocations (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    refund_item_id uuid NOT NULL,
+    order_adjustment_id uuid CONSTRAINT orders_refund_adjustment_allocatio_order_adjustment_id_not_null NOT NULL,
+    amount_minor bigint NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT refund_adjustment_allocation_nonzero CHECK ((amount_minor <> 0))
+);
+
+
+--
+-- Name: orders_refund_items; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.orders_refund_items (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    refund_id uuid NOT NULL,
+    order_item_id uuid NOT NULL,
+    ticket_id uuid,
+    event_date_id uuid,
+    event_date_change_id uuid,
+    quantity integer NOT NULL,
+    subtotal_minor bigint NOT NULL,
+    amount_minor bigint NOT NULL,
+    restock boolean DEFAULT false NOT NULL,
+    reason character varying,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT refund_items_positive_amounts CHECK (((quantity > 0) AND (subtotal_minor >= 0) AND (amount_minor > 0)))
+);
+
+
+--
 -- Name: orders_refunds; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4126,10 +5178,12 @@ CREATE TABLE public.orders_refunds (
     reason text,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT orders_refunds_amount_currency_check CHECK (((amount_minor > 0) AND ((currency)::text ~ '^[A-Z]{3}$'::text))),
     CONSTRAINT orders_refunds_provider_fee_pair_check CHECK ((((provider_fee_minor IS NULL) AND (provider_fee_currency IS NULL) AND (provider_fee_recorded_at IS NULL)) OR ((provider_fee_minor IS NOT NULL) AND (provider_fee_minor >= 0) AND (provider_fee_currency IS NOT NULL) AND ((provider_fee_currency)::text ~ '^[A-Z]{3}$'::text) AND (provider_fee_recorded_at IS NOT NULL)))),
     CONSTRAINT orders_refunds_status_check CHECK (((status)::text = ANY ((ARRAY['created'::character varying, 'pending_funds'::character varying, 'processing'::character varying, 'succeeded'::character varying, 'failed'::character varying])::text[]))),
-    CONSTRAINT orders_refunds_type_check CHECK (((type)::text = ANY ((ARRAY['item_refund'::character varying, 'payment_reversal'::character varying])::text[])))
+    CONSTRAINT orders_refunds_type_check CHECK (((type)::text = ANY ((ARRAY['item_refund'::character varying, 'payment_reversal'::character varying])::text[]))),
+    CONSTRAINT pending_funds_has_reason CHECK ((((status)::text <> 'pending_funds'::text) OR (pending_reason IS NOT NULL))),
+    CONSTRAINT refund_amount_positive CHECK ((amount_minor > 0)),
+    CONSTRAINT refund_currency_iso CHECK (((currency)::text ~ '^[A-Z]{3}$'::text))
 );
 
 
@@ -4195,6 +5249,9 @@ CREATE TABLE public.ticketing_access_codes (
     id uuid DEFAULT uuidv7() NOT NULL,
     ticket_type_id uuid NOT NULL,
     code_digest character varying NOT NULL,
+    code_ciphertext text,
+    idempotency_key_digest character varying(64),
+    creation_request_digest character varying(64),
     label character varying,
     max_uses integer,
     used_count integer DEFAULT 0 NOT NULL,
@@ -4204,9 +5261,6 @@ CREATE TABLE public.ticketing_access_codes (
     active boolean DEFAULT true NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    code_ciphertext text,
-    idempotency_key_digest character varying(64),
-    creation_request_digest character varying(64),
     CONSTRAINT ticketing_access_codes_idempotency_digests_check CHECK ((((idempotency_key_digest IS NULL) AND (creation_request_digest IS NULL)) OR (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((creation_request_digest)::text ~ '^[0-9a-f]{64}$'::text)))),
     CONSTRAINT ticketing_access_codes_max_quantity_check CHECK ((max_quantity_per_use >= 1)),
     CONSTRAINT ticketing_access_codes_max_uses_check CHECK (((max_uses IS NULL) OR (max_uses >= 1))),
@@ -4310,21 +5364,22 @@ CREATE TABLE public.ticketing_attendee_exports (
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_attendee_exports_attempt_count_check CHECK (((attempt_count >= 0) AND (attempt_count <= 3))),
     CONSTRAINT ticketing_attendee_exports_digest_key_version_check CHECK (((digest_key_version)::text ~ '^v[0-9]+$'::text)),
-    CONSTRAINT ticketing_attendee_exports_expiry_window_check CHECK (((expires_at > data_cutoff_at) AND (expires_at <= (data_cutoff_at + '24:00:00'::interval)))),
-    CONSTRAINT ticketing_attendee_exports_failure_code_check CHECK (((failure_code IS NULL) OR ((failure_code)::text = ANY ((ARRAY['generation_failed'::character varying, 'export_too_large'::character varying, 'export_generation_failed'::character varying, 'export_storage_unavailable'::character varying])::text[])))),
+    CONSTRAINT ticketing_attendee_exports_expiry_window_check CHECK (((expires_at > data_cutoff_at) AND (expires_at <= (created_at + '24:00:00'::interval)))),
+    CONSTRAINT ticketing_attendee_exports_failure_code_check CHECK (((failure_code IS NULL) OR ((failure_code)::text = ANY ((ARRAY['export_too_large'::character varying, 'export_generation_failed'::character varying, 'export_storage_unavailable'::character varying])::text[])))),
     CONSTRAINT ticketing_attendee_exports_field_keys_shape_check CHECK (((field_keys IS NULL) OR ((jsonb_typeof(field_keys) = 'array'::text) AND (jsonb_array_length(field_keys) <= 100)))),
     CONSTRAINT ticketing_attendee_exports_field_set_digest_check CHECK (((field_set_digest)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT ticketing_attendee_exports_file_digest_shape_check CHECK (((file_sha256 IS NULL) OR ((file_sha256)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT ticketing_attendee_exports_filter_contract_check CHECK (public.ticketing_attendee_exports_filters_valid(filters)),
     CONSTRAINT ticketing_attendee_exports_filter_digest_check CHECK (((filter_digest)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT ticketing_attendee_exports_filters_shape_check CHECK (((jsonb_typeof(filters) = 'object'::text) OR (filters IS NULL))),
     CONSTRAINT ticketing_attendee_exports_format_version_check CHECK (((format_version)::text = 'csv_v1'::text)),
     CONSTRAINT ticketing_attendee_exports_idempotency_digest_check CHECK (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text)),
-    CONSTRAINT ticketing_attendee_exports_payload_state_check CHECK (((((status)::text = 'expired'::text) AND (field_keys IS NULL) AND (filters IS NULL)) OR (((status)::text <> 'expired'::text) AND (field_keys IS NOT NULL) AND (filters IS NOT NULL)))),
+    CONSTRAINT ticketing_attendee_exports_payload_state_check CHECK (((((status)::text = 'expired'::text) AND (field_keys IS NULL) AND (filters IS NULL) AND (failure_code IS NULL)) OR (((status)::text <> 'expired'::text) AND (field_keys IS NOT NULL) AND (filters IS NOT NULL)))),
     CONSTRAINT ticketing_attendee_exports_reason_code_check CHECK (((reason_code)::text = ANY ((ARRAY['event_operations'::character varying, 'attendee_communication'::character varying, 'dietary_accommodation'::character varying, 'accessibility_accommodation'::character varying, 'customer_support'::character varying, 'legal_compliance'::character varying])::text[]))),
     CONSTRAINT ticketing_attendee_exports_request_fingerprint_check CHECK (((request_fingerprint)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT ticketing_attendee_exports_row_count_check CHECK (((row_count IS NULL) OR (row_count >= 0))),
     CONSTRAINT ticketing_attendee_exports_row_mode_check CHECK (((row_mode)::text = ANY ((ARRAY['registration'::character varying, 'admission'::character varying])::text[]))),
-    CONSTRAINT ticketing_attendee_exports_state_timestamps_check CHECK (((((status)::text = 'pending'::text) AND (processing_started_at IS NULL) AND (ready_at IS NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL)) OR (((status)::text = 'processing'::text) AND (processing_started_at IS NOT NULL) AND (ready_at IS NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL)) OR (((status)::text = 'ready'::text) AND (processing_started_at IS NOT NULL) AND (ready_at IS NOT NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL) AND (row_count IS NOT NULL) AND (file_sha256 IS NOT NULL)) OR (((status)::text = 'failed'::text) AND (processing_started_at IS NOT NULL) AND (ready_at IS NULL) AND (failed_at IS NOT NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL)) OR (((status)::text = 'expiring'::text) AND (expiring_at IS NOT NULL) AND (expired_at IS NULL)) OR (((status)::text = 'expired'::text) AND (expired_at IS NOT NULL)))),
+    CONSTRAINT ticketing_attendee_exports_state_timestamps_check CHECK (((((status)::text = 'pending'::text) AND (processing_started_at IS NULL) AND (ready_at IS NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL)) OR (((status)::text = 'processing'::text) AND (processing_started_at IS NOT NULL) AND (ready_at IS NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL)) OR (((status)::text = 'ready'::text) AND (processing_started_at IS NOT NULL) AND (ready_at IS NOT NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL) AND (row_count IS NOT NULL) AND (file_sha256 IS NOT NULL)) OR (((status)::text = 'failed'::text) AND (processing_started_at IS NOT NULL) AND (ready_at IS NULL) AND (failed_at IS NOT NULL) AND (expiring_at IS NULL) AND (expired_at IS NULL)) OR (((status)::text = 'expiring'::text) AND (processing_started_at IS NULL) AND (ready_at IS NULL) AND (failed_at IS NULL) AND (expiring_at IS NOT NULL) AND (expired_at IS NULL)) OR (((status)::text = 'expired'::text) AND (processing_started_at IS NULL) AND (ready_at IS NULL) AND (failed_at IS NULL) AND (expiring_at IS NULL) AND (expired_at IS NOT NULL)))),
     CONSTRAINT ticketing_attendee_exports_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'processing'::character varying, 'ready'::character varying, 'failed'::character varying, 'expiring'::character varying, 'expired'::character varying])::text[])))
 );
 
@@ -4433,6 +5488,7 @@ CREATE TABLE public.ticketing_credential_generations (
     version integer NOT NULL,
     mode character varying NOT NULL,
     status character varying DEFAULT 'active'::character varying NOT NULL,
+    excluded_event_date_ids uuid[] DEFAULT '{}'::uuid[] CONSTRAINT ticketing_credential_generatio_excluded_event_date_ids_not_null NOT NULL,
     activated_at timestamp with time zone NOT NULL,
     revoked_at timestamp with time zone,
     revocation_reason character varying,
@@ -4505,8 +5561,11 @@ CREATE TABLE public.ticketing_invitations (
     name character varying,
     email_ciphertext text,
     phone_ciphertext text,
+    token_ciphertext text NOT NULL,
     contact_digest character varying NOT NULL,
     token_digest character varying NOT NULL,
+    idempotency_key_digest character varying(64),
+    creation_request_digest character varying(64),
     allowed_quantity integer DEFAULT 1 NOT NULL,
     status character varying DEFAULT 'pending'::character varying NOT NULL,
     expires_at timestamp with time zone,
@@ -4514,12 +5573,9 @@ CREATE TABLE public.ticketing_invitations (
     created_by_id uuid NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    token_ciphertext text NOT NULL,
-    idempotency_key_digest character varying(64),
-    creation_request_digest character varying(64),
     CONSTRAINT ticketing_invitations_allowed_quantity_check CHECK ((allowed_quantity >= 1)),
     CONSTRAINT ticketing_invitations_idempotency_digests_check CHECK ((((idempotency_key_digest IS NULL) AND (creation_request_digest IS NULL)) OR (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((creation_request_digest)::text ~ '^[0-9a-f]{64}$'::text)))),
-    CONSTRAINT ticketing_invitations_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('accepted'::character varying)::text, ('revoked'::character varying)::text, ('expired'::character varying)::text])))
+    CONSTRAINT ticketing_invitations_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'accepted'::character varying, 'revoked'::character varying, 'expired'::character varying])::text[])))
 );
 
 
@@ -4583,13 +5639,13 @@ CREATE TABLE public.ticketing_registration_answer_revisions (
     revised_by_id uuid NOT NULL,
     source character varying NOT NULL,
     reason_code character varying,
+    idempotency_key_digest character varying(64) CONSTRAINT ticketing_registration_answer_r_idempotency_key_digest_not_null NOT NULL,
+    request_digest character varying(64) NOT NULL,
     revised_at timestamp with time zone NOT NULL,
+    retain_until timestamp with time zone,
     erased_at timestamp with time zone,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    idempotency_key_digest character varying(64) CONSTRAINT ticketing_registration_answer_r_idempotency_key_digest_not_null NOT NULL,
-    request_digest character varying(64) NOT NULL,
-    retain_until timestamp with time zone,
     CONSTRAINT ticketing_registration_answer_revisions_digest_check CHECK ((((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((request_digest)::text ~ '^[0-9a-f]{64}$'::text))),
     CONSTRAINT ticketing_registration_answer_revisions_erasure_check CHECK ((((erased_at IS NULL) AND (answer_ciphertext IS NOT NULL)) OR ((erased_at IS NOT NULL) AND (answer_ciphertext IS NULL)))),
     CONSTRAINT ticketing_registration_answer_revisions_manager_reason_check CHECK ((((source)::text <> 'manager_correction'::text) OR (reason_code IS NOT NULL))),
@@ -4652,7 +5708,7 @@ CREATE TABLE public.ticketing_registration_consent_requirements (
     superseded_at timestamp with time zone,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT ticketing_consent_requirements_coordinate_check CHECK (((((acceptance_scope)::text = 'buyer'::text) AND (package_unit_number IS NULL) AND (admission_position IS NULL) AND (admission_slot_id IS NULL) AND (subject_user_id IS NOT NULL)) OR (((acceptance_scope)::text = 'admission_slot'::text) AND (package_unit_number > 0) AND (admission_position > 0)))),
+    CONSTRAINT ticketing_consent_requirements_coordinate_check CHECK (((((acceptance_scope)::text = 'buyer'::text) AND (package_unit_number IS NULL) AND (admission_position IS NULL) AND (admission_slot_id IS NULL) AND (subject_user_id IS NOT NULL)) OR (((acceptance_scope)::text = 'admission_slot'::text) AND (package_unit_number IS NOT NULL) AND (package_unit_number > 0) AND (admission_position IS NOT NULL) AND (admission_position > 0) AND (admission_slot_id IS NULL)))),
     CONSTRAINT ticketing_consent_requirements_reason_check CHECK (((required_reason)::text = ANY ((ARRAY['initial_submission'::character varying, 'reconsent'::character varying])::text[]))),
     CONSTRAINT ticketing_consent_requirements_required_by_check CHECK ((((required_reason)::text = 'initial_submission'::text) OR (required_by_id IS NOT NULL))),
     CONSTRAINT ticketing_consent_requirements_scope_check CHECK (((acceptance_scope)::text = ANY ((ARRAY['buyer'::character varying, 'admission_slot'::character varying])::text[]))),
@@ -4689,13 +5745,13 @@ CREATE TABLE public.ticketing_registration_consents (
     id uuid DEFAULT uuidv7() NOT NULL,
     registration_consent_requirement_id uuid CONSTRAINT ticketing_registration_cons_registration_consent_requi_not_null NOT NULL,
     registration_id uuid NOT NULL,
-    accepted_by_user_id uuid NOT NULL,
+    accepted_by_user_id uuid,
     signer_role character varying NOT NULL,
     acceptance_method character varying DEFAULT 'otp'::character varying NOT NULL,
     content_sha256 character varying(64) NOT NULL,
-    evidence_digest character varying(64) NOT NULL,
-    idempotency_key_digest character varying(64) NOT NULL,
-    request_uuid uuid NOT NULL,
+    evidence_digest character varying(64),
+    idempotency_key_digest character varying(64),
+    request_uuid uuid,
     retention_policy_id uuid NOT NULL,
     retain_until timestamp with time zone,
     accepted_at timestamp with time zone NOT NULL,
@@ -4703,9 +5759,10 @@ CREATE TABLE public.ticketing_registration_consents (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_registration_consents_acceptance_method_check CHECK (((acceptance_method)::text = ANY ((ARRAY['checkbox'::character varying, 'otp'::character varying])::text[]))),
-    CONSTRAINT ticketing_registration_consents_digest_check CHECK ((((content_sha256)::text ~ '^[0-9a-f]{64}$'::text) AND ((evidence_digest)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT ticketing_registration_consents_digest_check CHECK ((((content_sha256)::text ~ '^[0-9a-f]{64}$'::text) AND ((evidence_digest IS NULL) OR ((evidence_digest)::text ~ '^[0-9a-f]{64}$'::text)))),
+    CONSTRAINT ticketing_registration_consents_erasure_payload_check CHECK ((((erased_at IS NULL) AND (accepted_by_user_id IS NOT NULL) AND (evidence_digest IS NOT NULL) AND (idempotency_key_digest IS NOT NULL) AND (request_uuid IS NOT NULL)) OR ((erased_at IS NOT NULL) AND (accepted_by_user_id IS NULL) AND (evidence_digest IS NULL) AND (idempotency_key_digest IS NULL) AND (request_uuid IS NULL)))),
     CONSTRAINT ticketing_registration_consents_erasure_time_check CHECK (((erased_at IS NULL) OR (erased_at >= accepted_at))),
-    CONSTRAINT ticketing_registration_consents_idempotency_digest_check CHECK (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT ticketing_registration_consents_idempotency_digest_check CHECK (((idempotency_key_digest IS NULL) OR ((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text))),
     CONSTRAINT ticketing_registration_consents_retention_window_check CHECK (((retain_until IS NULL) OR (retain_until > accepted_at))),
     CONSTRAINT ticketing_registration_consents_signer_role_check CHECK (((signer_role)::text = ANY ((ARRAY['buyer'::character varying, 'attendee'::character varying])::text[])))
 );
@@ -4802,12 +5859,14 @@ CREATE TABLE public.ticketing_registrations (
     source character varying NOT NULL,
     created_by_id uuid NOT NULL,
     issuance_idempotency_key character varying,
+    idempotency_request_digest character varying(64),
     complimentary_reason character varying,
     identity_digest character varying(64) NOT NULL,
     package_quantity integer DEFAULT 1 NOT NULL,
     admissions_per_unit_snapshot smallint NOT NULL,
     party_size integer NOT NULL,
     status character varying DEFAULT 'pending_payment'::character varying NOT NULL,
+    next_action_snapshot character varying,
     submitted_at timestamp with time zone NOT NULL,
     waitlisted_at timestamp with time zone,
     offered_at timestamp with time zone,
@@ -4823,7 +5882,9 @@ CREATE TABLE public.ticketing_registrations (
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_registrations_complimentary_reason_check CHECK (((complimentary_reason IS NULL) OR ((complimentary_reason)::text = ANY ((ARRAY['accessibility'::character varying, 'accommodation'::character varying, 'community_partner'::character varying, 'service_recovery'::character varying, 'sponsor_guest'::character varying, 'staff_guest'::character varying])::text[])))),
     CONSTRAINT ticketing_registrations_decision_exclusive_check CHECK ((NOT ((approved_at IS NOT NULL) AND (rejected_at IS NOT NULL)))),
+    CONSTRAINT ticketing_registrations_idempotency_request_digest_check CHECK (((idempotency_request_digest IS NULL) OR ((idempotency_request_digest)::text ~ '^[0-9a-f]{64}$'::text))),
     CONSTRAINT ticketing_registrations_identity_digest_check CHECK (((identity_digest)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT ticketing_registrations_next_action_snapshot_check CHECK (((next_action_snapshot IS NULL) OR ((next_action_snapshot)::text = ANY ((ARRAY['requires_confirmation'::character varying, 'requires_order'::character varying, 'awaiting_approval'::character varying])::text[])))),
     CONSTRAINT ticketing_registrations_party_size_check CHECK ((party_size = (package_quantity * admissions_per_unit_snapshot))),
     CONSTRAINT ticketing_registrations_quantities_positive_check CHECK (((package_quantity > 0) AND (admissions_per_unit_snapshot > 0) AND (party_size > 0))),
     CONSTRAINT ticketing_registrations_source_check CHECK (((source)::text = ANY ((ARRAY['self_service'::character varying, 'organizer_complimentary'::character varying, 'walk_up'::character varying])::text[]))),
@@ -4861,6 +5922,7 @@ CREATE TABLE public.ticketing_scan_uploads (
     client_upload_id uuid NOT NULL,
     received_at timestamp with time zone NOT NULL,
     completed_at timestamp with time zone,
+    results_snapshot jsonb,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_scan_uploads_completion_check CHECK (((completed_at IS NULL) OR (completed_at >= received_at)))
@@ -4945,7 +6007,7 @@ CREATE TABLE public.ticketing_ticket_suspensions (
     idempotency_key character varying NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT ticketing_ticket_suspensions_reason_code_check CHECK (((reason_code)::text = ANY ((ARRAY['suspected_fraud'::character varying, 'identity_review'::character varying, 'chargeback_review'::character varying, 'safety_review'::character varying])::text[]))),
+    CONSTRAINT ticketing_ticket_suspensions_reason_code_check CHECK (((reason_code)::text = ANY ((ARRAY['suspected_fraud'::character varying, 'identity_review'::character varying, 'chargeback_review'::character varying, 'safety_review'::character varying, 'organizer_cancellation'::character varying])::text[]))),
     CONSTRAINT ticketing_ticket_suspensions_resolution_reason_check CHECK (((resolution_reason IS NULL) OR ((resolution_reason)::text = ANY ((ARRAY['review_cleared'::character varying, 'organizer_cancellation'::character varying, 'refund_succeeded'::character varying, 'review_deadline_expired'::character varying])::text[])))),
     CONSTRAINT ticketing_ticket_suspensions_resolution_shape_check CHECK (((((status)::text = 'active'::text) AND (resolved_by_id IS NULL) AND (resolution_reason IS NULL) AND (resolved_at IS NULL)) OR (((status)::text <> 'active'::text) AND (resolved_by_id IS NOT NULL) AND (resolution_reason IS NOT NULL) AND (resolved_at IS NOT NULL)))),
     CONSTRAINT ticketing_ticket_suspensions_status_check CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'restored'::character varying, 'revoked_free'::character varying, 'cancelled_refunded'::character varying, 'expired'::character varying])::text[])))
@@ -5010,11 +6072,11 @@ CREATE TABLE public.ticketing_ticket_types (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_ticket_types_admissions_check CHECK ((admissions_per_unit > 0)),
-    CONSTRAINT ticketing_ticket_types_approval_mode_check CHECK (((approval_mode)::text = ANY (ARRAY[('automatic'::character varying)::text, ('manual'::character varying)::text]))),
-    CONSTRAINT ticketing_ticket_types_audience_check CHECK (((audience)::text = ANY (ARRAY[('public'::character varying)::text, ('access_code'::character varying)::text, ('invitation'::character varying)::text, ('code_or_invitation'::character varying)::text]))),
-    CONSTRAINT ticketing_ticket_types_date_selection_check CHECK (((date_selection)::text = ANY (ARRAY[('fixed'::character varying)::text, ('choose_one'::character varying)::text]))),
-    CONSTRAINT ticketing_ticket_types_delegation_mode_check CHECK (((delegation_validation_mode)::text = ANY (ARRAY[('offline_allowed'::character varying)::text, ('online_required'::character varying)::text]))),
-    CONSTRAINT ticketing_ticket_types_entry_mode_check CHECK (((entry_validation_mode)::text = ANY (ARRAY[('qr'::character varying)::text, ('qr_and_id'::character varying)::text]))),
+    CONSTRAINT ticketing_ticket_types_approval_mode_check CHECK (((approval_mode)::text = ANY ((ARRAY['automatic'::character varying, 'manual'::character varying])::text[]))),
+    CONSTRAINT ticketing_ticket_types_audience_check CHECK (((audience)::text = ANY ((ARRAY['public'::character varying, 'access_code'::character varying, 'invitation'::character varying, 'code_or_invitation'::character varying])::text[]))),
+    CONSTRAINT ticketing_ticket_types_date_selection_check CHECK (((date_selection)::text = ANY ((ARRAY['fixed'::character varying, 'choose_one'::character varying])::text[]))),
+    CONSTRAINT ticketing_ticket_types_delegation_mode_check CHECK (((delegation_validation_mode)::text = ANY ((ARRAY['offline_allowed'::character varying, 'online_required'::character varying])::text[]))),
+    CONSTRAINT ticketing_ticket_types_entry_mode_check CHECK (((entry_validation_mode)::text = ANY ((ARRAY['qr'::character varying, 'qr_and_id'::character varying])::text[]))),
     CONSTRAINT ticketing_ticket_types_max_per_user_check CHECK (((max_packages_per_user IS NULL) OR (max_packages_per_user > 0))),
     CONSTRAINT ticketing_ticket_types_max_resales_check CHECK ((max_completed_resales > 0)),
     CONSTRAINT ticketing_ticket_types_resale_cap_check CHECK (((resale_price_cap_type IS NULL) OR (((resale_price_cap_type)::text = 'fixed'::text) AND (resale_fixed_cap_minor IS NOT NULL) AND (resale_fixed_cap_currency IS NOT NULL) AND (resale_percentage_cap_bps IS NULL)) OR (((resale_price_cap_type)::text = 'percentage'::text) AND (resale_percentage_cap_bps IS NOT NULL) AND (resale_fixed_cap_minor IS NULL) AND (resale_fixed_cap_currency IS NULL)))),
@@ -5485,6 +6547,14 @@ ALTER TABLE ONLY public.events_consent_documents
 
 
 --
+-- Name: events_event_cancellation_payments events_event_cancellation_payments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.events_event_cancellation_payments
+    ADD CONSTRAINT events_event_cancellation_payments_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: events_event_cancellations events_event_cancellations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5597,6 +6667,38 @@ ALTER TABLE ONLY public.events_venues
 
 
 --
+-- Name: finance_ledger_entries finance_ledger_entries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_ledger_entries
+    ADD CONSTRAINT finance_ledger_entries_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finance_payout_allocations finance_payout_allocations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_payout_allocations
+    ADD CONSTRAINT finance_payout_allocations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finance_payouts finance_payouts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_payouts
+    ADD CONSTRAINT finance_payouts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: finance_provider_reserve_policies finance_provider_reserve_policies_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_provider_reserve_policies
+    ADD CONSTRAINT finance_provider_reserve_policies_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: legal_acceptances legal_acceptances_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5666,6 +6768,22 @@ ALTER TABLE ONLY public.orders_payments
 
 ALTER TABLE ONLY public.orders_promotion_redemptions
     ADD CONSTRAINT orders_promotion_redemptions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: orders_refund_adjustment_allocations orders_refund_adjustment_allocations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_refund_adjustment_allocations
+    ADD CONSTRAINT orders_refund_adjustment_allocations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: orders_refund_items orders_refund_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_refund_items
+    ADD CONSTRAINT orders_refund_items_pkey PRIMARY KEY (id);
 
 
 --
@@ -5979,17 +7097,10 @@ CREATE UNIQUE INDEX idx_active_scanner_assignment ON public.ticketing_scanner_de
 
 
 --
--- Name: idx_catalog_event_products_on_idempotency_key; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_catalog_products_on_event_and_idempotency; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_catalog_event_products_on_idempotency_key ON public.catalog_event_products USING btree (idempotency_key) WHERE (idempotency_key IS NOT NULL);
-
-
---
--- Name: idx_catalog_event_products_on_idempotency_key_digest; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_catalog_event_products_on_idempotency_key_digest ON public.catalog_event_products USING btree (event_id, idempotency_key_digest) WHERE (idempotency_key_digest IS NOT NULL);
+CREATE UNIQUE INDEX idx_catalog_products_on_event_and_idempotency ON public.catalog_event_products USING btree (event_id, idempotency_key_digest) WHERE (idempotency_key_digest IS NOT NULL);
 
 
 --
@@ -6182,6 +7293,27 @@ CREATE UNIQUE INDEX idx_date_allocations_on_product_and_date ON public.catalog_p
 
 
 --
+-- Name: idx_event_cancellation_payments_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_event_cancellation_payments_unique ON public.events_event_cancellation_payments USING btree (event_cancellation_id, payment_id);
+
+
+--
+-- Name: idx_event_cancellation_payments_work; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_event_cancellation_payments_work ON public.events_event_cancellation_payments USING btree (event_cancellation_id, status, next_retry_at);
+
+
+--
+-- Name: idx_event_date_changes_on_cancellation_and_date; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_event_date_changes_on_cancellation_and_date ON public.events_event_date_changes USING btree (event_cancellation_id, event_date_id) WHERE (event_cancellation_id IS NOT NULL);
+
+
+--
 -- Name: idx_event_payer_selections_on_actor; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6200,6 +7332,69 @@ CREATE UNIQUE INDEX idx_event_payer_selections_on_event_component ON public.comm
 --
 
 CREATE UNIQUE INDEX idx_events_events_lower_slug ON public.events_events USING btree (lower((slug)::text));
+
+
+--
+-- Name: idx_finance_ledger_entries_on_event_created_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_finance_ledger_entries_on_event_created_at ON public.finance_ledger_entries USING btree (event_id, created_at);
+
+
+--
+-- Name: idx_finance_ledger_entries_on_idempotency_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_finance_ledger_entries_on_idempotency_key ON public.finance_ledger_entries USING btree (idempotency_key);
+
+
+--
+-- Name: idx_finance_ledger_entries_on_org_currency_availability; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_finance_ledger_entries_on_org_currency_availability ON public.finance_ledger_entries USING btree (organization_id, currency, available_at, created_at);
+
+
+--
+-- Name: idx_finance_payout_allocations_on_ledger_and_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_finance_payout_allocations_on_ledger_and_status ON public.finance_payout_allocations USING btree (ledger_entry_id, status);
+
+
+--
+-- Name: idx_finance_payout_allocations_on_payout_and_ledger; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_finance_payout_allocations_on_payout_and_ledger ON public.finance_payout_allocations USING btree (payout_id, ledger_entry_id);
+
+
+--
+-- Name: idx_finance_payouts_on_idempotency_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_finance_payouts_on_idempotency_key ON public.finance_payouts USING btree (idempotency_key);
+
+
+--
+-- Name: idx_finance_payouts_on_provider_and_reference; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_finance_payouts_on_provider_and_reference ON public.finance_payouts USING btree (provider, provider_reference) WHERE (provider_reference IS NOT NULL);
+
+
+--
+-- Name: idx_finance_payouts_on_scope_and_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_finance_payouts_on_scope_and_status ON public.finance_payouts USING btree (organization_id, currency, status, requested_at);
+
+
+--
+-- Name: idx_finance_reserve_policies_on_provider_and_currency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_finance_reserve_policies_on_provider_and_currency ON public.finance_provider_reserve_policies USING btree (provider, currency);
 
 
 --
@@ -6368,6 +7563,13 @@ CREATE INDEX idx_on_fee_schedule_id_status_ac4c487e1e ON public.commercial_fee_s
 --
 
 CREATE INDEX idx_on_metric_type_window_type_currency_34fcab8ed0 ON public.commercial_fee_tiers USING btree (metric_type, window_type, currency);
+
+
+--
+-- Name: idx_on_order_adjustment_id_34409cdf64; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_order_adjustment_id_34409cdf64 ON public.orders_refund_adjustment_allocations USING btree (order_adjustment_id);
 
 
 --
@@ -6798,6 +8000,20 @@ CREATE INDEX idx_promotion_redemptions_on_promotion_user_status ON public.orders
 
 
 --
+-- Name: idx_refund_adjustment_once_per_item; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_refund_adjustment_once_per_item ON public.orders_refund_adjustment_allocations USING btree (refund_item_id, order_adjustment_id);
+
+
+--
+-- Name: idx_refunds_on_cancellation_and_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_refunds_on_cancellation_and_status ON public.orders_refunds USING btree (event_cancellation_id, status) WHERE (event_cancellation_id IS NOT NULL);
+
+
+--
 -- Name: idx_registration_answer_revisions_answer_number; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7222,6 +8438,13 @@ CREATE INDEX index_catalog_inventory_reservations_on_product_inventory_id ON pub
 --
 
 CREATE INDEX index_catalog_inventory_reservations_on_registration_id ON public.catalog_inventory_reservations USING btree (registration_id);
+
+
+--
+-- Name: index_catalog_inventory_reservations_on_reservation_group_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_catalog_inventory_reservations_on_reservation_group_id ON public.catalog_inventory_reservations USING btree (reservation_group_id);
 
 
 --
@@ -7855,6 +9078,13 @@ CREATE UNIQUE INDEX index_events_categories_on_slug ON public.events_categories 
 
 
 --
+-- Name: index_events_event_cancellation_payments_on_payment_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_events_event_cancellation_payments_on_payment_id ON public.events_event_cancellation_payments USING btree (payment_id);
+
+
+--
 -- Name: index_events_event_cancellations_on_event_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7873,6 +9103,13 @@ CREATE UNIQUE INDEX index_events_event_cancellations_on_idempotency_key ON publi
 --
 
 CREATE INDEX index_events_event_cancellations_on_initiated_by_id ON public.events_event_cancellations USING btree (initiated_by_id);
+
+
+--
+-- Name: index_events_event_cancellations_on_status_and_updated_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_events_event_cancellations_on_status_and_updated_at ON public.events_event_cancellations USING btree (status, updated_at);
 
 
 --
@@ -8023,6 +9260,34 @@ CREATE INDEX index_events_venues_on_verified ON public.events_venues USING btree
 
 
 --
+-- Name: index_finance_ledger_entries_on_order_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_finance_ledger_entries_on_order_id ON public.finance_ledger_entries USING btree (order_id);
+
+
+--
+-- Name: index_finance_ledger_entries_on_payment_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_finance_ledger_entries_on_payment_id ON public.finance_ledger_entries USING btree (payment_id);
+
+
+--
+-- Name: index_finance_ledger_entries_on_refund_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_finance_ledger_entries_on_refund_id ON public.finance_ledger_entries USING btree (refund_id);
+
+
+--
+-- Name: index_finance_ledger_entries_on_reverses_entry_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_finance_ledger_entries_on_reverses_entry_id ON public.finance_ledger_entries USING btree (reverses_entry_id);
+
+
+--
 -- Name: index_follows_followable; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8062,6 +9327,34 @@ CREATE UNIQUE INDEX index_one_published_legal_doc ON public.legal_document_versi
 --
 
 CREATE UNIQUE INDEX index_one_published_version_per_doc ON public.events_consent_document_versions USING btree (consent_document_id) WHERE ((status)::text = 'published'::text);
+
+
+--
+-- Name: index_orders_refund_items_on_event_date_change_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_orders_refund_items_on_event_date_change_id ON public.orders_refund_items USING btree (event_date_change_id);
+
+
+--
+-- Name: index_orders_refund_items_on_order_item_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_orders_refund_items_on_order_item_id ON public.orders_refund_items USING btree (order_item_id);
+
+
+--
+-- Name: index_orders_refund_items_on_refund_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_orders_refund_items_on_refund_id ON public.orders_refund_items USING btree (refund_id);
+
+
+--
+-- Name: index_orders_refund_items_on_ticket_id_and_event_date_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_orders_refund_items_on_ticket_id_and_event_date_id ON public.orders_refund_items USING btree (ticket_id, event_date_id);
 
 
 --
@@ -8464,10 +9757,24 @@ CREATE TRIGGER trg_commercial_volume_usage_integrity BEFORE INSERT OR DELETE OR 
 
 
 --
+-- Name: ticketing_registration_consents trg_consent_evidence_requirement_accepted; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER trg_consent_evidence_requirement_accepted AFTER INSERT ON public.ticketing_registration_consents DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_consent_evidence_requirement_accepted();
+
+
+--
+-- Name: ticketing_registration_consent_requirements trg_consent_requirement_has_evidence; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER trg_consent_requirement_has_evidence AFTER INSERT OR UPDATE OF status ON public.ticketing_registration_consent_requirements DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_consent_requirement_acceptance_evidence();
+
+
+--
 -- Name: events_consent_document_versions trg_consent_version_locked; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_consent_version_locked BEFORE UPDATE ON public.events_consent_document_versions FOR EACH ROW EXECUTE FUNCTION public.lock_consent_version_on_update();
+CREATE TRIGGER trg_consent_version_locked BEFORE INSERT OR UPDATE ON public.events_consent_document_versions FOR EACH ROW EXECUTE FUNCTION public.lock_consent_version_on_update();
 
 
 --
@@ -8499,10 +9806,24 @@ CREATE TRIGGER trg_core_retention_policy_nodelete BEFORE DELETE ON public.core_d
 
 
 --
+-- Name: catalog_product_accesses trg_date_access_allocation_check; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER trg_date_access_allocation_check AFTER INSERT OR DELETE OR UPDATE OF event_product_id, event_date_id ON public.catalog_product_accesses DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.catalog_date_allocations_sum_guard();
+
+
+--
 -- Name: catalog_product_date_allocations trg_date_allocation_sum_check; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE CONSTRAINT TRIGGER trg_date_allocation_sum_check AFTER INSERT OR UPDATE OF allocation_basis_points, event_product_id ON public.catalog_product_date_allocations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.catalog_date_allocations_sum_guard();
+CREATE CONSTRAINT TRIGGER trg_date_allocation_sum_check AFTER INSERT OR DELETE OR UPDATE OF allocation_basis_points, event_product_id ON public.catalog_product_date_allocations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.catalog_date_allocations_sum_guard();
+
+
+--
+-- Name: events_event_cancellation_payments trg_event_cancellation_payment_integrity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_event_cancellation_payment_integrity BEFORE INSERT OR UPDATE ON public.events_event_cancellation_payments FOR EACH ROW EXECUTE FUNCTION public.event_cancellation_payment_integrity();
 
 
 --
@@ -8510,6 +9831,34 @@ CREATE CONSTRAINT TRIGGER trg_date_allocation_sum_check AFTER INSERT OR UPDATE O
 --
 
 CREATE TRIGGER trg_event_date_change_immutable BEFORE DELETE OR UPDATE ON public.events_event_date_changes FOR EACH ROW EXECUTE FUNCTION public.event_date_change_immutable();
+
+
+--
+-- Name: finance_ledger_entries trg_finance_ledger_entry_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_finance_ledger_entry_immutable BEFORE DELETE OR UPDATE ON public.finance_ledger_entries FOR EACH ROW EXECUTE FUNCTION public.finance_ledger_entry_immutable();
+
+
+--
+-- Name: finance_ledger_entries trg_finance_ledger_entry_integrity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_finance_ledger_entry_integrity BEFORE INSERT OR UPDATE ON public.finance_ledger_entries FOR EACH ROW EXECUTE FUNCTION public.finance_ledger_entry_integrity();
+
+
+--
+-- Name: finance_payout_allocations trg_finance_payout_allocation_integrity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER trg_finance_payout_allocation_integrity AFTER INSERT OR DELETE OR UPDATE ON public.finance_payout_allocations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.finance_payout_allocation_totals();
+
+
+--
+-- Name: finance_payout_allocations trg_finance_payout_allocation_scope; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_finance_payout_allocation_scope BEFORE INSERT OR UPDATE ON public.finance_payout_allocations FOR EACH ROW EXECUTE FUNCTION public.finance_payout_allocation_integrity();
 
 
 --
@@ -8576,10 +9925,66 @@ CREATE TRIGGER trg_orders_promotion_redemption_scope BEFORE INSERT OR UPDATE ON 
 
 
 --
+-- Name: orders_refund_adjustment_allocations trg_orders_refund_adjustment_allocation_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_orders_refund_adjustment_allocation_immutable BEFORE DELETE OR UPDATE ON public.orders_refund_adjustment_allocations FOR EACH ROW EXECUTE FUNCTION public.orders_refund_adjustment_allocation_immutable();
+
+
+--
+-- Name: orders_refund_adjustment_allocations trg_orders_refund_adjustment_allocation_integrity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_orders_refund_adjustment_allocation_integrity BEFORE INSERT OR UPDATE ON public.orders_refund_adjustment_allocations FOR EACH ROW EXECUTE FUNCTION public.orders_refund_adjustment_allocation_integrity();
+
+
+--
+-- Name: orders_refund_adjustment_allocations trg_orders_refund_adjustment_reconcile; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER trg_orders_refund_adjustment_reconcile AFTER INSERT OR DELETE OR UPDATE ON public.orders_refund_adjustment_allocations DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.orders_refund_reconcile_trigger();
+
+
+--
 -- Name: orders_refunds trg_orders_refund_integrity; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER trg_orders_refund_integrity BEFORE INSERT OR UPDATE ON public.orders_refunds FOR EACH ROW EXECUTE FUNCTION public.orders_refund_integrity();
+
+
+--
+-- Name: orders_refund_items trg_orders_refund_item_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_orders_refund_item_immutable BEFORE DELETE OR UPDATE ON public.orders_refund_items FOR EACH ROW EXECUTE FUNCTION public.orders_refund_item_immutable();
+
+
+--
+-- Name: orders_refund_items trg_orders_refund_item_integrity; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_orders_refund_item_integrity BEFORE INSERT OR UPDATE ON public.orders_refund_items FOR EACH ROW EXECUTE FUNCTION public.orders_refund_item_integrity();
+
+
+--
+-- Name: orders_refund_items trg_orders_refund_item_reconcile; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER trg_orders_refund_item_reconcile AFTER INSERT OR DELETE OR UPDATE ON public.orders_refund_items DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.orders_refund_reconcile_trigger();
+
+
+--
+-- Name: orders_refunds trg_orders_refund_reconcile; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER trg_orders_refund_reconcile AFTER INSERT OR UPDATE OF type, amount_minor, status ON public.orders_refunds DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.orders_refund_reconcile_trigger();
+
+
+--
+-- Name: catalog_event_products trg_product_refund_policy_allocation_check; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER trg_product_refund_policy_allocation_check AFTER UPDATE OF schedule_change_refund_policy ON public.catalog_event_products DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.catalog_date_allocations_sum_guard();
 
 
 --
@@ -8751,24 +10156,17 @@ CREATE TRIGGER trg_ticketing_registration_consent_locked BEFORE DELETE OR UPDATE
 
 
 --
--- Name: ticketing_registration_consent_requirements trg_ticketing_registration_consent_requirement_acceptance_evide; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_ticketing_registration_consent_requirement_acceptance_evide BEFORE UPDATE OF status ON public.ticketing_registration_consent_requirements FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_consent_requirement_acceptance_evidence();
-
-
---
 -- Name: ticketing_registration_consent_requirements trg_ticketing_registration_consent_requirement_integrity; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_ticketing_registration_consent_requirement_integrity BEFORE INSERT OR UPDATE ON public.ticketing_registration_consent_requirements FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_consent_requirement_integrity();
+CREATE TRIGGER trg_ticketing_registration_consent_requirement_integrity BEFORE INSERT OR DELETE OR UPDATE ON public.ticketing_registration_consent_requirements FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_consent_requirement_integrity();
 
 
 --
 -- Name: ticketing_registration_consent_requirements trg_ticketing_registration_consent_requirement_withdrawal_evide; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_ticketing_registration_consent_requirement_withdrawal_evide BEFORE UPDATE OF status ON public.ticketing_registration_consent_requirements FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_consent_requirement_withdrawal_evidence();
+CREATE TRIGGER trg_ticketing_registration_consent_requirement_withdrawal_evide BEFORE INSERT OR UPDATE OF status ON public.ticketing_registration_consent_requirements FOR EACH ROW EXECUTE FUNCTION public.ticketing_registration_consent_requirement_withdrawal_evidence();
 
 
 --
@@ -8825,22 +10223,6 @@ CREATE TRIGGER trg_ticketing_scanner_assignment_zone_scope BEFORE INSERT OR UPDA
 --
 
 CREATE TRIGGER trg_ticketing_ticket_scope_guard BEFORE INSERT OR UPDATE ON public.ticketing_tickets FOR EACH ROW EXECUTE FUNCTION public.ticketing_ticket_scope_guard();
-
-
---
--- Name: catalog_inventory_reservations fk_catalog_inventory_reservations_registration; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.catalog_inventory_reservations
-    ADD CONSTRAINT fk_catalog_inventory_reservations_registration FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id);
-
-
---
--- Name: catalog_venue_capacity_reservations fk_catalog_venue_capacity_reservations_registration; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.catalog_venue_capacity_reservations
-    ADD CONSTRAINT fk_catalog_venue_capacity_reservations_registration FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id);
 
 
 --
@@ -9140,6 +10522,14 @@ ALTER TABLE ONLY public.orders_payment_events
 
 
 --
+-- Name: orders_refund_items fk_rails_1e9919587d; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_refund_items
+    ADD CONSTRAINT fk_rails_1e9919587d FOREIGN KEY (event_date_change_id) REFERENCES public.events_event_date_changes(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: ticketing_tickets fk_rails_1ef2780902; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9188,11 +10578,35 @@ ALTER TABLE ONLY public.commercial_program_entitlements
 
 
 --
+-- Name: orders_refund_items fk_rails_2373d684a3; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_refund_items
+    ADD CONSTRAINT fk_rails_2373d684a3 FOREIGN KEY (order_item_id) REFERENCES public.orders_order_items(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: orders_promotion_redemptions fk_rails_24be26217b; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.orders_promotion_redemptions
     ADD CONSTRAINT fk_rails_24be26217b FOREIGN KEY (order_id) REFERENCES public.orders_orders(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: finance_ledger_entries fk_rails_24f29f51ea; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_ledger_entries
+    ADD CONSTRAINT fk_rails_24f29f51ea FOREIGN KEY (refund_id) REFERENCES public.orders_refunds(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: events_event_date_changes fk_rails_27ebe20200; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.events_event_date_changes
+    ADD CONSTRAINT fk_rails_27ebe20200 FOREIGN KEY (event_cancellation_id) REFERENCES public.events_event_cancellations(id) ON DELETE RESTRICT;
 
 
 --
@@ -9233,6 +10647,14 @@ ALTER TABLE ONLY public.commercial_assignments
 
 ALTER TABLE ONLY public.orders_orders
     ADD CONSTRAINT fk_rails_2b71d52eb7 FOREIGN KEY (buyer_user_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: finance_ledger_entries fk_rails_2bd7add0ac; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_ledger_entries
+    ADD CONSTRAINT fk_rails_2bd7add0ac FOREIGN KEY (payment_id) REFERENCES public.orders_payments(id) ON DELETE RESTRICT;
 
 
 --
@@ -9297,6 +10719,14 @@ ALTER TABLE ONLY public.events_access_zones
 
 ALTER TABLE ONLY public.ticketing_registration_consents
     ADD CONSTRAINT fk_rails_2fd38622e7 FOREIGN KEY (accepted_by_user_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: finance_ledger_entries fk_rails_30816a9bbd; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_ledger_entries
+    ADD CONSTRAINT fk_rails_30816a9bbd FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE RESTRICT;
 
 
 --
@@ -9385,6 +10815,14 @@ ALTER TABLE ONLY public.catalog_promotion_products
 
 ALTER TABLE ONLY public.legal_acceptances
     ADD CONSTRAINT fk_rails_3b2c4ebc36 FOREIGN KEY (legal_document_version_id) REFERENCES public.legal_document_versions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: catalog_venue_capacity_reservations fk_rails_3d79acd51a; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_venue_capacity_reservations
+    ADD CONSTRAINT fk_rails_3d79acd51a FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id);
 
 
 --
@@ -9884,6 +11322,14 @@ ALTER TABLE ONLY public.commercial_fee_tiers
 
 
 --
+-- Name: orders_refund_items fk_rails_7b6a8628ea; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_refund_items
+    ADD CONSTRAINT fk_rails_7b6a8628ea FOREIGN KEY (ticket_id) REFERENCES public.ticketing_tickets(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: catalog_event_products fk_rails_7bf2218d4e; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9905,6 +11351,14 @@ ALTER TABLE ONLY public.ticketing_registrations
 
 ALTER TABLE ONLY public.catalog_promotion_products
     ADD CONSTRAINT fk_rails_7ef1b6f2d2 FOREIGN KEY (promotion_id) REFERENCES public.catalog_promotions(id);
+
+
+--
+-- Name: orders_refund_adjustment_allocations fk_rails_801548e59e; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_refund_adjustment_allocations
+    ADD CONSTRAINT fk_rails_801548e59e FOREIGN KEY (refund_item_id) REFERENCES public.orders_refund_items(id) ON DELETE RESTRICT;
 
 
 --
@@ -10020,6 +11474,14 @@ ALTER TABLE ONLY public.events_event_categories
 
 
 --
+-- Name: orders_refund_items fk_rails_8c344b48e7; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_refund_items
+    ADD CONSTRAINT fk_rails_8c344b48e7 FOREIGN KEY (refund_id) REFERENCES public.orders_refunds(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: ticketing_credentials fk_rails_8e26720914; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10041,6 +11503,14 @@ ALTER TABLE ONLY public.events_event_dates
 
 ALTER TABLE ONLY public.ticketing_admission_use_reversals
     ADD CONSTRAINT fk_rails_8f49c4b9f5 FOREIGN KEY (reversed_by_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: catalog_inventory_reservations fk_rails_8f61f39616; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.catalog_inventory_reservations
+    ADD CONSTRAINT fk_rails_8f61f39616 FOREIGN KEY (registration_id) REFERENCES public.ticketing_registrations(id);
 
 
 --
@@ -10244,6 +11714,14 @@ ALTER TABLE ONLY public.events_event_organizations
 
 
 --
+-- Name: finance_ledger_entries fk_rails_ae6d250229; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_ledger_entries
+    ADD CONSTRAINT fk_rails_ae6d250229 FOREIGN KEY (order_id) REFERENCES public.orders_orders(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: ticketing_scanner_device_assignments fk_rails_aee6e27c77; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10284,6 +11762,14 @@ ALTER TABLE ONLY public.ticketing_scanner_devices
 
 
 --
+-- Name: orders_refund_adjustment_allocations fk_rails_b47112cd4c; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_refund_adjustment_allocations
+    ADD CONSTRAINT fk_rails_b47112cd4c FOREIGN KEY (order_adjustment_id) REFERENCES public.orders_order_adjustments(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: ticketing_admission_slots fk_rails_b631cde906; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10308,11 +11794,27 @@ ALTER TABLE ONLY public.ticketing_ticket_transfers
 
 
 --
+-- Name: finance_payout_allocations fk_rails_b963fb8d84; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_payout_allocations
+    ADD CONSTRAINT fk_rails_b963fb8d84 FOREIGN KEY (ledger_entry_id) REFERENCES public.finance_ledger_entries(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: events_event_video_links fk_rails_b98836a298; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.events_event_video_links
     ADD CONSTRAINT fk_rails_b98836a298 FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE CASCADE;
+
+
+--
+-- Name: orders_refund_items fk_rails_ba2e281656; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_refund_items
+    ADD CONSTRAINT fk_rails_ba2e281656 FOREIGN KEY (event_date_id) REFERENCES public.events_event_dates(id) ON DELETE RESTRICT;
 
 
 --
@@ -10385,6 +11887,14 @@ ALTER TABLE ONLY public.commercial_programs
 
 ALTER TABLE ONLY public.active_storage_attachments
     ADD CONSTRAINT fk_rails_c3b3935057 FOREIGN KEY (blob_id) REFERENCES public.active_storage_blobs(id);
+
+
+--
+-- Name: events_event_cancellation_payments fk_rails_c40eb57424; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.events_event_cancellation_payments
+    ADD CONSTRAINT fk_rails_c40eb57424 FOREIGN KEY (payment_id) REFERENCES public.orders_payments(id) ON DELETE RESTRICT;
 
 
 --
@@ -10465,6 +11975,14 @@ ALTER TABLE ONLY public.commercial_event_payer_selections
 
 ALTER TABLE ONLY public.ticketing_invitations
     ADD CONSTRAINT fk_rails_cc4a24abb3 FOREIGN KEY (invited_user_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: finance_payouts fk_rails_cd5e6335fc; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_payouts
+    ADD CONSTRAINT fk_rails_cd5e6335fc FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE RESTRICT;
 
 
 --
@@ -10636,6 +12154,14 @@ ALTER TABLE ONLY public.commercial_assignments
 
 
 --
+-- Name: finance_ledger_entries fk_rails_e2c08c4a83; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_ledger_entries
+    ADD CONSTRAINT fk_rails_e2c08c4a83 FOREIGN KEY (reverses_entry_id) REFERENCES public.finance_ledger_entries(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: commercial_subsidy_reservations fk_rails_e391bd89bb; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10681,6 +12207,14 @@ ALTER TABLE ONLY public.commercial_fee_schedule_versions
 
 ALTER TABLE ONLY public.ticketing_registration_answers
     ADD CONSTRAINT fk_rails_e7291b9c65 FOREIGN KEY (admission_slot_id) REFERENCES public.ticketing_admission_slots(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: finance_payout_allocations fk_rails_e74e02f8cd; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_payout_allocations
+    ADD CONSTRAINT fk_rails_e74e02f8cd FOREIGN KEY (payout_id) REFERENCES public.finance_payouts(id) ON DELETE RESTRICT;
 
 
 --
@@ -10772,11 +12306,27 @@ ALTER TABLE ONLY public.ticketing_scan_uploads
 
 
 --
+-- Name: events_event_cancellation_payments fk_rails_f2f989ab57; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.events_event_cancellation_payments
+    ADD CONSTRAINT fk_rails_f2f989ab57 FOREIGN KEY (event_cancellation_id) REFERENCES public.events_event_cancellations(id) ON DELETE CASCADE;
+
+
+--
 -- Name: commercial_volume_counters fk_rails_f33e9b7151; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.commercial_volume_counters
     ADD CONSTRAINT fk_rails_f33e9b7151 FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: finance_ledger_entries fk_rails_f4298c414b; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_ledger_entries
+    ADD CONSTRAINT fk_rails_f4298c414b FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE RESTRICT;
 
 
 --
@@ -10874,6 +12424,13 @@ ALTER TABLE ONLY public.ticketing_ticket_suspensions
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260813090007'),
+('20260813090006'),
+('20260813090005'),
+('20260813090004'),
+('20260813090003'),
+('20260813090002'),
+('20260813090001'),
 ('20260812090019'),
 ('20260812090018'),
 ('20260812090017'),

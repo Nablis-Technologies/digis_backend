@@ -66,6 +66,37 @@ module Ticketing
          identity_checked_by overrides_checkin_log identity_override_by admission_uses identity_override]
     end
 
+    # Returns the allowlisted result persisted inside an upload snapshot. It
+    # deliberately excludes holder, consent, financial, and raw credential
+    # data; loaded uses are reused to keep batch reconciliation bounded.
+    def serialized_result
+      uses = if association(:admission_uses).loaded?
+        association(:admission_uses).target
+      else
+        admission_uses.to_a
+      end
+
+      {
+        "client_scan_id" => client_scan_id.to_s,
+        "server_checkin_id" => id.to_s,
+        "result" => result,
+        "credential_id" => credential_id.to_s,
+        "credential_version" => credential_version,
+        "product_access_id" => product_access_id.to_s,
+        "event_date_id" => event_date_id.to_s,
+        "server_use_ids" => uses.sort_by { |use| [ use.admission_slot_id.to_s, use.usage_number ] }.map do |use|
+          use.id.to_s
+        end,
+        "admission_uses" => uses.sort_by { |use| [ use.admission_slot_id.to_s, use.usage_number ] }.map do |use|
+          {
+            "id" => use.id.to_s,
+            "admission_slot_id" => use.admission_slot_id.to_s,
+            "usage_number" => use.usage_number
+          }
+        end
+      }
+    end
+
     private
 
     def manual_lookup_reason
