@@ -6068,7 +6068,7 @@ CREATE TABLE public.ticketing_ticket_types (
     resale_fixed_cap_minor bigint,
     resale_fixed_cap_currency character varying(3),
     resale_percentage_cap_bps integer,
-    max_completed_resales integer DEFAULT 1 NOT NULL,
+    max_completed_resales smallint DEFAULT 1 NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_ticket_types_admissions_check CHECK ((admissions_per_unit > 0)),
@@ -6078,8 +6078,8 @@ CREATE TABLE public.ticketing_ticket_types (
     CONSTRAINT ticketing_ticket_types_delegation_mode_check CHECK (((delegation_validation_mode)::text = ANY ((ARRAY['offline_allowed'::character varying, 'online_required'::character varying])::text[]))),
     CONSTRAINT ticketing_ticket_types_entry_mode_check CHECK (((entry_validation_mode)::text = ANY ((ARRAY['qr'::character varying, 'qr_and_id'::character varying])::text[]))),
     CONSTRAINT ticketing_ticket_types_max_per_user_check CHECK (((max_packages_per_user IS NULL) OR (max_packages_per_user > 0))),
-    CONSTRAINT ticketing_ticket_types_max_resales_check CHECK ((max_completed_resales > 0)),
-    CONSTRAINT ticketing_ticket_types_resale_cap_check CHECK (((resale_price_cap_type IS NULL) OR (((resale_price_cap_type)::text = 'fixed'::text) AND (resale_fixed_cap_minor IS NOT NULL) AND (resale_fixed_cap_currency IS NOT NULL) AND (resale_percentage_cap_bps IS NULL)) OR (((resale_price_cap_type)::text = 'percentage'::text) AND (resale_percentage_cap_bps IS NOT NULL) AND (resale_fixed_cap_minor IS NULL) AND (resale_fixed_cap_currency IS NULL)))),
+    CONSTRAINT ticketing_ticket_types_max_resales_check CHECK (((max_completed_resales >= 1) AND (max_completed_resales <= 32767))),
+    CONSTRAINT ticketing_ticket_types_resale_cap_check CHECK ((((resale_enabled = false) AND (resale_price_cap_type IS NULL) AND (resale_fixed_cap_minor IS NULL) AND (resale_fixed_cap_currency IS NULL) AND (resale_percentage_cap_bps IS NULL)) OR ((resale_enabled = true) AND ((resale_price_cap_type)::text = 'fixed'::text) AND (resale_fixed_cap_minor > 0) AND ((resale_fixed_cap_currency)::text ~ '^[A-Z]{3}$'::text) AND (resale_percentage_cap_bps IS NULL)) OR ((resale_enabled = true) AND ((resale_price_cap_type)::text = 'percentage'::text) AND ((resale_percentage_cap_bps >= 1) AND (resale_percentage_cap_bps <= 10000)) AND (resale_fixed_cap_minor IS NULL) AND (resale_fixed_cap_currency IS NULL)))),
     CONSTRAINT ticketing_ticket_types_resale_cutoff_check CHECK ((resale_cutoff_seconds_before_start >= 0)),
     CONSTRAINT ticketing_ticket_types_transfer_cutoff_check CHECK ((transfer_cutoff_seconds_before_start >= 0))
 );

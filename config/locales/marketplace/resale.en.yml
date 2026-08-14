@@ -1,0 +1,12 @@
+# frozen_string_literal: true
+
+en:
+  marketplace:
+    resale:
+      errors:
+        resale_acquisition_value_required: "a percentage cap requires a positive acquisition value"
+        resale_cap_shape_invalid: "resale cap inputs must contain exactly one valid cap shape"
+        resale_cap_type_invalid: "resale cap type is invalid"
+        resale_fixed_cap_currency_mismatch: "a fixed resale cap must use the event settlement currency"
+        invalid_ticket_type: "the ticket type could not be found"
+        invalid_resale_policy: "the resale policy is invalid"

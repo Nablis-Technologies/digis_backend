@@ -16,6 +16,16 @@
 
 Despite the architecture's Phase 3.75 label, executable resale ships **after Phase 4 credential core**. Before routes/jobs activate, tests must prove tickets, slots, generations, credentials, claims, revocations, suspensions, attendee-index deltas, transactional outbox, all-or-nothing delegation, package transfer/acquisition history, uses, orders/payments/reversals, registration/purchase limits, refunds, and organizer finance. Migrations may land earlier behind disabled routes. Replace old paid-transfer/resale shortcuts; do not dual write.
 
+### Commercial handoff
+
+Commercial Task 11 is executed here, not as an isolated Commercial-only
+change. Run it together with Marketplace Task 3 after Marketplace Tasks 1–2
+and the package/credential, Orders, Refunds/Finance prerequisites are green.
+Marketplace Task 3 must consume `Commercial::ResolveCharges` for the distinct
+`resale_platform_fee`; it must not create a second resale fee engine. Once the
+resale plan and Finance evidence are complete, return to Commercial Task 12
+for the final reconciliation and Phase 3.5 gate.
+
 ## Approved AJ invariants
 
 - **AJ-A:** Organizer may allow or disallow resale per ticket type.
@@ -34,7 +44,7 @@ Every AJ item is a release-blocking named test.
 
 ### Database and models
 
-- Create `db/migrate/20260717110001_add_resale_policy_to_ticket_types.rb`
+- Modify the existing `db/migrate/20260727090021_create_ticketing_ticket_types.rb` resale-policy columns/checks; do not create a duplicate migration
 - Create `db/migrate/20260717110003_create_marketplace_seller_payout_accounts.rb`
 - Create `db/migrate/20260717110004_create_marketplace_resale_listings.rb`
 - Create `db/migrate/20260717110005_create_marketplace_resale_sales.rb`
@@ -73,75 +83,41 @@ Every AJ item is a release-blocking named test.
 ## Task 1: Add organizer policy and exact cap
 
 **Files:**
-- Create: resale policy migration
+- Modify: the existing resale-policy columns/checks in `db/migrate/20260727090021_create_ticketing_ticket_types.rb`
 - Modify: `app/models/ticketing/ticket_type.rb`
 - Create: `app/services/marketplace/calculate_price_cap.rb`
 - Create: `app/services/marketplace/configure_ticket_type_resale.rb`
 - Test: `test/models/ticketing/ticket_type_resale_test.rb`
 - Test: `test/services/marketplace/calculate_price_cap_test.rb`
+- Test: `test/services/marketplace/configure_ticket_type_resale_test.rb`
 
-- [ ] **Step 1: RED — encode AJ-A, AJ-B, AJ-C1**
+- [x] **Step 1: RED — encode AJ-A, AJ-B, AJ-C1**
 
-Test disabled shape, enabled exactly-one cap shape, positive fixed/event settlement currency, positive percentage, direct-DB rejection of competing fields, default one, platform maximum, and immutable listing snapshots.
+Test disabled shape, enabled exactly-one cap shape, positive fixed/event settlement currency, positive percentage, direct-DB rejection of competing fields, default one, and the platform maximum. Immutable listing snapshots are covered when the listing schema is introduced in Task 2; Task 1 has no listing table to snapshot.
 
-- [ ] **Step 2: Run tests and verify RED**
-
-```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing/ticket_type_resale_test.rb test/services/marketplace/calculate_price_cap_test.rb
-```
-
-Expected: FAIL.
-
-- [ ] **Step 3: GREEN — implement mutually exclusive calculator**
-
-```ruby
-# frozen_string_literal: true
-
-module Marketplace
-  class CalculatePriceCap
-    Result = Data.define(:cap_type, :calculated_cap_minor, :fixed_cap_minor, :percentage_cap_bps)
-
-    def self.call(...) = new(...).call
-
-    def initialize(cap_type:, acquisition_product_value_minor:, fixed_cap_minor: nil, percentage_cap_bps: nil)
-      @type = cap_type.to_s
-      @acquisition = Integer(acquisition_product_value_minor)
-      @fixed = fixed_cap_minor&.then { Integer(_1) }
-      @bps = percentage_cap_bps&.then { Integer(_1) }
-    end
-
-    def call
-      case @type
-      when "fixed"
-        fail ArgumentError, "fixed mode requires only fixed cap" unless @fixed&.positive? && @bps.nil?
-        Result.new(cap_type: @type, calculated_cap_minor: @fixed,
-          fixed_cap_minor: @fixed, percentage_cap_bps: nil)
-      when "percentage"
-        fail ArgumentError, "percentage mode requires only basis points" unless @bps&.positive? && @fixed.nil?
-        amount = (BigDecimal(@acquisition.to_s) * @bps / 10_000).round(0, :half_up).to_i
-        Result.new(cap_type: @type, calculated_cap_minor: amount,
-          fixed_cap_minor: nil, percentage_cap_bps: @bps)
-      else
-        fail ArgumentError, "unknown resale cap type"
-      end
-    end
-  end
-end
-```
-
-Migration check allows only disabled/no-cap, enabled/fixed-only, enabled/percentage-only. No fallback or `LEAST`.
-
-- [ ] **Step 4: Run tests and verify GREEN**
-
-Run Task 1 command. Expected: PASS.
-
-- [ ] **Step 5: Refactor and verify direct writes**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing/ticket_type_resale_test.rb --seed 17303
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing/ticket_type_resale_test.rb test/services/marketplace/calculate_price_cap_test.rb test/services/marketplace/configure_ticket_type_resale_test.rb
 ```
 
-Expected: PASS.
+Observed RED before implementation: 16 tests, 11 assertions, 6 failures, and 10 errors.
+
+- [x] **Step 3: GREEN — implement mutually exclusive calculator**
+
+`Marketplace::CalculatePriceCap` returns a typed `Core::BaseService::Result`, accepts exactly one fixed or percentage shape, rejects free acquisitions for percentage caps, and uses half-up rounding for integer minor units. All service errors are localized; no user-facing messages are hard-coded. The original ticket-type migration now permits only disabled/no-cap, enabled/fixed-only, or enabled/percentage-only rows. `max_completed_resales` uses PostgreSQL `smallint`, making 32,767 the explicit platform hard maximum because the approved design specifies the type but no lower numeric cap. No fallback or `LEAST` behavior is used.
+
+- [x] **Step 4: Run tests and verify GREEN**
+
+The focused command passed: 17 tests, 64 assertions, 0 failures, and 0 errors after rebuilding the test database from the edited original migration.
+
+- [x] **Step 5: Refactor and verify direct writes**
+
+```bash
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing/ticket_type_test.rb test/models/catalog/event_product_test.rb test/integration/catalog/event_products_test.rb test/models/ticketing/ticket_type_resale_test.rb test/services/marketplace
+```
+
+Passed: 43 tests, 147 assertions, 0 failures, and 0 errors. Direct SQL tests prove the database rejects disabled cap data and a completed-resale limit above the platform maximum. RuboCop passed on all six changed Ruby files.
 
 - [ ] **Step 6: Commit**
 

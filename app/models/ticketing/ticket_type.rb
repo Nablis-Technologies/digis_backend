@@ -13,6 +13,8 @@ module Ticketing
     DELEGATION_MODES = %w[offline_allowed online_required].freeze
     ENTRY_MODES = %w[qr qr_and_id].freeze
     RESALE_CAP_TYPES = %w[fixed percentage].freeze
+    RESALE_MAX_PERCENTAGE_BPS = 10_000
+    MAX_COMPLETED_RESALES = 32_767
 
     belongs_to :event_product,
                class_name: "Catalog::EventProduct",
@@ -53,11 +55,33 @@ module Ticketing
               numericality: { only_integer: true, greater_than_or_equal_to: 0 }
     validates :max_completed_resales,
               numericality: { only_integer: true, greater_than_or_equal_to: 1 }
+    validates :resale_fixed_cap_minor,
+              numericality: {
+                only_integer: true,
+                greater_than: 0,
+                message: I18n.t("ticketing.ticket_type.errors.resale_fixed_cap_minor_positive")
+              },
+              allow_nil: true
+    validates :resale_fixed_cap_currency,
+              format: { with: /\A[A-Z]{3}\z/ },
+              allow_nil: true
+    validates :resale_percentage_cap_bps,
+              numericality: {
+                only_integer: true,
+                greater_than: 0,
+                less_than_or_equal_to: RESALE_MAX_PERCENTAGE_BPS,
+                message: I18n.t("ticketing.ticket_type.errors.resale_percentage_cap_range")
+              },
+              allow_nil: true
     validates :max_packages_per_user,
               numericality: { only_integer: true, greater_than_or_equal_to: 1 },
               allow_nil: true
     validate :resale_cap_consistency
+    validate :resale_fixed_cap_currency_matches_event
+    validate :max_completed_resales_within_platform_limit
     validate :admissions_per_unit_locked_if_committed, if: :admissions_per_unit_changed?
+
+    before_validation :normalize_resale_fields
 
     scope :public_audience, -> { where(audience: "public") }
     scope :with_access_code, -> { where(audience: %w[access_code code_or_invitation]) }
@@ -93,7 +117,18 @@ module Ticketing
     private
 
     def resale_cap_consistency
-      return if resale_price_cap_type.blank?
+      unless resale_enabled
+        if resale_price_cap_type.present? || resale_fixed_cap_minor.present? ||
+            resale_fixed_cap_currency.present? || resale_percentage_cap_bps.present?
+          errors.add(:resale_price_cap_type, I18n.t("ticketing.ticket_type.errors.resale_cap_must_be_blank_when_disabled"))
+        end
+        return
+      end
+
+      if resale_price_cap_type.blank?
+        errors.add(:resale_price_cap_type, I18n.t("ticketing.ticket_type.errors.resale_price_cap_type_required"))
+        return
+      end
 
       if resale_price_cap_type == "fixed"
         errors.add(:resale_fixed_cap_minor, I18n.t("ticketing.ticket_type.errors.resale_fixed_cap_minor_required")) if resale_fixed_cap_minor.blank?
@@ -106,6 +141,45 @@ module Ticketing
       else
         errors.add(:resale_price_cap_type, I18n.t("ticketing.ticket_type.errors.resale_price_cap_type_invalid"))
       end
+    end
+
+    def max_completed_resales_within_platform_limit
+      return if max_completed_resales.blank? || max_completed_resales <= MAX_COMPLETED_RESALES
+
+      errors.add(:max_completed_resales, I18n.t("ticketing.ticket_type.errors.max_completed_resales_too_large"))
+    end
+
+    def resale_fixed_cap_currency_matches_event
+      return unless resale_enabled && resale_price_cap_type == "fixed" && resale_fixed_cap_currency.present?
+
+      event_currency = resale_event_currency
+      return if event_currency.blank? || resale_fixed_cap_currency == event_currency
+
+      errors.add(
+        :resale_fixed_cap_currency,
+        I18n.t("ticketing.ticket_type.errors.resale_fixed_cap_currency_mismatch")
+      )
+    end
+
+    def resale_event_currency
+      # Draft products may not have a foreign key yet; use already-built
+      # associations first and query only the event currency when necessary.
+      # This keeps validation strict-loading safe without weakening the
+      # cross-table settlement-currency invariant.
+      product = association(:event_product).target
+      event = product&.association(:event)&.target
+      return event.currency if event
+      return if event_product_id.blank?
+
+      Events::Event
+        .joins(:event_products)
+        .where(catalog_event_products: { id: event_product_id })
+        .pick(:currency)
+    end
+
+    def normalize_resale_fields
+      self.resale_price_cap_type = resale_price_cap_type.to_s.downcase.presence
+      self.resale_fixed_cap_currency = resale_fixed_cap_currency.to_s.upcase.presence
     end
 
     def admissions_per_unit_locked_if_committed
