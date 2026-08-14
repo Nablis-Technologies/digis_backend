@@ -39,6 +39,20 @@ module Orders
       )
     end
 
+    test "allocates arbitrary positive weights without basis-point quantization" do
+      result = Orders::LargestRemainderAllocator.weighted(
+        total_minor: 10,
+        allocations: [
+          { id: "item-b", weight: 2 },
+          { id: "item-a", weight: 1 }
+        ]
+      )
+
+      assert_predicate result, :success?
+      assert_equal [ [ "item-a", 3 ], [ "item-b", 7 ] ],
+        result.value.map { |allocation| [ allocation.id, allocation.amount_minor ] }
+    end
+
     test "rejects negative totals, invalid shares, duplicate ids, and incomplete shares" do
       invalid_inputs = [
         { total_minor: -1, allocations: [ { id: "date-a", allocation_basis_points: 10_000 } ] },
