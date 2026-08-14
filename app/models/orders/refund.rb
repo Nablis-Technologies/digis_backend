@@ -11,12 +11,20 @@ module Orders
 
     TYPES = %w[item_refund payment_reversal].freeze
     STATUSES = %w[created pending_funds processing succeeded failed].freeze
-    PAYMENT_REVERSAL_REASONS = %w[duplicate_payment late_payment superseded_attempt].freeze
+    PAYMENT_REVERSAL_REASONS = %w[duplicate_payment late_payment superseded_attempt event_cancelled].freeze
 
     belongs_to :payment, class_name: "Orders::Payment", inverse_of: :refunds
     belongs_to :event_cancellation,
                class_name: "Events::EventCancellation",
                optional: true
+    has_many :refund_items,
+             class_name: "Orders::RefundItem",
+             inverse_of: :refund,
+             dependent: :restrict_with_exception
+    has_many :finance_ledger_entries,
+             class_name: "Finance::LedgerEntry",
+             dependent: :restrict_with_exception,
+             inverse_of: :refund
 
     before_validation :normalize_fields
 
@@ -32,6 +40,7 @@ module Orders
               allow_nil: true
     validates :provider_fee_currency,
               format: { with: /\A[A-Z]{3}\z/ }, allow_nil: true
+    validates :pending_reason, presence: true, if: -> { status == "pending_funds" }
 
     validate :payment_currency_matches
     validate :provider_fee_pair
@@ -49,7 +58,7 @@ module Orders
     end
 
     def self.ransackable_associations(_auth_object = nil)
-      %w[payment event_cancellation]
+      %w[payment event_cancellation refund_items]
     end
 
     private

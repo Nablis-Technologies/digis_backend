@@ -49,6 +49,74 @@ module Orders
       end
     end
 
+    test "requires a reason when a refund is pending for provider funds" do
+      refund = Orders::Refund.new(refund_attributes(status: "pending_funds"))
+
+      assert_not refund.valid?
+      assert_includes refund.errors.attribute_names, :pending_reason
+    end
+
+    test "database rejects a refund in another currency" do
+      assert_raises(ActiveRecord::StatementInvalid) do
+        Orders::Refund.insert_all!([
+          refund_attributes(currency: "USD").except(:payment).merge(
+            id: SecureRandom.uuid,
+            payment_id: @payment.id,
+            created_at: Time.current,
+            updated_at: Time.current
+          )
+        ])
+      end
+    end
+
+    test "database rejects a refund with a nonpositive amount" do
+      assert_raises(ActiveRecord::StatementInvalid) do
+        Orders::Refund.insert_all!([
+          refund_attributes(amount_minor: 0).except(:payment).merge(
+            id: SecureRandom.uuid,
+            payment_id: @payment.id,
+            created_at: Time.current,
+            updated_at: Time.current
+          )
+        ])
+      end
+    end
+
+    test "database rejects inconsistent provider fee evidence" do
+      assert_raises(ActiveRecord::StatementInvalid) do
+        Orders::Refund.insert_all!([
+          refund_attributes(provider_fee_minor: 10).except(:payment).merge(
+            id: SecureRandom.uuid,
+            payment_id: @payment.id,
+            created_at: Time.current,
+            updated_at: Time.current
+          )
+        ])
+      end
+    end
+
+    test "database rejects a cancellation belonging to another event" do
+      cancellation = Events::EventCancellation.create!(
+        event: events_events(:draft_concert),
+        initiated_by: @buyer,
+        status: "pending",
+        idempotency_key: "cancellation-#{SecureRandom.uuid}",
+        attendee_reason: "The event will not proceed.",
+        initiated_at: Time.current
+      )
+
+      assert_raises(ActiveRecord::StatementInvalid) do
+        Orders::Refund.insert_all!([
+          refund_attributes(event_cancellation_id: cancellation.id).except(:payment).merge(
+            id: SecureRandom.uuid,
+            payment_id: @payment.id,
+            created_at: Time.current,
+            updated_at: Time.current
+          )
+        ])
+      end
+    end
+
     private
 
     def order_attributes

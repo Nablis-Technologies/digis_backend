@@ -13,10 +13,10 @@ module Events
         @actor = core_users(:core_admin)
       end
 
-      def call(key: "cancel-1", reason: nil, attendee_reason: nil)
+      def call(key: "cancel-1", internal_note: nil, attendee_reason: "The event will not proceed.")
         Events::Cancellation::Initiate.call(
           event: @event, actor: @actor,
-          reason: reason, attendee_reason: attendee_reason, idempotency_key: key
+          internal_note:, attendee_reason:, idempotency_key: key
         )
       end
 
@@ -29,13 +29,13 @@ module Events
         assert_equal 1, Events::EventCancellation.where(event: @event).count
       end
 
-      test "records the cancellation with an initiated status" do
-        result = call(reason: "venue lost", attendee_reason: "sorry")
+      test "records the cancellation with a pending status" do
+        result = call(internal_note: "venue lost", attendee_reason: "sorry")
         cancellation = result.value
 
-        assert_equal "initiated", cancellation.status
+        assert_equal "pending", cancellation.status
         assert_equal @actor.id, cancellation.initiated_by_id
-        assert_equal "venue lost", cancellation.reason
+        assert_equal "venue lost", cancellation.internal_note
         assert_equal "sorry", cancellation.attendee_reason
       end
 
