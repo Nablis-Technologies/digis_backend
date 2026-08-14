@@ -30,6 +30,7 @@ module Marketplace
         return failure_for("resale_fixed_cap_currency_mismatch") if fixed_currency_mismatch?(locked_ticket_type)
 
         locked_ticket_type.save!
+        cancel_open_listings!(locked_ticket_type) unless locked_ticket_type.resale_enabled
         success(locked_ticket_type)
       end
     rescue ActiveRecord::RecordNotFound
@@ -63,6 +64,21 @@ module Marketplace
         ticket_type.resale_price_cap_type == "fixed" &&
         ticket_type.resale_fixed_cap_currency.present? &&
         ticket_type.resale_fixed_cap_currency != ticket_type.event_product.event.currency
+    end
+
+    # Policy disablement must close every still-unsold offer in the same
+    # transaction. Completed sales remain immutable, while repeated policy
+    # writes are harmless because CancelListing treats cancellation as a
+    # terminal idempotent transition.
+    def cancel_open_listings!(ticket_type)
+      ResaleListing.where(ticket_type_id: ticket_type.id, status: %w[active reserved]).lock.find_each do |listing|
+        result = CancelListing.call(
+          listing:,
+          reason: "resale_policy_disabled",
+          idempotency_key: "resale-policy-disabled-#{ticket_type.id}-#{listing.id}"
+        )
+        raise result.error if result.failure?
+      end
     end
 
     def failure_for(code, errors: nil)
