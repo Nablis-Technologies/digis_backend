@@ -74,6 +74,17 @@ module Payments
         assert_equal 10_000, adapter.available_balance(currency: "ETB").fetch(:amount_minor)
       end
 
+      test "normalizes the optional refund capability contract" do
+        adapter = ChapaAdapter.new(
+          capabilities: { refunds: { supported: true, partial: false, fee_estimate_minor: 25 } }
+        )
+
+        assert_equal(
+          { supported: true, partial: false, fee_estimate_minor: 25 },
+          adapter.refund_capabilities
+        )
+      end
+
       test "registry accepts the same commercial signature across providers" do
         result = Registry.check_commercial_compatibility(
           expected_signature: "a" * 64,
