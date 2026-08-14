@@ -40,14 +40,17 @@ Implementation must preserve these decisions:
 - Run focused tests after every task and full Commercial tests at each checkpoint. Run RuboCop on changed Ruby files before committing.
 - Never store legal bodies, internal negotiation prose, provider secrets, or arbitrary submitted JSON in audit/outbox/order evidence.
 
-## Current implementation status and navigation (verified 2026-08-12)
+## Current implementation status and navigation (verified 2026-08-14)
 
 The dependency-ordered Commercial tranche is complete through Task 10's
 Commercial-owned projection/provider boundary. Orders Tasks 1–9 have now
-passed their focused and full repository gates; the remaining action is user
-review/commit. The next implementation task is Ticket Packages Task 2. Do not
-start Commercial Task 11 until the controlled-resale handoff prerequisites
-listed below exist.
+passed their focused and full repository gates; the integrated Orders,
+Ticket Packages, Scanner, and Refunds/Finance tranches still require the
+user's final review/commit boundary. After that boundary, the next repository
+implementation is Controlled Resale Tasks 1–2, with Streaming/Add-ons/Links
+allowed to run as a separate Wave 6 track. Those controlled-resale handoff
+prerequisites are now present in the current worktree, and Commercial Task 11
+was implemented together with Controlled Resale Task 3 below.
 
 | Task | Status | Evidence / boundary |
 |---|---|---|
@@ -57,22 +60,24 @@ listed below exist.
 | 8 | Complete | Volume counters/usages and event payer selections are committed/tested for the Orders handoff. |
 | 9 | Complete | Admin/organizer API, privacy policies, serializers, routes, locales, tests, and Postman synchronization are implemented and verified. |
 | 10 | Complete through the Orders Task 6 boundary | Orders checkout snapshots immutable Commercial results, the provider contract persists payment-attempt evidence, and sequential attempt start/switch behavior exists in Orders. Commercial owns the evidence contract; Orders owns payment orchestration. |
-| 11 | Pending by design | Starts only with the controlled-resale marketplace plan after package, credential, finance, and resale prerequisites exist. |
+| 11 | Complete locally with Controlled Resale Task 3 | The Marketplace adapter consumes one immutable `resale_platform_fee` result with precedence, isolation, bounded specificity, evidence, and gross-cap tests. Listing/sale snapshot consumers remain in later Controlled Resale tasks; user review/commit is pending. |
 | 12 | Pending by design | Starts last, after resale and operational/finance evidence exist; it is the final reconciliation and Phase 3.5 gate. |
 
 ### Current Commercial branch route
 
-1. Stop this Commercial tranche at Task 10. Do not start Commercial Task 11
-   from this branch yet.
-2. Review and commit the verified Orders tranche, then resume Ticket Packages
-   Tasks 2–6, followed by the Scanner and Refunds/Finance Wave 5 tracks. After
-   Wave 5,
-   Streaming/Add-ons/Links is a separate Wave 6 track and may run alongside
-   Controlled Resale.
-3. Return to this plan at Task 11 only when the Controlled Resale plan reaches
-   its Commercial handoff (Marketplace Task 3).
-4. Run Task 12 last, after the resale, Finance, and operational reconciliation
-   evidence exist.
+1. Commercial Tasks 1–10 remain the completed Commercial-owned boundary; Task
+   11 is executed only through the documented Controlled Resale handoff below.
+2. Review and commit the verified Orders, Ticket Packages, Scanner, and
+   Refunds/Finance tranches. The native scanner SQLite acceptance row remains
+   external and does not block the Rails dependency gate.
+3. After Refunds/Finance Tasks 1–10 are green, implement Controlled Resale
+   Tasks 1–2. Streaming/Add-ons/Links is a separate Wave 6 track and may run
+   alongside Controlled Resale when ownership is explicit.
+4. Commercial Task 11 and Controlled Resale Task 3 are now implemented locally
+   together. Review and commit them, then continue with Controlled Resale Task
+   4 in that plan's order; do not start Commercial Task 12 yet.
+5. Run Task 12 last, after the remaining resale, Finance, and operational
+   reconciliation evidence exist.
 
 The historical task recipes below remain the implementation specification for
 each task. They are not a standalone execution queue; the route above and the
@@ -925,50 +930,52 @@ git commit -m "feat(orders): snapshot resolved commercial charges"
 
 **Prerequisite:** Execute with the resale marketplace implementation plan.
 
+**Execution boundary:** Commercial Task 11 is executed with Controlled Resale
+Marketplace Task 3. It creates only the narrow adapter and its contract tests;
+listing activation, resale checkout, and immutable listing/sale snapshot
+consumers remain in the later Controlled Resale tasks. Marketplace does not
+create a fee configuration table or a competing calculator.
+
 **Files:**
 
 - Create: `app/services/marketplace/resolve_resale_charge.rb`
-- Modify: marketplace listing activation service
-- Modify: marketplace resale checkout/sale service
-- Modify: `db/migrate/20260717110004_create_marketplace_resale_listings.rb`
-- Modify: `db/migrate/20260717110005_create_marketplace_resale_sales.rb`
-- Modify: `app/services/marketplace/activate_listing.rb`
-- Modify: `app/services/marketplace/fulfill_sale.rb`
-- Modify: `app/models/marketplace/resale_listing.rb`
-- Modify: `app/models/marketplace/resale_sale.rb`
-- Create: `test/services/marketplace/resolve_resale_charge_test.rb`
-- Modify: `test/services/marketplace/activate_listing_test.rb`
-- Modify: `test/services/marketplace/fulfill_sale_test.rb`
-- Modify: `test/models/marketplace/resale_listing_test.rb`
-- Modify: `test/models/marketplace/resale_sale_test.rb`
-- Confirm absent: `app/models/marketplace/resale_fee_config.rb`
-- Confirm absent: any `marketplace_resale_fee_configs` migration/table
+- Create: `config/locales/marketplace/resale_fee.en.yml`
+- Create: `test/support/marketplace/commercial_resale_test_helpers.rb`
+- Create: `test/services/marketplace/commercial_resale_fee_test.rb`
+- Create: `test/integration/marketplace/resale_fee_isolation_test.rb`
 
-- [ ] **Step 1: Write RED marketplace contract tests**
+- [x] **Step 1: Write RED marketplace contract tests**
 
-Prove listing activation snapshots the seller `resale_platform_fee` and expected proceeds; active listings never silently reprice; material changes require cancellation/expiry and seller-confirmed relisting; primary commission never substitutes for resale fee; buyer service/processing components resolve separately at resale checkout; the final seller fee never exceeds resale gross.
+The tests cover event → organization → program → default precedence, primary
+commission isolation, bounded product/currency/provider/channel specificity,
+no stacking, exact immutable component/version evidence, seller fee gross
+caps, and separate buyer service/processing adjustments.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
-```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test \
-  test/services/marketplace/resolve_resale_charge_test.rb \
-  test/services/marketplace test/models/marketplace test/integration/marketplace
-```
+The focused command reached the intended RED state after the shared helper was
+corrected: 5 tests, 0 assertions, and 5 `NameError` errors for the missing
+adapter.
 
-- [ ] **Step 3: Implement the narrow adapter and snapshots**
+- [x] **Step 3: Implement the narrow adapter**
 
-`Marketplace::ResolveResaleCharge` builds a trusted Commercial context with `sale_context: resale`, returns only the resale seller component needed by listing activation, and retains the complete Commercial evidence for the sale. It is not a second calculator.
+`Marketplace::ResolveResaleCharge` forces the trusted gross into Commercial's
+`resale_acquisition_amount` basis, passes `sale_context: resale` and
+`sales_channel: resale`, requires one evidenced `resale_platform_fee`, fails
+closed when the fee exceeds gross or terms are unavailable, and returns the
+unchanged immutable Commercial result.
 
-- [ ] **Step 4: Run GREEN and commit**
+- [x] **Step 4: Run GREEN and regression verification**
 
-```bash
-PATH="$HOME/.asdf/shims:$PATH" RAILS_ENV=test bundle exec rails db:migrate:reset
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace test/models/marketplace test/integration/marketplace test/services/commercial
-RUBOCOP_CACHE_ROOT=tmp/rubocop bundle exec rubocop app/services/marketplace app/models/marketplace test
-git add db/migrate app/services/marketplace app/models/marketplace test db/structure.sql
-git commit -m "feat(marketplace): consume resale commercial terms"
-```
+Focused Task 3 coverage passes with `N_PLUS_ONE=1`: 7 tests and 45 assertions.
+Marketplace and Commercial regression coverage passes with `N_PLUS_ONE=1`:
+162 tests and 1,253 assertions. Full RuboCop passes for 1,329 files.
+
+- [ ] **Step 5: Commit**
+
+The implementation is intentionally left unstaged and uncommitted for user
+review. The next implementation task is Controlled Resale Task 4; Commercial
+Task 12 remains last after the remaining resale and operational evidence.
 
 ## Task 12: Add reconciliation, shadow comparison, operations alerts, and phase gate
 
