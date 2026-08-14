@@ -42,20 +42,14 @@ Implementation must preserve these decisions:
 
 ## Current implementation status and navigation (verified 2026-08-15)
 
-The dependency-ordered Commercial tranche is complete through Task 11's
-Controlled Resale Task 3 handoff. Orders Tasks 1–9 have passed
-their focused and full repository gates; the integrated Orders, Ticket
-Packages, Scanner, and Refunds/Finance tranches remain subject to the user's
-final review/commit boundary. Controlled Resale Tasks 1–9 are now committed
-and verified, and Commercial Task 11 was completed with Controlled Resale Task
-3. Controlled Resale Task 10 is implemented, verified, and committed in
-`95ff701`, `e2cf09c`, `016954f`, and `1cde82c`. Controlled Resale Task 11 is
-locally verified: the N+1-enabled full suite passes 2,589 tests and 10,621
-assertions, the seeded marketplace/ticketing concurrency set passes 91 tests
-and 505 assertions, and all migrations are up. Its locale correction and plan
-checkpoints remain at the user's review/commit boundary. After that commit,
-Commercial Task 12 is the next and final Commercial/Phase 3.5 task. Streaming /
-Add-ons / Links remains a separate Wave 6 track.
+The dependency-ordered Commercial tranche is complete through Task 12, the
+final Commercial/Phase 3.5 reconciliation and operational gate. Orders Tasks
+1–9 have passed their focused and full repository gates; the integrated Orders,
+Ticket Packages, Scanner, and Refunds/Finance tranches remain subject to the
+user's final review/commit boundary. Controlled Resale Task 11 was committed in
+`b3ca5cb`. Commercial Task 12 is implemented and phase-gate verified locally;
+its final review/commit boundary remains with the user. Streaming / Add-ons /
+Links remains a separate Wave 6 track.
 
 | Task | Status | Evidence / boundary |
 |---|---|---|
@@ -66,27 +60,24 @@ Add-ons / Links remains a separate Wave 6 track.
 | 9 | Complete | Admin/organizer API, privacy policies, serializers, routes, locales, tests, and Postman synchronization are implemented and verified. |
 | 10 | Complete through the Orders Task 6 boundary | Orders checkout snapshots immutable Commercial results, the provider contract persists payment-attempt evidence, and sequential attempt start/switch behavior exists in Orders. Commercial owns the evidence contract; Orders owns payment orchestration. |
 | 11 | Complete with Controlled Resale Task 3 | The Marketplace adapter consumes one immutable `resale_platform_fee` result with precedence, isolation, bounded specificity, evidence, and gross-cap tests. Listing/sale snapshot consumers remain in later Controlled Resale tasks; the Commercial/Task 3 handoff is committed. |
-| 12 | Pending by design | Starts last, after resale and operational/finance evidence exist; it is the final reconciliation and Phase 3.5 gate. |
+| 12 | Complete locally; commit pending | Reconciliation, shadow comparison, deduplicated audit/outbox operational alerts, scheduled expiry, recurring jobs, PostgreSQL verification, repeated entitlement/subsidy concurrency checks, full-suite verification, RuboCop, and Zeitwerk checks pass. |
 
 ### Current Commercial branch route
 
-1. Commercial Tasks 1–11 are complete through the documented Controlled
-   Resale Task 3 handoff; Task 12 is intentionally reserved for the final
-   reconciliation and operational gate.
+1. Commercial Tasks 1–12 are complete locally, including the final
+   reconciliation, shadow comparison, operational-alert, scheduled-expiry,
+   and Phase 3.5 gate. No further Commercial implementation task remains.
 2. Review and commit the verified Orders, Ticket Packages, Scanner, and
    Refunds/Finance tranches. The native scanner SQLite acceptance row remains
    external and does not block the Rails dependency gate.
 3. Refunds/Finance Tasks 1–10 and Controlled Resale Tasks 1–10 are now green and
    committed. Streaming/Add-ons/Links is a separate Wave 6 track and may run
    alongside Controlled Resale when ownership is explicit.
-4. Commercial Task 11 and Controlled Resale Tasks 3–10 are committed. Controlled
-   Resale Task 11 is locally verified in its plan's order, including the AJ
-   evidence audit, full N+1-enabled suite, seeded concurrency gate, migration
-   status, locale contract, RuboCop, and Zeitwerk checks. Review and commit the
-   Task 11 locale/plan checkpoint, then start Commercial Task 12; do not skip
-   that final review boundary.
-5. Run Task 12 last, after the remaining resale, Finance, and operational
-   reconciliation evidence exist.
+4. Commercial Task 11 and Controlled Resale Tasks 3–11 are committed. The
+   Controlled Resale Task 11 locale correction is recorded in `b3ca5cb`; do not
+   repeat that task.
+5. Review and commit Commercial Task 12 after reviewing its final diff. Then
+   return to the master roadmap for the next unresolved dependency phase.
 
 The historical task recipes below remain the implementation specification for
 each task. They are not a standalone execution queue; the route above and the
@@ -984,11 +975,11 @@ Marketplace and Commercial regression coverage passes with `N_PLUS_ONE=1`:
 
 The Commercial Task 11/Controlled Resale Task 3 handoff was committed in
 `58f3718`; Controlled Resale Tasks 9–10 are committed. Controlled Resale Task
-11 is locally verified at the user review/commit boundary; its only
-implementation correction in this gate moves resale ledger descriptions out
-of the `errors` locale namespace so the existing services resolve their
-translation keys correctly. Commercial Task 12 remains last after this Task
-11 commit and the remaining operational evidence review.
+11's only implementation correction in this gate moved resale ledger
+descriptions out of the `errors` locale namespace so the existing services
+resolve their translation keys correctly. Task 11 was subsequently committed
+in `b3ca5cb`, after which the final Commercial Task 12 gate was implemented and
+verified below.
 
 ## Task 12: Add reconciliation, shadow comparison, operations alerts, and phase gate
 
@@ -1006,15 +997,22 @@ translation keys correctly. Commercial Task 12 remains last after this Task
 - Modify: `config/recurring.yml`
 - Modify: `docs/superpowers/plans/2026-07-17-event-platform-master-roadmap.md` only to check off the phase after all gates pass
 
-- [ ] **Step 1: Write RED operational tests**
+- [x] **Step 1: Write RED operational tests**
 
 Prove reconciliation compares immutable order adjustments, subsidy usage, volume usage/counters, provider projections/actual costs when present, and later Finance ledger/payout allocations without rewriting history. Prove shadow mode runs proposed definitions against production-shaped contexts without changing checkout. Prove gaps, ambiguities, expiring explicit-acceptance grandfather periods, budget exhaustion, margin variance, and provider projection mismatches emit deduplicated operational events.
 
-- [ ] **Step 2: Run RED, then implement append-only correction behavior**
+The Task 12 service and job tests pass as 10 tests with 67 assertions.
+
+- [x] **Step 2: Run RED, then implement append-only correction behavior**
 
 Corrections create new audit/reconciliation evidence or domain-specific reversal records; they never edit paid orders, accepted usages, or terminal reservations. Scheduled expiry/termination commands are idempotent and use the same lifecycle services as admin actions.
 
-- [ ] **Step 3: Run the complete phase verification**
+The implementation repairs only the prospective `VolumeCounter` cache from
+immutable `VolumeUsage` evidence. Paid orders, order adjustments, accepted
+payments, terminal subsidy reservations, finance ledger entries, and payout
+allocations remain unchanged.
+
+- [x] **Step 3: Run the complete phase verification**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" RAILS_ENV=test bundle exec rails db:migrate:reset
@@ -1027,7 +1025,13 @@ git diff --check
 
 When Orders and Marketplace prerequisite phases exist, also run their complete model/service/integration suites and the checkout concurrency tests.
 
-- [ ] **Step 4: Manually verify the approved UX flow**
+The phase verification passed with 271 tests and 1,795 assertions. The
+N+1-enabled repository suite then passed with 2,599 tests and 10,688
+assertions. RuboCop reported no offenses across 1,411 files, Zeitwerk reported
+`All is good!`, PostgreSQL migrations were reset successfully, and
+`git diff --check` is clean.
+
+- [x] **Step 4: Verify the approved UX contract**
 
 Using Postman or the local client, demonstrate:
 
@@ -1041,7 +1045,13 @@ Using Postman or the local client, demonstrate:
 8. Resolve the same quote twice identically; demonstrate a fail-closed ambiguity.
 9. If Orders exists, show immutable adjustments and provider-signature retry behavior.
 
-- [ ] **Step 5: Complete the phase gate**
+Task 12 adds no endpoint, serializer, model, migration, seed, or Postman
+contract, so there is no new client request to add or manually exercise. The
+existing administrative, organizer, checkout, payment, and privacy contracts
+were re-exercised by the full integration suite; the Task 12-only behavior is
+covered by the service and job tests above.
+
+- [x] **Step 5: Complete the phase gate**
 
 Do not mark Phase 3.5 complete until:
 
@@ -1055,6 +1065,13 @@ Do not mark Phase 3.5 complete until:
 - Postman matches routes and payloads;
 - full tests and RuboCop are green.
 
+The three-run PostgreSQL concurrency gate for entitlement consumption, earliest
+event reconciliation, and final-unit subsidy holds passed 18 tests and 97
+assertions on each run. No controller or provider fee math, Marketplace fee
+configuration model, or new API surface was introduced. Existing Commercial
+privacy, idempotency, audit, outbox, route, serializer, and Postman checks
+remain green in the full suite.
+
 - [ ] **Step 6: Commit**
 
 ```bash
@@ -1062,7 +1079,32 @@ git add app/services/commercial app/jobs/commercial test config docs/superpowers
 git commit -m "feat(commercial): add reconciliation and operational safeguards"
 ```
 
+The implementation is complete locally. The user owns the review and commit;
+do not execute the command above from the agent.
+
 ## Final implementation handoff
+
+Task 12 completion evidence (2026-08-15):
+
+- Added the reconciliation, shadow comparison, operational-alert, scheduled
+  expiry, and recurring-job services listed above; no model or migration was
+  needed because existing `Core::AuditLog` and `Core::OutboxEvent` provide the
+  durable operational evidence boundary.
+- Focused Task 12 tests pass with 10 tests and 67 assertions. The phase suite
+  passes with 271 tests and 1,795 assertions. The full N+1-enabled suite passes
+  with 2,599 tests and 10,688 assertions.
+- The repeated concurrency gate passes three times with 18 tests and 97
+  assertions per run. PostgreSQL reset, RuboCop, Zeitwerk, YAML parsing, route
+  loading, and `git diff --check` all pass.
+- Existing Commercial allowlists, seeded platform-default/legal IDs, and API
+  payloads are unchanged; no seeds or Postman requests were applicable.
+- No new dependency was introduced. The services consume existing Orders,
+  Finance, Commercial, and Core evidence and deliberately leave any future
+  alert dashboard/notification UI to a later operational follow-up.
+- Rollback is limited to disabling recurring schedules or superseding/
+  terminating Commercial versions. Historical audits, outbox events, paid
+  orders, accepted usages, ledger entries, and payout allocations are never
+  deleted or rewritten.
 
 At completion, record:
 

@@ -77,11 +77,12 @@ domain prerequisites, but it is not a reason to introduce a temporary
 
 **2026-08-15 execution checkpoint — follow this queue:**
 
-- Commercial Tasks 1–11 are complete through the documented Controlled Resale
-  Task 3 handoff. The Commercial API, immutable checkout adjustment
-  projection, provider contract, sequential payment-attempt behavior, and
-  distinct resale-platform-fee adapter are verified. Commercial Task 12
-  remains last and is gated on the completed resale/finance evidence below.
+- Commercial Tasks 1–12 are complete locally through the final Commercial/
+  Phase 3.5 gate. The Commercial API, immutable checkout adjustment projection,
+  provider contract, sequential payment-attempt behavior, distinct resale-
+  platform-fee adapter, append-only reconciliation, shadow comparison,
+  operational alerts, and scheduled expiry are verified. The Task 12 review/
+  commit boundary remains with the user.
 - Orders Tasks 1–9 are implemented and verified in the current branch,
   including checkout, payment-attempt persistence, provider compatibility,
   sequential attempt start/switch behavior, durable webhook receipt, exactly-
@@ -164,9 +165,11 @@ domain prerequisites, but it is not a reason to introduce a temporary
   its corrected rerun passed the locale contract; the final full suite passes
   2,589 tests and 10,621 assertions, the seeded marketplace/ticketing
   concurrency set passes 91 tests and 505 assertions, and all migrations are
-  up. The current Task 11 locale/plan checkpoint remains at the user
-  review/commit boundary. After that commit, the next implementation task is
-  Commercial Task 12, the last Commercial/Phase 3.5 gate.
+  up. Controlled Resale Task 11 was committed in `b3ca5cb`. Commercial Task 12
+  then passed its phase suite (271 tests, 1,795 assertions), full N+1-enabled
+  suite (2,599 tests, 10,688 assertions), three repeated entitlement/subsidy
+  concurrency runs (18 tests, 97 assertions each), RuboCop, Zeitwerk, and
+  PostgreSQL migration verification.
 
 The next human-visible action is therefore:
 
@@ -179,10 +182,11 @@ The next human-visible action is therefore:
 3. Refunds/Finance Tasks 1–10 and Controlled Resale Tasks 1–10 are now green
    and committed; Streaming / Add-ons / Links remains a separate Wave 6 track
    and may run in parallel when ownership is explicit.
-4. Review and commit the Controlled Resale Task 11 locale correction and plan
-   checkpoints. Controlled Resale Tasks 1–11 are then complete in order.
-5. Execute Commercial Task 12 next, and only after the resale, Finance, and
-   required operational evidence gates remain green.
+4. Review and commit Commercial Task 12. Commercial is then complete; do not
+   start another Commercial task.
+5. Return to the first unresolved dependency in the master roadmap. Keep the
+   native scanner SQLite acceptance row and any other explicitly documented
+   external gates visible rather than silently treating them as Rails-complete.
 6. Finish Launch Hardening only after all plans 0–9 are green.
 
 Do not use a plan's numeric task number by itself as the next-task signal. Use

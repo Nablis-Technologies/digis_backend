@@ -697,8 +697,8 @@ git commit -m "feat(api): expose controlled resale marketplace"
 ```
 
 Task 10 was committed in `95ff701`, `e2cf09c`, `016954f`, and `1cde82c`.
-Continue with Controlled Resale Task 11. Commercial Task 12 remains last by
-design.
+Continue with Controlled Resale Task 11, then return to Commercial Task 12 for
+the final Commercial/Phase 3.5 gate.
 
 ## Task 11: Final AJ/failure-recovery gate
 
@@ -759,7 +759,7 @@ Passed: 91 tests, 505 assertions, 0 failures, 0 errors, and 0 skips. All
 migrations are up. Repository RuboCop reports no offenses across 1,397 files,
 and `rails zeitwerk:check` reports `All is good!`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add config/locales/marketplace/resale.en.yml docs/superpowers/plans/2026-07-17-controlled-resale-marketplace-implementation.md docs/superpowers/plans/2026-07-17-event-platform-master-roadmap.md docs/superpowers/plans/2026-08-08-commercial-agreements-platform-pricing-implementation.md
@@ -770,7 +770,6 @@ git commit -m "fix(marketplace): correct resale ledger translations"
 
 Complete only when credential-core gate and full suite pass, every AJ invariant maps to direct evidence, two buyers cannot reserve/buy the same package, callbacks/retries are idempotent, failed checkout restores only newer seller credential, success creates one sale/new owner generation, both historical seller/new buyer purchase-limit facts remain, proceeds cannot mature early, acquisition-chain cancellation refunds correctly, and no marketplace finance data enters scanner payloads.
 
-Task 11 is locally verified on 2026-08-15. The remaining boundary is the
-user's review/commit of the locale correction and canonical plan checkpoints;
-after that, the next implementation task is Commercial Task 12, which remains
-the final Phase 3.5 reconciliation and operational gate.
+Task 11 was committed in `b3ca5cb` on 2026-08-15. Commercial Task 12 was then
+implemented and phase-gate verified; no further Controlled Resale Task 11 work
+is pending.
