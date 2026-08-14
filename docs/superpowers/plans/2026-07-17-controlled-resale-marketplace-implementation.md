@@ -26,6 +26,11 @@ Marketplace Task 3 must consume `Commercial::ResolveCharges` for the distinct
 resale plan and Finance evidence are complete, return to Commercial Task 12
 for the final reconciliation and Phase 3.5 gate.
 
+Task 3 is now implemented locally together with Commercial Task 11. The next
+implementation task is Task 4 below; listing activation owns the first caller
+that snapshots this adapter's immutable result. The commit step remains
+unchecked until the user reviews and commits the current worktree.
+
 ## Approved AJ invariants
 
 - **AJ-A:** Organizer may allow or disallow resale per ticket type.
@@ -45,12 +50,12 @@ Every AJ item is a release-blocking named test.
 ### Database and models
 
 - Modify the existing `db/migrate/20260727090021_create_ticketing_ticket_types.rb` resale-policy columns/checks; do not create a duplicate migration
-- Create `db/migrate/20260717110003_create_marketplace_seller_payout_accounts.rb`
-- Create `db/migrate/20260717110004_create_marketplace_resale_listings.rb`
-- Create `db/migrate/20260717110005_create_marketplace_resale_sales.rb`
-- Create `db/migrate/20260717110006_create_marketplace_seller_ledger_entries.rb`
-- Create `db/migrate/20260717110007_create_marketplace_seller_payouts.rb`
-- Create `db/migrate/20260717110008_create_marketplace_seller_payout_allocations.rb`
+- Create `db/migrate/20260814090001_create_marketplace_seller_payout_accounts.rb`
+- Create `db/migrate/20260814090002_create_marketplace_resale_listings.rb`
+- Create `db/migrate/20260814090003_create_marketplace_resale_sales.rb`
+- Create `db/migrate/20260814090004_create_marketplace_seller_ledger_entries.rb`
+- Create `db/migrate/20260814090005_create_marketplace_seller_payouts.rb`
+- Create `db/migrate/20260814090006_create_marketplace_seller_payout_allocations.rb`
 - Create models under `app/models/marketplace/`
 
 ### Commands/calculations
@@ -135,11 +140,11 @@ git commit -m "feat(marketplace): configure controlled resale policy"
 - Test: `test/models/marketplace/seller_ledger_entry_test.rb`
 - Test: `test/models/marketplace/seller_payout_test.rb`
 
-- [ ] **Step 1: RED — write direct constraints and STI tests**
+- [x] **Step 1: RED — write direct constraints and STI tests**
 
 Reject two open listings/ticket, mixed cap fields, asking above cap, inconsistent reservation, duplicate sale or `(ticket,resale_number)`, seller=buyer, mismatched payment/order/registration, gross mismatch, zero ledger entry, overallocation, and unverified payout. Prove payout-account and ledger business `type` do not trigger STI. Commercial's phase gate already proves fee scope/version/currency invariants.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/marketplace
@@ -147,7 +152,10 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/marketplace
 
 Expected: FAIL.
 
-- [ ] **Step 3: GREEN — install exact indexes/checks**
+Observed RED before the Marketplace models existed: 16 tests, 0 assertions,
+16 `NameError` errors.
+
+- [x] **Step 3: GREEN — install exact indexes/checks**
 
 ```ruby
 add_index :marketplace_resale_listings, :ticket_id, unique: true,
@@ -164,11 +172,14 @@ add_index :marketplace_seller_payout_accounts, %i[provider account_token], uniqu
 
 Add state coupling, positive amounts, cap exclusivity, gross=Commercial resale fee+proceeds, and allocation constraints. Ledger rows are append-only. STI disabled on business `type` models. Do not create a Marketplace fee configuration table.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
 Run Task 2 command. Expected: PASS.
 
-- [ ] **Step 5: Refactor and inspect schema**
+Passed after the final lifecycle and ledger-scope hardening: 20 tests, 41
+assertions, 0 failures, and 0 errors with `N_PLUS_ONE=1`.
+
+- [x] **Step 5: Refactor and inspect schema**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:migrate
@@ -176,6 +187,10 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/marketplace
 ```
 
 Expected: PASS.
+
+The six migrations apply from a committed-baseline schema in dependency order.
+Task 1 plus Marketplace regression coverage passed with 37 tests, 105
+assertions, 0 failures, and 0 errors. Full RuboCop passed for 1,325 files.
 
 - [ ] **Step 6: Commit**
 
@@ -191,7 +206,7 @@ git commit -m "feat(marketplace): add resale and seller-ledger schema"
 - Test: `test/services/marketplace/commercial_resale_fee_test.rb`
 - Test: `test/integration/marketplace/resale_fee_isolation_test.rb`
 
-- [ ] **Step 1: RED — encode AJ-D1**
+- [x] **Step 1: RED — encode AJ-D1**
 
 Resolve the allowlisted `resale_platform_fee` sale context through Commercial event → organization → program → default precedence. Prove no automatic inheritance from primary-sale commission, bounded product/currency/provider/channel specificity, no stacking, immutable exact component/version evidence, seller fee never above gross, and separation from buyer processing adjustment.
 
@@ -201,23 +216,34 @@ Resolve the allowlisted `resale_platform_fee` sale context through Commercial ev
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/commercial_resale_fee_test.rb test/integration/marketplace/resale_fee_isolation_test.rb
 ```
 
-Expected: FAIL.
+Expected: FAIL. Observed before the adapter existed: 5 tests, 0 assertions,
+5 `NameError` errors for `Marketplace::ResolveResaleCharge` after the shared
+Commercial test helper was installed.
 
-- [ ] **Step 3: GREEN — consume one immutable Commercial result**
+- [x] **Step 3: GREEN — consume one immutable Commercial result**
 
 `Marketplace::ResolveResaleCharge` is a narrow context adapter that calls `Commercial::ResolveCharges` with resale context and trusted listing/order facts, requires exactly one valid `resale_platform_fee`, rejects a result above gross, and returns the unchanged immutable Commercial result for later snapshotting on the resale order/sale. Commercial's admin APIs own authoring, approval, simulation, and activation; Marketplace creates no competing calculator or admin surface.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+The adapter forces the trusted resale gross into the allowlisted
+`resale_acquisition_amount` basis, propagates Commercial failures unchanged,
+and rejects missing/invalid commercial evidence with localized errors. It does
+not modify listing or sale persistence; those consumers belong to later
+Marketplace tasks.
 
-Run Task 3 command. Expected: PASS.
+- [x] **Step 4: Run tests and verify GREEN**
 
-- [ ] **Step 5: Refactor and verify authorization**
+The focused suite passes with `N_PLUS_ONE=1`: 7 tests, 45 assertions, 0
+failures, and 0 errors.
+
+- [x] **Step 5: Refactor and verify authorization**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace test/integration/marketplace/resale_fee_isolation_test.rb
 ```
 
-Expected: PASS.
+Marketplace and Commercial regression coverage passes with `N_PLUS_ONE=1`: 162
+tests, 1,253 assertions, 0 failures, and 0 errors. Full RuboCop passes for
+1,329 files, and `git diff --check` is clean.
 
 - [ ] **Step 6: Commit**
 
