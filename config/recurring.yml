@@ -29,6 +29,10 @@ production:
     class: Catalog::ReconcileInventoryJob
     queue: default
     schedule: every day at 3am
+  monitor_provider_reserves:
+    class: Finance::ProviderReserveMonitorJob
+    queue: default
+    schedule: every five minutes
   expire_invitations:
     class: Ticketing::ExpireInvitationsJob
     queue: default
