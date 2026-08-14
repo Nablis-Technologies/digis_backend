@@ -2,9 +2,10 @@
 
 module Orders
   # Completes the Orders-side fulfillment boundary after accepted payment.
-  # Item fulfillment is marked in the same transaction as the one durable
-  # outbox event; Ticketing and Finance consume that event in later roadmap
-  # waves instead of Orders creating placeholder domain rows.
+  # Item fulfillment is marked in the same transaction as the durable handoff.
+  # Resale orders use Marketplace's existing-package transfer boundary instead
+  # of the normal Ticketing issuance event, so a resale never creates a second
+  # primary ticket.
   class FulfillOrder < Core::BaseService
     def initialize(order:, payment:, idempotency_key: nil)
       @order = order
@@ -13,10 +14,21 @@ module Orders
     end
 
     def call
+      outcome = nil
       ActiveRecord::Base.transaction do
         order = Orders::Order.lock.find(@order.id)
-        return success(order) if order.status == "fulfilled"
+        if order.status == "fulfilled" &&
+          (order.sales_channel != "resale" || resale_sale_exists?(order))
+          outcome = success(order)
+          next
+        end
         return failure(fulfillment_error(:order_not_paid, code: "order_not_paid")) unless order.paid?
+
+        if order.sales_channel == "resale"
+          outcome = fulfill_resale_order(order)
+          raise ActiveRecord::Rollback if outcome.failure?
+          next
+        end
 
         items = Orders::OrderItem.lock.where(order_id: order.id).order(:id).to_a
         items.each do |item|
@@ -24,8 +36,9 @@ module Orders
         end
         order.update!(status: "fulfilled") unless order.status == "fulfilled"
         publish_fulfillment!(order, items)
-        success(order)
+        outcome = success(order)
       end
+      outcome
     rescue ActiveRecord::RecordInvalid => error
       failure(fulfillment_error(:fulfillment_failed, code: "fulfillment_failed", errors: error.record.errors.to_hash))
     end
@@ -33,6 +46,25 @@ module Orders
     private
 
     attr_reader :order, :payment, :idempotency_key
+
+    def resale_sale_exists?(locked_order)
+      return false unless locked_order.sales_channel == "resale"
+
+      Marketplace::ResaleSale.joins(:buyer_order).where(
+        buyer_order_id: locked_order.id,
+        accepted_payment_id: payment.id
+      ).exists?
+    end
+
+    def fulfill_resale_order(locked_order)
+      listing = Marketplace::ResaleListing.lock.find_by(reserved_order_id: locked_order.id)
+      return failure(fulfillment_error(:fulfillment_failed, code: "resale_listing_not_found")) unless listing
+
+      result = Marketplace::FulfillSale.call(listing:, order: locked_order, payment:)
+      return failure(result.error) if result.failure?
+
+      success(locked_order.reload)
+    end
 
     def publish_fulfillment!(locked_order, items)
       result = Core::Outbox::Publish.call(

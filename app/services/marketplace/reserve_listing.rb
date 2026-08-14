@@ -269,7 +269,6 @@ module Marketplace
 
     def create_order!(locked_listing, commercial)
       buyer_result = commercial.fetch(:buyer_result)
-      seller_fee = commercial.fetch(:resale_component).amount_minor
       gross = locked_listing.asking_amount_minor
       Orders::Order.create!(
         event_id: locked_listing.event_id,
@@ -289,7 +288,10 @@ module Marketplace
         adjustment_minor: 0,
         total_minor: gross - buyer_result.subsidy_total + buyer_result.buyer_fee_total,
         settlement_currency: locked_listing.currency,
-        settlement_total_minor: gross - seller_fee,
+        # The buyer's settlement snapshot is the gross amount they paid. The
+        # seller-side resale fee is deducted only in Marketplace's separate
+        # append-only ledger, never from the buyer order's settlement fact.
+        settlement_total_minor: gross,
         exchange_rate: 1,
         exchange_rate_source: "same_currency",
         expires_at: now + HOLD_DURATION,

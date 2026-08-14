@@ -135,8 +135,12 @@ module Orders
     end
 
     # Ledger posting stays inside the acceptance transaction so an accepted
-    # payment cannot commit without its immutable organizer facts.
+    # primary payment cannot commit without its immutable organizer facts.
+    # Resale economics are posted by Marketplace's seller ledger instead of
+    # creating a primary organizer sale ledger entry.
     def post_accepted_sale!(locked_payment)
+      return success([]) if locked_payment.order.sales_channel == "resale"
+
       result = Finance::PostAcceptedSale.call(payment: locked_payment, at: now)
       raise AcceptanceFailure, result.error if result.failure?
     end

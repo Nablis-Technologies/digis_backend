@@ -59,13 +59,15 @@ module Ticketing
             next
           end
 
-          prior = ticket.credential_generations.includes(:credentials).lock.find_by!(status: "active")
-          revocation = Ticketing::Revocations::PublishGeneration.call(
-            ticket:, through_version: prior.version, reason: @reason
-          )
-          if revocation.failure?
-            outcome = failure(revocation.error)
-            raise ActiveRecord::Rollback
+          prior = prior_generation(ticket)
+          if prior.status == "active"
+            revocation = Ticketing::Revocations::PublishGeneration.call(
+              ticket:, through_version: prior.version, reason: @reason
+            )
+            if revocation.failure?
+              outcome = failure(revocation.error)
+              raise ActiveRecord::Rollback
+            end
           end
 
           generation = ticket.credential_generations.create!(
@@ -211,8 +213,23 @@ module Ticketing
 
       def current_generation_matches_ticket?(ticket)
         generation = ticket.current_credential_generation
-        generation&.status == "active" && generation.id == ticket.current_credential_generation_id &&
+        return false unless generation&.id == ticket.current_credential_generation_id &&
           generation.version == ticket.credential_version && generation.mode == ticket.credential_mode
+
+        return true if generation.status == "active"
+
+        @allow_suspended && ticket.package_suspended? && generation.status == "revoked"
+      end
+
+      # A resale reservation revokes the seller generation before payment. A
+      # successful payment therefore replaces the current revoked generation
+      # directly; it must never reactivate that historical QR/PNR set.
+      def prior_generation(ticket)
+        generation = ticket.current_credential_generation
+        return generation if generation&.status == "active"
+        return generation if @allow_suspended && ticket.package_suspended? && generation&.status == "revoked"
+
+        ticket.credential_generations.includes(:credentials).lock.find_by!(status: "active")
       end
 
       def current_assignment?(generation, assignments)
