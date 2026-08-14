@@ -12,7 +12,7 @@ module Ticketing
     class Replace < Core::BaseService
       def initialize(
         ticket:, target_mode:, reason:, assignments:, idempotency_key:, excluded_event_date_ids: nil,
-        allow_suspended: false
+        allow_suspended: false, allow_cutoff_passed: false
       )
         @ticket = ticket
         @target_mode = target_mode.to_s
@@ -20,6 +20,7 @@ module Ticketing
         @raw_assignments = assignments
         @excluded_event_date_ids = normalize_excluded_event_date_ids(excluded_event_date_ids)
         @allow_suspended = allow_suspended == true
+        @allow_cutoff_passed = allow_cutoff_passed == true
         @idempotency_key = Core::IdempotencyKey.new(idempotency_key)
       rescue ArgumentError => error
         @idempotency_key_error = error
@@ -197,7 +198,12 @@ module Ticketing
           @target_mode == "delegated" && !ticket.event_product.ticket_type.delegation_enabled?
         return failure(replacement_error(:invalid_generation_assignments, "invalid_generation_assignments", :unprocessable_entity)) unless
           valid_assignment_shape?(assignments, slots)
-        return failure(replacement_error(:generation_cutoff_passed, "generation_cutoff_passed", :conflict)) if cutoff_passed?(ticket)
+        # Restoration is the sole recovery path allowed to replace a revoked
+        # seller generation after the normal transfer cutoff. It never grants
+        # a new transfer; it recreates the seller's already-owned access after
+        # a failed resale hold.
+        return failure(replacement_error(:generation_cutoff_passed, "generation_cutoff_passed", :conflict)) if
+          cutoff_passed?(ticket) && !@allow_cutoff_passed
 
         success(true)
       end

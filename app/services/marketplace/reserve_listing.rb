@@ -77,6 +77,12 @@ module Marketplace
         )
         record_reservation!(listing, order)
         publish_reservation!(listing, order, projection)
+        # The deadline job is scheduled only after the reservation effects are
+        # inside the transaction; Rails defers the enqueue until commit so a
+        # worker cannot observe a half-built resale hold.
+        Marketplace::ExpireReservationJob
+          .set(wait_until: order.expires_at)
+          .perform_later(listing.id)
         outcome = success(order.reload)
       end
       outcome
@@ -395,7 +401,9 @@ module Marketplace
 
     def record_reservation!(locked_listing, order)
       result = Core::Audit::Record.call(
-        audit_key: "marketplace-resale-listing-reserved-#{locked_listing.id}",
+        # A listing can be relisted after a failed hold, so each reservation
+        # cycle needs its own immutable audit identity.
+        audit_key: "marketplace-resale-listing-reserved-#{order.id}",
         action: "marketplace.resale_listing.reserved",
         auditable_type: locked_listing.class.name,
         auditable_id: locked_listing.id,
@@ -423,7 +431,7 @@ module Marketplace
           revocation_version: projection.fetch(:revocation_version),
           attendee_index_version: projection.fetch(:attendee_index_version)
         },
-        idempotency_key: "marketplace-resale-listing-reserved-#{locked_listing.id}"
+        idempotency_key: "marketplace-resale-listing-reserved-#{order.id}"
       )
       abort_with(result.error) if result.failure?
     end

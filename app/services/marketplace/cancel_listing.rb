@@ -1,9 +1,10 @@
 # frozen_string_literal: true
 
 module Marketplace
-  # Closes an unsold resale offer without touching the ticket credential. A
-  # cancelled listing is terminal, so repeated policy or seller cleanup calls
-  # return the same row and never emit a second lifecycle event.
+  # Closes an unsold resale offer. A reserved checkout is released and the
+  # seller receives a newer credential generation before the listing is
+  # cancelled. Cancellation is terminal, so repeated policy or seller cleanup
+  # calls return the same row and never emit a second lifecycle event.
   class CancelListing < Core::BaseService
     CANCELLATION_REASONS = %w[resale_policy_disabled seller_requested].freeze
 
@@ -31,6 +32,14 @@ module Marketplace
           next
         end
 
+        if listing.status == "reserved"
+          release = release_reserved_checkout!(listing)
+          if release.failure?
+            outcome = release
+            next
+          end
+        end
+
         listing.update!(
           status: "cancelled",
           reserved_order: nil,
@@ -55,6 +64,20 @@ module Marketplace
     private
 
     attr_reader :listing, :idempotency_key, :reason
+
+    def release_reserved_checkout!(listing)
+      order = Orders::Order.lock.find(listing.reserved_order_id)
+      payment = order.payments.where(superseded_at: nil).lock.order(:id).last
+      return failure(error(:reservation_payment_accepted, :conflict)) if order.paid? || payment&.accepted?
+
+      released = Orders::ReleaseCheckout.call(order:, at: Time.current)
+      return released if released.failure?
+
+      restored = RestoreSellerAccess.call(listing:, at: Time.current, reason: "resale_checkout_cancelled")
+      return failure(restored.error) if restored.failure?
+
+      success(restored.value)
+    end
 
     def record_cancellation!(cancelled_listing)
       audit = Core::Audit::Record.call(
