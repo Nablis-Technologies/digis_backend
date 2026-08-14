@@ -179,6 +179,31 @@
       "key": "scannerToken",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "refundId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "payoutId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "financeProvider",
+      "value": "chapa",
+      "type": "string"
+    },
+    {
+      "key": "financeCurrency",
+      "value": "ETB",
+      "type": "string"
+    },
+    {
+      "key": "financeIdempotencyKey",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -622,11 +647,242 @@
               }
             }
           ]
+        },
+        {
+          "name": "Verify Online Admission",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Scanner-Token",
+                "value": "{{scannerToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"verification\": {\n    \"qr_token\": \"{{qrToken}}\",\n    \"product_access_id\": \"{{productAccessId}}\",\n    \"client_scan_id\": \"{{$guid}}\",\n    \"scanned_at\": \"{{$isoTimestamp}}\",\n    \"lookup_via\": \"qr\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/scanner/events/{{eventId}}/verifications?device_identifier={{scannerDeviceIdentifier}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "scanner",
+                "events",
+                "{{eventId}}",
+                "verifications"
+              ],
+              "query": [
+                {
+                  "key": "device_identifier",
+                  "value": "{{scannerDeviceIdentifier}}"
+                }
+              ]
+            },
+            "description": "Verify one signed QR credential against the selected product access and atomically record the online admission attempt. Retries with the same client_scan_id return the stored attempt."
+          },
+          "response": []
+        },
+        {
+          "name": "Upload Offline Scans",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Scanner-Token",
+                "value": "{{scannerToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"upload\": {\n    \"client_upload_id\": \"{{$guid}}\",\n    \"cursors\": {\"revocations\": 0, \"attendee_index\": 0, \"schedule\": 0, \"reversals\": 0},\n    \"scans\": [\n      {\n        \"credential_id\": \"{{credentialId}}\",\n        \"ticket_id\": \"{{ticketId}}\",\n        \"credential_version\": 1,\n        \"product_access_id\": \"{{productAccessId}}\",\n        \"client_scan_id\": \"{{$guid}}\",\n        \"scanned_at\": \"{{$isoTimestamp}}\",\n        \"result\": \"success\",\n        \"lookup_via\": \"qr\",\n        \"identity_check_result\": \"not_required\"\n      }\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/scanner/events/{{eventId}}/scan_uploads?device_identifier={{scannerDeviceIdentifier}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "scanner",
+                "events",
+                "{{eventId}}",
+                "scan_uploads"
+              ],
+              "query": [
+                {
+                  "key": "device_identifier",
+                  "value": "{{scannerDeviceIdentifier}}"
+                }
+              ]
+            },
+            "description": "Upload at most 500 offline scans. Retry the same client_upload_id after an interrupted request to receive the stored snapshot; each client_scan_id is independently idempotent. Send an empty scans array for a heartbeat and synchronization delta. The reported result is advisory and the server reconciles the credential, revocations, zones, and admission uses authoritatively."
+          },
+          "response": []
+        },
+        {
+          "name": "Manual Credential Lookup",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Scanner-Token",
+                "value": "{{scannerToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lookup\": {\n    \"method\": \"code\",\n    \"query\": \"{{lookupCode}}\",\n    \"product_access_id\": \"{{productAccessId}}\",\n    \"client_scan_id\": \"{{$guid}}\",\n    \"scanned_at\": \"{{$isoTimestamp}}\",\n    \"reason_code\": \"no_qr_printout\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/scanner/events/{{eventId}}/lookups?device_identifier={{scannerDeviceIdentifier}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "scanner",
+                "events",
+                "{{eventId}}",
+                "lookups"
+              ],
+              "query": [
+                {
+                  "key": "device_identifier",
+                  "value": "{{scannerDeviceIdentifier}}"
+                }
+              ]
+            },
+            "description": "Recover an active credential by checksummed PNR, canonical Ethiopian phone, or authorized online help-desk search. Every manual admission requires a controlled reason code, returns minimal disambiguation, and sends the selected credential through the same admission validator as QR. For phone use method=phone; for online help-desk search use method=online and omit admission fields until a result is selected."
+          },
+          "response": []
+        },
+        {
+          "name": "Override Identity Mismatch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identity_override\": {\n    \"reason_code\": \"operator_error\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/checkin_logs/{{checkinLogId}}/identity_override",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "checkin_logs",
+                "{{checkinLogId}}",
+                "identity_override"
+              ]
+            },
+            "description": "Online manager correction for an immutable identity-mismatch attempt. The server revalidates the current credential, schedule, zones, revocations, and usage limit, then appends one linked successful check-in when eligible. Offline scan uploads cannot use this endpoint."
+          },
+          "response": []
+        },
+        {
+          "name": "Reverse Admission Uses",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"admission_use_reversal\": {\n    \"reason_code\": \"operator_error\",\n    \"note\": \"Corrected at the event desk\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/checkin_logs/{{checkinLogId}}/admission_use_reversal",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "checkin_logs",
+                "{{checkinLogId}}",
+                "admission_use_reversal"
+              ]
+            },
+            "description": "Append-only manager reversal for every admission use created by a successful check-in. The operation creates one complete reversal group, never edits historical check-in or use rows, and publishes the reversal version for scanner synchronization."
+          },
+          "response": []
         }
       ]
     },
-    {
-      "name": "Ticketing Package Workflow",
+        {
+          "name": "Ticketing Package Workflow",
       "item": [
         {
           "name": "Open Ticket Suspension",
@@ -5421,7 +5677,7 @@
                     "response": [],
                     "body": {
                       "mode": "raw",
-                      "raw": "{\n  \"cancellation\": {\n    \"reason\": \"internal note (not exposed)\",\n    \"attendee_reason\": \"Event postponed.\"\n  }\n}",
+                      "raw": "{\n  \"cancellation\": {\n    \"internal_note\": \"internal note (not exposed)\",\n    \"attendee_reason\": \"Event postponed.\"\n  }\n}",
                       "options": {
                         "raw": {
                           "language": "json"
@@ -7504,6 +7760,189 @@
               "type": "string"
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Refunds & Finance",
+      "item": [
+        {
+          "name": "List My Refunds",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/refunds",
+              "host": ["{{baseUrl}}"],
+              "path": ["refunds"]
+            },
+            "description": "Returns refund status with buyer-safe amount, currency, reason, status, and timestamps. Provider and recovery fields are excluded."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Refund Status",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/refunds/{{refundId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["refunds", "{{refundId}}"]
+            },
+            "description": "Shows one authorized refund obligation without provider fees, reserve, or retry internals."
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Paid Ticket Package",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json", "type": "text"},
+              {"key": "Idempotency-Key", "value": "{{financeIdempotencyKey}}", "type": "text"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tickets/{{ticketId}}/cancel",
+              "host": ["{{baseUrl}}"],
+              "path": ["tickets", "{{ticketId}}", "cancel"]
+            },
+            "description": "Organizer cancellation delegates suspension, refund creation, credential revocation, and idempotency to the ticket command."
+          },
+          "response": []
+        },
+        {
+          "name": "List Organizer Payouts",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/payouts",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "organizations", "{{organizationId}}", "payouts"]
+            },
+            "description": "Lists payouts for an authorized organization. Provider references, failure codes, and idempotency keys are hidden from organizers."
+          },
+          "response": []
+        },
+        {
+          "name": "Request Organizer Payout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json", "type": "text"},
+              {"key": "Idempotency-Key", "value": "{{financeIdempotencyKey}}", "type": "text"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payout\": {\n    \"currency\": \"{{financeCurrency}}\",\n    \"amount_minor\": 10000\n  }\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {
+              "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/payouts",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "organizations", "{{organizationId}}", "payouts"]
+            },
+            "description": "Creates one idempotent payout intent from mature same-currency ledger facts."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Organizer Balance",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/balance?currency={{financeCurrency}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "organizations", "{{organizationId}}", "balance"],
+              "query": [{"key": "currency", "value": "{{financeCurrency}}"}]
+            },
+            "description": "Derives the organizer balance from immutable ledger facts and reserved payout allocations; it never reads provider treasury."
+          },
+          "response": []
+        },
+        {
+          "name": "List Organizer Ledger Entries",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/ledger_entries?currency={{financeCurrency}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "organizations", "{{organizationId}}", "ledger_entries"],
+              "query": [{"key": "currency", "value": "{{financeCurrency}}"}]
+            },
+            "description": "Lists authorized append-only organizer ledger evidence with organizer-safe fields."
+          },
+          "response": []
+        },
+        {
+          "name": "Dispatch Payout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json", "type": "text"},
+              {"key": "Idempotency-Key", "value": "{{financeIdempotencyKey}}", "type": "text"}
+            ],
+            "body": {"mode": "raw", "raw": "{\n  \"provider\": \"{{financeProvider}}\"\n}", "options": {"raw": {"language": "json"}}},
+            "url": {
+              "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/payouts/{{payoutId}}/dispatch",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "organizations", "{{organizationId}}", "payouts", "{{payoutId}}", "dispatch"]
+            },
+            "description": "Platform finance control. Rechecks maturity and reserve gates before one provider dispatch."
+          },
+          "response": []
+        },
+        {
+          "name": "Reconcile Payout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json", "type": "text"},
+              {"key": "Idempotency-Key", "value": "{{financeIdempotencyKey}}", "type": "text"}
+            ],
+            "body": {"mode": "raw", "raw": "{\n  \"provider\": \"{{financeProvider}}\"\n}", "options": {"raw": {"language": "json"}}},
+            "url": {
+              "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/payouts/{{payoutId}}/reconcile",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "organizations", "{{organizationId}}", "payouts", "{{payoutId}}", "reconcile"]
+            },
+            "description": "Platform finance control. Verifies an in-flight payout without resubmitting it."
+          },
+          "response": []
+        },
+        {
+          "name": "Approve No-Balance Provider Dispatch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json", "type": "text"},
+              {"key": "Idempotency-Key", "value": "{{financeIdempotencyKey}}", "type": "text"}
+            ],
+            "body": {"mode": "raw", "raw": "{\n  \"reason\": \"Manual treasury review completed\"\n}", "options": {"raw": {"language": "json"}}},
+            "url": {
+              "raw": "{{baseUrl}}/finance/payouts/{{payoutId}}/approve_no_balance_api",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "payouts", "{{payoutId}}", "approve_no_balance_api"]
+            },
+            "description": "Platform finance control. Creates immutable audit evidence before dispatching through a provider without a balance API."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Provider Reserve Policy",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key": "Content-Type", "value": "application/json", "type": "text"},
+              {"key": "Idempotency-Key", "value": "{{financeIdempotencyKey}}", "type": "text"}
+            ],
+            "body": {"mode": "raw", "raw": "{\n  \"target_minor\": 5000\n}", "options": {"raw": {"language": "json"}}},
+            "url": {
+              "raw": "{{baseUrl}}/finance/reserve_policies/{{financeProvider}}/{{financeCurrency}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "reserve_policies", "{{financeProvider}}", "{{financeCurrency}}"]
+            },
+            "description": "Platform finance control. Updates the soft provider/currency reserve floor under the existing audited command."
+          },
+          "response": []
         }
       ]
     },

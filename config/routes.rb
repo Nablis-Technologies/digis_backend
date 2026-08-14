@@ -172,6 +172,11 @@ Rails.application.routes.draw do
   post "ticketing/audience_authorizations", to: "ticketing/audience_authorizations#create"
   post "scanner/auth", to: "ticketing/scanner/auth#create"
   get "scanner/events/:event_id/sync", to: "ticketing/scanner/event_sync#show"
+  post "scanner/events/:event_id/scan_uploads", to: "ticketing/scanner/scan_uploads#create"
+  post "scanner/events/:event_id/lookups", to: "ticketing/scanner/lookups#create"
+  post "scanner/events/:event_id/verifications", to: "ticketing/scanner/verifications#create"
+  post "checkin_logs/:id/identity_override", to: "ticketing/checkin_identity_overrides#create"
+  post "checkin_logs/:id/admission_use_reversal", to: "ticketing/admission_use_reversals#create"
 
   resources :tickets, only: [] do
     resource :suspension, only: :create, controller: "ticketing/suspensions" do
@@ -186,6 +191,8 @@ Rails.application.routes.draw do
     resources :transfers, only: :create, controller: "ticketing/transfers"
   end
 
+  post "tickets/:ticket_id/cancel", to: "ticketing/cancellations#create"
+
   resources :credential_claims, only: [] do
     post :accept, on: :member, controller: "ticketing/credential_claims"
   end
@@ -194,6 +201,21 @@ Rails.application.routes.draw do
     post :accept, on: :member, controller: "ticketing/transfers"
     post :decline, on: :member, controller: "ticketing/transfers"
     post :cancel, on: :member, controller: "ticketing/transfers"
+  end
+
+  resources :refunds, only: %i[index show], controller: "orders/refunds"
+
+  scope path: :finance, module: :finance do
+    resources :organizations, only: [] do
+      resources :payouts, only: %i[index show create], controller: "payouts" do
+        post :dispatch, on: :member, action: :dispatch_payout
+        post :reconcile, on: :member
+      end
+    end
+    get "organizations/:organization_id/ledger_entries", to: "payouts#ledger_entries"
+    get "organizations/:organization_id/balance", to: "payouts#balance"
+    post "payouts/:id/approve_no_balance_api", to: "payouts#approve_no_balance_api"
+    put "reserve_policies/:provider/:currency", to: "payouts#update_reserve_policy"
   end
 
   namespace :admin do
