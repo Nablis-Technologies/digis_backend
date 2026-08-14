@@ -24,6 +24,9 @@ class CreateRefunds < ActiveRecord::Migration[8.1]
 
     add_index :orders_refunds, :payment_id
     add_index :orders_refunds, :event_cancellation_id
+    add_index :orders_refunds, %i[event_cancellation_id status],
+              where: "event_cancellation_id IS NOT NULL",
+              name: "idx_refunds_on_cancellation_and_status"
     add_index :orders_refunds, :idempotency_key, unique: true
     add_index :orders_refunds, %i[status next_retry_at]
     add_index :orders_refunds, :payment_id,
@@ -38,13 +41,19 @@ class CreateRefunds < ActiveRecord::Migration[8.1]
       "status IN ('created','pending_funds','processing','succeeded','failed')",
       name: "orders_refunds_status_check"
     add_check_constraint :orders_refunds,
-      "amount_minor > 0 AND currency ~ '^[A-Z]{3}$'",
-      name: "orders_refunds_amount_currency_check"
+      "amount_minor > 0",
+      name: "refund_amount_positive"
+    add_check_constraint :orders_refunds,
+      "currency ~ '^[A-Z]{3}$'",
+      name: "refund_currency_iso"
     add_check_constraint :orders_refunds,
       "(provider_fee_minor IS NULL AND provider_fee_currency IS NULL AND provider_fee_recorded_at IS NULL) OR " \
       "(provider_fee_minor IS NOT NULL AND provider_fee_minor >= 0 AND provider_fee_currency IS NOT NULL AND " \
       "provider_fee_currency ~ '^[A-Z]{3}$' AND provider_fee_recorded_at IS NOT NULL)",
       name: "orders_refunds_provider_fee_pair_check"
+    add_check_constraint :orders_refunds,
+      "status <> 'pending_funds' OR pending_reason IS NOT NULL",
+      name: "pending_funds_has_reason"
 
     add_foreign_key :orders_refunds, :orders_payments,
                     column: :payment_id, on_delete: :restrict
@@ -67,11 +76,37 @@ class CreateRefunds < ActiveRecord::Migration[8.1]
         FROM orders_payments AS payments
         WHERE payments.id = NEW.payment_id;
 
+        IF NEW.currency IS DISTINCT FROM payment_currency THEN
+          RAISE EXCEPTION 'orders_refund_payment_currency_scope' USING ERRCODE = '23514';
+        END IF;
+
         IF NEW.type = 'payment_reversal' AND
            (payment_status IS DISTINCT FROM 'succeeded' OR accepted_at IS NOT NULL OR
             NEW.amount_minor IS DISTINCT FROM payment_amount OR
             NEW.currency IS DISTINCT FROM payment_currency) THEN
           RAISE EXCEPTION 'orders_payment_reversal_integrity' USING ERRCODE = '23514';
+        END IF;
+
+        IF NEW.event_cancellation_id IS NOT NULL AND EXISTS (
+          SELECT 1
+          FROM events_event_cancellations AS cancellations
+          JOIN orders_payments AS cancellation_payments
+            ON cancellation_payments.id = NEW.payment_id
+          JOIN orders_orders AS cancellation_orders
+            ON cancellation_orders.id = cancellation_payments.order_id
+          WHERE cancellations.id = NEW.event_cancellation_id
+            AND cancellations.event_id IS DISTINCT FROM cancellation_orders.event_id
+        ) THEN
+          RAISE EXCEPTION 'orders_refund_cancellation_event_scope' USING ERRCODE = '23514';
+        END IF;
+
+        IF NEW.status IN ('created', 'pending_funds', 'processing', 'succeeded') AND
+           (SELECT COALESCE(SUM(amount_minor), 0)
+            FROM orders_refunds
+            WHERE payment_id = NEW.payment_id
+              AND status IN ('created', 'pending_funds', 'processing', 'succeeded')
+              AND id IS DISTINCT FROM NEW.id) + NEW.amount_minor > payment_amount THEN
+          RAISE EXCEPTION 'orders_refunds_payment_amount_exceeded' USING ERRCODE = '23514';
         END IF;
 
         RETURN NEW;
