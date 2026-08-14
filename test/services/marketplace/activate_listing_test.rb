@@ -137,7 +137,9 @@ module Marketplace
     test "rejects a disabled resale policy" do
       result = ConfigureTicketTypeResale.call(
         ticket_type: @ticket_type,
-        attributes: { resale_enabled: false }
+        actor: @owner,
+        attributes: { resale_enabled: false },
+        idempotency_key: "activate-test-disable-policy"
       )
       assert_predicate result, :success?, result.error&.message
 
@@ -164,7 +166,9 @@ module Marketplace
 
       result = ConfigureTicketTypeResale.call(
         ticket_type: @ticket_type,
-        attributes: { resale_enabled: false }
+        actor: @owner,
+        attributes: { resale_enabled: false },
+        idempotency_key: "activate-test-cancel-listing"
       )
 
       assert_predicate result, :success?, result.error&.message

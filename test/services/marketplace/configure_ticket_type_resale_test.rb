@@ -22,13 +22,15 @@ module Marketplace
     test "configures a fixed cap in the event settlement currency" do
       result = ConfigureTicketTypeResale.call(
         ticket_type: @ticket_type,
+        actor: core_users(:super_admin),
         attributes: {
           resale_enabled: true,
           resale_price_cap_type: "fixed",
           resale_fixed_cap_minor: 7_500,
           resale_fixed_cap_currency: "etb",
           max_completed_resales: 2
-        }
+        },
+        idempotency_key: "configure-fixed-cap"
       )
 
       assert_predicate result, :success?
@@ -48,7 +50,9 @@ module Marketplace
 
       result = ConfigureTicketTypeResale.call(
         ticket_type: @ticket_type,
-        attributes: { resale_enabled: false }
+        actor: core_users(:super_admin),
+        attributes: { resale_enabled: false },
+        idempotency_key: "configure-disable"
       )
 
       assert_predicate result, :success?
@@ -62,17 +66,64 @@ module Marketplace
     test "rejects a fixed cap in a different event currency without mutation" do
       result = ConfigureTicketTypeResale.call(
         ticket_type: @ticket_type,
+        actor: core_users(:super_admin),
         attributes: {
           resale_enabled: true,
           resale_price_cap_type: "fixed",
           resale_fixed_cap_minor: 7_500,
           resale_fixed_cap_currency: "USD"
-        }
+        },
+        idempotency_key: "configure-invalid-currency"
       )
 
       assert_predicate result, :failure?
       assert_equal "resale_fixed_cap_currency_mismatch", result.error.code
       assert_not @ticket_type.reload.resale_enabled
+    end
+
+    test "replays the same key without duplicating the policy audit" do
+      attributes = {
+        resale_enabled: true,
+        resale_price_cap_type: "fixed",
+        resale_fixed_cap_minor: 7_500,
+        resale_fixed_cap_currency: "ETB",
+        max_completed_resales: 2
+      }
+      subject = -> do
+        ConfigureTicketTypeResale.call(
+          ticket_type: @ticket_type,
+          actor: core_users(:super_admin),
+          attributes:,
+          idempotency_key: "configure-replay"
+        )
+      end
+
+      assert_audit_idempotent(
+        subject,
+        action: "marketplace.resale_policy.updated",
+        auditable_type: "Ticketing::TicketType",
+        auditable_id: @ticket_type.id
+      )
+    end
+
+    test "rejects reusing a key for different policy attributes" do
+      first = ConfigureTicketTypeResale.call(
+        ticket_type: @ticket_type,
+        actor: core_users(:super_admin),
+        attributes: { resale_enabled: true, resale_price_cap_type: "fixed", resale_fixed_cap_minor: 7_500,
+                       resale_fixed_cap_currency: "ETB", max_completed_resales: 2 },
+        idempotency_key: "configure-conflict"
+      )
+      second = ConfigureTicketTypeResale.call(
+        ticket_type: @ticket_type,
+        actor: core_users(:super_admin),
+        attributes: { resale_enabled: false },
+        idempotency_key: "configure-conflict"
+      )
+
+      assert_predicate first, :success?, first.error&.message
+      assert_predicate second, :failure?
+      assert_equal "idempotency_conflict", second.error.code
     end
   end
 end
