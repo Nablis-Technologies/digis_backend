@@ -14,8 +14,13 @@ class CreateEventsEvents < ActiveRecord::Migration[8.1]
       t.string :timezone, null: false
       t.string :currency, null: false, default: "ETB"
       t.integer :version, null: false, default: 1
+      t.bigint :revocation_version, null: false, default: 0
+      t.bigint :attendee_index_version, null: false, default: 0
+      t.bigint :schedule_version, null: false, default: 0
+      t.bigint :admission_use_reversal_version, null: false, default: 0
       t.timestamptz :published_at
       t.timestamptz :cancelled_at
+      t.timestamptz :completed_at
       t.timestamptz :discovery_refreshed_at
       t.timestamps
 
@@ -38,6 +43,10 @@ class CreateEventsEvents < ActiveRecord::Migration[8.1]
     add_check_constraint :events_events, "version >= 0",
                          name: "chk_events_events_version_non_negative"
     add_check_constraint :events_events,
+                         "revocation_version >= 0 AND attendee_index_version >= 0 AND " \
+                         "schedule_version >= 0 AND admission_use_reversal_version >= 0",
+                         name: "chk_events_events_scanner_versions_non_negative"
+    add_check_constraint :events_events,
                          "status IN ('draft','published','cancelled','completed')",
                          name: "chk_events_events_status"
     add_check_constraint :events_events,
@@ -52,5 +61,8 @@ class CreateEventsEvents < ActiveRecord::Migration[8.1]
     add_check_constraint :events_events,
                          "cancelled_at IS NULL OR status = 'cancelled'",
                          name: "chk_events_events_cancelled_at_requires_cancelled"
+    add_check_constraint :events_events,
+                         "completed_at IS NULL OR status = 'completed'",
+                         name: "chk_events_events_completed_at_requires_completed"
   end
 end

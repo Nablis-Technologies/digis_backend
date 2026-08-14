@@ -193,6 +193,20 @@ permissions.concat(commercial_permission_actions.map do |action|
   }
 end)
 
+permissions << {
+  resource: "finance.reserve_policy", action: "update", namespace: "finance",
+  description: I18n.t("finance.permissions.reserve_policy_update")
+}
+
+permissions.concat([
+  { resource: "finance.payout", action: "dispatch", namespace: "finance",
+    description: I18n.t("finance.permissions.payout_dispatch") },
+  { resource: "finance.payout", action: "reconcile", namespace: "finance",
+    description: I18n.t("finance.permissions.payout_reconcile") },
+  { resource: "finance.payout", action: "approve_no_balance_api", namespace: "finance",
+    description: I18n.t("finance.permissions.payout_approve_no_balance_api") }
+])
+
 permissions.each do |perm|
   Core::Permission.find_or_create_by!(resource: perm[:resource], action: perm[:action], namespace: perm[:namespace]) do |p|
     p.description = perm[:description]
