@@ -7,6 +7,25 @@ module Ticketing
   CredentialClaims = Data.define(
     :kid, :cid, :tid, :eid, :mode, :slots, :entry_limit, :v, :accesses, :exp
   ) do
+    # Reconstructs the same claim shape as QR verification from the active
+    # attendee-index projection. The row is only an identifier source; the
+    # admission service still reloads the credential and applies revocation,
+    # schedule, zone, and usage rules before recording a result.
+    def self.from_index_entry(entry, expires_at:)
+      new(
+        kid: Rails.application.config.x.ticketing_qr_current_kid.to_s,
+        cid: entry.credential_id.to_s,
+        tid: entry.ticket_id.to_s,
+        eid: entry.event_id.to_s,
+        mode: entry.credential_mode == "group" ? "group" : "individual",
+        slots: Array(entry.slot_positions).map(&:to_i),
+        entry_limit: entry.entry_limit.to_i,
+        v: entry.generation_version.to_i,
+        accesses: Array(entry.product_access_ids).map(&:to_s),
+        exp: expires_at.to_time.to_i
+      )
+    end
+
     def self.from_h(value)
       normalized = value.to_h.deep_symbolize_keys
       unless normalized.keys.sort == members.sort

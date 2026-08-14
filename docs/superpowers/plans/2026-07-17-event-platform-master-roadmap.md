@@ -75,7 +75,7 @@ Commercial Task 9 (admin and organizer API/UX) may follow its own documented
 domain prerequisites, but it is not a reason to introduce a temporary
 `orders_orders` table or to move 7B ahead of Orders Task 2.
 
-**2026-08-12 execution checkpoint — follow this queue:**
+**2026-08-13 execution checkpoint — follow this queue:**
 
 - Commercial Tasks 1–10 are complete. The Commercial API, immutable checkout
   adjustment projection, provider contract, and sequential payment-attempt
@@ -96,18 +96,49 @@ domain prerequisites, but it is not a reason to introduce a temporary
   claims, transfer, reversible suspension, terminal free-package invalidation,
   and the shared validator/revocation contract) are implemented and focused-
   verified in the current working tree. User review/commit remains pending.
+- Scanner Tasks 1–8 (schema/models, device authorization, sync feeds, online
+  admission, idempotent offline uploads, PNR/phone/audited lookup, immutable
+  identity-mismatch override, append-only admission-use reversal, and the
+  versioned native contract/scale gate) are implemented and Rails-focused-
+  verified in the current working tree. User review/commit remains pending.
+  The native client SQLite acceptance row remains open because no native
+  scanner client is present in this repository.
+- Refunds/Finance Tasks 1–8 (refund/cancellation schema, immutable refund-item
+  scope, exact signed/date allocation, idempotent obligations, provider
+  submission/reconciliation, soft-liquidity handling, crash recovery, package/
+  date credential effects, the resumable event-cancellation coordinator, the
+  append-only organizer ledger, locked event completion, maturity fan-out,
+  payout allocation, provider adapters, reserve gates, and crash-safe
+  reconciliation) are implemented and focused-verified with `N_PLUS_ONE=1`.
+  Task 8 passes with 16 focused tests and 127 assertions, plus 7 completion/
+  maturity/reserve-policy tests and the broader finance suite. Targeted Ruby
+  files pass RuboCop, and the PostgreSQL structure dump contains the event
+  completion field, ledger/payout tables, foreign keys, checks, and integrity/
+  immutability triggers. User review/commit remains pending. Refunds/Finance
+  Task 9 is implemented and focused-verified with `N_PLUS_ONE=1` in the
+  current worktree: authorized refund status, ticket cancellation, organizer
+  ledger/payout/balance views, and platform reserve/treasury controls are
+  covered by 24 focused tests and 148 assertions, with safe buyer/organizer
+  serialization, localized errors, routes, seeds, and Postman updates. User
+  review/commit remains pending. Refunds/Finance Task 10 is now implemented
+  and phase-gate verified: the final N+1-enabled full suite passes with 2,470
+  tests and 9,842 assertions, all test migrations are up, and the required
+  Orders/Finance/Ticketing race suite passes with 86 tests and 441 assertions.
+  The user review/commit remains pending.
 - Commercial Task 11 remains intentionally queued until the controlled-resale
   tranche has the package/credential, Finance, and resale prerequisites.
   Commercial Task 12 remains the last Commercial/Phase 3.5 gate.
 
 The next human-visible action is therefore:
 
-1. Review and commit the verified Orders and Ticket Packages tranches.
-2. Start `2026-07-17-scanner-offline-admission-implementation.md` at Task 1
-   when following the serialized single-worktree route. Refunds/Finance Task 1
-   is the independent Wave 5 track and may be run separately when a second
-   isolated worktree is available.
-3. After Wave 5 is green, run Controlled Resale Tasks 1–2 and the Streaming /
+1. Review and commit the verified Orders, Ticket Packages, and Refunds/
+   Finance tranches, including Finance Task 10. The native scanner SQLite
+   acceptance row remains external and does not block the Rails Finance gate.
+2. Keep the Scanner Task 8 contract files synchronized with the eventual
+   Swift/Kotlin/Flutter client, then run that client-side SQLite acceptance
+   gate when the client exists. It is independent of the next Rails task.
+3. After Refunds/Finance Tasks 1–10 are green, run Controlled Resale Tasks 1–2
+   and the Streaming /
    Add-ons / Links plan. These are Wave 6 work and may run in parallel when
    ownership is explicit.
 4. Execute Commercial Task 11 together with Controlled Resale Task 3, then

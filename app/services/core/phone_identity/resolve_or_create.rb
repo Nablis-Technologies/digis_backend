@@ -9,6 +9,24 @@ module Core
     class ResolveOrCreate < Core::BaseService
       Identity = Data.define(:user, :digest)
 
+      # Keeps every phone-derived projection on the same Ethiopian E.164 form.
+      # This is intentionally narrower than a global telecom parser because
+      # the current identity contract supports Ethiopian mobile numbers only.
+      def self.normalize(value)
+        raw = value.to_s.strip
+        return if raw.blank? || !raw.match?(/\A\+?[\d\s-]+\z/)
+
+        digits = raw.delete("^0-9")
+        case digits
+        when /\A2519\d{8}\z/
+          digits
+        when /\A09\d{8}\z/
+          "251#{digits.delete_prefix("0")}"
+        when /\A9\d{8}\z/
+          "251#{digits}"
+        end
+      end
+
       def initialize(phone:, actor:, allow_actor_mismatch: false)
         @phone = phone
         @actor = actor
@@ -16,12 +34,12 @@ module Core
       end
 
       def call
-        normalized_phone = normalize(phone)
+        normalized_phone = self.class.normalize(phone)
         return failure(error("phone_identity_invalid")) if normalized_phone.blank?
         return resolve_manager_recipient(normalized_phone) if allow_actor_mismatch
 
         return failure(error("phone_identity_unverified")) unless actor&.verified_at.present?
-        return failure(error("phone_identity_mismatch")) unless normalized_phone == normalize(actor.phone)
+        return failure(error("phone_identity_mismatch")) unless normalized_phone == self.class.normalize(actor.phone)
 
         success(Identity.new(user: actor, digest: digest_for(normalized_phone)))
       end
@@ -36,21 +54,6 @@ module Core
         success(Identity.new(user:, digest: digest_for(normalized_phone)))
       rescue ActiveRecord::RecordInvalid
         failure(error("phone_identity_invalid"))
-      end
-
-      def normalize(value)
-        raw = value.to_s.strip
-        return if raw.blank? || !raw.match?(/\A\+?[\d\s-]+\z/)
-
-        digits = raw.delete("^0-9")
-        case digits
-        when /\A2519\d{8}\z/
-          digits
-        when /\A09\d{8}\z/
-          "251#{digits.delete_prefix("0")}"
-        when /\A9\d{8}\z/
-          "251#{digits}"
-        end
       end
 
       def digest_for(value)
