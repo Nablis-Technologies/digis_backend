@@ -33,6 +33,18 @@ production:
     class: Finance::ProviderReserveMonitorJob
     queue: default
     schedule: every five minutes
+  expire_commercial_scheduled_state:
+    class: Commercial::ExpireScheduledStateJob
+    queue: default
+    schedule: every minute
+  reconcile_commercial_evidence:
+    class: Commercial::ReconciliationJob
+    queue: default
+    schedule: every hour at minute 25
+  compare_commercial_shadow:
+    class: Commercial::ShadowComparisonJob
+    queue: default
+    schedule: every hour at minute 40
   expire_invitations:
     class: Ticketing::ExpireInvitationsJob
     queue: default

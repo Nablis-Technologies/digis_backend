@@ -2,6 +2,7 @@ en:
   commercial:
     governance:
       errors:
+        invalid_operational_alert: "the operational alert evidence is invalid"
         unauthorized: "the actor is not authorized for this commercial operation"
         invalid_idempotency_key: "the commercial operation requires a valid idempotency key"
         idempotency_conflict: "the idempotency key was already used with different commercial request data"
