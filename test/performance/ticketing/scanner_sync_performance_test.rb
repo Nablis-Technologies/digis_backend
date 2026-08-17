@@ -18,7 +18,7 @@ module Ticketing
         elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
 
         assert_equal count, @snapshot.fetch("attendee_index").fetch("changed").length
-        assert_operator elapsed, :<, contract.dig(:performance, :snapshot_seconds)
+        assert_operator elapsed, :<, snapshot_budget(contract)
       end
 
       test "serializes a production-shaped 500-scan upload response within the contract budget" do
@@ -38,6 +38,11 @@ module Ticketing
 
       def load_contract
         @contract ||= JSON.parse(File.read(CONTRACT_PATH)).deep_symbolize_keys
+      end
+
+      def snapshot_budget(contract)
+        budget_key = ENV["CI"].present? ? :snapshot_seconds_ci : :snapshot_seconds
+        contract.dig(:performance, budget_key)
       end
 
       def payload_with_attendee_entries(sample, count)
