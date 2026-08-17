@@ -54,11 +54,21 @@ Rails.application.configure do
   # Set this to true and configure the email server for immediate delivery to raise delivery errors.
   # config.action_mailer.raise_delivery_errors = false
 
-  # Set host to be used by links generated in mailer templates.
-  config.action_mailer.default_url_options = { host: "example.com" }
+  preview_host = ENV.fetch("APP_HOST", "example.com")
+  preview_protocol = ENV.fetch("APP_PROTOCOL", "https")
 
-  # Set host for Active Storage URL generation in serializers.
-  Rails.application.routes.default_url_options = { host: "example.com" }
+  # Use the deployed preview host for generated links without changing
+  # authentication, serializer visibility, or host authorization behavior.
+  config.action_mailer.default_url_options = {
+    host: preview_host,
+    protocol: preview_protocol
+  }
+
+  # Set host and protocol for Active Storage URL generation in serializers.
+  Rails.application.routes.default_url_options = {
+    host: preview_host,
+    protocol: preview_protocol
+  }
 
   # Specify outgoing SMTP server. Remember to add smtp/* credentials via bin/rails credentials:edit.
   # config.action_mailer.smtp_settings = {
