@@ -82,10 +82,21 @@ test:
 #
 # Read https://guides.rubyonrails.org/configuring.html#configuring-a-database
 # for a full overview on how database connection configuration can be specified.
+
+<% if ENV["RENDER_PREVIEW"] == "true" && ENV["RENDER_PREVIEW_DATABASE_URL"].blank? %>
+  <% raise "RENDER_PREVIEW_DATABASE_URL is required when RENDER_PREVIEW=true" %>
+<% end %>
+
+<% render_preview_database_url = if ENV["RENDER_PREVIEW"] == "true"
+                                  ENV["RENDER_PREVIEW_DATABASE_URL"].presence
+                                end %>
 #
 production:
   primary: &primary_production
     <<: *default
+    <% if render_preview_database_url %>
+    url: <%= render_preview_database_url.inspect %>
+    <% end %>
     database: <%= ENV.fetch("DIGIS_BACKEND_DATABASE", "digis_backend_production") %>
     username: <%= ENV.fetch("DIGIS_BACKEND_DATABASE_USERNAME", "digis_backend") %>
     password: <%= ENV["DIGIS_BACKEND_DATABASE_PASSWORD"] %>
