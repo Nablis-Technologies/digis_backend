@@ -22,41 +22,35 @@
 ## Task 1: Create playback-session schema on the existing event-stream model
 
 **Files:**
-- Create: `db/migrate/20260717210201_create_ticketing_stream_sessions.rb`
+- Create: `db/migrate/20260818090001_create_ticketing_stream_sessions.rb`
 - Reuse: `app/models/events/event_stream.rb`
 - Create: `app/models/ticketing/stream_session.rb`
-- Reuse fixtures: `test/fixtures/events_event_streams.yml`
-- Test fixtures: `test/fixtures/ticketing_stream_sessions.yml`
 - Test: `test/models/ticketing/stream_session_test.rb`
+- Test data is created dynamically because this repository has no event-date or
+  event-stream fixtures; stream-session rows remain runtime authorization data
+  and are intentionally not seeded.
 
-- [ ] **Step 1: RED — test unique token digest and lifecycle checks**
+- [x] **Step 1: RED — test unique token digest and lifecycle checks**
 
-```ruby
-require "test_helper"
+The test setup creates a valid event stream and ticket dynamically, then
+asserts that duplicate token digests are rejected and revoked sessions require
+`revoked_at`.
 
-class Ticketing::StreamSessionTest < ActiveSupport::TestCase
-  test "Digis session token digest is globally unique" do
-    duplicate = ticketing_stream_sessions(:active_friday).dup
-    assert_raises(ActiveRecord::RecordNotUnique) { duplicate.save!(validate: false) }
-  end
-
-  test "revoked session requires revocation time" do
-    session = ticketing_stream_sessions(:active_friday)
-    session.assign_attributes(status: "revoked", revoked_at: nil)
-    assert_not session.valid?
-  end
-end
-```
-
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing/stream_session_test.rb`
 
-Expected: FAIL because stream sessions are missing.
+Verified RED: 2 tests errored with `NameError: uninitialized constant
+Ticketing::StreamSession`, because the model did not exist yet.
 
-- [ ] **Step 3: GREEN — create only `ticketing_stream_sessions`**
+- [x] **Step 3: GREEN — create only `ticketing_stream_sessions`**
 
 Reuse the event-foundation plan's `events_event_streams` table and model. Create ticket, event stream, user, normalized device ID, unique token digest, active/expired/revoked status, expiry/last-seen/revoked times.
+
+The migration uses `20260818090001` rather than the plan's original historical
+date so the ticket and event-stream foreign-key targets already exist on a
+fresh install; this follows the repository's dependency-ordered migration
+convention.
 
 ```ruby
 add_index :ticketing_stream_sessions, :session_token_digest, unique: true
@@ -66,20 +60,24 @@ add_index :ticketing_stream_sessions, %i[ticket_id event_stream_id status expire
 
 Add status/time and expiry checks plus a deferred same-event ticket/stream FK trigger. Provider identifiers remain protected and secrets remain in Rails credentials/encrypted fields, never stream config or serializers.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:migrate && PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing/stream_session_test.rb`
 
-Expected: PASS.
+Verified: 3 tests, 4 assertions, 0 failures, 0 errors with `N_PLUS_ONE=1`,
+including the cross-event database guard. The fresh checked-in SQL structure
+also loads successfully with `db:test:prepare`.
 
-- [ ] **Step 5: REFACTOR — keep provider behavior out of models**
+- [x] **Step 5: REFACTOR — keep provider behavior out of models**
 
-Models retain associations, encryption, validations, and scopes only.
+Models retain associations, validations, lifecycle predicates, and scopes only;
+provider behavior and plaintext session tokens are absent. Zeitwerk and targeted
+RuboCop checks pass.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Commit — user-owned**
 
 ```bash
-git add db/migrate/20260717210201_create_ticketing_stream_sessions.rb app/models/ticketing/stream_session.rb test/models/ticketing/stream_session_test.rb test/fixtures/ticketing_stream_sessions.yml
+git add db/migrate/20260818090001_create_ticketing_stream_sessions.rb db/structure.sql app/models/core/user.rb app/models/events/event_stream.rb app/models/ticketing/ticket.rb app/models/ticketing/stream_session.rb test/models/ticketing/stream_session_test.rb
 git commit -m "feat(streaming): add playback sessions"
 ```
 
@@ -92,7 +90,7 @@ git commit -m "feat(streaming): add playback sessions"
 - Create: `app/services/streaming/authorization.rb`
 - Create: `app/values/streaming/playback_grant.rb`
 - Create: `app/values/streaming/window.rb`
-- Create: `app/services/streaming/providers/errors.rb`
+- Create: `app/services/streaming/providers/error.rb`, `unknown_provider.rb`, `invalid_configuration.rb`, `playback_unavailable.rb`
 - Create: `app/services/streaming/providers/base_adapter.rb`
 - Create: `app/services/streaming/providers/youtube_adapter.rb`
 - Create: `app/services/streaming/providers/registry.rb`
@@ -103,6 +101,7 @@ git commit -m "feat(streaming): add playback sessions"
 - Modify: `app/services/events/publication_readiness.rb`
 - Modify: `app/serializers/catalog/product_quote_serializer.rb`
 - Modify: `config/routes.rb`
+- Modify: `config/locales/streaming.en.yml`, `config/initializers/inflections.rb`, and `postman/Digis API_collection.json`
 - Create: `test/support/fakes/streaming/fake_adapter.rb`
 - Create: `test/support/contracts/streaming/provider_adapter_contract.rb`
 - Create: `test/services/streaming/providers/youtube_adapter_test.rb`
@@ -112,8 +111,10 @@ git commit -m "feat(streaming): add playback sessions"
 - Test: `test/services/streaming/sessions/refresh_test.rb`
 - Test: `test/services/events/publication_readiness_streaming_test.rb`
 - Test: `test/controllers/ticketing/stream_sessions_controller_test.rb`
+- Test: `test/serializers/catalog/product_quote_streaming_test.rb`
+- Test support: `test/support/streaming_test_helpers.rb`
 
-- [ ] **Step 1: RED — specify authorization, provider contract, and honest protection disclosure**
+- [x] **Step 1: RED — specify authorization, provider contract, and honest protection disclosure**
 
 ```ruby
 test "creates one short-lived session for an authorized current holder" do
@@ -144,13 +145,15 @@ The provider contract suite must run against `YouTubeAdapter` and the test-only 
 - a provider change cannot fall below a frozen or sold product-access requirement;
 - no stream can claim `internal`, self-hosted, signed, non-shareable, or provider-enforced playback without a registered adapter that actually supports it.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/streaming test/services/events/publication_readiness_streaming_test.rb test/controllers/ticketing/stream_sessions_controller_test.rb`
 
-Expected: FAIL because authorization is missing.
+Verified RED after the test loader was corrected: 17 tests, 3 assertions,
+1 expected publication/controller failure, and 15 missing-implementation
+errors.
 
-- [ ] **Step 3: GREEN — define immutable provider-neutral values and adapter contract**
+- [x] **Step 3: GREEN — define immutable provider-neutral values and adapter contract**
 
 ```ruby
 # frozen_string_literal: true
@@ -262,7 +265,7 @@ end
 
 `YouTubeAdapterTest` and `FakeAdapterTest` include this contract and provide those three fixtures/helpers. Adapter-specific tests still cover missing identifiers, supported protection tiers, token absence for YouTube, and configuration rejection.
 
-- [ ] **Step 4: GREEN — implement YouTube, registry, and test fake**
+- [x] **Step 4: GREEN — implement YouTube, registry, and test fake**
 
 ```ruby
 # frozen_string_literal: true
@@ -346,7 +349,7 @@ Rails.application.config.x.streaming.enabled_providers =
 
 Never read provider OAuth tokens, playback keys, or unlisted-broadcast credentials from `ENV` or this file; those live in encrypted credentials and are decrypted only inside the relevant adapter at call time.
 
-- [ ] **Step 5: GREEN — authorize under ticket/stream advisory lock and return separate tokens**
+- [x] **Step 5: GREEN — authorize under ticket/stream advisory lock and return separate tokens**
 
 ```ruby
 # frozen_string_literal: true
@@ -403,26 +406,29 @@ end
 
 Authorization requires an active ticket, current active credential held by requester, matching stream access/date, and open live/replay window. Serialize concurrent-device counting with transaction advisory lock `(ticket_id,event_stream_id)`. Store only the Digis session-token digest. The `session_token` plaintext is returned only on session creation and authenticates refresh/heartbeat calls; `playback_grant` contains provider playback material. They are deliberately different concepts.
 
-- [ ] **Step 6: GREEN — enforce publication compatibility and checkout disclosure**
+- [x] **Step 6: GREEN — enforce publication compatibility and checkout disclosure**
 
 `Events::PublicationReadiness` compares every stream access's immutable `required_access_protection` with the configured stream's provider-validated `access_protection`, using `public < soft_gated < signed`. It rejects unsupported/disabled adapters, any insufficient pairing, and any signed/non-shareable claim backed by YouTube. A provider change locks the event stream, checks every frozen/sold access requirement, revokes active Digis stream sessions through outbox work, and only then activates the new configuration.
 
 `Catalog::ProductQuoteSerializer` exposes `stream_access_protection` plus a stable notice code. Paid YouTube products return `soft_gated_youtube_link_sharing`; public streams return `public_stream`; signed providers later return `signed_provider_enforced`. Public/event serializers may expose provider name and protection tier only after publication, but never unpublished playback IDs, session tokens, token digests, or provider credentials.
 
-- [ ] **Step 7: Run GREEN**
+- [x] **Step 7: Run GREEN**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/streaming test/services/events/publication_readiness_streaming_test.rb test/controllers/ticketing/stream_sessions_controller_test.rb`
 
-Expected: PASS.
+Verified focused Task 2 suite: 21 tests, 75 assertions, 0 failures, and
+0 errors with `N_PLUS_ONE=1`; the locale contract suite adds two more passing
+tests. The final full suite passes 2,634 tests and 10,878 assertions with zero
+failures and zero errors under `N_PLUS_ONE=1`.
 
-- [ ] **Step 8: REFACTOR — keep provider capabilities explicit**
+- [x] **Step 8: REFACTOR — keep provider capabilities explicit**
 
 Controller remains `Ticketing::StreamSessionsController` and renders through existing JSON helpers and AMS. Keep `/api/v1` in routes rather than Ruby namespaces. Do not add a generic capability engine: the adapter's explicit protection allowlist and the product access's required tier are sufficient. Mux or Cloudflare Stream becomes a later adapter plus contract tests, not a new ticket/session schema.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 9: Commit — user-owned**
 
 ```bash
-git add app/services/streaming app/values/streaming app/controllers/ticketing/stream_sessions_controller.rb app/policies/ticketing app/serializers/ticketing app/services/events/publication_readiness.rb app/serializers/catalog/product_quote_serializer.rb config/initializers/streaming.rb config/routes.rb test/services/streaming test/services/events/publication_readiness_streaming_test.rb test/support/fakes/streaming test/support/contracts/streaming test/controllers/ticketing
+git add app/controllers/catalog/product_quotes_controller.rb app/controllers/ticketing/stream_sessions_controller.rb app/models/ticketing/stream_session.rb app/policies/ticketing/stream_session_policy.rb app/serializers/catalog/product_quote_serializer.rb app/serializers/ticketing/stream_session_serializer.rb app/services/events/publication_readiness.rb app/services/streaming app/values/streaming config/initializers/inflections.rb config/initializers/streaming.rb config/locales/streaming.en.yml config/routes.rb db/migrate/20260818090001_create_ticketing_stream_sessions.rb db/structure.sql postman/'Digis API_collection.json' test/controllers/ticketing/stream_sessions_controller_test.rb test/serializers/catalog/product_quote_streaming_test.rb test/services/events/publication_readiness_streaming_test.rb test/services/streaming test/support/contracts/streaming test/support/fakes/streaming test/support/streaming_test_helpers.rb
 git commit -m "feat(streaming): add honest YouTube playback adapter"
 ```
 
