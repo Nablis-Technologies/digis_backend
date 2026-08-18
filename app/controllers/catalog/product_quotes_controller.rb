@@ -3,7 +3,7 @@
 module Catalog
   class ProductQuotesController < Catalog::ApplicationController
     def create
-      product = Catalog::EventProduct.find(params[:product_id])
+      product = Catalog::EventProduct.includes(product_accesses: { event_date: :event_stream }).find(params[:product_id])
       authorize product, :create?, policy_class: Catalog::ProductQuotePolicy
 
       at = quote_time
@@ -16,7 +16,7 @@ module Catalog
       )
 
       if result.success?
-        render_success(data: quote_payload(result.value))
+        render_success(data: quote_payload(result.value, product:))
       else
         render_error(result.error.message, status: :unprocessable_entity)
       end
@@ -32,8 +32,8 @@ module Catalog
       nil
     end
 
-    def quote_payload(quote)
-      Catalog::ProductQuoteSerializer.new(quote).attributes.symbolize_keys
+    def quote_payload(quote, product:)
+      Catalog::ProductQuoteSerializer.new(quote, product:).attributes.symbolize_keys
     end
   end
 end

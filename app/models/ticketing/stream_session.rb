@@ -27,6 +27,10 @@ module Ticketing
 
     scope :active, -> { where(status: "active").where("expires_at > ?", Time.current) }
 
+    def self.token_digest_for(token:)
+      Core::KeyedDigest.digest(namespace: "streaming-session", value: token)
+    end
+
     def active?
       status == "active" && expires_at.present? && expires_at > Time.current
     end
@@ -37,6 +41,13 @@ module Ticketing
 
     def revoked?
       status == "revoked"
+    end
+
+    def token_matches?(token)
+      ActiveSupport::SecurityUtils.secure_compare(
+        session_token_digest,
+        self.class.token_digest_for(token:)
+      )
     end
 
     def self.ransackable_attributes(_auth_object = nil)
