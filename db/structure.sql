@@ -5284,6 +5284,49 @@ CREATE TABLE public.legal_documents (
 
 
 --
+-- Name: links_short_link_clicks; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.links_short_link_clicks (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    short_link_id uuid NOT NULL,
+    referrer text,
+    device_type character varying,
+    country character varying(2),
+    clicked_at timestamp with time zone NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL
+);
+
+
+--
+-- Name: links_short_links; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.links_short_links (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    slug character varying NOT NULL,
+    target_type character varying,
+    target_id uuid,
+    custom_url text,
+    creator_id uuid,
+    canonical boolean DEFAULT false NOT NULL,
+    expires_at timestamp with time zone,
+    max_clicks bigint,
+    click_count bigint DEFAULT 0 NOT NULL,
+    utm_source character varying,
+    utm_medium character varying,
+    utm_campaign character varying,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT links_short_links_click_bounds_check CHECK ((((max_clicks IS NULL) OR (max_clicks > 0)) AND (click_count >= 0) AND ((max_clicks IS NULL) OR (click_count <= max_clicks)))),
+    CONSTRAINT links_short_links_https_url_check CHECK (((custom_url IS NULL) OR (custom_url ~~ 'https://%'::text))),
+    CONSTRAINT links_short_links_target_type_check CHECK (((target_type IS NULL) OR ((target_type)::text = ANY ((ARRAY['event'::character varying, 'ticket'::character varying, 'organization'::character varying])::text[])))),
+    CONSTRAINT links_short_links_target_xor_check CHECK ((((target_type IS NOT NULL) AND (target_id IS NOT NULL) AND (custom_url IS NULL)) OR ((target_type IS NULL) AND (target_id IS NULL) AND (custom_url IS NOT NULL))))
+);
+
+
+--
 -- Name: marketplace_resale_listings; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -7332,6 +7375,22 @@ ALTER TABLE ONLY public.legal_documents
 
 
 --
+-- Name: links_short_link_clicks links_short_link_clicks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.links_short_link_clicks
+    ADD CONSTRAINT links_short_link_clicks_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: links_short_links links_short_links_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.links_short_links
+    ADD CONSTRAINT links_short_links_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: marketplace_resale_listings marketplace_resale_listings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8095,6 +8154,20 @@ CREATE INDEX idx_inventory_reservations_on_status_and_expires ON public.catalog_
 --
 
 CREATE INDEX idx_legal_acceptances_by_actor ON public.legal_acceptances USING btree (accepted_by_user_id, accepted_at);
+
+
+--
+-- Name: idx_links_short_links_canonical_target; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_links_short_links_canonical_target ON public.links_short_links USING btree (target_type, target_id) WHERE ((canonical = true) AND (target_type IS NOT NULL));
+
+
+--
+-- Name: idx_links_short_links_lower_slug; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_links_short_links_lower_slug ON public.links_short_links USING btree (lower((slug)::text));
 
 
 --
@@ -10163,6 +10236,27 @@ CREATE UNIQUE INDEX index_legal_versions_on_doc_version ON public.legal_document
 
 
 --
+-- Name: index_links_short_link_clicks_on_short_link_id_and_clicked_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_links_short_link_clicks_on_short_link_id_and_clicked_at ON public.links_short_link_clicks USING btree (short_link_id, clicked_at DESC);
+
+
+--
+-- Name: index_links_short_links_on_creator_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_links_short_links_on_creator_id ON public.links_short_links USING btree (creator_id);
+
+
+--
+-- Name: index_links_short_links_on_target_type_and_target_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_links_short_links_on_target_type_and_target_id ON public.links_short_links USING btree (target_type, target_id);
+
+
+--
 -- Name: index_one_published_legal_doc; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -11912,6 +12006,14 @@ ALTER TABLE ONLY public.ticketing_registration_consent_requirements
 
 
 --
+-- Name: links_short_links fk_rails_4629ad2839; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.links_short_links
+    ADD CONSTRAINT fk_rails_4629ad2839 FOREIGN KEY (creator_id) REFERENCES public.core_users(id);
+
+
+--
 -- Name: ticketing_access_codes fk_rails_46c5693101; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12397,6 +12499,14 @@ ALTER TABLE ONLY public.commercial_fee_tiers
 
 ALTER TABLE ONLY public.orders_refund_items
     ADD CONSTRAINT fk_rails_7b6a8628ea FOREIGN KEY (ticket_id) REFERENCES public.ticketing_tickets(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: links_short_link_clicks fk_rails_7bc77e7f20; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.links_short_link_clicks
+    ADD CONSTRAINT fk_rails_7bc77e7f20 FOREIGN KEY (short_link_id) REFERENCES public.links_short_links(id) ON DELETE RESTRICT;
 
 
 --
@@ -13686,6 +13796,8 @@ INSERT INTO "schema_migrations" (version) VALUES
 ('20260724090003'),
 ('20260724090002'),
 ('20260724090001'),
+('20260717210203'),
+('20260717210202'),
 ('20260717011002'),
 ('20260717011001'),
 ('20260717010900'),

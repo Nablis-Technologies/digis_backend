@@ -359,4 +359,8 @@ Rails.application.routes.draw do
     get "users/:user_id/following", to: "follows#following"
     get "feed", to: "feed#index"
   end
+
+  constraints(lambda { |request| request.host == Rails.application.config.x.short_links.host }) do
+    get "/:slug", to: "links/redirects#show", as: :branded_redirect
+  end
 end
