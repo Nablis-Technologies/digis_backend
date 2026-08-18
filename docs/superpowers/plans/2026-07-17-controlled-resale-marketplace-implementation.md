@@ -16,6 +16,28 @@
 
 Despite the architecture's Phase 3.75 label, executable resale ships **after Phase 4 credential core**. Before routes/jobs activate, tests must prove tickets, slots, generations, credentials, claims, revocations, suspensions, attendee-index deltas, transactional outbox, all-or-nothing delegation, package transfer/acquisition history, uses, orders/payments/reversals, registration/purchase limits, refunds, and organizer finance. Migrations may land earlier behind disabled routes. Replace old paid-transfer/resale shortcuts; do not dual write.
 
+### Commercial handoff
+
+Commercial Task 11 is executed here, not as an isolated Commercial-only
+change. Run it together with Marketplace Task 3 after Marketplace Tasks 1–2
+and the package/credential, Orders, Refunds/Finance prerequisites are green.
+Marketplace Task 3 must consume `Commercial::ResolveCharges` for the distinct
+`resale_platform_fee`; it must not create a second resale fee engine. Once the
+resale plan and Finance evidence are complete, return to Commercial Task 12
+for the final reconciliation and Phase 3.5 gate.
+
+Task 5 is implemented and committed in `cf32fc3` and `9e5303a`; the sequencing
+checkpoint is recorded in `2ae5a5e`. It adds the atomic resale reservation
+boundary: a quantity-one resale checkout, buyer purchase-limit hold, seller
+generation revocation, attendee-index tombstone, package suspension, audit,
+and transactional outbox evidence. Task 6 is implemented and committed in
+`2d4beec`, `213e408`, and `ca3a3c6`; its accepted-payment fulfillment boundary
+is a separate changeset from Task 5. Task 7 is implemented and committed in
+`d76152a` and `2b6f603`; Task 8 is implemented and committed in `41ae8e7`,
+`19cc9df`, and `f8be224`. Task 9 was then implemented and verified. Task 10
+was implemented, verified, and committed in `95ff701`, `e2cf09c`, `016954f`,
+and `1cde82c`. The final AJ/failure-recovery gate is Task 11 below.
+
 ## Approved AJ invariants
 
 - **AJ-A:** Organizer may allow or disallow resale per ticket type.
@@ -34,13 +56,13 @@ Every AJ item is a release-blocking named test.
 
 ### Database and models
 
-- Create `db/migrate/20260717110001_add_resale_policy_to_ticket_types.rb`
-- Create `db/migrate/20260717110003_create_marketplace_seller_payout_accounts.rb`
-- Create `db/migrate/20260717110004_create_marketplace_resale_listings.rb`
-- Create `db/migrate/20260717110005_create_marketplace_resale_sales.rb`
-- Create `db/migrate/20260717110006_create_marketplace_seller_ledger_entries.rb`
-- Create `db/migrate/20260717110007_create_marketplace_seller_payouts.rb`
-- Create `db/migrate/20260717110008_create_marketplace_seller_payout_allocations.rb`
+- Modify the existing `db/migrate/20260727090021_create_ticketing_ticket_types.rb` resale-policy columns/checks; do not create a duplicate migration
+- Create `db/migrate/20260814090001_create_marketplace_seller_payout_accounts.rb`
+- Create `db/migrate/20260814090002_create_marketplace_resale_listings.rb`
+- Create `db/migrate/20260814090003_create_marketplace_resale_sales.rb`
+- Create `db/migrate/20260814090004_create_marketplace_seller_ledger_entries.rb`
+- Create `db/migrate/20260814090005_create_marketplace_seller_payouts.rb`
+- Create `db/migrate/20260814090006_create_marketplace_seller_payout_allocations.rb`
 - Create models under `app/models/marketplace/`
 
 ### Commands/calculations
@@ -73,77 +95,43 @@ Every AJ item is a release-blocking named test.
 ## Task 1: Add organizer policy and exact cap
 
 **Files:**
-- Create: resale policy migration
+- Modify: the existing resale-policy columns/checks in `db/migrate/20260727090021_create_ticketing_ticket_types.rb`
 - Modify: `app/models/ticketing/ticket_type.rb`
 - Create: `app/services/marketplace/calculate_price_cap.rb`
 - Create: `app/services/marketplace/configure_ticket_type_resale.rb`
 - Test: `test/models/ticketing/ticket_type_resale_test.rb`
 - Test: `test/services/marketplace/calculate_price_cap_test.rb`
+- Test: `test/services/marketplace/configure_ticket_type_resale_test.rb`
 
-- [ ] **Step 1: RED — encode AJ-A, AJ-B, AJ-C1**
+- [x] **Step 1: RED — encode AJ-A, AJ-B, AJ-C1**
 
-Test disabled shape, enabled exactly-one cap shape, positive fixed/event settlement currency, positive percentage, direct-DB rejection of competing fields, default one, platform maximum, and immutable listing snapshots.
+Test disabled shape, enabled exactly-one cap shape, positive fixed/event settlement currency, positive percentage, direct-DB rejection of competing fields, default one, and the platform maximum. Immutable listing snapshots are covered when the listing schema is introduced in Task 2; Task 1 has no listing table to snapshot.
 
-- [ ] **Step 2: Run tests and verify RED**
-
-```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing/ticket_type_resale_test.rb test/services/marketplace/calculate_price_cap_test.rb
-```
-
-Expected: FAIL.
-
-- [ ] **Step 3: GREEN — implement mutually exclusive calculator**
-
-```ruby
-# frozen_string_literal: true
-
-module Marketplace
-  class CalculatePriceCap
-    Result = Data.define(:cap_type, :calculated_cap_minor, :fixed_cap_minor, :percentage_cap_bps)
-
-    def self.call(...) = new(...).call
-
-    def initialize(cap_type:, acquisition_product_value_minor:, fixed_cap_minor: nil, percentage_cap_bps: nil)
-      @type = cap_type.to_s
-      @acquisition = Integer(acquisition_product_value_minor)
-      @fixed = fixed_cap_minor&.then { Integer(_1) }
-      @bps = percentage_cap_bps&.then { Integer(_1) }
-    end
-
-    def call
-      case @type
-      when "fixed"
-        fail ArgumentError, "fixed mode requires only fixed cap" unless @fixed&.positive? && @bps.nil?
-        Result.new(cap_type: @type, calculated_cap_minor: @fixed,
-          fixed_cap_minor: @fixed, percentage_cap_bps: nil)
-      when "percentage"
-        fail ArgumentError, "percentage mode requires only basis points" unless @bps&.positive? && @fixed.nil?
-        amount = (BigDecimal(@acquisition.to_s) * @bps / 10_000).round(0, :half_up).to_i
-        Result.new(cap_type: @type, calculated_cap_minor: amount,
-          fixed_cap_minor: nil, percentage_cap_bps: @bps)
-      else
-        fail ArgumentError, "unknown resale cap type"
-      end
-    end
-  end
-end
-```
-
-Migration check allows only disabled/no-cap, enabled/fixed-only, enabled/percentage-only. No fallback or `LEAST`.
-
-- [ ] **Step 4: Run tests and verify GREEN**
-
-Run Task 1 command. Expected: PASS.
-
-- [ ] **Step 5: Refactor and verify direct writes**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing/ticket_type_resale_test.rb --seed 17303
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing/ticket_type_resale_test.rb test/services/marketplace/calculate_price_cap_test.rb test/services/marketplace/configure_ticket_type_resale_test.rb
 ```
 
-Expected: PASS.
+Observed RED before implementation: 16 tests, 11 assertions, 6 failures, and 10 errors.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 3: GREEN — implement mutually exclusive calculator**
+
+`Marketplace::CalculatePriceCap` returns a typed `Core::BaseService::Result`, accepts exactly one fixed or percentage shape, rejects free acquisitions for percentage caps, and uses half-up rounding for integer minor units. All service errors are localized; no user-facing messages are hard-coded. The original ticket-type migration now permits only disabled/no-cap, enabled/fixed-only, or enabled/percentage-only rows. `max_completed_resales` uses PostgreSQL `smallint`, making 32,767 the explicit platform hard maximum because the approved design specifies the type but no lower numeric cap. No fallback or `LEAST` behavior is used.
+
+- [x] **Step 4: Run tests and verify GREEN**
+
+The focused command passed: 17 tests, 64 assertions, 0 failures, and 0 errors after rebuilding the test database from the edited original migration.
+
+- [x] **Step 5: Refactor and verify direct writes**
+
+```bash
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing/ticket_type_test.rb test/models/catalog/event_product_test.rb test/integration/catalog/event_products_test.rb test/models/ticketing/ticket_type_resale_test.rb test/services/marketplace
+```
+
+Passed: 43 tests, 147 assertions, 0 failures, and 0 errors. Direct SQL tests prove the database rejects disabled cap data and a completed-resale limit above the platform maximum. RuboCop passed on all six changed Ruby files.
+
+- [x] **Step 6: Commit**
 
 ```bash
 git add db/migrate db/structure.sql app/models/ticketing/ticket_type.rb app/services/marketplace test/models/ticketing test/services/marketplace
@@ -159,11 +147,11 @@ git commit -m "feat(marketplace): configure controlled resale policy"
 - Test: `test/models/marketplace/seller_ledger_entry_test.rb`
 - Test: `test/models/marketplace/seller_payout_test.rb`
 
-- [ ] **Step 1: RED — write direct constraints and STI tests**
+- [x] **Step 1: RED — write direct constraints and STI tests**
 
 Reject two open listings/ticket, mixed cap fields, asking above cap, inconsistent reservation, duplicate sale or `(ticket,resale_number)`, seller=buyer, mismatched payment/order/registration, gross mismatch, zero ledger entry, overallocation, and unverified payout. Prove payout-account and ledger business `type` do not trigger STI. Commercial's phase gate already proves fee scope/version/currency invariants.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/marketplace
@@ -171,7 +159,10 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/marketplace
 
 Expected: FAIL.
 
-- [ ] **Step 3: GREEN — install exact indexes/checks**
+Observed RED before the Marketplace models existed: 16 tests, 0 assertions,
+16 `NameError` errors.
+
+- [x] **Step 3: GREEN — install exact indexes/checks**
 
 ```ruby
 add_index :marketplace_resale_listings, :ticket_id, unique: true,
@@ -188,11 +179,14 @@ add_index :marketplace_seller_payout_accounts, %i[provider account_token], uniqu
 
 Add state coupling, positive amounts, cap exclusivity, gross=Commercial resale fee+proceeds, and allocation constraints. Ledger rows are append-only. STI disabled on business `type` models. Do not create a Marketplace fee configuration table.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
 Run Task 2 command. Expected: PASS.
 
-- [ ] **Step 5: Refactor and inspect schema**
+Passed after the final lifecycle and ledger-scope hardening: 20 tests, 41
+assertions, 0 failures, and 0 errors with `N_PLUS_ONE=1`.
+
+- [x] **Step 5: Refactor and inspect schema**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:migrate
@@ -201,7 +195,13 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/marketplace
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+The six migrations apply from a committed-baseline schema in dependency order.
+Task 1 plus Marketplace regression coverage passed with 37 tests, 105
+assertions, 0 failures, and 0 errors. Full RuboCop passed for 1,325 files.
+
+- [x] **Step 6: Commit**
+
+Committed in `e8521f9` and `70d633d`.
 
 ```bash
 git add db/migrate db/structure.sql app/models/marketplace test/models/marketplace test/fixtures/marketplace
@@ -215,35 +215,48 @@ git commit -m "feat(marketplace): add resale and seller-ledger schema"
 - Test: `test/services/marketplace/commercial_resale_fee_test.rb`
 - Test: `test/integration/marketplace/resale_fee_isolation_test.rb`
 
-- [ ] **Step 1: RED — encode AJ-D1**
+- [x] **Step 1: RED — encode AJ-D1**
 
 Resolve the allowlisted `resale_platform_fee` sale context through Commercial event → organization → program → default precedence. Prove no automatic inheritance from primary-sale commission, bounded product/currency/provider/channel specificity, no stacking, immutable exact component/version evidence, seller fee never above gross, and separation from buyer processing adjustment.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/commercial_resale_fee_test.rb test/integration/marketplace/resale_fee_isolation_test.rb
 ```
 
-Expected: FAIL.
+Expected: FAIL. Observed before the adapter existed: 5 tests, 0 assertions,
+5 `NameError` errors for `Marketplace::ResolveResaleCharge` after the shared
+Commercial test helper was installed.
 
-- [ ] **Step 3: GREEN — consume one immutable Commercial result**
+- [x] **Step 3: GREEN — consume one immutable Commercial result**
 
 `Marketplace::ResolveResaleCharge` is a narrow context adapter that calls `Commercial::ResolveCharges` with resale context and trusted listing/order facts, requires exactly one valid `resale_platform_fee`, rejects a result above gross, and returns the unchanged immutable Commercial result for later snapshotting on the resale order/sale. Commercial's admin APIs own authoring, approval, simulation, and activation; Marketplace creates no competing calculator or admin surface.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+The adapter forces the trusted resale gross into the allowlisted
+`resale_acquisition_amount` basis, propagates Commercial failures unchanged,
+and rejects missing/invalid commercial evidence with localized errors. It does
+not modify listing or sale persistence; those consumers belong to later
+Marketplace tasks.
 
-Run Task 3 command. Expected: PASS.
+- [x] **Step 4: Run tests and verify GREEN**
 
-- [ ] **Step 5: Refactor and verify authorization**
+The focused suite passes with `N_PLUS_ONE=1`: 7 tests, 45 assertions, 0
+failures, and 0 errors.
+
+- [x] **Step 5: Refactor and verify authorization**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace test/integration/marketplace/resale_fee_isolation_test.rb
 ```
 
-Expected: PASS.
+Marketplace and Commercial regression coverage passes with `N_PLUS_ONE=1`: 162
+tests, 1,253 assertions, 0 failures, and 0 errors. Full RuboCop passes for
+1,329 files, and `git diff --check` is clean.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
+
+Committed in `58f3718`.
 
 ```bash
 git add app/services/marketplace test/services/marketplace test/integration/marketplace
@@ -255,14 +268,16 @@ git commit -m "feat(marketplace): consume commercial resale fees"
 **Files:**
 - Create: `app/services/marketplace/activate_listing.rb`
 - Create: `app/services/marketplace/cancel_listing.rb`
+- Modify: `app/services/marketplace/configure_ticket_type_resale.rb`
+- Modify: `config/locales/marketplace/resale.en.yml`
 - Test: `test/services/marketplace/activate_listing_test.rb`
 - Test: `test/integration/marketplace/concurrent_listing_test.rb`
 
-- [ ] **Step 1: RED — encode AJ-A1 and snapshots**
+- [x] **Step 1: RED — encode AJ-A1 and snapshots**
 
 Accept only seller-owned, paid nonzero, group-mode, entirely unused/unstreamed, unrefunded, unsuspended package before cutoff with no transfer/claim and count remaining. Reject free/complimentary, slot, delegated, partially used pass, over-cap, wrong currency, disabled policy. Snapshot acquisition basis, one cap, count/max, cutoff, fee. Concurrent activation gives one listing; disabling policy cancels unsold listings idempotently.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/activate_listing_test.rb test/integration/marketplace/concurrent_listing_test.rb
@@ -270,15 +285,23 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/
 
 Expected: FAIL.
 
-- [ ] **Step 3: GREEN — lock complete eligibility**
+The tests were written before the Task 4 production commands. The first
+execution was blocked by the isolated PostgreSQL test-database permission
+boundary before assertions could run; the test database was then rebuilt from
+`db/structure.sql` for the implementation and verification runs.
 
-Lock ticket → active generation → slots → admission/stream uses → suspension → refunds → transfer/claims. Recheck policy/cutoff, resolve fee, calculate one cap, create listing by idempotency key. Return `success(listing)`; expected rejection uses `failure Core::BusinessError.new(message, code:, status:, errors:)`.
+- [x] **Step 3: GREEN — lock complete eligibility**
 
-- [ ] **Step 4: Run tests and verify GREEN**
+Lock ticket → active generation → slots → admission/stream uses → suspension → refunds → transfer/claims. Recheck policy/cutoff, resolve fee, calculate one cap, create listing by idempotency key. Return `success(listing)`; expected rejection uses `failure Core::BusinessError.new(message, code:, status:, errors:)`. Activation records audit/outbox evidence in the same transaction, and disabling resale cancels open listings through the idempotent cancellation command. Because no persisted stream-consumption model exists yet, stream-enabled products fail closed with a localized error.
+
+- [x] **Step 4: Run tests and verify GREEN**
 
 Run Task 4 command. Expected: PASS.
 
-- [ ] **Step 5: Refactor and repeat race test**
+Passed with `N_PLUS_ONE=1` and `PARALLEL_WORKERS=1`: 15 tests, 87
+assertions, 0 failures, and 0 errors.
+
+- [x] **Step 5: Refactor and repeat race test**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/marketplace/concurrent_listing_test.rb --seed 71593
@@ -286,7 +309,15 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/marketpla
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+Passed with `N_PLUS_ONE=1`: 1 test, 4 assertions, 0 failures, and 0 errors.
+The focused pair also passes together without fixture contamination. Adjacent
+marketplace/commercial/ticketing regression coverage passes with 48 tests and
+264 assertions; targeted RuboCop reports no offenses and `git diff --check`
+is clean.
+
+- [x] **Step 6: Commit**
+
+Committed in `56c02d1`.
 
 ```bash
 git add app/services/marketplace test/services/marketplace test/integration/marketplace
@@ -297,16 +328,15 @@ git commit -m "feat(marketplace): list eligible whole packages"
 
 **Files:**
 - Create: `app/services/marketplace/reserve_listing.rb`
-- Create: `app/jobs/marketplace/expire_reservation_job.rb`
 - Test: `test/services/marketplace/reserve_listing_test.rb`
 - Test: `test/integration/marketplace/concurrent_purchase_test.rb`
 - Test: `test/integration/ticketing/resale_reservation_revocation_test.rb`
 
-- [ ] **Step 1: RED — encode AJ-G1 and reservation half of AJ-H1**
+- [x] **Step 1: RED — encode AJ-G1 and reservation half of AJ-H1**
 
 Two buyers race; one reserves. Create buyer registration, quantity-one resale order/item, buyer purchase allocation, no primary inventory, separate buyer processing adjustment. Seller allocation remains committed. Seller generation revoked/index tombstoned/package suspended before serialization. Replay returns same order; precommit failure changes nothing.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/reserve_listing_test.rb test/integration/marketplace/concurrent_purchase_test.rb test/integration/ticketing/resale_reservation_revocation_test.rb
@@ -314,15 +344,21 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/
 
 Expected: FAIL.
 
-- [ ] **Step 3: GREEN — reserve atomically**
+Passed through the intended RED phase: the five new tests loaded and failed
+because `Marketplace::ReserveListing` did not yet exist.
+
+- [x] **Step 3: GREEN — reserve atomically**
 
 Lock listing → ticket/generation/slots → buyer purchase-limit scope → registration/order scope. Recheck all eligibility. In one transaction create buyer registration/requirements/allocation, resale order/item/adjustments, reserve listing, revoke seller generation, suspend package, call `Core::Audit::Record`, and call `Core::Outbox::Publish` for `(tid,v)` revocation/index/payment effects. Expose checkout only after commit. Replay returns `success(existing_order)`.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
 Run Task 5 command. Expected: PASS.
 
-- [ ] **Step 5: Refactor and verify races**
+Passed with `N_PLUS_ONE=1` and `PARALLEL_WORKERS=1`: 5 tests, 72
+assertions, 0 failures, and 0 errors.
+
+- [x] **Step 5: Refactor and verify races**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/marketplace test/integration/ticketing/resale_reservation_revocation_test.rb --seed 34811
@@ -330,10 +366,18 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/marketpla
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+Passed with `N_PLUS_ONE=1` and `PARALLEL_WORKERS=1`: 4 tests, 36
+assertions, 0 failures, and 0 errors. Related listing, purchase-limit, and
+registration regressions also passed: 51 tests, 307 assertions, 0 failures,
+and 0 errors. Repository-wide RuboCop (1,338 files), Ruby syntax checks, and
+`git diff --check` are clean.
+
+- [x] **Step 6: Commit**
+
+Committed in `cf32fc3` and `9e5303a`.
 
 ```bash
-git add app/services/marketplace app/jobs/marketplace test/services/marketplace test/integration/marketplace test/integration/ticketing
+git add app/services/marketplace test/services/marketplace test/integration/marketplace test/integration/ticketing
 git commit -m "feat(marketplace): reserve resale checkout safely"
 ```
 
@@ -341,42 +385,74 @@ git commit -m "feat(marketplace): reserve resale checkout safely"
 
 **Files:**
 - Create: `app/services/marketplace/fulfill_sale.rb`
-- Integrate: existing order fulfillment boundary
+- Modify: `app/services/marketplace/reserve_listing.rb`
+- Modify: `app/services/orders/accept_payment.rb`
+- Modify: `app/services/orders/fulfill_order.rb`
+- Modify: `app/services/ticketing/credential_generations/replace.rb`
+- Modify: `config/locales/marketplace/resale.en.yml`
+- Test support: `test/support/marketplace/resale_fulfillment_test_helpers.rb`
+- Test support: `test/support/marketplace/resale_reservation_test_helpers.rb`
 - Test: `test/services/marketplace/fulfill_sale_test.rb`
 - Test: `test/integration/marketplace/concurrent_resale_success_test.rb`
+- No routes, serializers, Postman collection, seeds, or migrations change:
+  Task 6 is an internal accepted-payment fulfillment boundary.
 
-- [ ] **Step 1: RED — test ownership/generation/count/ledger atomicity**
+- [x] **Step 1: RED — test ownership/generation/count/ledger atomicity**
 
 Accepted payment only; exact listing/order/payment; duplicate callbacks produce one sale; buyer allocation committed; ownership/acquisition changed; count once; assignments reset; buyer group generation possibly pending requirements; listing sold; gross and separate fee ledger rows; no primary inventory/organizer ledger; injected failure rolls back all.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/fulfill_sale_test.rb test/integration/marketplace/concurrent_resale_success_test.rb
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/fulfill_sale_test.rb test/integration/marketplace/concurrent_resale_success_test.rb
 ```
 
 Expected: FAIL.
 
-- [ ] **Step 3: GREEN — implement accepted-payment transaction**
+Observed RED before implementation: 5 tests, 1 failure, and 4 errors.
 
-Lock listing → order/payment → ticket/generation/slots → policy/count → buyer allocation → seller-ledger keys. Recheck snapshots. Create immutable sale, commit allocation, change owner/acquisition, increment version/count, create buyer group generation, clear suspension, mark sold, post gross/fee, call `Core::Audit::Record` and `Core::Outbox::Publish`. Uniqueness is retry boundary; return `success(existing_sale)` on replay. Expected rejection uses typed `Core::BusinessError` failure.
+- [x] **Step 3: GREEN — implement accepted-payment transaction**
 
-- [ ] **Step 4: Run tests and verify GREEN**
+Lock listing → order/payment → ticket/generation/slots → policy/count → buyer
+allocation → seller-ledger keys. Recheck snapshots. Create the immutable sale
+while the seller still owns the ticket, commit the buyer allocation, mark the
+listing sold while its seller snapshot is still valid, replace the revoked
+seller generation with a new buyer group generation, reload the optimistic-lock
+ticket, then change owner/acquisition/count, clear suspension, fulfill the
+order item/order, and post separate gross/fee seller-ledger rows. Resale
+orders keep the buyer-paid gross settlement fact; Marketplace alone deducts
+the seller fee in its append-only ledger. The Orders fulfillment boundary
+delegates resale orders here and skips generic primary-ticket issuance and
+primary Finance organizer-ledger posting. Uniqueness is the retry boundary;
+return `success(existing_sale)` on replay. Expected rejection uses typed
+`Core::BusinessError` failure. All user-facing errors are localized.
 
-Run Task 6 command. Expected: PASS.
+- [x] **Step 4: Run tests and verify GREEN**
 
-- [ ] **Step 5: Refactor and verify failure injection**
+The N+1-enabled focused command passed: 5 tests, 85 assertions, 0 failures,
+and 0 errors.
+
+- [x] **Step 5: Refactor and verify failure injection**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/fulfill_sale_test.rb test/integration/marketplace/concurrent_resale_success_test.rb --seed 90731
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/fulfill_sale_test.rb test/integration/marketplace/concurrent_resale_success_test.rb --seed 90731
 ```
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+The focused command passed with `N_PLUS_ONE=1`; related Ticketing, Marketplace,
+Orders, payment-race, reservation-revocation, credential-replacement, and
+resale-fee-isolation regressions also passed with `N_PLUS_ONE=1`: 21 tests,
+175 assertions, 0 failures, and 0 errors. The non-transactional concurrency
+teardown was repaired so both original seller and current buyer order-item
+foreign keys are removed in dependency order.
+
+- [x] **Step 6: Commit**
+
+Committed in `2d4beec`, `213e408`, and `ca3a3c6`.
 
 ```bash
-git add app/services/marketplace app/services/orders test/services/marketplace test/integration/marketplace
+git add app/services/marketplace app/services/orders app/services/ticketing/credential_generations/replace.rb config/locales/marketplace/resale.en.yml test/services/marketplace test/integration/marketplace test/support/marketplace/resale_fulfillment_test_helpers.rb test/support/marketplace/resale_reservation_test_helpers.rb
 git commit -m "feat(marketplace): fulfill resale exactly once"
 ```
 
@@ -385,39 +461,45 @@ git commit -m "feat(marketplace): fulfill resale exactly once"
 **Files:**
 - Create: `app/services/marketplace/expire_reservation.rb`
 - Create: `app/services/marketplace/restore_seller_access.rb`
+- Modify: `app/services/marketplace/reserve_listing.rb`
+- Modify: `app/services/marketplace/cancel_listing.rb`
+- Modify: `app/services/ticketing/credential_generations/replace.rb`
+- Modify: `config/locales/marketplace/resale.en.yml`
+- Create: `app/jobs/marketplace/expire_reservation_job.rb`
 - Create: `app/jobs/marketplace/restore_seller_credential_job.rb`
+- Modify: `test/support/marketplace/resale_fulfillment_test_helpers.rb`
 - Test: `test/services/marketplace/expire_reservation_test.rb`
 - Test: `test/integration/marketplace/resale_late_payment_test.rb`
 
-- [ ] **Step 1: RED — complete AJ-H1 failure path**
+- [x] **Step 1: RED — complete AJ-H1 failure path**
 
-Failure/expiry releases buyer allocation and creates newer seller group generation before listing active; old seller credential stays revoked; disabled/cutoff/count reached expires listing; late success fully reverses without ownership; concurrent expiry/success yields complete sale or restoration, never both.
+Failure/expiry releases buyer allocation and creates a newer seller group generation before seller access is restored; the old seller credential stays revoked. Disabled/cutoff/current-policy-limit cases close the listing, late success fully reverses without ownership, and concurrent expiry/success yields complete sale or restoration, never both. The database's unique immutable resale order-item reference makes a failed listing terminal; a later seller retry creates a fresh listing row.
 
-- [ ] **Step 2: Run tests and verify RED**
-
-```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/expire_reservation_test.rb test/integration/marketplace/resale_late_payment_test.rb
-```
-
-Expected: FAIL.
-
-- [ ] **Step 3: GREEN — generation replacement only**
-
-Use fulfillment lock order. Create brand-new seller group generation/credential/PNR, clear suspension only afterward, release buyer allocation, and active-or-expire listing based on current policy. Never reactivate an old row.
-
-- [ ] **Step 4: Run tests and verify GREEN**
-
-Run Task 7 command. Expected: PASS.
-
-- [ ] **Step 5: Refactor and verify offline limitation**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/marketplace test/integration/ticketing --seed 46121
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/expire_reservation_test.rb test/integration/marketplace/resale_late_payment_test.rb
 ```
 
-Expected: PASS; stale scanner limitation is explicit, synchronized scanner rejects seller credential, high-risk near-gate flow can require online validation.
+The initial escalated RED run failed because `ExpireReservation` and its job boundary did not exist; the pre-existing ticket scope trigger also exposed that a test could not mutate the ticket count while the seller generation was revoked.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 3: GREEN — generation replacement only**
+
+Use fulfillment lock order. Create a brand-new seller group generation/credential/PNR, clear suspension only afterward, release buyer allocation, and close the failed listing as terminal `expired`. `ActivateListing` creates a new listing for a later seller retry; no old credential generation or immutable resale order item is reactivated. ReserveListing schedules expiry after commit, and reserved cancellation uses the same release/restoration boundary.
+
+- [x] **Step 4: Run tests and verify GREEN**
+
+The focused Task 7 command passes with `N_PLUS_ONE=1`: 9 tests, 107 assertions, 0 failures, and 0 errors.
+
+- [x] **Step 5: Refactor and verify offline limitation**
+
+```bash
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/marketplace test/integration/ticketing --seed 46121
+```
+
+The broader command passes with `N_PLUS_ONE=1`: 87 tests, 470 assertions, 0 failures, and 0 errors. The focused Marketplace, Ticketing credential-generation, reservation-revocation, resale-fee, and Orders reversal regression suite also passes: 40 tests, 326 assertions, 0 failures, and 0 errors. The existing scanner limitation remains explicit: offline clients must reject the revoked seller generation after synchronization, while high-risk near-gate validation may require online confirmation. No routes, serializers, Postman collection, seeds, or migrations changed because Task 7 is an internal command/job boundary.
+
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/services/marketplace app/jobs/marketplace test/services/marketplace test/integration/marketplace test/integration/ticketing
@@ -432,36 +514,37 @@ git commit -m "feat(marketplace): recover resale checkout credentials"
 - Test: `test/services/marketplace/build_seller_payout_test.rb`
 - Test: `test/services/marketplace/dispatch_seller_payout_test.rb`
 - Test: `test/integration/marketplace/concurrent_seller_payout_test.rb`
+- Test: `test/jobs/marketplace/seller_payout_jobs_test.rb`
 
-- [ ] **Step 1: RED — encode AJ-E1/AJ-F1**
+- [x] **Step 1: RED — encode AJ-E1/AJ-F1**
 
 Raw credentials absent, token/encrypted display only, verified required, proceeds mature after completed+buffer, blocked for postponed/suspended/cancelled/refund/chargeback, negatives before positives, same currency, concurrent builders, ambiguous reconciliation, failure release, success once.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/verify_payout_account_test.rb test/services/marketplace/build_seller_payout_test.rb test/services/marketplace/dispatch_seller_payout_test.rb test/integration/marketplace/concurrent_seller_payout_test.rb
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/verify_payout_account_test.rb test/services/marketplace/build_seller_payout_test.rb test/services/marketplace/dispatch_seller_payout_test.rb test/integration/marketplace/concurrent_seller_payout_test.rb
 ```
 
-Expected: FAIL.
+The initial RED run failed at test load because the Task 8 provider adapter did not exist yet (`Marketplace::PayoutProviders` was unresolved).
 
-- [ ] **Step 3: GREEN — implement tokenized same-currency payout**
+- [x] **Step 3: GREEN — implement tokenized same-currency payout**
 
-Adapter tokenizes/verifies/submits/verifies and returns canonical result. Builder locks seller/account then matured rows by ID, includes negatives, creates reserved allocations. Dispatch persists intent, commits, calls provider, reconciles. Never pay original purchase method.
+Adapter tokenizes/verifies/submits/verifies and returns the canonical provider result. Builder locks seller/account then matured rows by ID, includes negative ledger facts before positive proceeds, and creates positive absolute-value reservations. Dispatch persists intent, commits, calls the provider, reconciles ambiguous outcomes, and never receives or uses the original purchase method. Seller payouts are constrained to one event's ledger facts because the existing required `seller_ledger_entries.event_id` is the accounting scope; a multi-event batch is rejected before provider dispatch. The allocation trigger now compares reservations with `abs(ledger.amount_minor)`, allowing negative refund/fee/chargeback facts to be reserved without changing the positive allocation amount contract.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
-Run Task 8 command. Expected: PASS.
+The focused Task 8 command passes with `N_PLUS_ONE=1`: 14 tests, 113 assertions, 0 failures, and 0 errors.
 
-- [ ] **Step 5: Refactor and verify crashes/races**
+- [x] **Step 5: Refactor and verify crashes/races**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace test/integration/marketplace test/jobs/marketplace --seed 52967
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace test/integration/marketplace test/jobs/marketplace --seed 52967
 ```
 
-Expected: PASS.
+The Marketplace service, integration, and job suite passes with `N_PLUS_ONE=1`: 64 tests, 538 assertions, 0 failures, and 0 errors. Related Marketplace model and Finance payout regressions pass with `N_PLUS_ONE=1`: 17 tests, 123 assertions, 0 failures, and 0 errors. Account verification stores only a provider token plus encrypted display values; provider failure releases reservations, timeout remains `processing` for reconciliation, and provider success consumes allocations exactly once. No routes, serializers, Postman collection, or seeds changed because Task 8 adds internal commands/jobs only.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/services/marketplace app/jobs/marketplace test/services/marketplace test/integration/marketplace test/jobs/marketplace
@@ -471,61 +554,92 @@ git commit -m "feat(marketplace): settle verified seller payouts"
 ## Task 9: Refund acquisition chain and handle chargebacks
 
 **Files:**
-- Create: chain cancellation/chargeback commands
+- Create: `app/services/marketplace/cancel_acquisition_chain_value.rb`
+- Create: `app/services/marketplace/freeze_chargeback_proceeds.rb`
+- Modify: `app/services/events/cancellation/process_payment.rb`
+- Modify: `app/services/orders/create_item_refund.rb`
+- Modify: `app/models/marketplace/seller_ledger_entry.rb`
+- Modify: `config/locales/marketplace/resale.en.yml`
 - Test: `test/services/marketplace/cancel_acquisition_chain_value_test.rb`
 - Test: `test/services/marketplace/freeze_chargeback_proceeds_test.rb`
 - Test: `test/integration/marketplace/multi_acquisition_cancellation_test.rb`
+- Test support: `test/support/marketplace/acquisition_chain_test_helpers.rb`
 
-- [ ] **Step 1: RED — prove payer-specific refunds and proportional reversals**
+- [x] **Step 1: RED — prove payer-specific refunds and proportional reversals**
 
 Primary → resale1 → resale2 cancellation refunds each payment's payer/value, reverses matching seller gross/fee, does not award reseller profit; current-acquisition chargeback suspends package; older chargeback does not steal current credential.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/cancel_acquisition_chain_value_test.rb test/services/marketplace/freeze_chargeback_proceeds_test.rb test/integration/marketplace/multi_acquisition_cancellation_test.rb
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/marketplace/cancel_acquisition_chain_value_test.rb test/services/marketplace/freeze_chargeback_proceeds_test.rb test/integration/marketplace/multi_acquisition_cancellation_test.rb --seed 68143
 ```
 
-Expected: FAIL.
+Observed RED before implementation: the two new command constants were
+missing; the acceptance assertions loaded successfully.
 
-- [ ] **Step 3: GREEN — traverse immutable acquisitions**
+- [x] **Step 3: GREEN — traverse immutable acquisitions**
 
-Lock ticket → sales sequence → payments/refunds → seller ledger. Use each item's date allocation/adjustments; create normal idempotent refund per acquisition/date; append proportional ledger reversals. Never edit ownership history.
+Lock ticket → sales sequence → payments/refunds → seller ledger. Full
+event/package cancellation creates one normal idempotent refund obligation
+per paid acquisition, reverses matching seller gross/fee facts, and leaves
+immutable ownership history and the current credential unchanged. Event
+cancellation routes through this boundary and submits only the claimed
+payment's refund; other acquisition payments are handled by their own durable
+snapshots. A current-acquisition chargeback appends a seller-side hold and
+opens the existing temporary package suspension; an older-chain chargeback
+leaves the current credential valid. Date-scoped resale-chain cancellation
+fails closed before mutation because the existing refund-item database
+contract requires a credential ticket for date rows; implementing date-scoped
+resale refunds needs a separate Orders/refund-schema design update and remains
+an explicit follow-up.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
-Run Task 9 command. Expected: PASS.
+The N+1-enabled focused command passed: 6 tests, 68 assertions, 0 failures,
+and 0 errors.
 
-- [ ] **Step 5: Refactor and verify currencies**
+- [x] **Step 5: Refactor and verify currencies**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/marketplace/multi_acquisition_cancellation_test.rb --seed 68143
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/marketplace/multi_acquisition_cancellation_test.rb --seed 68143
 ```
 
-Expected: PASS; payer refunds original currency, seller reversal stays settlement currency.
+Passed: 2 tests, 19 assertions, 0 failures, and 0 errors. Payer refunds keep
+their original payment currency and seller reversals stay in the immutable
+resale settlement currency. Orders refund and ledger regressions also pass:
+15 tests, 77 assertions, 0 failures, and 0 errors. Targeted RuboCop passes.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
-git add app/services/marketplace test/services/marketplace test/integration/marketplace
+git add app/models/marketplace/seller_ledger_entry.rb app/services/events/cancellation/process_payment.rb app/services/marketplace app/services/orders/create_item_refund.rb config/locales/marketplace/resale.en.yml test/services/marketplace test/integration/marketplace test/support/marketplace/acquisition_chain_test_helpers.rb
 git commit -m "feat(marketplace): reverse cancelled resale acquisitions"
 ```
+
+Task 9's user review/commit boundary was completed before Task 10 began. The
+Task 10 API and Task 11 failure-recovery gates are now complete locally; do not
+begin Commercial Task 12 until the Task 11 checkpoint is committed and the
+Finance/operational evidence is complete.
 
 ## Task 10: Expose authorized marketplace APIs without scanner leakage
 
 **Files:**
 - Create: controllers/policies/serializers under domain paths
+- Modify: `app/services/marketplace/configure_ticket_type_resale.rb`
+- Modify: `config/locales/marketplace/resale.en.yml`
 - Modify: `config/routes.rb`
 - Test: `test/controllers/marketplace/resale_listings_controller_test.rb`
 - Test: `test/controllers/marketplace/resale_purchases_controller_test.rb`
 - Test: `test/controllers/marketplace/seller_payout_accounts_controller_test.rb`
+- Test: `test/services/marketplace/configure_ticket_type_resale_test.rb`
 - Test: `test/integration/ticketing/marketplace_scanner_privacy_test.rb`
 
-- [ ] **Step 1: RED — test routes, Pundit, one-command boundary, and privacy**
+- [x] **Step 1: RED — test routes, Pundit, one-command boundary, and privacy**
 
 Include root `tickets/:id/resale`, `resale_listings/:id/purchase`, cancellation, seller history/balance/accounts, organizer policy, and admin payout. Commercial's existing admin surface owns resale-platform-fee configuration. Seller sees own economics; buyer sees asking/fees/refund terms; scanner receives no cap/price/acquisition/fee/proceeds/payout/ledger data.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/controllers/marketplace test/controllers/admin/marketplace test/integration/ticketing/marketplace_scanner_privacy_test.rb
@@ -533,7 +647,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/controllers/marketpla
 
 Expected: FAIL.
 
-- [ ] **Step 3: GREEN — implement domain controller namespace**
+- [x] **Step 3: GREEN — implement domain controller namespace**
 
 ```ruby
 # frozen_string_literal: true
@@ -557,70 +671,105 @@ end
 
 Map root routes to `Marketplace::*Controller` and payout routes to `Admin::Marketplace::*Controller`; URL versioning remains deferred. Every mutation is authorize → one service → foundation renderer.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
 Run Task 10 command. Expected: PASS.
 
-- [ ] **Step 5: Refactor and audit surfaces**
+- [x] **Step 5: Refactor and audit surfaces**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/controllers/marketplace test/controllers/admin/marketplace test/policies/marketplace test/serializers/marketplace test/integration/ticketing/marketplace_scanner_privacy_test.rb
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/controllers/marketplace test/controllers/admin/marketplace test/integration/ticketing/marketplace_scanner_privacy_test.rb
 ```
 
-Expected: PASS.
+Passed: 22 tests and 110 assertions, 0 failures, and 0 errors. The broader
+Marketplace regression suite passed with 87 tests and 695 assertions under
+`N_PLUS_ONE=1`. Targeted RuboCop passed for all 28 changed Ruby files; routes,
+Postman JSON/coverage, locale YAML, and scanner privacy checks also passed.
+The policy and serializer surfaces are covered through these authorized
+controller responses; no separate policy/serializer test directories existed
+before this task.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/controllers/marketplace app/controllers/admin/marketplace app/policies/marketplace app/policies/admin/marketplace app/serializers/marketplace config/routes.rb test/controllers/marketplace test/controllers/admin/marketplace test/integration/ticketing
 git commit -m "feat(api): expose controlled resale marketplace"
 ```
 
+Task 10 was committed in `95ff701`, `e2cf09c`, `016954f`, and `1cde82c`.
+Continue with Controlled Resale Task 11, then return to Commercial Task 12 for
+the final Commercial/Phase 3.5 gate.
+
 ## Task 11: Final AJ/failure-recovery gate
 
 **Files:**
 - Modify only introduced files when correcting findings
 
-- [ ] **Step 1: RED audit — map AJ-A through AJ-H1 to tests**
+- [x] **Step 1: RED audit — map AJ-A through AJ-H1 to tests**
 
 Also map two-buyer race, one sale, late reversal, no primary inventory/organizer ledger, scanner privacy/staleness, authorization, and crash rollback. Missing direct evidence is RED.
 
-- [ ] **Step 2: Run full suite**
+The audit found direct evidence for every release-blocking invariant:
+
+| Invariant / gate | Direct evidence |
+|---|---|
+| AJ-A/A1 | `configure_ticket_type_resale_test.rb`, `activate_listing_test.rb`, `resale_listing_test.rb` |
+| AJ-B/C1 | `calculate_price_cap_test.rb`, `activate_listing_test.rb`, `resale_listing_test.rb`, `fulfill_sale_test.rb` |
+| AJ-D1 | `commercial_resale_fee_test.rb`, `resale_fee_isolation_test.rb`, `fulfill_sale_test.rb` |
+| AJ-E1/F1 | `build_seller_payout_test.rb`, `seller_payout_jobs_test.rb`, cancellation and chargeback tests |
+| AJ-G1/H1 | `reserve_listing_test.rb`, `fulfill_sale_test.rb`, reservation revocation/expiry/late-payment tests |
+| Races / rollback / privacy / authorization | concurrent listing/purchase/success/payout tests, fulfillment rollback tests, scanner privacy test, Task 10 controller/policy tests |
+
+- [x] **Step 2: Run full suite**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test
 ```
 
-Expected: PASS.
+The initial audit run exposed a locale-contract failure: the five resale
+ledger descriptions were nested under `errors` even though the services used
+the non-error translation scope.
 
-- [ ] **Step 3: GREEN — remove obsolete paths**
+- [x] **Step 3: GREEN — remove obsolete paths**
 
 Delete paid-transfer shortcuts and credential toggles; keep immutable listing/sale/acquisition/ledger plus generation replacement.
 
-- [ ] **Step 4: Run full suite and verify GREEN**
+The audit found no obsolete marketplace paid-transfer shortcut or credential
+toggle. Existing general transfer/reactivation paths are separate domains,
+and resale failure recovery already creates a newer credential generation, so
+no deletion was warranted.
+
+- [x] **Step 4: Run full suite and verify GREEN**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test
 ```
 
-Expected: zero failures/errors.
+Passed: 2,589 tests, 10,621 assertions, 0 failures, 0 errors, and 0 skips.
+The focused locale contract also passes with 2 tests and 4 assertions.
 
-- [ ] **Step 5: Refactor and stress concurrency**
+- [x] **Step 5: Refactor and stress concurrency**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/marketplace test/integration/ticketing --seed 83617
+N_PLUS_ONE=1 PARALLEL_WORKERS=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/marketplace test/integration/ticketing --seed 83617
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:migrate:status
 ```
 
-Expected: PASS and migrations up.
+Passed: 91 tests, 505 assertions, 0 failures, 0 errors, and 0 skips. All
+migrations are up. Repository RuboCop reports no offenses across 1,397 files,
+and `rails zeitwerk:check` reports `All is good!`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
-git add app db config test
-git commit -m "test(marketplace): prove controlled resale invariants"
+git add config/locales/marketplace/resale.en.yml docs/superpowers/plans/2026-07-17-controlled-resale-marketplace-implementation.md docs/superpowers/plans/2026-07-17-event-platform-master-roadmap.md docs/superpowers/plans/2026-08-08-commercial-agreements-platform-pricing-implementation.md
+git commit -m "fix(marketplace): correct resale ledger translations"
 ```
 
 ## Completion evidence
 
 Complete only when credential-core gate and full suite pass, every AJ invariant maps to direct evidence, two buyers cannot reserve/buy the same package, callbacks/retries are idempotent, failed checkout restores only newer seller credential, success creates one sale/new owner generation, both historical seller/new buyer purchase-limit facts remain, proceeds cannot mature early, acquisition-chain cancellation refunds correctly, and no marketplace finance data enters scanner payloads.
+
+Task 11 was committed in `b3ca5cb` on 2026-08-15. Commercial Task 12 was then
+implemented and phase-gate verified; no further Controlled Resale Task 11 work
+is pending.

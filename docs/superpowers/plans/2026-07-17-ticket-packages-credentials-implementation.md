@@ -19,10 +19,27 @@
 
 **Canonical lock order:** ticket, active generation, admission slots by position, current-access uses by `(product_access_id, admission_slot_id)`, package revocation, credential revocations, attendee-index rows. QR/PNR/index payloads never contain answers, consent evidence, ID documents, prices, fees, acquisition chains, payouts, or private notes.
 
+## Cross-plan start gate
+
+Ticket Packages Task 1 (the package/credential schema) is already committed in
+the current branch and is retained as an early prerequisite. It does not mean
+that the Ticket Packages wave is active. Wait until the Orders plan completes
+Tasks 7–9 before starting **Task 2: Issue packages deterministically after
+fulfillment**. Then execute Tasks 3–6 in order. Do not restart Task 1 or jump
+ahead to Scanner, Refunds, Finance, or Resale from this plan.
+
 ## Task 1: Create package, slot, generation, credential, and projection schema
 
 **Files:**
-- Create: `db/migrate/20260727090114_create_ticketing_packages_and_credentials.rb`
+- Create: `db/migrate/20260812090001_create_ticketing_tickets.rb`
+- Create: `db/migrate/20260812090002_create_ticketing_admission_slots.rb`
+- Create: `db/migrate/20260812090003_create_ticketing_credential_generations.rb`
+- Create: `db/migrate/20260812090004_create_ticketing_credentials.rb`
+- Create: `db/migrate/20260812090005_create_ticketing_credential_claims.rb`
+- Create: `db/migrate/20260812090006_create_ticketing_revocations.rb`
+- Create: `db/migrate/20260812090007_create_ticketing_credential_revocations.rb`
+- Create: `db/migrate/20260812090008_create_ticketing_attendee_index_entries.rb`
+- Create: `db/migrate/20260812090009_add_ticketing_package_credential_constraints.rb`
 - Create: `app/models/ticketing/ticket.rb`
 - Create: `app/models/ticketing/admission_slot.rb`
 - Create: `app/models/ticketing/credential_generation.rb`
@@ -32,9 +49,13 @@
 - Create: `app/models/ticketing/credential_revocation.rb`
 - Create: `app/models/ticketing/attendee_index_entry.rb`
 - Test: `test/models/ticketing/package_credential_schema_test.rb`
-- Test fixtures: `test/fixtures/ticketing_tickets.yml`, `test/fixtures/ticketing_admission_slots.yml`, `test/fixtures/ticketing_credential_generations.yml`, `test/fixtures/ticketing_credentials.yml`
 
-- [ ] **Step 1: RED — write constraint tests**
+The schema test creates package records through the existing catalog and
+registration setup so event-product, access, and parent foreign-key contracts
+are exercised together; static fixtures are intentionally not added for these
+records.
+
+- [x] **Step 1: RED — write constraint tests**
 
 ```ruby
 require "test_helper"
@@ -76,13 +97,13 @@ class Ticketing::PackageCredentialSchemaTest < ActiveSupport::TestCase
 end
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing/package_credential_schema_test.rb`
 
 Expected: FAIL because the package tables and constraints do not exist.
 
-- [ ] **Step 3: GREEN — create exact database constraints**
+- [x] **Step 3: GREEN — create exact database constraints**
 
 ```ruby
 add_index :ticketing_tickets, %i[order_item_id unit_number], unique: true,
@@ -126,20 +147,20 @@ module Ticketing
 end
 ```
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:migrate && PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing/package_credential_schema_test.rb`
 
 Expected: PASS.
 
-- [ ] **Step 5: REFACTOR — retain friendly model validation while proving DB enforcement**
+- [x] **Step 5: REFACTOR — retain friendly model validation while proving DB enforcement**
 
 Exercise every partial index/check with validations bypassed. Do not add callbacks that create credentials or mutate versions.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add db/migrate/20260727090114_create_ticketing_packages_and_credentials.rb app/models/ticketing test/models/ticketing/package_credential_schema_test.rb test/fixtures/ticketing_*.yml
+git add db/migrate/20260812090001_create_ticketing_tickets.rb db/migrate/20260812090002_create_ticketing_admission_slots.rb db/migrate/20260812090003_create_ticketing_credential_generations.rb db/migrate/20260812090004_create_ticketing_credentials.rb db/migrate/20260812090005_create_ticketing_credential_claims.rb db/migrate/20260812090006_create_ticketing_revocations.rb db/migrate/20260812090007_create_ticketing_credential_revocations.rb db/migrate/20260812090008_create_ticketing_attendee_index_entries.rb db/migrate/20260812090009_add_ticketing_package_credential_constraints.rb app/models/ticketing test/models/ticketing/package_credential_schema_test.rb
 git commit -m "feat(ticketing): add package credential schema"
 ```
 
@@ -148,14 +169,23 @@ git commit -m "feat(ticketing): add package credential schema"
 **Files:**
 - Create: `app/services/ticketing/packages/issue.rb`
 - Create: `app/services/ticketing/credential_generations/create_initial_group.rb`
+- Create: `app/services/ticketing/credentials/activate.rb`
+- Create: `app/services/ticketing/qr/signer.rb`
+- Create: `app/services/core/lookup_code_service.rb`
+- Create: `app/services/ticketing/attendee_index/project_initial.rb`
 - Create: `app/services/ticketing/outbox_handlers/package_issued.rb`
-- Create: `config/initializers/outbox_handlers.rb`
+- Create: `app/services/ticketing/outbox_handlers/order_fulfilled.rb`
+- Create: `app/services/ticketing/outbox_handlers/registration_issuance_ready.rb`
+- Create: `config/initializers/ticketing_credentials.rb`
+- Update: `config/initializers/ticketing_outbox_handlers.rb`
+- Create: `config/locales/ticketing/package_issuance.en.yml`
 - Reuse: `app/models/core/outbox_event.rb`
 - Reuse: `app/services/core/outbox/publish.rb`
 - Reuse: `app/jobs/core/dispatch_outbox_event_job.rb`
 - Test: `test/services/ticketing/packages/issue_test.rb`
+- Test: `test/services/core/lookup_code_service_test.rb`
 
-- [ ] **Step 1: RED — specify retry-safe issuance**
+- [x] **Step 1: RED — specify retry-safe issuance**
 
 ```ruby
 test "issues one package and complete slot set once" do
@@ -173,13 +203,15 @@ test "issues one package and complete slot set once" do
 end
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/packages/issue_test.rb`
 
-Expected: FAIL because the issuance command is missing.
+Expected: FAIL because the issuance command and reusable credential activation
+seams are missing. Confirmed before implementation; the first red run also
+confirmed the new test constants were not yet defined.
 
-- [ ] **Step 3: GREEN — implement one issuance command**
+- [x] **Step 3: GREEN — implement one issuance command**
 
 ```ruby
 module Ticketing
@@ -244,22 +276,39 @@ module Ticketing
 end
 ```
 
-Paid, zero-price, complimentary, and walk-up fulfillment call this command. `CreateInitialGroup` creates/signs/indexes one complete group credential only when personal requirements permit it. The registered outbox handler delivers after commit using the event idempotency key.
+Paid, zero-price, complimentary, and walk-up fulfillment call this command.
+`CreateInitialGroup` creates the complete group slot set and activates one
+credential only when personal requirements permit it. QR signing, event-scoped
+PNR allocation, and the attendee-index projection are transaction-local
+seams introduced here because activation cannot safely publish a usable
+credential without them. Task 4 reuses these seams and adds verification,
+claim value objects, and the shared QR/PNR validator.
 
-- [ ] **Step 4: Run GREEN**
+Orders fulfillment and confirmed-registration outbox consumers invoke the same
+command. A batch issuance context locks the event once, preloads source
+tickets, reserves lookup codes, and allocates attendee-index versions without
+introducing N+1 queries. The package-issued handler delivers only durable IDs
+and the outbox idempotency key after commit.
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/packages/issue_test.rb test/services/orders`
+- [x] **Step 4: Run GREEN**
 
-Expected: PASS.
+Run: `N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/core/lookup_code_service_test.rb test/services/ticketing/packages/issue_test.rb`
+and the affected Orders/registration suite.
 
-- [ ] **Step 5: REFACTOR — remove caller-specific package construction**
+Result: PASS — focused Task 2 tests: 9 tests, 50 assertions; affected
+Orders/registration tests: 54 tests, 396 assertions; zero failures/errors.
 
-Keep financial, free, complimentary, and walk-up eligibility upstream; package construction remains identical.
+- [x] **Step 5: REFACTOR — remove caller-specific package construction**
+
+Financial, free, complimentary, and walk-up eligibility remains upstream;
+package construction is identical and all fulfillment paths share the same
+idempotent command. Changed Ticket scope validation to use already-loaded
+associations, preserving the `N_PLUS_ONE=1` contract for multi-unit fulfillment.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add app/services/ticketing/packages app/services/ticketing/credential_generations/create_initial_group.rb app/services/ticketing/outbox_handlers config/initializers/outbox_handlers.rb test/services/ticketing/packages
+git add app/models/ticketing/ticket.rb app/services/core/lookup_code_service.rb app/services/ticketing/attendee_index app/services/ticketing/credential_generations/create_initial_group.rb app/services/ticketing/credentials/activate.rb app/services/ticketing/outbox_handlers app/services/ticketing/packages app/services/ticketing/qr config/initializers/ticketing_credentials.rb config/initializers/ticketing_outbox_handlers.rb config/locales/ticketing/package_issuance.en.yml test/services/core/lookup_code_service_test.rb test/services/ticketing/packages
 git commit -m "feat(ticketing): issue packages idempotently"
 ```
 
@@ -269,10 +318,13 @@ git commit -m "feat(ticketing): issue packages idempotently"
 - Create: `app/services/ticketing/credential_generations/replace.rb`
 - Create: `app/services/ticketing/revocations/publish_generation.rb`
 - Create: `app/services/ticketing/attendee_index/apply_generation.rb`
+- Create: `app/services/ticketing/outbox_handlers/credential_generation_replaced.rb`
+- Modify: `config/initializers/ticketing_outbox_handlers.rb`
+- Modify: `config/locales/ticketing/package_issuance.en.yml`
 - Test: `test/services/ticketing/credential_generations/replace_test.rb`
 - Test: `test/integration/ticketing/credential_generation_concurrency_test.rb`
 
-- [ ] **Step 1: RED — prove atomic all-or-nothing replacement**
+- [x] **Step 1: RED — prove atomic all-or-nothing replacement**
 
 ```ruby
 test "replaces group with one individual credential per slot" do
@@ -289,13 +341,13 @@ test "replaces group with one individual credential per slot" do
 end
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/credential_generations/replace_test.rb`
+Run: `N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/credential_generations/replace_test.rb`
 
-Expected: FAIL because replacement is missing.
+Observed the expected missing-constant failure for `Ticketing::CredentialGenerations::Replace` after correcting the test fixture setup.
 
-- [ ] **Step 3: GREEN — lock, revoke, replace, project, publish**
+- [x] **Step 3: GREEN — lock, revoke, replace, project, publish**
 
 ```ruby
 module Ticketing
@@ -334,7 +386,8 @@ module Ticketing
         end
       rescue ActiveRecord::RecordNotUnique => error
         failure Core::BusinessError.new(
-          "Credential generation changed concurrently", code: "credential_generation_conflict",
+          I18n.t("ticketing.package_issuance.errors.generation_conflict"),
+          code: "credential_generation_conflict",
           status: :conflict, meta: { ticket_id: @ticket.id, cause: error.class.name }
         )
       end
@@ -343,39 +396,60 @@ module Ticketing
 end
 ```
 
-Private methods enforce canonical locks, current-open-access use restrictions, cutoff/status/policy, exact group/delegated cardinality, personal-requirement states, never-reused CID/PNR, and revocation-before-index ordering. Failed transactions leave the prior generation active.
+The implementation locks the ticket, slots, current-use rows when the
+admission-use table exists, revocation projections, and attendee-index rows in
+the canonical transaction. It enforces status/event/cutoff/delegation policy,
+exact group/delegated cardinality, independent personal-requirement states,
+never-reused credential IDs/PNRs, and revocation-before-index ordering. The
+ticket pointer moves before usable credentials are inserted because the
+deferred database guard requires every usable credential to belong to the
+current active generation. The replacement event has a registered delivery
+handler and carries only ticket/version identifiers. Failed transactions leave
+the prior generation active.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/credential_generations/replace_test.rb test/integration/ticketing/credential_generation_concurrency_test.rb`
+Run: `N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/credential_generations/replace_test.rb test/integration/ticketing/credential_generation_concurrency_test.rb`
 
-Expected: PASS with one active complete generation under concurrent replacement.
+Result: PASS — 7 tests, 51 assertions, 0 failures, 0 errors. The separate
+connection race proves one active version-2 generation, one complete delegated
+credential set, and one replacement outbox event.
 
-- [ ] **Step 5: REFACTOR — route every generation transition through `Replace`**
+- [x] **Step 5: REFACTOR — route every generation transition through `Replace`**
 
-Delegation cancellation, accepted transfer, resale success/failure, date-scoped refund, and postponement do not construct generations independently.
+No pre-existing delegation, transfer, resale, refund, or postponement service
+constructs a replacement generation in the current tree. Future transition
+services must call `CredentialGenerations::Replace`; initial issuance remains
+owned by `CreateInitialGroup`.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add app/services/ticketing/credential_generations app/services/ticketing/revocations app/services/ticketing/attendee_index test/services/ticketing/credential_generations test/integration/ticketing
+git add app/services/ticketing/credential_generations/replace.rb \
+  app/services/ticketing/revocations/publish_generation.rb \
+  app/services/ticketing/attendee_index/apply_generation.rb \
+  app/services/ticketing/outbox_handlers/credential_generation_replaced.rb \
+  config/initializers/ticketing_outbox_handlers.rb \
+  config/locales/ticketing/package_issuance.en.yml \
+  test/services/ticketing/credential_generations/replace_test.rb \
+  test/integration/ticketing/credential_generation_concurrency_test.rb
 git commit -m "feat(ticketing): centralize credential replacement"
 ```
 
 ## Task 4: Sign QR claims, issue PNRs, and implement one validator
 
 **Files:**
-- Create: `app/services/ticketing/qr/signer.rb`
+- Reuse: `app/services/ticketing/qr/signer.rb` (introduced in Task 2)
 - Create: `app/services/ticketing/qr/verifier.rb`
-- Create: `app/services/core/lookup_code_service.rb`
-- Create: `app/value_objects/ticketing/credential_claims.rb`
+- Reuse: `app/services/core/lookup_code_service.rb` (introduced in Task 2)
+- Create: `app/values/ticketing/credential_claims.rb`
 - Create: `app/services/ticketing/credentials/validator.rb`
 - Create: `test/fixtures/files/ticketing/credential_contract_v1.json`
 - Test: `test/services/ticketing/qr/signer_test.rb`
 - Test: `test/services/core/lookup_code_service_test.rb`
 - Test: `test/contracts/ticketing/credential_contract_test.rb`
 
-- [ ] **Step 1: RED — add crypto and language-neutral contract tests**
+- [x] **Step 1: RED — add crypto and language-neutral contract tests**
 
 ```ruby
 test "QR and attendee-index claims have identical decisions" do
@@ -389,13 +463,14 @@ test "QR and attendee-index claims have identical decisions" do
 end
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/qr test/services/core/lookup_code_service_test.rb test/contracts/ticketing/credential_contract_test.rb`
+Run: `N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/qr test/services/core/lookup_code_service_test.rb test/contracts/ticketing/credential_contract_test.rb`
 
-Expected: FAIL because claim signing and validation are missing.
+Observed the expected missing-constant failures for `Ticketing::Qr::Verifier`
+and `Ticketing::CredentialClaims` before implementation.
 
-- [ ] **Step 3: GREEN — implement canonical Ed25519 claims**
+- [x] **Step 3: GREEN — implement canonical Ed25519 claims**
 
 ```ruby
 module Ticketing
@@ -411,22 +486,36 @@ module Ticketing
 end
 ```
 
-Use deterministic canonical JSON and Ed25519. Private keys remain in credentials/KMS; scanners receive only keyed public keys. Validate exact claims `kid,cid,tid,eid,mode,slots,entry_limit,v,accesses,exp`, signature, expiry, unique positive slots, group/individual shape, event/access/window/zone, package death/suspension/version, CID revocation, and use eligibility. `LookupCodeService` issues seven random approved Crockford characters plus one Luhn-mod-alphabet digit and relies on `(event_id, lookup_code)` uniqueness with bounded retry.
+Reuse Task 2's deterministic Ed25519 signer and bounded event-scoped
+`LookupCodeService`; do not create alternate signing or PNR implementations.
+Task 4 adds verification and the shared claim/validator contract. Private keys
+remain in credentials/KMS; scanners receive only keyed public keys. The
+immutable claims object lives under the repository's established `app/values/`
+path and the language-neutral corpus uses a fixed test-only verification key.
+Validate exact claims `kid,cid,tid,eid,mode,slots,entry_limit,v,accesses,exp`,
+signature, expiry, unique positive slots, group/individual shape,
+event/access/window/zone, package death/suspension/version, CID revocation,
+and use eligibility.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/qr test/services/core/lookup_code_service_test.rb test/contracts/ticketing/credential_contract_test.rb`
+Run: `N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/qr test/services/core/lookup_code_service_test.rb test/contracts/ticketing/credential_contract_test.rb`
 
-Expected: PASS for known Ed25519, tamper, malformed claim, group, and individual cases.
+Result: PASS — 10 tests, 85 assertions, 0 failures, 0 errors. The contract
+corpus proves identical QR and attendee-index decisions across valid group and
+individual claims plus event, access, window, zone, package, generation, and
+credential revocation cases, including per-slot use-limit exhaustion.
 
-- [ ] **Step 5: REFACTOR — freeze the scanner boundary**
+- [x] **Step 5: REFACTOR — freeze the scanner boundary**
 
-Native scanner CI consumes this exact JSON corpus. Delete alternate QR/manual validation algorithms.
+Native scanner CI consumes this exact JSON corpus. QR verification and PNR or
+attendee-index validation now share `CredentialClaims` and
+`Credentials::Validator`; no alternate QR/manual decision tree was added.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add app/services/ticketing/qr app/services/ticketing/credentials app/services/core/lookup_code_service.rb app/value_objects/ticketing test/services test/contracts test/fixtures/files/ticketing
+git add app/services/ticketing/qr app/services/ticketing/credentials app/services/core/lookup_code_service.rb app/values/ticketing test/services test/contracts test/fixtures/files/ticketing config/initializers/ticketing_credentials.rb config/locales/ticketing/package_issuance.en.yml
 git commit -m "feat(ticketing): sign and validate credential claims"
 ```
 
@@ -435,6 +524,8 @@ git commit -m "feat(ticketing): sign and validate credential claims"
 This task owns the append-only `ticketing_ticket_transfers` history. Delegation changes credential mode; transfer changes package ownership. Both replace generations, but they are distinct commercial operations.
 
 **Files:**
+- Create: `db/migrate/20260812090010_create_ticketing_ticket_transfers.rb`
+- Create: `app/models/ticketing/ticket_transfer.rb`
 - Create: `app/services/ticketing/delegations/activate.rb`
 - Create: `app/services/ticketing/delegations/cancel.rb`
 - Create: `app/services/ticketing/delegations/reassign_slot.rb`
@@ -442,30 +533,45 @@ This task owns the append-only `ticketing_ticket_transfers` history. Delegation 
 - Create: `app/services/ticketing/credential_claims/accept.rb`
 - Create: `app/services/ticketing/transfers/initiate.rb`
 - Create: `app/services/ticketing/transfers/accept.rb`
+- Create: `app/services/ticketing/transfers/cancel.rb`
+- Create: `app/services/ticketing/transfers/decline.rb`
 - Create: `app/jobs/ticketing/expire_credential_claims_job.rb`
 - Create: `app/jobs/ticketing/expire_transfers_job.rb`
 - Create: `app/controllers/ticketing/delegations_controller.rb`
 - Create: `app/controllers/ticketing/credential_claims_controller.rb`
 - Create: `app/controllers/ticketing/transfers_controller.rb`
 - Create: `app/policies/ticketing/ticket_policy.rb`
+- Create: `app/policies/ticketing/credential_generation_policy.rb`
+- Create: `app/policies/ticketing/credential_claim_policy.rb`
+- Create: `app/policies/ticketing/ticket_transfer_policy.rb`
 - Create: `app/serializers/ticketing/credential_serializer.rb`
+- Create: `app/serializers/ticketing/credential_generation_serializer.rb`
+- Create: `app/serializers/ticketing/credential_claim_serializer.rb`
+- Create: `app/serializers/ticketing/ticket_transfer_serializer.rb`
+- Modify: `app/models/ticketing/ticket.rb`
+- Modify: `app/models/core/user.rb`
 - Modify: `config/routes.rb`
+- Modify: `config/recurring.yml`
+- Modify: `config/locales/ticketing/package_workflow.en.yml`
+- Modify: `postman/Digis API_collection.json`
 - Test: `test/services/ticketing/delegations/activate_test.rb`
+- Test: `test/models/ticketing/ticket_transfer_test.rb`
 - Test: `test/services/ticketing/credential_claims/accept_test.rb`
 - Test: `test/services/ticketing/transfers/accept_test.rb`
 - Test: `test/controllers/ticketing/delegations_controller_test.rb`
+- Test support: `test/support/ticketing/package_workflow_test_helpers.rb`
 
-- [ ] **Step 1: RED — specify lifecycle, recipient, cutoff, and privacy behavior**
+- [x] **Step 1: RED — specify lifecycle, recipient, cutoff, and privacy behavior**
 
 Cover existing/shadow/unclaimed recipients, wrong user, expired/replayed token, personal waiver gating, concurrent accept/cancel, rescheduled cutoff, current-open use rejection, closed prior use preservation, and separately purchased add-ons staying with their owner.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/delegations test/services/ticketing/credential_claims test/services/ticketing/transfers test/controllers/ticketing/delegations_controller_test.rb`
 
 Expected: FAIL because commands and controllers are missing.
 
-- [ ] **Step 3: GREEN — implement commands and thin route-path-independent controllers**
+- [x] **Step 3: GREEN — implement commands and thin route-path-independent controllers**
 
 ```ruby
 module Ticketing
@@ -488,15 +594,15 @@ end
 
 The route remains `/api/v1/...`; Ruby namespaces remain `Ticketing`. Delegation/cancellation call `CredentialGenerations::Replace`; slot reassignment replaces one CID in delegated mode. Claim acceptance locks claim/credential/slot and issues QR/PNR/index only after recipient authentication and personal requirements. Transfer acceptance locks transfer/ticket/generation/slots, changes owner, and calls `Replace` targeting group mode.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/delegations test/services/ticketing/credential_claims test/services/ticketing/transfers test/controllers/ticketing`
+Run: `N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing/ticket_transfer_test.rb test/services/ticketing/delegations test/services/ticketing/credential_claims test/services/ticketing/transfers test/controllers/ticketing/delegations_controller_test.rb`
 
-Expected: PASS.
+Result: PASS — 19 tests, 130 assertions, 0 failures, 0 errors, 0 skips.
 
-- [ ] **Step 5: REFACTOR — extract only proven recipient resolution**
+- [x] **Step 5: REFACTOR — keep recipient resolution on the existing phone-identity boundary**
 
-When duplication appears across invitations, claims, and transfers, use one enumeration-safe `Core::Recipients::Resolve`; do not create a workflow engine.
+Recipient resolution remains on `Core::PhoneIdentity::ResolveOrCreate`; no workflow engine was introduced. Reassignment invokes `Consent::SupersedeForReassignment` in the same transaction when the slot has a current personal requirement, and acceptance routes bind their plaintext token to the URL resource ID before invoking the command.
 
 - [ ] **Step 6: Commit**
 
@@ -508,28 +614,38 @@ git commit -m "feat(ticketing): add delegation claims and transfers"
 ## Task 6: Add reversible suspension and terminal invalidation
 
 **Files:**
-- Create: `db/migrate/20260717210003_create_ticketing_ticket_suspensions.rb`
+- Create: `db/migrate/20260812090012_create_ticketing_ticket_suspensions.rb`
 - Create: `app/models/ticketing/ticket_suspension.rb`
+- Create: `app/policies/ticketing/ticket_suspension_policy.rb`
+- Create: `app/serializers/ticketing/ticket_suspension_serializer.rb`
 - Create: `app/services/ticketing/suspensions/open.rb`
 - Create: `app/services/ticketing/suspensions/restore.rb`
 - Create: `app/services/ticketing/suspensions/resolve.rb`
 - Create: `app/jobs/ticketing/escalate_overdue_suspensions_job.rb`
 - Create: `app/controllers/ticketing/suspensions_controller.rb`
+- Modify: `app/models/ticketing/ticket.rb`
+- Modify: `app/policies/ticketing/ticket_policy.rb`
+- Modify: package workflow services to reject dead or suspended packages
+- Modify: `config/routes.rb`, `config/recurring.yml`, and ticketing locales
+- Modify: `postman/Digis API_collection.json`
 - Test: `test/services/ticketing/suspensions/open_test.rb`
 - Test: `test/services/ticketing/suspensions/restore_test.rb`
+- Test: `test/services/ticketing/suspensions/resolve_test.rb`
+- Test: `test/jobs/ticketing/escalate_overdue_suspensions_job_test.rb`
 - Test: `test/integration/ticketing/suspension_concurrency_test.rb`
+- Test: `test/integration/ticketing/suspensions_test.rb`
 
-- [ ] **Step 1: RED — specify review without financial mutation**
+- [x] **Step 1: RED — specify review without financial mutation**
 
 Prove one active case, idempotent retry, scan/stream/transfer/delegation blocking, safe restore, free terminal revocation, paid cancellation staying suspended until refund success, and overdue escalation never auto-restoring.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing/suspensions test/integration/ticketing/suspension_concurrency_test.rb`
 
 Expected: FAIL because suspension is missing.
 
-- [ ] **Step 3: GREEN — create append-only review cases and revocation deltas**
+- [x] **Step 3: GREEN — create append-only review cases and revocation deltas**
 
 ```ruby
 add_index :ticketing_ticket_suspensions, :ticket_id, unique: true,
@@ -539,20 +655,49 @@ add_index :ticketing_ticket_suspensions, :idempotency_key, unique: true
 
 Commands lock ticket, suspension, and revocation in canonical order; bump event revocation version and write audit/outbox atomically. Restore is forbidden after refund/chargeback/death. Free tickets may become dead directly; paid organizer cancellation delegates to refunds and becomes dead only after refund success.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/ticketing test/integration/ticketing`
+Run: `N_PLUS_ONE=1 bundle exec rails test test/services/ticketing/suspensions test/jobs/ticketing/escalate_overdue_suspensions_job_test.rb test/integration/ticketing/suspension_concurrency_test.rb test/integration/ticketing/suspensions_test.rb`
 
 Expected: PASS.
 
-- [ ] **Step 5: REFACTOR — keep revocation writers behind lifecycle commands**
+- [x] **Step 5: REFACTOR — keep revocation writers behind lifecycle commands**
 
 Controllers and jobs cannot directly mutate package-dead/suspended projections.
+
+Paid organizer cancellation remains suspended until a later Refunds/Finance task
+provides durable successful-refund evidence. The `cancelled_refunded` resolution
+is intentionally reserved here and does not invent payment-provider state.
+
+The overdue job marks unresolved review cases as `expired` for support escalation;
+it never restores admission and never terminally invalidates a paid package.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add db/migrate/20260717210003_create_ticketing_ticket_suspensions.rb app/models/ticketing app/services/ticketing/suspensions app/jobs/ticketing app/controllers/ticketing test/services/ticketing/suspensions test/integration/ticketing
+git add \
+  app/controllers/ticketing/suspensions_controller.rb \
+  app/jobs/ticketing/escalate_overdue_suspensions_job.rb \
+  app/models/ticketing/ticket.rb app/models/ticketing/ticket_suspension.rb \
+  app/policies/ticketing/ticket_policy.rb app/policies/ticketing/ticket_suspension_policy.rb \
+  app/serializers/ticketing/ticket_suspension_serializer.rb \
+  app/services/ticketing/credential_claims/accept.rb \
+  app/services/ticketing/credential_claims/invite.rb \
+  app/services/ticketing/credential_generations/replace.rb \
+  app/services/ticketing/delegations/cancel.rb \
+  app/services/ticketing/delegations/reassign_slot.rb \
+  app/services/ticketing/suspensions \
+  app/services/ticketing/transfers/accept.rb app/services/ticketing/transfers/initiate.rb \
+  config/locales/ticketing/package_workflow.en.yml config/locales/ticketing/suspensions.en.yml \
+  config/recurring.yml config/routes.rb \
+  db/migrate/20260812090001_create_ticketing_tickets.rb \
+  db/migrate/20260812090009_add_ticketing_package_credential_constraints.rb \
+  db/migrate/20260812090012_create_ticketing_ticket_suspensions.rb db/structure.sql \
+  postman/Digis\ API_collection.json \
+  test/integration/ticketing/suspension_concurrency_test.rb \
+  test/integration/ticketing/suspensions_test.rb test/jobs/ticketing/escalate_overdue_suspensions_job_test.rb \
+  test/services/ticketing/suspensions \
+  docs/superpowers/plans/2026-07-17-ticket-packages-credentials-implementation.md
 git commit -m "feat(ticketing): add reversible suspension"
 ```
 

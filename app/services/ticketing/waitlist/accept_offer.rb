@@ -24,6 +24,7 @@
             .includes(:event, :user, :consent_requirements, ticket_type: :event_product)
             .find(registration.id)
           halt(waitlist_error("offer_acceptance_unauthorized")) unless buyer_actor?(locked, actor)
+          halt(waitlist_error("event_cancelled")) if locked.event.status == "cancelled"
           halt(waitlist_error("registration_not_offered")) unless locked.status == "offered"
           halt(waitlist_error("offer_expired")) if locked.offer_expires_at <= Time.current
           halt(waitlist_error("required_buyer_consent_missing")) unless required_buyer_consents_complete?(locked)

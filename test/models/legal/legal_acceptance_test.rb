@@ -4,6 +4,8 @@ require "test_helper"
 
 module Legal
   class LegalAcceptanceTest < ActiveSupport::TestCase
+    include Commercial::FeeDefinitionTestHelpers
+
     setup do
       @doc = Legal::LegalDocument.create!(
         document_type: "platform_terms", internal_name: "ToS",
@@ -52,6 +54,30 @@ module Legal
       )
       assert acc.invalid?
       assert_includes acc.errors[:legal_document_version_id], "must be a published version"
+    end
+
+    test "resolves a commercial assignment subject through the explicit allowlist" do
+      schedule = create_schedule(code: "legal_assignment_schedule")
+      fee_version = create_version(schedule, legal_document_version: @version)
+      assignment = Commercial::Assignment.create!(
+        organization: organizations_organizations(:one),
+        fee_schedule_version: fee_version,
+        assignment_type: "mutual_agreement",
+        status: "pending_acceptance",
+        reason: "Commercial legal evidence test",
+        effective_from: 1.day.from_now,
+        risk_level: "high",
+        created_by: core_users(:super_admin)
+      )
+      acc = Legal::LegalAcceptance.new(
+        subject_type: "commercial_assignment", subject_id: assignment.id,
+        legal_document_version_id: @version.id, accepted_by_user_id: core_users(:super_admin).id,
+        acceptance_method: "checkbox", content_sha256: @version.content_sha256,
+        evidence_digest: "x", request_uuid: SecureRandom.uuid, accepted_at: Time.current
+      )
+
+      assert_equal assignment, acc.subject
+      assert_predicate acc, :valid?
     end
   end
 end

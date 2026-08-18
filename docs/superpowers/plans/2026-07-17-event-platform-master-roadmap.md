@@ -26,8 +26,8 @@ If a plan and a specification disagree, stop implementation and reconcile the pl
 | 1 | `2026-07-17-event-foundation-scheduling-media-implementation.md` | 0 | Draft/private/public events, collaborators/staff, dates, recurrence, media, schedule history, consent authoring |
 | 2 | `2026-07-17-catalog-pricing-inventory-promotions-implementation.md` | 1 | Products, ticket settings, multi-currency prices, inventory/capacity, accesses/zones, minimal promotions |
 | 3 | `2026-07-17-registration-consent-privacy-implementation.md` | 2 | Phone-first registration, approval/waitlist, forms/answers, consent, limits, retention, exports |
-| 3.5 | `2026-08-08-commercial-agreements-platform-pricing-implementation.md` | 0, 1, 2, 3 | Platform defaults, programs, grants, negotiated agreements, deterministic fee resolution, simulation, subsidy budgets |
-| 4 | `2026-07-17-orders-payments-implementation.md` | 2, 3, 3.5 | Immutable quotes/orders/commercial adjustments, payment attempts, webhooks, grace, accepted fulfillment boundary |
+| 3.5 | `2026-08-08-commercial-agreements-platform-pricing-implementation.md` | 0, 1, 2, 3 | Platform defaults, programs, grants, negotiated agreements, deterministic fee resolution, simulation, subsidy budgets; order-linked reservations are handed off after Orders Task 2 |
+| 4 | `2026-07-17-orders-payments-implementation.md` | 2, 3, 3.5, with the inter-plan handoff below | Immutable quotes/orders/commercial adjustments, payment attempts, webhooks, grace, accepted fulfillment boundary |
 | 5 | `2026-07-17-ticket-packages-credentials-implementation.md` | 3, 4 | Commercial packages, slots, credential generations, QR/PNR, delegation, transfer, suspension |
 | 6 | `2026-07-17-scanner-offline-admission-implementation.md` | 5 | Shared credential validator, admission use, devices, zones, offline sync/upload, manual lookup |
 | 7 | `2026-07-17-refunds-finance-settlement-implementation.md` | 4, 5 | Cancellation/refunds, date-value allocation, liquidity, organizer ledger and payouts |
@@ -36,6 +36,162 @@ If a plan and a specification disagree, stop implementation and reconcile the pl
 | 10 | `2026-07-17-launch-hardening-observability-implementation.md` | 0–9 | Security, reconciliation, performance, operations, contract tests, launch gates |
 
 Resale is implemented after the package/credential core even though the schema document calls it Phase 3.75. Its reservation invariant cannot exist safely before generation revocation, package suspension, and replacement generation services.
+
+### Commercial/Orders execution handoff
+
+The plan-level table above is intentionally coarse. Commercial and Orders are
+executed in this dependency order; do not treat either plan as an
+all-or-nothing phase:
+
+1. Complete Commercial Tasks 1–7A, including the hard per-currency subsidy
+   budget invariant.
+2. Complete Orders Tasks 1–2. Orders Task 2 owns the real `orders_orders`
+   schema, model, constraints, and tests; do not create a placeholder table
+   or seed order to unblock Commercial.
+3. Complete Commercial Task 7B, which adds the order-linked subsidy
+   reservation table with its restrictive foreign key to `orders_orders` and
+   its transactional hold/processing/commit/release commands.
+4. Complete Commercial Task 8, which adds the volume-usage and event-payer
+   selection contracts consumed by checkout.
+5. Implement Orders Task 3 together with Commercial Task 10's Orders
+   integration contract. Checkout must not be considered complete until
+   inventory, promotion, purchase-limit, volume, and subsidy reservations,
+   immutable commercial adjustments, and accepted-order usage all pass their
+   shared concurrency and idempotency tests.
+6. Complete Orders Task 5, which owns the payment-attempt schema, canonical
+   provider result/adapter contract, durable provider-event identity, and
+   immutable Commercial-signature compatibility boundary.
+7. Complete Orders Task 6, which owns starting and switching sequential
+   payment attempts and making the actual provider calls under the Task 5
+   contract. Do not treat the provider contract as payment orchestration.
+8. Complete Orders Task 7, which owns the durable provider-webhook inbox,
+   exactly-once accepted-payment boundary, full reversal obligations for
+   losing or late successes, and the Orders fulfillment outbox event. It does
+   not create placeholder Ticketing or Finance records.
+9. Complete Orders Tasks 8–9 for expiry/settlement-grace behavior and the
+   final Orders payment phase gate. Only then begin Ticket Packages Task 2.
+
+Commercial Task 9 (admin and organizer API/UX) may follow its own documented
+domain prerequisites, but it is not a reason to introduce a temporary
+`orders_orders` table or to move 7B ahead of Orders Task 2.
+
+**2026-08-15 execution checkpoint — follow this queue:**
+
+- Commercial Tasks 1–12 are complete locally through the final Commercial/
+  Phase 3.5 gate. The Commercial API, immutable checkout adjustment projection,
+  provider contract, sequential payment-attempt behavior, distinct resale-
+  platform-fee adapter, append-only reconciliation, shadow comparison,
+  operational alerts, and scheduled expiry are verified. The Task 12 review/
+  commit boundary remains with the user.
+- Orders Tasks 1–9 are implemented and verified in the current branch,
+  including checkout, payment-attempt persistence, provider compatibility,
+  sequential attempt start/switch behavior, durable webhook receipt, exactly-
+  once acceptance, full reversal obligations, the Orders fulfillment boundary,
+  bounded checkout expiry/settlement grace, and the final repository gate. The
+  prior Orders gate passed with 2,155 tests and 8,044 assertions. After
+  Ticket Packages Tasks 2–4, the full `N_PLUS_ONE=1` suite passes with 2,179
+  tests, 8,225 assertions,
+  zero failures, and zero errors. The user review/commit remains pending.
+- Ticket Packages Task 1 (schema/models) was committed early and is retained
+  because it is a valid prerequisite. Tasks 2–6 (deterministic fulfillment
+  issuance, credential generations, QR/PNR/index projection, delegation,
+  claims, transfer, reversible suspension, terminal free-package invalidation,
+  and the shared validator/revocation contract) are implemented and focused-
+  verified in the current working tree. User review/commit remains pending.
+- Scanner Tasks 1–8 (schema/models, device authorization, sync feeds, online
+  admission, idempotent offline uploads, PNR/phone/audited lookup, immutable
+  identity-mismatch override, append-only admission-use reversal, and the
+  versioned native contract/scale gate) are implemented and Rails-focused-
+  verified in the current working tree. User review/commit remains pending.
+  The native client SQLite acceptance row remains open because no native
+  scanner client is present in this repository.
+- Refunds/Finance Tasks 1–8 (refund/cancellation schema, immutable refund-item
+  scope, exact signed/date allocation, idempotent obligations, provider
+  submission/reconciliation, soft-liquidity handling, crash recovery, package/
+  date credential effects, the resumable event-cancellation coordinator, the
+  append-only organizer ledger, locked event completion, maturity fan-out,
+  payout allocation, provider adapters, reserve gates, and crash-safe
+  reconciliation) are implemented and focused-verified with `N_PLUS_ONE=1`.
+  Task 8 passes with 16 focused tests and 127 assertions, plus 7 completion/
+  maturity/reserve-policy tests and the broader finance suite. Targeted Ruby
+  files pass RuboCop, and the PostgreSQL structure dump contains the event
+  completion field, ledger/payout tables, foreign keys, checks, and integrity/
+  immutability triggers. User review/commit remains pending. Refunds/Finance
+  Task 9 is implemented and focused-verified with `N_PLUS_ONE=1` in the
+  current worktree: authorized refund status, ticket cancellation, organizer
+  ledger/payout/balance views, and platform reserve/treasury controls are
+  covered by 24 focused tests and 148 assertions, with safe buyer/organizer
+  serialization, localized errors, routes, seeds, and Postman updates. User
+  review/commit remains pending. Refunds/Finance Task 10 is now implemented
+  and phase-gate verified: the final N+1-enabled full suite passes with 2,470
+  tests and 9,842 assertions, all test migrations are up, and the required
+  Orders/Finance/Ticketing race suite passes with 86 tests and 441 assertions.
+  The user review/commit remains pending.
+- Commercial Task 11 is committed together with Controlled Resale Task 3. Its
+  Marketplace adapter consumes Commercial's immutable
+  `resale_platform_fee` result. Controlled Resale Tasks 4–5 are committed
+  through `2ae5a5e`: eligible whole-package listing activation, idempotent
+  cancellation, policy-disable cleanup, immutable fee/cap snapshots,
+  localized rejections, the single-listing concurrency gate, atomic resale
+  checkout reservation, buyer purchase-limit holding, seller generation
+  revocation, attendee-index tombstoning, package suspension, and
+  transactional audit/outbox evidence are verified. Controlled Resale Task 6
+  is now implemented locally and focused-verified with N+1 detection: accepted
+  resale payment fulfillment, exactly-once ownership/generation transfer,
+  separate seller gross/fee ledger rows, and the Orders boundary are covered.
+  Task 6 is committed in `2d4beec`, `213e408`, and `ca3a3c6`. Controlled Resale
+  Task 7 is implemented and committed in `d76152a` and `2b6f603`: failed or
+  cancelled reservations release checkout state, restore seller access with a
+  newer credential generation, close the immutable listing terminally, and
+  handle late payment reversal plus expiry/fulfillment races. Controlled Resale
+  Task 8 is implemented and committed in `41ae8e7`, `19cc9df`, and `f8be224`:
+  tokenized/encrypted seller destinations, verified-account gates, maturity and
+  negative-first seller-ledger allocation, provider reserve checks, crash-safe
+  dispatch/reconciliation, audited account use, and payout jobs are covered by
+  14 focused tests with 113 assertions plus the related Marketplace and Finance
+  regression suites. Controlled Resale Task 9 is committed: payer-specific
+  full-chain refunds, append-only seller gross/fee reversals, current-versus-
+  historical chargeback handling, and event-cancellation worker integration
+  pass 6 tests with 68 assertions. Date-scoped resale-chain cancellation
+  fails closed because the existing refund-item contract requires a credential
+  ticket; the required Orders/refund-schema design update remains an explicit
+  follow-up. Controlled Resale Task 10 is implemented locally and focused-
+  verified with `N_PLUS_ONE=1`: authorized marketplace APIs, seller/admin
+  payout projections, Postman requests, and scanner privacy coverage pass 22
+  tests with 110 assertions, plus 87 Marketplace regression tests with 695
+  assertions. Controlled Resale Task 10 is committed in `95ff701`, `e2cf09c`,
+  `016954f`, and `1cde82c`. Controlled Resale Task 11 then completed the final
+  AJ/failure-recovery gate. Its initial N+1-enabled full-suite run found and
+  its corrected rerun passed the locale contract; the final full suite passes
+  2,589 tests and 10,621 assertions, the seeded marketplace/ticketing
+  concurrency set passes 91 tests and 505 assertions, and all migrations are
+  up. Controlled Resale Task 11 was committed in `b3ca5cb`. Commercial Task 12
+  then passed its phase suite (271 tests, 1,795 assertions), full N+1-enabled
+  suite (2,599 tests, 10,688 assertions), three repeated entitlement/subsidy
+  concurrency runs (18 tests, 97 assertions each), RuboCop, Zeitwerk, and
+  PostgreSQL migration verification.
+
+The next human-visible action is therefore:
+
+1. Review and commit the verified Orders, Ticket Packages, and Refunds/
+   Finance tranches, including Finance Task 10. The native scanner SQLite
+   acceptance row remains external and does not block the Rails Finance gate.
+2. Keep the Scanner Task 8 contract files synchronized with the eventual
+   Swift/Kotlin/Flutter client, then run that client-side SQLite acceptance
+   gate when the client exists. It is independent of the next Rails task.
+3. Refunds/Finance Tasks 1–10 and Controlled Resale Tasks 1–10 are now green
+   and committed; Streaming / Add-ons / Links remains a separate Wave 6 track
+   and may run in parallel when ownership is explicit.
+4. Review and commit Commercial Task 12. Commercial is then complete; do not
+   start another Commercial task.
+5. Return to the first unresolved dependency in the master roadmap. Keep the
+   native scanner SQLite acceptance row and any other explicitly documented
+   external gates visible rather than silently treating them as Rails-complete.
+6. Finish Launch Hardening only after all plans 0–9 are green.
+
+Do not use a plan's numeric task number by itself as the next-task signal. Use
+the current checkpoint above and the explicit gate at the top of each dependent
+plan.
 
 ## Delivery waves and safe parallel work
 

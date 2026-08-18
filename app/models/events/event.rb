@@ -28,6 +28,10 @@ module Events
               dependent: :destroy, inverse_of: :event
     has_many :event_dates, class_name: "Events::EventDate",
              dependent: :destroy, inverse_of: :event
+    has_many :finance_ledger_entries,
+             class_name: "Finance::LedgerEntry",
+             dependent: :restrict_with_exception,
+             inverse_of: :event
     has_one :recurrence_rule, class_name: "Events::RecurrenceRule",
             dependent: :destroy, inverse_of: :event
     has_many :event_participants, class_name: "Events::EventParticipant",
@@ -46,6 +50,14 @@ module Events
              dependent: :destroy, inverse_of: :event
     has_many :promotions, class_name: "Catalog::Promotion",
              dependent: :destroy, inverse_of: :event
+    has_many :revocations, class_name: "Ticketing::Revocation",
+             dependent: :restrict_with_exception, inverse_of: :event
+    has_many :credential_revocations, class_name: "Ticketing::CredentialRevocation",
+             dependent: :restrict_with_exception, inverse_of: :event
+    has_many :attendee_index_entries, class_name: "Ticketing::AttendeeIndexEntry",
+             dependent: :restrict_with_exception, inverse_of: :event
+    has_many :admission_use_reversals, class_name: "Ticketing::AdmissionUseReversal",
+             dependent: :restrict_with_exception, inverse_of: :event
 
     validates :title, presence: true
     validates :slug, presence: true,
@@ -53,14 +65,20 @@ module Events
     validates :status, presence: true, inclusion: { in: STATUSES }
     validates :visibility, presence: true, inclusion: { in: VISIBILITIES }
     validates :version, numericality: { greater_than_or_equal_to: 0, only_integer: true }
+    validates :revocation_version, :attendee_index_version, :schedule_version,
+              :admission_use_reversal_version,
+              numericality: { greater_than_or_equal_to: 0, only_integer: true }
     validates :currency, format: { with: /\A[A-Z]{3}\z/, message: :invalid_currency }
     validate :timezone_must_be_valid
     validate :published_at_requires_published
     validate :cancelled_at_requires_cancelled
+    validate :completed_at_requires_completed
+    validate :completed_requires_completed_at
     validate :category_count_within_limit, on: :update
 
     before_validation :sync_published_at
     before_validation :sync_cancelled_at
+    before_validation :sync_completed_at
 
     scope :published, -> { where(status: "published") }
     scope :drafts, -> { where(status: "draft") }
@@ -96,6 +114,18 @@ module Events
       errors.add(:cancelled_at, I18n.t("errors.messages.cancelled_at_requires_cancelled"))
     end
 
+    def completed_at_requires_completed
+      return unless completed_at.present? && status != "completed"
+
+      errors.add(:completed_at, I18n.t("errors.messages.completed_at_requires_completed"))
+    end
+
+    def completed_requires_completed_at
+      return unless status == "completed" && completed_at.blank?
+
+      errors.add(:completed_at, I18n.t("errors.messages.completed_requires_completed_at"))
+    end
+
     def sync_published_at
       if status == "published"
         self.published_at ||= Time.current
@@ -111,6 +141,14 @@ module Events
         self.cancelled_at ||= Time.current
       else
         self.cancelled_at = nil
+      end
+    end
+
+    def sync_completed_at
+      if status == "completed"
+        self.completed_at ||= Time.current
+      else
+        self.completed_at = nil
       end
     end
 

@@ -1,0 +1,18 @@
+# frozen_string_literal: true
+
+en:
+  commercial:
+    resolution:
+      errors:
+        unknown_context_keys: "the commercial resolution context contains unsupported keys"
+        invalid_context_value: "the commercial resolution context contains an invalid value"
+        invalid_context: "the commercial resolution context is invalid"
+        invalid_currency: "the commercial resolution currency is invalid"
+        ambiguous_commercial_terms: "the commercial terms are ambiguous"
+        commercial_terms_unavailable: "the commercial terms are unavailable for this quote"
+        payer_selection_forbidden: "the selected commercial fee payer is not permitted"
+        unsupported_calculation: "the commercial calculation is not supported"
+        basis_unavailable: "the trusted commercial calculation basis is unavailable"
+        tier_unavailable: "the prospective commercial tier is unavailable"
+        volume_window_unavailable: "the prospective commercial volume window is unavailable"
+        invalid_calculation: "the commercial calculation inputs are invalid"

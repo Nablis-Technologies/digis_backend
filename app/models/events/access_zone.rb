@@ -21,6 +21,12 @@ module Events
     scope :active, -> { where(active: true) }
     scope :ordered, -> { order(:sort_order) }
 
+    # Every zone lifecycle mutation is a scanner policy change and must
+    # invalidate the previous schedule snapshot before its transaction commits.
+    after_create :bump_schedule_version
+    after_update :bump_schedule_version
+    after_destroy :bump_schedule_version
+
     def self.ransackable_attributes(_auth_object = nil)
       %w[id event_id event_date_id type name code active sort_order
          created_at updated_at]
@@ -31,6 +37,10 @@ module Events
     end
 
     private
+
+    def bump_schedule_version
+      Events::Schedule::BumpVersion.call(event: event)
+    end
 
     def event_date_belongs_to_event
       return if event_date_id.blank? || event_id.blank?

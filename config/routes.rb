@@ -95,6 +95,18 @@ Rails.application.routes.draw do
   end
 
   resources :events, only: [] do
+    post :order_quotes, to: "orders/order_quotes#create"
+    resources :orders, only: :create, controller: "orders/orders"
+  end
+
+  resources :orders, only: [] do
+    resources :payment_attempts, only: :create, controller: "orders/payment_attempts"
+    post :restart, on: :member, controller: "orders/orders"
+  end
+
+  post "payments/:provider/webhook", to: "orders/payment_webhooks#create"
+
+  resources :events, only: [] do
     resources :registration_forms, controller: "ticketing/registration_forms", only: %i[index show create update destroy] do
       resources :versions, controller: "ticketing/registration_form_versions", only: %i[index show create] do
         post :publish, on: :member
@@ -158,8 +170,108 @@ Rails.application.routes.draw do
   end
 
   post "ticketing/audience_authorizations", to: "ticketing/audience_authorizations#create"
+  post "scanner/auth", to: "ticketing/scanner/auth#create"
+  get "scanner/events/:event_id/sync", to: "ticketing/scanner/event_sync#show"
+  post "scanner/events/:event_id/scan_uploads", to: "ticketing/scanner/scan_uploads#create"
+  post "scanner/events/:event_id/lookups", to: "ticketing/scanner/lookups#create"
+  post "scanner/events/:event_id/verifications", to: "ticketing/scanner/verifications#create"
+  post "checkin_logs/:id/identity_override", to: "ticketing/checkin_identity_overrides#create"
+  post "checkin_logs/:id/admission_use_reversal", to: "ticketing/admission_use_reversals#create"
+
+  resources :tickets, only: [] do
+    post :resale, on: :member, controller: "marketplace/resale_listings", action: :create
+    resource :suspension, only: :create, controller: "ticketing/suspensions" do
+      post :restore
+      post :resolve
+    end
+    resource :delegation, only: :create, controller: "ticketing/delegations" do
+      post :cancel
+      patch :reassign
+    end
+    resources :credential_claims, only: :create, controller: "ticketing/credential_claims"
+    resources :transfers, only: :create, controller: "ticketing/transfers"
+  end
+
+  post "tickets/:ticket_id/cancel", to: "ticketing/cancellations#create"
+
+  resources :resale_listings, only: %i[index show], controller: "marketplace/resale_listings"
+  post "resale_listings/:resale_listing_id/purchase", to: "marketplace/resale_purchases#create"
+  post "resale_listings/:id/cancel", to: "marketplace/resale_listings#cancel"
+  resource :resale_policy, only: %i[show update],
+           path: "ticket_types/:ticket_type_id/resale_policy",
+           controller: "marketplace/resale_policies"
+
+  scope path: :marketplace do
+    get "seller/balance", to: "marketplace/seller_reports#balance"
+    get "seller/history", to: "marketplace/seller_reports#history"
+    scope path: "seller" do
+      resources :payout_accounts, only: %i[index create], controller: "marketplace/seller_payout_accounts"
+    end
+  end
+
+  resources :credential_claims, only: [] do
+    post :accept, on: :member, controller: "ticketing/credential_claims"
+  end
+
+  resources :ticket_transfers, only: [] do
+    post :accept, on: :member, controller: "ticketing/transfers"
+    post :decline, on: :member, controller: "ticketing/transfers"
+    post :cancel, on: :member, controller: "ticketing/transfers"
+  end
+
+  resources :refunds, only: %i[index show], controller: "orders/refunds"
+
+  scope path: :finance, module: :finance do
+    resources :organizations, only: [] do
+      resources :payouts, only: %i[index show create], controller: "payouts" do
+        post :dispatch, on: :member, action: :dispatch_payout
+        post :reconcile, on: :member
+      end
+    end
+    get "organizations/:organization_id/ledger_entries", to: "payouts#ledger_entries"
+    get "organizations/:organization_id/balance", to: "payouts#balance"
+    post "payouts/:id/approve_no_balance_api", to: "payouts#approve_no_balance_api"
+    put "reserve_policies/:provider/:currency", to: "payouts#update_reserve_policy"
+  end
 
   namespace :admin do
+    namespace :marketplace do
+      resources :seller_payouts, only: %i[index show], controller: "seller_payouts" do
+        post :dispatch, on: :member, action: :dispatch_payout
+        post :reconcile, on: :member
+      end
+    end
+
+    namespace :commercial do
+      resources :fee_schedules, only: %i[index show create update] do
+        resources :fee_schedule_versions, only: %i[index create], controller: "fee_schedule_versions"
+      end
+      resources :fee_schedule_versions, only: %i[show update], controller: "fee_schedule_versions" do
+        member do
+          post :simulate
+          post :submit
+          post :approve
+          post :reject
+          post :schedule
+          post :activate
+          post :terminate
+          post :deliver_notice
+        end
+      end
+      resources :programs, only: %i[index show create update]
+      resources :assignments, only: %i[index show create] do
+        member do
+          post :submit
+          post :approve
+          post :reject
+          post :activate
+          post :terminate
+        end
+      end
+      resources :simulations, only: %i[index show create]
+      resources :subsidy_budgets, only: %i[index show create update]
+    end
+
     resources :users, except: %i[new edit] do
       member do
         post :deactivate
@@ -224,6 +336,14 @@ Rails.application.routes.draw do
     post "organizations/owner/:organization_id/verification/resubmit", to: "verifications#resubmit"
 
     resources :organizations, only: %i[index show], path: "organizations"
+  end
+
+  scope path: :commercial, module: :commercial do
+    get "organizations/:organization_id/terms", to: "organization_terms#show",
+      as: :commercial_organization_terms
+    resources :events, only: [] do
+      resources :event_payer_selections, only: %i[index show create]
+    end
   end
 
   scope module: :core do

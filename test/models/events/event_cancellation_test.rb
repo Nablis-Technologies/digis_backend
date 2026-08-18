@@ -13,8 +13,9 @@ module Events
       Events::EventCancellation.new({
         event: @event,
         initiated_by: @actor,
-        status: "initiated",
-        cancelled_at: Time.current,
+        status: "pending",
+        attendee_reason: "The event will not proceed.",
+        initiated_at: Time.current,
         idempotency_key: "cancel-#{SecureRandom.uuid}"
       }.merge(overrides))
     end
@@ -43,8 +44,9 @@ module Events
         Events::EventCancellation.new(
           event: @event,
           initiated_by: @actor,
-          status: "initiated",
-          cancelled_at: Time.current,
+          status: "pending",
+          attendee_reason: "The event will not proceed.",
+          initiated_at: Time.current,
           idempotency_key: "another-key"
         ).save!(validate: false)
       end
@@ -54,6 +56,28 @@ module Events
       cancellation = build_cancellation
       cancellation.save!
       assert_equal @event, cancellation.event
+    end
+
+    test "database rejects counters that exceed the payment snapshot" do
+      assert_raises(ActiveRecord::StatementInvalid) do
+        Events::EventCancellation.insert_all!([
+          {
+            id: SecureRandom.uuid,
+            event_id: @event.id,
+            initiated_by_id: @actor.id,
+            status: "pending",
+            idempotency_key: "counter-#{SecureRandom.uuid}",
+            attendee_reason: "The event will not proceed.",
+            total_payments_count: 1,
+            resolved_payments_count: 2,
+            failed_payments_count: 0,
+            initiated_at: Time.current,
+            lock_version: 0,
+            created_at: Time.current,
+            updated_at: Time.current
+          }
+        ])
+      end
     end
   end
 end

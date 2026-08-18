@@ -5,6 +5,13 @@
 # handler is invoked by Core::Outbox::Dispatch (via Core::ProcessOutboxJob) once
 # an "event.published" outbox row is claimed for delivery.
 Rails.application.config.x.outbox_handlers["event.published"] = lambda do |outbox_event|
-  event_id = outbox_event.payload["event_id"]
+  event_id = outbox_event.payload.fetch("event_id")
   Events::RefreshDiscoveryJob.perform_later(event_id)
+  Commercial::HandleEventPublishedJob.perform_later(event_id)
+end
+
+Rails.application.config.x.outbox_handlers["events.cancellation_initiated"] = lambda do |outbox_event|
+  result = Events::Cancellation::OutboxHandlers::CancellationInitiated.call(event: outbox_event)
+  raise result.error if result.failure?
+  result
 end

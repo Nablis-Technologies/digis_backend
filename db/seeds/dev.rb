@@ -365,7 +365,48 @@ puts "✓ #{Legal::LegalDocument.count} legal documents; " \
      "#{Legal::LegalAcceptance.count} acceptances"
 
 # ─────────────────────────────────────────────
-# 6. Follows (Core::Follow) — for follow/unfollow endpoints
+# 6. Commercial programs and assignments (Task 3)
+# ─────────────────────────────────────────────
+puts "\n💼 Seeding commercial program examples..."
+
+commercial_schedule = Commercial::FeeSchedule.find_or_create_by!(code: "first_monetized_event_program") do |schedule|
+  schedule.name = "First Monetized Event Program"
+  schedule.schedule_type = "program"
+  schedule.created_by = admin
+end
+
+commercial_version = Commercial::FeeScheduleVersion.find_or_create_by!(
+  fee_schedule: commercial_schedule, version: 1
+) do |version|
+  version.status = "draft"
+  version.definition_digest = Digest::SHA256.hexdigest("first-monetized-event-program-v1")
+  version.acceptance_policy = "none"
+end
+
+commercial_program = Commercial::Program.find_or_create_by!(fee_schedule: commercial_schedule) do |program|
+  program.program_type = "first_monetized_event"
+  program.enrollment_mode = "automatic"
+  program.active = true
+end
+
+Commercial::Assignment.find_or_create_by!(
+  organization: fest_org,
+  event: fest_event,
+  fee_schedule_version: commercial_version,
+  assignment_type: "program"
+) do |assignment|
+  assignment.program = commercial_program
+  assignment.status = "draft"
+  assignment.reason = "Seeded first monetized event program for API tests"
+  assignment.effective_from = Time.zone.parse("2026-01-01 00:00")
+  assignment.risk_level = "low"
+  assignment.created_by = admin
+end
+
+puts "✓ #{Commercial::Program.count} programs; #{Commercial::Assignment.count} assignments"
+
+# ─────────────────────────────────────────────
+# 7. Follows (Core::Follow) — for follow/unfollow endpoints
 # ─────────────────────────────────────────────
 puts "\n❤️  Seeding follows..."
 
@@ -376,7 +417,7 @@ end
 puts "✓ #{Core::Follow.count} follows"
 
 # ─────────────────────────────────────────────
-# 7. Catalog: products, ticket types, access codes, invitations (Plan 2, Task 1)
+# 8. Catalog: products, ticket types, access codes, invitations (Plan 2, Task 1)
 # ─────────────────────────────────────────────
 puts "\n🎟️  Seeding catalog products + ticket audience policies..."
 
@@ -662,7 +703,7 @@ end
 puts "✓ #{Catalog::Promotion.count} promotions, #{Catalog::PromotionCode.count} promotion codes"
 
 # ─────────────────────────────────────────────
-# 8. Catalog: product accesses, zone grants, and date allocations (Plan 2, Task 4)
+# 9. Catalog: product accesses, zone grants, and date allocations (Plan 2, Task 4)
 # ─────────────────────────────────────────────
 puts "\n🔄  Seeding product accesses + allocations..."
 
@@ -717,6 +758,8 @@ puts "  Promotions:        #{Catalog::Promotion.count} promotions, #{Catalog::Pr
 puts "  Accesses:          #{Catalog::ProductAccess.count} accesses (#{Catalog::ProductAccessZone.count} zone grants, #{Catalog::ProductDateAllocation.count} date allocations)"
 puts "  Legal docs:        #{Legal::LegalDocument.count} (#{Legal::LegalDocumentVersion.published.count} published)"
 puts "  Legal acceptances: #{Legal::LegalAcceptance.count}"
+puts "  Commercial programs: #{Commercial::Program.count}"
+puts "  Commercial assignments: #{Commercial::Assignment.count}"
 puts "\n🔑 Auth (POST /core/auth/login):"
 puts "  Admin:     +251911000001 / password123"
 puts "  Organizer: +251911000002 / password123"

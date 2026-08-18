@@ -9,11 +9,11 @@ module Events
     # payment-provider work: money movement is handled by a separate downstream
     # consumer of the events.cancellation_initiated outbox event.
     class Initiate < Core::BaseService
-      def initialize(event:, actor:, idempotency_key:, reason: nil, attendee_reason: nil)
+      def initialize(event:, actor:, idempotency_key:, internal_note: nil, attendee_reason: nil)
         @event = event
         @actor = actor
         @idempotency_key = idempotency_key
-        @reason = reason
+        @internal_note = internal_note
         @attendee_reason = attendee_reason
       end
 
@@ -32,6 +32,7 @@ module Events
 
           previous_status = event.status
           event.update!(status: "cancelled", cancelled_at: Time.current)
+          stop_streams(event)
           @cancellation = create_cancellation
 
           record_audit(previous_status)
@@ -46,18 +47,34 @@ module Events
 
       private
 
-      attr_reader :event, :actor, :idempotency_key, :reason, :attendee_reason
+      attr_reader :event, :actor, :idempotency_key, :internal_note, :attendee_reason
 
       def create_cancellation
         Events::EventCancellation.create!(
           event: event,
           initiated_by: actor,
-          reason: reason,
+          internal_note: internal_note,
           attendee_reason: attendee_reason,
-          status: "initiated",
+          status: "pending",
           idempotency_key: idempotency_key,
-          cancelled_at: Time.current
+          total_payments_count: eligible_payment_count,
+          initiated_at: Time.current
         )
+      end
+
+      def eligible_payment_count
+        Orders::Payment.joins(:order)
+          .where(orders_orders: { event_id: event.id }, status: "succeeded")
+          .where.not(accepted_at: nil)
+          .count
+      end
+
+      def stop_streams(event)
+        Events::EventStream
+          .joins(:event_date)
+          .where(events_event_dates: { event_id: event.id })
+          .where.not(status: "ended")
+          .update_all(status: "ended", updated_at: Time.current)
       end
 
       def record_audit(previous_status)

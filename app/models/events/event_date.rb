@@ -23,6 +23,16 @@ module Events
              class_name: "Catalog::ProductAccess",
              inverse_of: :event_date,
              dependent: :delete_all
+    has_many :refund_items,
+             class_name: "Orders::RefundItem",
+             inverse_of: :event_date,
+             dependent: :restrict_with_exception
+
+    # Creation and deletion change the offline schedule. Ordinary reschedules
+    # use the explicit group command and bump once per group, so updates are
+    # intentionally not handled here.
+    after_create :bump_schedule_version
+    after_destroy :bump_schedule_version
 
     validates :starts_at, :ends_at, presence: true
     validates :status, presence: true, inclusion: { in: STATUSES }
@@ -47,6 +57,10 @@ module Events
     end
 
     private
+
+    def bump_schedule_version
+      Events::Schedule::BumpVersion.call(event: event)
+    end
 
     def ends_at_after_starts_at
       return if ends_at.blank? || starts_at.blank?

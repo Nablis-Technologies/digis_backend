@@ -6,11 +6,12 @@ module Ticketing
     class Commit < Core::BaseService
       include Support
 
-      def initialize(registration:, user:, idempotency_key:, unit_numbers: nil)
+      def initialize(registration:, user:, idempotency_key:, unit_numbers: nil, at: Time.current)
         @registration = registration
         @user = user
         @idempotency_key = idempotency_key
         @unit_numbers = unit_numbers
+        @now = at.to_time.utc
       end
 
       def call
@@ -27,9 +28,9 @@ module Ticketing
           current.each do |allocation|
             next if allocation.committed?
             fail BusinessFailure, failure("purchase_limit_allocation_not_reservable", "allocation_not_reservable") unless allocation.reserved?
-            fail BusinessFailure, failure("purchase_limit_reservation_expired", "reservation_expired") if allocation.expires_at <= Time.current
+            fail BusinessFailure, failure("purchase_limit_reservation_expired", "reservation_expired") if allocation.expires_at < now
 
-            allocation.update!(status: "committed", expires_at: nil, committed_at: Time.current)
+            allocation.update!(status: "committed", expires_at: nil, committed_at: now)
           end
           record_audit!(audit_key, current)
           current
@@ -44,7 +45,7 @@ module Ticketing
 
       private
 
-      attr_reader :registration, :user, :idempotency_key, :unit_numbers
+      attr_reader :registration, :user, :idempotency_key, :unit_numbers, :now
 
       def scoped_allocations(scope_event_date_id)
         scope = PurchaseLimitAllocation

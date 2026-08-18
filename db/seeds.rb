@@ -181,6 +181,32 @@ permissions = [
   { resource: "artist", action: "destroy", namespace: "core", description: "Delete artists" }
 ]
 
+commercial_permission_actions = %w[
+  view draft simulate submit approve activate grant terminate audit budget_view break_glass
+].freeze
+permissions.concat(commercial_permission_actions.map do |action|
+  {
+    resource: "commercial",
+    action: action,
+    namespace: "commercial",
+    description: I18n.t("commercial.permissions.#{action}")
+  }
+end)
+
+permissions << {
+  resource: "finance.reserve_policy", action: "update", namespace: "finance",
+  description: I18n.t("finance.permissions.reserve_policy_update")
+}
+
+permissions.concat([
+  { resource: "finance.payout", action: "dispatch", namespace: "finance",
+    description: I18n.t("finance.permissions.payout_dispatch") },
+  { resource: "finance.payout", action: "reconcile", namespace: "finance",
+    description: I18n.t("finance.permissions.payout_reconcile") },
+  { resource: "finance.payout", action: "approve_no_balance_api", namespace: "finance",
+    description: I18n.t("finance.permissions.payout_approve_no_balance_api") }
+])
+
 permissions.each do |perm|
   Core::Permission.find_or_create_by!(resource: perm[:resource], action: perm[:action], namespace: perm[:namespace]) do |p|
     p.description = perm[:description]
@@ -228,7 +254,10 @@ Core::Permission.active.find_each do |perm|
 end
 
 # ADMIN gets most permissions (except super admin-only)
-admin_permissions = Core::Permission.where.not(resource: "permission", action: "destroy")
+# Break-glass access is intentionally never inherited from the broad ADMIN role.
+admin_permissions = Core::Permission
+  .where.not(resource: "permission", action: "destroy")
+  .where.not(resource: "commercial", action: "break_glass")
 admin_permissions.find_each do |perm|
   Core::RolePermission.find_or_create_by!(role: admin_role, permission: perm)
 end
@@ -284,6 +313,10 @@ core_admin_org_permissions = Core::Permission.where(
 core_admin_org_permissions.find_each do |perm|
   Core::RolePermission.find_or_create_by!(role: core_admin_role, permission: perm)
 end
+
+# CORE_ADMIN can inspect Commercial definitions; higher-risk actions stay independently assignable.
+commercial_view_permission = Core::Permission.find_by!(resource: "commercial", action: "view", namespace: "commercial")
+Core::RolePermission.find_or_create_by!(role: core_admin_role, permission: commercial_view_permission)
 
 # SUPPORT gets user index/show/deactivate, role index/show, audit_log index/show,
 # and organization index/show
@@ -355,7 +388,48 @@ end
 puts "✓ #{Organizations::Organization.count} organizations seeded"
 
 # ─────────────────────────────────────────────
-# 8. Memberships
+# 8. Commercial programs and assignments
+# ─────────────────────────────────────────────
+puts "\n💼 Seeding commercial program examples..."
+
+commercial_schedule = Commercial::FeeSchedule.find_or_create_by!(code: "first_monetized_event_program") do |schedule|
+  schedule.name = "First Monetized Event Program"
+  schedule.schedule_type = "program"
+  schedule.created_by = admin_user
+end
+
+commercial_version = Commercial::FeeScheduleVersion.find_or_create_by!(
+  fee_schedule: commercial_schedule, version: 1
+) do |version|
+  version.status = "draft"
+  version.definition_digest = Digest::SHA256.hexdigest("first-monetized-event-program-v1")
+  version.acceptance_policy = "none"
+end
+
+commercial_program = Commercial::Program.find_or_create_by!(fee_schedule: commercial_schedule) do |program|
+  program.program_type = "first_monetized_event"
+  program.enrollment_mode = "automatic"
+  program.active = true
+end
+
+Commercial::Assignment.find_or_create_by!(
+  organization: org_music,
+  event: nil,
+  fee_schedule_version: commercial_version,
+  assignment_type: "program"
+) do |assignment|
+  assignment.program = commercial_program
+  assignment.status = "draft"
+  assignment.reason = "Seeded first monetized event program"
+  assignment.effective_from = Time.zone.parse("2026-01-01 00:00")
+  assignment.risk_level = "low"
+  assignment.created_by = admin_user
+end
+
+puts "✓ #{Commercial::Program.count} programs; #{Commercial::Assignment.count} assignments"
+
+# ─────────────────────────────────────────────
+# 9. Memberships
 # ─────────────────────────────────────────────
 puts "\n👥 Seeding memberships..."
 
@@ -387,7 +461,7 @@ end
 puts "✓ #{Organizations::Membership.count} memberships seeded"
 
 # ─────────────────────────────────────────────
-# 9. Events::Venues
+# 10. Events::Venues
 # ─────────────────────────────────────────────
 puts "\n🏟️  Seeding venues..."
 
@@ -406,7 +480,7 @@ end
 puts "✓ #{Events::Venue.count} venues seeded"
 
 # ─────────────────────────────────────────────
-# 10. Events::Artists
+# 11. Events::Artists
 # ─────────────────────────────────────────────
 puts "\n🎤 Seeding artists..."
 
@@ -425,7 +499,7 @@ end
 puts "✓ #{Events::Artist.count} artists seeded"
 
 # ─────────────────────────────────────────────
-# 11. Core::Follows (sample follows)
+# 12. Core::Follows (sample follows)
 # ─────────────────────────────────────────────
 puts "\n❤️  Seeding sample follows..."
 
@@ -466,6 +540,8 @@ puts "  Role Permissions:   #{Core::RolePermission.count}"
 puts "  Event Categories:   #{Events::Category.count}"
 puts "  Organizations:      #{Organizations::Organization.count}"
 puts "  Memberships:        #{Organizations::Membership.count}"
+puts "  Commercial programs: #{Commercial::Program.count}"
+puts "  Commercial assignments: #{Commercial::Assignment.count}"
 puts "  Venues:             #{Events::Venue.count}"
 puts "  Artists:            #{Events::Artist.count}"
 puts "  Follows:            #{Core::Follow.count}"

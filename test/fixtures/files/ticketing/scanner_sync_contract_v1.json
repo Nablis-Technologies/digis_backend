@@ -1,0 +1,98 @@
+{
+  "contract_version": 1,
+  "required_keys": [
+    "contract_version",
+    "event_id",
+    "sync_mode",
+    "versions",
+    "signing_keys",
+    "package_revocations",
+    "credential_revocations",
+    "attendee_index",
+    "schedule",
+    "server_use_ids",
+    "admission_use_reversals"
+  ],
+  "forbidden_keys": [
+    "answers",
+    "consent",
+    "id_documents",
+    "finance",
+    "resale",
+    "payout",
+    "notes"
+  ],
+  "local_apply_order": [
+    "server_use_ids",
+    "package_revocations",
+    "credential_revocations",
+    "attendee_tombstones",
+    "attendee_additions",
+    "admission_use_reversals",
+    "schedule_and_zone_policies",
+    "cursor_versions"
+  ],
+  "offline_behavior": {
+    "apply_transaction": "single_transaction",
+    "cursor_commit_position": "last",
+    "replay": {
+      "upload_id": "return_exact_stored_snapshot",
+      "scan_id": "return_original_scan_result"
+    },
+    "disconnected_conflict": {
+      "local_result": "success",
+      "server_result": "duplicate",
+      "winner": "first_authoritative_server_use"
+    }
+  },
+  "performance": {
+    "snapshot_attendee_entries": 50000,
+    "upload_scans": 500,
+    "snapshot_seconds": 8.0,
+    "snapshot_seconds_ci": 12.0,
+    "upload_seconds": 2.0
+  },
+  "sample_payload": {
+    "contract_version": 1,
+    "event_id": "event-1",
+    "sync_mode": "delta",
+    "versions": {
+      "revocations": 2,
+      "attendee_index": 4,
+      "schedule": 3,
+      "reversals": 1
+    },
+    "signing_keys": { "v1": "cHVibGljLWtleQ" },
+    "package_revocations": {
+      "version": 2,
+      "changed": [
+        { "tid": "ticket-1", "revoked_through_version": 1, "is_dead": false, "is_suspended": true }
+      ]
+    },
+    "credential_revocations": {
+      "version": 2,
+      "changed": [
+        { "cid": "credential-1", "reason": "generation_replaced", "revoked_at": "2026-08-12T00:00:00Z" }
+      ]
+    },
+    "attendee_index": {
+      "version": 4,
+      "changed": [
+        { "credential_id": "old", "removed": true, "answers": "never" },
+        { "credential_id": "new", "removed": false, "consent": "never" }
+      ]
+    },
+    "schedule": {
+      "version": 3,
+      "event_dates": [],
+      "access_zones": [],
+      "product_access_zones": [],
+      "scanner_assignment_zones": []
+    },
+    "server_use_ids": [],
+    "admission_use_reversals": {
+      "version": 1,
+      "changed": []
+    }
+  }
+}

@@ -8,6 +8,7 @@ en:
       activate: "Could not activate legal document"
       deactivate: "Could not deactivate legal document"
       version_not_published: "Only a published version can be accepted"
+      commercial_version_mismatch: "The acceptance must reference the assigned commercial schedule's published legal version"
       acceptance_invalid: "Could not record legal acceptance"
       acceptance_conflict: "An acceptance for this subject and version already exists"
     success:

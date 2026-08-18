@@ -97,6 +97,20 @@ module Ticketing
         assert_equal 0, Catalog::ProductInventory.where(event_product: ticket_type.event_product).sum(:sold_count)
       end
 
+      test "does not issue a complimentary registration after event cancellation" do
+        ticket_type = create_ticket_type
+        @event.update!(status: "cancelled")
+
+        result = Issue.call(
+          ticket_type:, actor: @manager, phone: @recipient.phone, package_quantity: 1,
+          reason: "accessibility", idempotency_key: "complimentary-cancelled-event"
+        )
+
+        assert_predicate result, :failure?
+        assert_equal "event_cancelled", result.error.code
+        assert_empty Ticketing::Registration.where(event: @event)
+      end
+
       private
 
       def create_ticket_type

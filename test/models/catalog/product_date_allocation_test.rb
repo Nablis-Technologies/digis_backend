@@ -11,6 +11,7 @@ module Catalog
       @product = Catalog::EventProduct.create!(event: @event, name: "Festival Pass",
                                                 type: "merchandise", status: "draft",
                                                 inventory_mode: "unlimited")
+      @product.product_accesses.create!(event_date: @date, type: "venue")
     end
 
     test "valid with positive basis points" do

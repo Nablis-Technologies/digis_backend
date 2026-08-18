@@ -1,0 +1,28 @@
+# frozen_string_literal: true
+
+en:
+  commercial:
+    subsidies:
+      errors:
+        owner_exclusive: "a subsidy budget must belong to exactly one assignment or program"
+        platform_subsidy_required: "a subsidy budget must reference a platform subsidy component"
+        owner_component_mismatch: "the subsidy component must belong to the owner's fee schedule"
+        currency_mismatch: "the subsidy budget currency is not supported by the component"
+        counter_limit: "reserved and consumed subsidy amounts cannot exceed the budget limit"
+        reservation_currency_mismatch: "the subsidy reservation currency must match its budget and order"
+        reservation_expiry_required: "an active subsidy reservation requires an expiry time"
+        reservation_timestamp_required: "the subsidy reservation requires its terminal timestamp"
+        reservation_timestamp_invalid: "the subsidy reservation timestamp does not match its state"
+        reservation_immutable: "subsidy reservation evidence is retained and cannot be deleted"
+        amount_invalid: "the subsidy reservation amount must be positive"
+        currency_required: "the subsidy reservation currency is required"
+        expiry_invalid: "the subsidy reservation expiry must be in the future"
+        order_not_active: "the order is not an active checkout"
+        hold_currency_mismatch: "the subsidy reservation currency does not match the order and budget"
+        budget_exhausted: "the subsidy budget does not have enough remaining capacity"
+        reservation_exists: "an active subsidy reservation already exists for this order and budget"
+        idempotency_conflict: "the subsidy idempotency key conflicts with existing request evidence"
+        state_conflict: "the subsidy reservation is not in a state that accepts this operation"
+        reservation_expired: "the subsidy reservation has expired"
+        counter_drift: "the subsidy budget counters no longer match reservation evidence"
+        record_not_found: "the subsidy reservation record could not be found"

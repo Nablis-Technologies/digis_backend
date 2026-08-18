@@ -4,7 +4,7 @@ module Legal
   class LegalAcceptance < Legal::ApplicationRecord
     self.table_name = "legal_acceptances"
 
-    SUBJECT_TYPES = %w[user organization order].freeze
+    SUBJECT_TYPES = %w[user organization order commercial_assignment].freeze
     ACCEPTANCE_METHODS = %w[checkbox otp].freeze
 
     belongs_to :legal_document_version,
@@ -33,6 +33,7 @@ module Legal
       when "user" then Core::User.find(subject_id)
       when "organization" then Organizations::Organization.find(subject_id)
       when "order" then Orders::Order.find(subject_id)
+      when "commercial_assignment" then Commercial::Assignment.find(subject_id)
       end
     end
 

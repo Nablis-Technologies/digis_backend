@@ -12,7 +12,7 @@ module Events
       result = Events::Cancellation::Initiate.call(
         event: @event,
         actor: current_user,
-        reason: cancellation_params[:reason],
+        internal_note: cancellation_params[:internal_note],
         attendee_reason: cancellation_params[:attendee_reason],
         idempotency_key: idempotency_key
       )
@@ -31,7 +31,7 @@ module Events
     end
 
     def cancellation_params
-      params.fetch(:cancellation, {}).permit(:reason, :attendee_reason)
+      params.fetch(:cancellation, {}).permit(:internal_note, :attendee_reason)
     end
   end
 end

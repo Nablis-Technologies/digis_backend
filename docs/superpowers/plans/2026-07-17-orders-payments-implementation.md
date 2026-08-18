@@ -16,6 +16,51 @@
 
 Start after event, catalog pricing/inventory/promotions, registration/purchase-limit, and Commercial foundations pass. Reuse Phase 0 `Core::Money`, `Core::BaseService::Result`, `Core::BusinessError`, `Core::CommandResponse`, `Core::Audit::Record`, and `Core::Outbox::Publish`. Reuse Phase 2 `catalog_exchange_rates` and `Catalog::ExchangeRate`; do not recreate them. Consume `Commercial::ResolveCharges`, immutable component evidence, payer selections, volume usage, entitlement, and subsidy-budget contracts; do not recreate platform-fee calculation in Orders. Remove inferior development-only order/payment structures rather than dual-writing.
 
+## Commercial handoff sequence
+
+This plan is intentionally interleaved with the Commercial plan. Execute its
+tasks in the following boundary order:
+
+1. Orders Tasks 1–2 may begin after the Commercial foundations and Task 7A
+   budget invariant are complete.
+2. After Orders Task 2 has created and verified `orders_orders`, pause this
+   plan while Commercial Task 7B creates the real order-linked subsidy
+   reservation contract, followed by Commercial Task 8's volume-usage and
+   event-payer selection contracts.
+3. Begin Orders Task 3 only after Commercial Tasks 7B and 8 are complete.
+   Execute it together with Commercial Task 10's immutable Commercial-results
+   integration; checkout is not complete until both plans' contracts and race
+   tests pass.
+
+### Current execution route from the Commercial branch
+
+Orders Tasks 1–8 are implemented in the current branch, including the
+Commercial checkout projection, payment-attempt evidence, provider registry,
+sequential attempt start/switch behavior, durable webhook acceptance, and the
+Orders fulfillment and settlement-grace boundaries. The plan's historical commit
+checkboxes may remain unchecked even when the implementation commit exists;
+use the branch checkpoint and verification evidence rather than restarting
+completed work.
+
+The Commercial Task 9–10 verification gate is closed. Orders Tasks 8–9 are
+implemented and verified, including the full repository gate. Review and
+commit this verified Orders tranche before beginning the Ticket Packages plan
+at Task 2. Ticket Packages Task 1 is already present as an early schema
+prerequisite and must not be treated as permission to skip the remaining Orders
+payment tasks.
+
+Do not add a placeholder Orders table, a seed order, or a weakened foreign key
+to make the Commercial reservation work. Orders Task 2 is the authoritative
+owner of the order schema.
+
+Migration versions follow the dependency graph rather than the plan's original
+document date: Commercial foundations through Task 7A use versions through
+`20260808090012`, Orders Tasks 1–2 use `20260811090001` through
+`20260811090004`, Commercial Tasks 7B–8 use the next versions, and the later
+payment tables follow those handoffs. This keeps a fresh database install from
+attempting an Orders foreign key before its Catalog and Commercial parent table
+exists.
+
 - One order has one event and one buyer.
 - Charge currency is selected before persistence and never changes.
 - Price, FX, fee, adjustment, and refund-policy snapshots become immutable at `pending_payment`.
@@ -31,12 +76,12 @@ Start after event, catalog pricing/inventory/promotions, registration/purchase-l
 
 ### Database and models
 
-- Create `db/migrate/20260717090002_create_orders.rb`
-- Create `db/migrate/20260717090003_create_order_items.rb`
-- Create `db/migrate/20260717090004_create_order_adjustments.rb`
-- Create `db/migrate/20260717090005_create_promotion_redemptions.rb`
-- Create `db/migrate/20260717090006_create_payments.rb`
-- Create `db/migrate/20260717090007_create_payment_events.rb`
+- Create `db/migrate/20260811090001_create_orders.rb`
+- Create `db/migrate/20260811090002_create_order_items.rb`
+- Create `db/migrate/20260811090003_create_order_adjustments.rb`
+- Create `db/migrate/20260811090004_create_promotion_redemptions.rb`
+- Create `db/migrate/20260811090009_create_payments.rb`
+- Create `db/migrate/20260811090010_create_payment_events.rb`
 - Create models under `app/models/orders/`: `order.rb`, `order_item.rb`, `order_adjustment.rb`, `promotion_redemption.rb`, `payment.rb`, `payment_event.rb`
 
 ### Commands and values
@@ -52,7 +97,7 @@ Start after event, catalog pricing/inventory/promotions, registration/purchase-l
 - Create `app/services/orders/process_payment_event.rb`
 - Create `app/services/orders/accept_payment.rb`
 - Create `app/services/orders/fulfill_order.rb`
-- Create `app/services/orders/reverse_unaccepted_payment.rb`
+- Create `app/services/orders/create_payment_reversal.rb`
 - Create `app/services/orders/expire_checkout.rb`
 - Create `app/services/orders/expire_settlement_grace.rb`
 - Create `app/services/payments/providers/adapter.rb`, `registry.rb`, `result.rb`, and `chapa_adapter.rb`
@@ -65,7 +110,11 @@ Start after event, catalog pricing/inventory/promotions, registration/purchase-l
 - Create `app/controllers/orders/payment_webhooks_controller.rb`
 - Create `app/policies/orders/order_policy.rb`
 - Create serializers under `app/serializers/orders/`
-- Create jobs under `app/jobs/orders/`: `process_payment_event_job.rb`, `enter_settlement_grace_job.rb`, `expire_settlement_grace_job.rb`, `reconcile_payment_job.rb`
+- Create jobs under `app/jobs/orders/`: `process_payment_event_job.rb`, `enter_settlement_grace_job.rb`, `expire_settlement_grace_job.rb`
+
+Refund provider submission, verification, and pending-liquidity retries are
+owned by Refunds/Finance Task 4. Orders owns only the durable reversal
+obligation created at payment acceptance.
 - Modify `config/routes.rb` with root routes mapped to domain controllers; URL versioning remains deferred by the master roadmap
 
 ### Tests
@@ -77,7 +126,7 @@ Start after event, catalog pricing/inventory/promotions, registration/purchase-l
 - Create job tests under `test/jobs/orders/`
 - Create concurrency tests under `test/integration/orders/`
 
-## Task 1: Add deterministic order-quote and allocation primitives
+## Task 1: Add deterministic order-quote and allocation primitives before the Commercial reservation handoff
 
 **Files:**
 - Create: `app/services/orders/quote.rb`
@@ -85,7 +134,7 @@ Start after event, catalog pricing/inventory/promotions, registration/purchase-l
 - Test: `test/services/orders/quote_test.rb`
 - Test: `test/services/orders/largest_remainder_allocator_test.rb`
 
-- [ ] **Step 1: RED — write immutable Commercial-evidence and allocation tests**
+- [x] **Step 1: RED — write immutable Commercial-evidence and allocation tests**
 
 ```ruby
 # frozen_string_literal: true
@@ -94,23 +143,13 @@ require "test_helper"
 
 class Orders::QuoteTest < ActiveSupport::TestCase
   test "preserves exact immutable commercial results without recalculating them" do
-    commercial_result = Commercial::ChargeResult.new(
-      component_id: SecureRandom.uuid,
-      schedule_version_id: SecureRandom.uuid,
-      component_type: "platform_commission",
-      calculation_type: "percentage",
-      charged_to: "organizer",
-      funded_by: "organizer",
+    commercial_result = Commercial::Resolution::ChargeResult.new(
       currency: "ETB",
-      amount_minor: 250,
-      basis_type: "eligible_order_subtotal",
-      basis_minor: 10_000,
-      rate_bps: 250,
-      fixed_amount_minor: nil,
-      minimum_minor: nil,
-      maximum_minor: nil,
-      refund_policy: "nonrefundable",
-      evidence: { resolution_layer: "platform_default" }.freeze
+      quoted_at: Time.current,
+      component_results: [],
+      buyer_fee_total: 250,
+      organizer_fee_total: 0,
+      subsidy_total: 0
     )
 
     quote = Orders::Quote.new(commercial_results: [ commercial_result ], expires_at: 10.minutes.from_now)
@@ -121,15 +160,15 @@ class Orders::QuoteTest < ActiveSupport::TestCase
 end
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/orders/quote_test.rb test/services/orders/largest_remainder_allocator_test.rb
 ```
 
-Expected: FAIL because the Orders quote/allocation values do not exist. Commercial calculation already passes its own phase gate.
+Expected: FAIL because the Orders quote/allocation values do not exist. Commercial calculation already passes its own phase gate. Verified after granting the test process access to the local PostgreSQL socket: 4 tests, 1 failure, 3 errors, all caused by the missing constants.
 
-- [ ] **Step 3: GREEN — implement narrow immutable Orders results and reuse `Core::Money`**
+- [x] **Step 3: GREEN — implement narrow immutable Orders results and deterministic allocation**
 
 ```ruby
 # frozen_string_literal: true
@@ -144,19 +183,29 @@ module Orders
 end
 ```
 
-Implement largest-remainder allocation with rational shares, floor, then remaining units by descending remainder and ascending stable ID. `Orders::Quote` composes `Core::Money` values with product/FX/Commercial/expiry evidence and does not duplicate currency or fee calculation.
+Implement largest-remainder allocation with rational shares, floor, then remaining units by descending remainder and ascending stable ID. `Orders::Quote` carries the immutable Commercial/expiry evidence without duplicating currency or fee calculation; Task 3's `Orders::BuildQuote` composes the `Core::Money`, product, and FX evidence around it.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+For this task, `LargestRemainderAllocator.call(total_minor:, allocations:)`
+accepts hashes with `id` and `allocation_basis_points`, requires a complete
+10,000-basis-point share set, and returns frozen `Allocation` values sorted by
+stable ID. Task 3's `Orders::BuildQuote` will compose product, FX, and
+`Core::Money` evidence around this immutable Commercial/expiry envelope; Task 1
+does not duplicate that checkout-specific assembly.
 
-Run the Task 1 command. Expected: PASS.
+- [x] **Step 4: Run tests and verify GREEN**
 
-- [ ] **Step 5: Refactor and verify**
+Run the Task 1 command. Expected: PASS. Verified: 4 tests, 17 assertions,
+0 failures, 0 errors with `N_PLUS_ONE=1`.
+
+- [x] **Step 5: Refactor and verify**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/orders
 ```
 
-Expected: PASS with no float calculations.
+Expected: PASS with no float calculations. Verified: 4 tests, 17 assertions,
+0 failures, 0 errors with `N_PLUS_ONE=1`; RuboCop reported no offenses in the
+4 changed Ruby files.
 
 - [ ] **Step 6: Commit**
 
@@ -165,26 +214,27 @@ git add app/services/orders test/services/orders
 git commit -m "feat(orders): add deterministic pricing primitives"
 ```
 
-## Task 2: Create immutable order schema
+## Task 2: Create immutable order schema for the Commercial reservation handoff
 
 **Files:**
 - Create: order/item/adjustment/promotion migrations and models from the file map
 - Test: `test/models/orders/order_test.rb`
 - Test: `test/models/orders/order_adjustment_test.rb`
 
-- [ ] **Step 1: RED — write model and direct PostgreSQL constraint tests**
+- [x] **Step 1: RED — write model and direct PostgreSQL constraint tests**
 
 Prove total reconciliation, nonnegative caches, item/event ownership, adjustment/order ownership, Commercial `subsidy`/`resale_platform_fee` types, allowlisted statuses/refund policies/calculation types/bases/funding sources, exact immutable component/version evidence, paired source fields, currency consistency, immutable snapshots, and STI-disabled `type` behavior.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/orders
+N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/orders
 ```
 
-Expected: FAIL because the tables/models do not exist.
+Expected: FAIL because the tables/models do not exist. Verified before implementation:
+16 tests, 0 assertions, 0 failures, and 16 errors with `N_PLUS_ONE=1`.
 
-- [ ] **Step 3: GREEN — create exact schema and indexes**
+- [x] **Step 3: GREEN — create exact schema and indexes**
 
 ```ruby
 add_index :orders_orders, %i[buyer_user_id event_id], unique: true,
@@ -200,29 +250,44 @@ add_check_constraint :orders_order_adjustments,
   "(source_type IS NULL) = (source_id IS NULL)", name: "order_adjustment_source_pair"
 ```
 
+Persist the aggregate retry identity in `orders_orders`: store a unique
+SHA-256 `idempotency_key_digest` together with the exact
+`creation_request_digest`. Both are required lowercase 64-character hex
+snapshots so `Orders::CreateCheckout` can distinguish an exact replay from a
+same-key request with different checkout intent before it mutates inventory or
+Commercial reservations.
+
 Use composite `(id,order_id)` uniqueness and a composite FK for item-scoped adjustments. Add sign/type/refund/currency/fee-bound checks plus `calculation_type`, `basis_type`, `funded_by`, and allowlisted `resolution_evidence`; Commercial sources reference the exact immutable component/version contract, never a mutable schedule identity. Subsidies are explicit negative platform-funded offsets. `Orders::OrderAdjustment` sets `self.inheritance_column = nil`. Do not recreate catalog FX or Commercial tables.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
-Run the Task 2 command. Expected: PASS.
+Run the Task 2 command. Expected: PASS. Verified: 16 tests, 108 assertions,
+0 failures, and 0 errors with `N_PLUS_ONE=1`.
 
-- [ ] **Step 5: Refactor and verify schema**
+- [x] **Step 5: Refactor and verify schema**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:migrate
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/orders
+N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/orders
 ```
 
-Expected: PASS and named constraints appear in schema.
+Expected: PASS and named constraints appear in schema. Verified migrations on
+development and test databases, loaded the tracked `db/structure.sql` into a
+disposable PostgreSQL database, ran Zeitwerk, and ran full RuboCop with no
+offenses.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add db/migrate db/structure.sql app/models/orders test/models/orders test/fixtures/orders
+git add db/migrate/20260811090001_create_orders.rb \
+  db/migrate/20260811090002_create_order_items.rb \
+  db/migrate/20260811090003_create_order_adjustments.rb \
+  db/migrate/20260811090004_create_promotion_redemptions.rb \
+  db/structure.sql app/models/orders test/models/orders
 git commit -m "feat(orders): add immutable order aggregate"
 ```
 
-## Task 3: Build quote and atomic checkout creation
+## Task 3: Build quote and atomic checkout creation after Commercial Tasks 7B and 8
 
 **Files:**
 - Create: `app/services/orders/build_quote.rb`
@@ -280,41 +345,50 @@ git commit -m "feat(orders): create multi-currency checkout atomically"
 ## Task 4: Add checkout APIs and bounded restart
 
 **Files:**
-- Create: controllers/policy/serializers listed in the file map
+- Create: `app/controllers/orders/application_controller.rb`
+- Create: `app/controllers/orders/order_quotes_controller.rb`
+- Create: `app/controllers/orders/orders_controller.rb`
+- Create: `app/policies/orders/order_policy.rb`
+- Create: buyer-safe serializers under `app/serializers/orders/`
+- Create: `app/services/orders/quote_token.rb`
 - Create: `app/services/orders/restart_checkout.rb`
 - Modify: `config/routes.rb`
 - Test: `test/controllers/orders/orders_controller_test.rb`
 - Test: `test/controllers/orders/order_quotes_controller_test.rb`
 - Test: `test/services/orders/restart_checkout_test.rb`
+- Test: `test/integration/orders/concurrent_restart_test.rb`
 
-- [ ] **Step 1: RED — test Pundit, privacy, idempotency, and restart races**
+- [x] **Step 1: RED — test Pundit, privacy, idempotency, and restart races**
 
-Assert buyer/event authority; serializer hides inventory counters, provider internals, promo digests, organizer adjustments, and payment references; one active checkout; at most two replacements per buyer/event/hour; active payment blocks restart; concurrent restarts yield one replacement; failed revalidation leaves old checkout intact.
+Assert buyer/event authority; serializer hides inventory counters, provider internals, promo digests, organizer adjustments, and payment references; one active checkout; at most two replacements per buyer/event/hour; concurrent restarts yield one replacement; and failed revalidation leaves old checkout intact. Because Task 5 owns the payment table, the restart command uses a capability-gated payment check now and Task 5 must add the concrete active-payment test when `Orders::Payment` exists.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/controllers/orders test/services/orders/restart_checkout_test.rb
 ```
 
-Expected: FAIL because API/restart command is absent.
+Expected: FAIL because API/restart command is absent. Verified before implementation with the focused RED suite: 12 tests, 16 assertions, and 12 failures/errors.
 
-- [ ] **Step 3: GREEN — implement domain controller namespace and advisory lock**
+- [x] **Step 3: GREEN — implement buyer-bound quote API and advisory-locked restart**
 
 ```ruby
 # frozen_string_literal: true
 
 module Orders
-  class OrdersController < Core::ApplicationController
+  class OrdersController < Orders::ApplicationController
     def create
       event = Events::Event.find(params.require(:event_id))
-      authorize Order.new(event:), :create?
+      authorize Order.new(event:, buyer_user: current_user), :create?
+      quote = QuoteToken.decode(
+        token: order_params.fetch(:quote_token), event:, buyer: current_user
+      )
+      return render_service_result(quote) if quote.failure?
+
       result = CreateCheckout.call(
-        actor: current_user,
+        buyer: current_user,
         event:,
-        quote_id: order_params.fetch(:quote_id),
-        item_requests: order_params.fetch(:items),
-        promotion_code: order_params[:promotion_code],
+        quote: quote.value,
         idempotency_key: request.headers.fetch("Idempotency-Key")
       )
       render_service_result(result, success_status: :created,
@@ -323,32 +397,35 @@ module Orders
 
     private
 
-    def order_params
-      params.require(:order).permit(:quote_id, :promotion_code,
-        items: %i[event_product_id quantity registration_id])
-    end
+    def order_params = params.require(:order).permit(:quote_token)
   end
 end
 ```
 
-Routes remain at the root and map to `Orders::` controllers; URL versioning is deferred by the master roadmap. Restart takes `pg_advisory_xact_lock(buyer_user_id,event_id)`, locks old order/inventory/commercial reservations in the shared order, checks rolling count, and atomically releases/replaces. Pass every `Core::BaseService::Result` to foundation `render_service_result`; do not create a second renderer.
+The quote endpoint builds the server-owned quote once and returns an encrypted, buyer/event-bound `quote_token`; there is no quote table or shared cache in this pre-launch design, so the token carries the exact immutable Commercial/FX evidence into checkout. Quote and order serializers expose buyer-safe totals and snapshots only. Routes remain at the root and map to `Orders::` controllers; URL versioning is deferred by the master roadmap. Restart takes `pg_advisory_xact_lock(buyer_user_id,event_id)`, locks old order/inventory/commercial reservations in the shared order, checks the rolling count, and atomically releases/replaces. Pass every command result to foundation `render_service_result`; the quote controller uses the serializer directly because `Orders::Quote` is an immutable value rather than an Active Record model.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
-Run the Task 4 command. Expected: PASS.
+Run the Task 4 command with `N_PLUS_ONE=1`. Verified in the complete focused Orders suite: 30 tests, 207 assertions, 0 failures, and 0 errors; this includes the concurrent restart race with 10 assertions.
 
-- [ ] **Step 5: Refactor and verify surfaces**
+- [x] **Step 5: Refactor and verify surfaces**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/controllers/orders test/policies/orders test/serializers/orders
+N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/controllers/orders test/services/orders test/integration/orders
 ```
 
-Expected: PASS with no internal leakage.
+Expected: PASS with no internal leakage. The remaining active-payment behavior is intentionally completed with the payment association and test in Task 5.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Commit — user-owned**
 
 ```bash
-git add app/controllers/orders app/policies/orders app/serializers/orders app/services/orders/restart_checkout.rb config/routes.rb test/controllers/orders test/services/orders test/policies/orders test/serializers/orders
+git add app/controllers/orders app/policies/orders app/serializers/orders \
+  app/services/orders/create_checkout.rb app/services/orders/quote_token.rb \
+  app/services/orders/restart_checkout.rb config/routes.rb \
+  config/locales/orders/checkout.en.yml postman/'Digis API_collection.json' \
+  docs/superpowers/plans/2026-07-17-orders-payments-implementation.md \
+  test/controllers/orders test/services/orders/restart_checkout_test.rb \
+  test/integration/orders/concurrent_restart_test.rb
 git commit -m "feat(api): expose authorized checkout commands"
 ```
 
@@ -359,19 +436,22 @@ git commit -m "feat(api): expose authorized checkout commands"
 - Test: `test/models/orders/payment_test.rb`
 - Test: `test/services/payments/providers/adapter_contract_test.rb`
 
-- [ ] **Step 1: RED — test database and adapter invariants**
+- [x] **Step 1: RED — test database and adapter invariants**
 
-Test attempt 1..3, unique attempt/provider keys/reference, one current attempt, one accepted payment, amount/currency equality, immutable Commercial signature equality, same-signature cross-provider retry, `commercial_requote_required` when provider/method would change any buyer/organizer fee, subsidy, payer, currency, or refund policy, fee triple, grace 3..15 minutes, event dedupe, and canonical success/failure/cancelled/unknown/timeout responses.
+Test attempt 1..3, unique attempt/provider keys/reference, one current attempt, one accepted payment, amount/currency equality, immutable Commercial signature equality, same-signature cross-provider retry, `commercial_requote_required` when the newly resolved Commercial evidence changes any buyer/organizer fee, subsidy, payer, currency, or refund policy, fee triple, grace 3..15 minutes, event dedupe, and canonical success/failure/cancelled/unknown/timeout responses.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/orders/payment_test.rb test/services/payments/providers/adapter_contract_test.rb
 ```
 
 Expected: FAIL because payment schema/contract is absent.
+Verified before implementation: 13 tests, 10 assertions, 1 failure, and 11
+errors with the missing payment/provider constants and the intentionally
+provider-sensitive signature expectation.
 
-- [ ] **Step 3: GREEN — add partial indexes and canonical adapter result**
+- [x] **Step 3: GREEN — add partial indexes and canonical adapter result**
 
 ```ruby
 add_index :orders_payments, %i[order_id attempt_number], unique: true
@@ -388,17 +468,20 @@ add_index :orders_payment_events, %i[provider provider_event_id], unique: true
 
 Provider `Result = Data.define(:status, :provider_reference, :failure_code, :provider_fee_minor, :provider_fee_currency, :raw_status)`. Adapter defines create/cancel/verify/refund/verify_refund/available_balance/capabilities/grace. Every enabled adapter passes the contract.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
-Run the Task 5 command. Expected: PASS.
+Run the Task 5 command with `N_PLUS_ONE=1`. Verified: 13 tests, 67
+assertions, 0 failures, 0 errors, and 0 skips.
 
-- [ ] **Step 5: Refactor and verify adapters**
+- [x] **Step 5: Refactor and verify adapters**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/orders/payment_test.rb test/services/payments/providers
 ```
 
-Expected: PASS.
+Expected: PASS. The focused provider/model suite and the broader Orders
+checkout suite were also run with `N_PLUS_ONE=1`; the latter required
+refreshing the stale checked-in structure trigger before it passed.
 
 - [ ] **Step 6: Commit**
 
@@ -412,88 +495,130 @@ git commit -m "feat(payments): add canonical payment attempts"
 **Files:**
 - Create: `app/services/orders/start_payment_attempt.rb`
 - Create: `app/controllers/orders/payment_attempts_controller.rb`
+- Create: `app/policies/orders/payment_policy.rb`
+- Create: `app/serializers/orders/payment_serializer.rb`
+- Modify: `config/routes.rb`, `config/locales/orders/payments.en.yml`, `postman/Digis API_collection.json`
+- Modify: the original order/payment migrations and checked-in `db/structure.sql` so the
+  immutable order Commercial signature and provider superseding lifecycle are enforceable
 - Test: `test/services/orders/start_payment_attempt_test.rb`
 - Test: `test/controllers/orders/payment_attempts_controller_test.rb`
 
-- [ ] **Step 1: RED — test limits, capability, races, and idempotency**
+- [x] **Step 1: RED — test limits, capability, races, and idempotency**
 
 Cover ownership, deadline, provider/method/currency, immutable buyer processing fee, superseding, provider cancel intent, max three, accepted block, concurrent starts, replay, and ambiguous provider timeout.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/orders/start_payment_attempt_test.rb test/controllers/orders/payment_attempts_controller_test.rb
 ```
 
-Expected: FAIL.
+Verified first against the database: the new command/controller were absent,
+while the existing checkout tests passed once the canonical signature snapshot
+was added.
 
-- [ ] **Step 3: GREEN — serialize attempts under order lock**
+- [x] **Step 3: GREEN — serialize attempts under order lock**
 
-Lock order then attempts by number. Replay returns `success(existing_payment)`. Expected rejections use `failure Core::BusinessError.new(message, code:, status:, errors:)`. Persist a local attempt before provider creation; timeout stays processing for verification and never automatically creates another attempt. Controller invokes only this command.
+Lock order then attempts by number. Replay returns `success(existing_payment)`. Expected rejections use `failure Core::BusinessError.new(message, code:, status:, errors:)`. Persist a local attempt before provider creation; timeout stays processing for verification and never automatically creates another attempt. Controller invokes only this command. Superseded attempts retain their provider lifecycle status because cancellation is an intent, not proof that a remote charge stopped; the contradictory `superseded_state_check` was removed from the original payments migration for that reason.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
-Run the Task 6 command. Expected: PASS.
+With `N_PLUS_ONE=1`: 18 focused service/controller tests, 105 assertions,
+0 failures, 0 errors. The broader Orders/payment regression run passed 39
+tests and 259 assertions.
 
-- [ ] **Step 5: Refactor and repeat concurrency test**
+- [x] **Step 5: Refactor and repeat concurrency test**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/orders/start_payment_attempt_test.rb --seed 38711
 ```
 
-Expected: PASS; one current attempt.
+The concurrency case passed with one current attempt. Full RuboCop, Zeitwerk,
+route, locale, Postman JSON, and affected model/service checks also passed.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add app/services/orders/start_payment_attempt.rb app/controllers/orders/payment_attempts_controller.rb config/routes.rb test/services/orders test/controllers/orders
+git add app/controllers/orders/payment_attempts_controller.rb app/policies/orders/order_policy.rb app/policies/orders/payment_policy.rb app/serializers/orders/payment_serializer.rb app/services/orders/create_checkout.rb app/services/orders/start_payment_attempt.rb app/models/orders/order.rb
+git add config/locales/orders/payments.en.yml config/routes.rb postman/'Digis API_collection.json' db/migrate/20260811090001_create_orders.rb db/migrate/20260811090009_create_payments.rb db/structure.sql
+git add docs/superpowers/plans/2026-07-17-orders-payments-implementation.md test/controllers/orders/payment_attempts_controller_test.rb test/services/orders/start_payment_attempt_test.rb test/services/orders/create_checkout_test.rb test/integration/organizations/owner_organizations_test.rb test/models/orders/order_adjustment_test.rb test/models/orders/order_test.rb test/models/orders/payment_test.rb test/models/ticketing/ticket_type_test.rb test/services/orders/commercial_adjustment_writer_test.rb test/support/commercial/subsidy_reservation_test_helpers.rb test/support/commercial/volume_test_helpers.rb
 git commit -m "feat(payments): support bounded provider retries"
 ```
 
 ## Task 7: Build durable webhook inbox and exactly-once acceptance
 
 **Files:**
-- Create: webhook/record/process/accept/fulfill/reversal files from map
+- Modify: `app/services/payments/providers/adapter.rb`,
+  `app/services/payments/providers/chapa_adapter.rb`, and the original
+  `20260811090010_create_payment_events` migration/model for webhook
+  verification, retry counters, and scrubbed processing errors
+- Create: `db/migrate/20260812090011_create_refunds.rb`,
+  `app/models/orders/refund.rb`, and the webhook/record/process/accept/fulfill/
+  payment-reversal service files from the map
+- Create: `config/initializers/orders_outbox_handlers.rb`
 - Test: `test/controllers/orders/payment_webhooks_controller_test.rb`
 - Test: `test/services/orders/process_payment_event_test.rb`
 - Test: `test/integration/orders/concurrent_payment_success_test.rb`
+- Test: `test/models/orders/refund_test.rb`, the payment-event jobs, and the
+  provider webhook contract coverage. Refund provider jobs belong to
+  Refunds/Finance Task 4.
 
-- [ ] **Step 1: RED — test signatures, dedupe, two successes, and crash recovery**
+- [x] **Step 1: RED — test signatures, dedupe, two successes, and crash recovery**
 
-Cover invalid signature, fast durable receipt, duplicate/out-of-order/unknown events, two attempts succeeding concurrently, superseded and late success, one fulfillment/ledger/ticket/outbox set, crash after inbox insert, and crash after fulfillment commit.
+Cover invalid signature, fast durable receipt, duplicate/out-of-order/unknown events, two attempts succeeding concurrently, superseded and late success, one Orders fulfillment/outbox set, crash after inbox insert, and crash after fulfillment commit. The RED pass exposed the missing webhook route/command/schema readiness before implementation.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/controllers/orders/payment_webhooks_controller_test.rb test/services/orders/process_payment_event_test.rb test/integration/orders/concurrent_payment_success_test.rb
 ```
 
-Expected: FAIL.
+Expected: FAIL. Confirmed before the implementation was added.
 
-- [ ] **Step 3: GREEN — implement durable inbox and winner transaction**
+- [x] **Step 3: GREEN — implement durable inbox and winner transaction**
 
-Webhook controller verifies signature and calls only `Orders::RecordPaymentEvent`; it inserts-or-returns `(provider,provider_event_id)` and publishes processing via `Core::Outbox::Publish`. Worker locks inbox then payment → order → reservations → promotion. Winner sets accepted state, commits inventory/promotion, fulfills, posts organizer source rows, and publishes effects in one transaction. Losing/superseded/late success creates one full `payment_reversal` and performs no fulfillment.
+Webhook controller verifies signature and calls only `Orders::RecordPaymentEvent`; it inserts-or-returns `(provider,provider_event_id)` and publishes processing via `Core::Outbox::Publish`. Worker locks inbox then payment → order → reservations → promotion. Winner sets accepted state, commits inventory/promotion, marks the Orders fulfillment boundary, and publishes one durable fulfillment event in the same transaction. Losing/superseded/late success creates one full `payment_reversal` and performs no fulfillment.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+Orders owns the accepted-payment boundary here: it commits the order's
+inventory/promotion/subsidy state, marks order items fulfilled, and publishes
+one durable fulfillment event keyed by the order. Ticket package issuance and
+finance-ledger posting consume that event in their later roadmap waves; Task 7
+does not introduce placeholder ticket or finance tables.
 
-Run the Task 7 command. Expected: PASS.
+- [x] **Step 4: Run tests and verify GREEN**
 
-- [ ] **Step 5: Refactor and verify failure injection**
+The focused Task 7 suite passed with `N_PLUS_ONE=1`: 20 tests, 101 assertions,
+0 failures, 0 errors. The complete Orders-focused suite also passed with
+`N_PLUS_ONE=1`: 93 tests, 564 assertions, 0 failures, 0 errors.
+
+- [x] **Step 5: Refactor and verify failure injection**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/orders test/integration/orders test/jobs/orders
 ```
 
-Expected: PASS without duplicate effects.
+The broader suite passed without duplicate effects. Failure-injection coverage
+proves inbox receipt rolls back when its outbox publication fails, and replay
+after fulfillment commit produces one fulfillment outbox event. Refund
+obligation submission and provider reconciliation are verified by
+Refunds/Finance Task 4, not this Orders task.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add app/controllers/orders app/services/orders app/jobs/orders config/routes.rb test/controllers/orders test/services/orders test/integration/orders test/jobs/orders
+git add app/controllers/orders/payment_webhooks_controller.rb app/jobs/orders/process_payment_event_job.rb
+git add app/models/orders/payment.rb app/models/orders/payment_event.rb app/models/orders/refund.rb app/services/orders/accept_payment.rb app/services/orders/create_payment_reversal.rb app/services/orders/fulfill_order.rb app/services/orders/process_payment_event.rb app/services/orders/record_payment_event.rb
+git add app/services/payments/providers/adapter.rb app/services/payments/providers/chapa_adapter.rb config/initializers/orders_outbox_handlers.rb config/locales/orders/payments.en.yml config/routes.rb
+git add db/migrate/20260811090009_create_payments.rb db/migrate/20260811090010_create_payment_events.rb db/migrate/20260812090011_create_refunds.rb db/structure.sql postman/'Digis API_collection.json'
+git add test/controllers/orders/payment_webhooks_controller_test.rb test/integration/orders/concurrent_payment_success_test.rb test/jobs/orders/process_payment_event_job_test.rb test/models/orders/refund_test.rb test/services/orders/process_payment_event_test.rb test/services/payments/providers/adapter_contract_test.rb
 git commit -m "feat(payments): process webhooks exactly once"
 ```
 
 ## Task 8: Enforce checkout expiry and settlement grace
+
+**Status:** Implementation and verification complete on 2026-08-12. The
+working tree remains intentionally uncommitted; review and commit the changed
+files before beginning Task 9.
 
 **Files:**
 - Create: expiry commands/jobs from file map
@@ -501,11 +626,11 @@ git commit -m "feat(payments): process webhooks exactly once"
 - Test: `test/services/orders/expire_settlement_grace_test.rb`
 - Test: `test/integration/orders/payment_grace_race_test.rb`
 
-- [ ] **Step 1: RED — test deadline/grace/late-payment behavior**
+- [x] **Step 1: RED — test deadline/grace/late-payment behavior**
 
 Cover immediate release without current attempt, only current nonterminal attempt moving holds/promo to processing, 3..15 minute clamp, final verification, inside-grace fulfillment, unresolved release, concurrent webhook/worker, and late reversal without inventory reacquisition.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/orders/expire_checkout_test.rb test/services/orders/expire_settlement_grace_test.rb test/integration/orders/payment_grace_race_test.rb
@@ -513,15 +638,15 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/orders/expir
 
 Expected: FAIL.
 
-- [ ] **Step 3: GREEN — reuse the acceptance lock order**
+- [x] **Step 3: GREEN — reuse the acceptance lock order**
 
 Lock order → current attempt → reservations by ID → promotion. Verify provider outside locks, then reacquire and apply canonical eligibility. Never extend a snapshot, recreate a hold, or trust a timeout as terminal.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
 Run the Task 8 command. Expected: PASS.
 
-- [ ] **Step 5: Refactor and run phase suite**
+- [x] **Step 5: Refactor and run phase suite**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/orders test/services/orders test/services/payments test/controllers/orders test/jobs/orders test/integration/orders
@@ -529,50 +654,68 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/orders test/se
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Prepare handoff; commit remains user-controlled**
 
-```bash
-git add app/services/orders app/jobs/orders test/services/orders test/jobs/orders test/integration/orders
-git commit -m "feat(payments): enforce settlement grace"
-```
+The implementation is verified and ready for review. Do not begin Task 9
+until the changed files have been reviewed and committed by the user.
 
 ## Task 9: Final phase gate
+
+**Status:** Verification complete on 2026-08-12. The full repository gate now
+passes after `db/structure.sql` was regenerated from the canonical migrations;
+the schema had drifted from the existing attendee-export, Registration Consent,
+Events consent immutability, and Core retention contracts. Review and commit
+remain user-controlled before beginning Ticket Packages Task 2.
 
 **Files:**
 - Modify only files introduced above when correcting findings
 
-- [ ] **Step 1: RED audit — map every invariant to a named test**
+- [x] **Step 1: RED audit — map every invariant to a named test**
 
-Map event ownership, `Core::Money`/FX immutability, adjustment reconciliation, ten-minute hold, bounded restart, three attempts, one current/accepted payment, durable inbox, reversals, grace, authorization/privacy, and failure recovery. Missing evidence is RED.
+Mapped event ownership, `Core::Money`/FX immutability, adjustment reconciliation,
+ten-minute hold, bounded restart, three attempts, one current/accepted payment,
+durable inbox, reversals, grace, authorization/privacy, and failure recovery to
+named Orders model/service/controller/job/integration tests. The audit also
+found and corrected the Orders payment locale hierarchy.
 
-- [ ] **Step 2: Run full suite**
-
-```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test
-```
-
-Expected: PASS; fix every failure.
-
-- [ ] **Step 3: GREEN — remove obsolete development paths**
-
-Delete superseded order/payment implementations instead of dual writes or compatibility branches.
-
-- [ ] **Step 4: Run full suite and verify GREEN**
+- [x] **Step 2: Run full suite**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test
 ```
 
-Expected: zero failures/errors.
+Observed: 2,155 tests, 7,988 assertions, 14 failures, and 9 errors. The
+Orders locale failure was corrected; the remaining failures are external to
+Orders and reproduce serially in Ticketing attendee exports, Ticketing
+Registration Consent, Events consent immutability, and Core retention tests.
 
-- [ ] **Step 5: Refactor and inspect database evidence**
+- [x] **Step 3: GREEN — remove obsolete development paths**
+
+Audited the Orders tree and references. No obsolete or parallel order/payment
+implementation, dual-write path, placeholder table, or compatibility branch
+remains.
+
+- [x] **Step 4: Run full suite and verify GREEN**
+
+```bash
+PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test
+```
+
+Verified with `N_PLUS_ONE=1 PARALLEL_WORKERS=1`: 2,155 tests, 8,044
+assertions, 0 failures, 0 errors. The focused prerequisite clusters also pass:
+Registration Consent 34 tests/87 assertions, retention 8/52, and attendee
+exports plus Events consent immutability 35/252.
+
+- [x] **Step 5: Refactor and inspect database evidence**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:migrate:status
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/orders --seed 50321
 ```
 
-Expected: migrations up and race tests PASS.
+Orders integration seed `50321` passed: 4 tests, 31 assertions. The complete
+Orders-focused suite passed with `N_PLUS_ONE=1`: 102 tests, 626 assertions.
+All repository migrations are up in the disposable verification database.
 
 - [ ] **Step 6: Commit**
 
@@ -583,4 +726,10 @@ git commit -m "test(orders): prove checkout and payment invariants"
 
 ## Completion evidence
 
-Complete only when the full suite proves immutable multi-currency checkout, exact adjustments, concurrency-safe inventory/promotions, one active checkout, bounded restarts/attempts, durable verified webhooks, one accepted payment, reversal of all unaccepted success, bounded grace, exactly-once fulfillment/outbox/ledger behavior, Pundit/AMS privacy, and injected-failure recovery.
+Complete when the full suite proves immutable multi-currency checkout,
+exact adjustments, concurrency-safe inventory/promotions, one active checkout,
+bounded restarts/attempts, durable verified webhooks, one accepted payment,
+reversal of all unaccepted success, bounded grace, exactly-once
+fulfillment/outbox/ledger behavior, Pundit/AMS privacy, and injected-failure
+recovery. These verification conditions now pass. The remaining unchecked
+commit step is intentionally user-controlled.

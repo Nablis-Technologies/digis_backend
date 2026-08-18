@@ -1,0 +1,33 @@
+# frozen_string_literal: true
+
+en:
+  commercial:
+    definitions:
+      errors:
+        immutable: "approved and later fee definitions cannot be changed"
+        same_schedule: "must belong to the same fee schedule"
+        effective_interval: "must be after effective_from"
+        effective_from_required: "is required for scheduled and active versions"
+        approved_metadata: "is required when a version is approved"
+        activated_metadata: "is required when a version is active"
+        terminated_metadata: "is required when a version is terminated"
+        basis_required: "is required for this calculation"
+        basis_forbidden: "must be blank for this calculation"
+        rate_required: "is required for this calculation"
+        rate_forbidden: "must be blank for this calculation"
+        subsidy_funded_by: "must be platform for a platform subsidy"
+        subsidy_offset_required: "must identify the component being offset"
+        platform_funding_only_subsidy: "platform funding is only allowed for subsidies"
+        offset_only_subsidy: "is only allowed for platform subsidies"
+        maximum_below_minimum: "must be greater than or equal to minimum_minor"
+        gross_currency_required: "is required for accepted gross tiers"
+        invalid_definition: "the fee definition is invalid"
+        definition_empty: "the fee definition must contain at least one component"
+        invalid_component_shape: "the component calculation shape is invalid"
+        missing_currency_coverage: "the fee definition does not cover every required currency"
+        ambiguous_component_scope: "matching fee components have equal specificity"
+        exact_product_scope_requires_custom_schedule: "exact product fees require a custom schedule"
+        exact_product_scope_event_mismatch: "the exact product must belong to the targeted event"
+        tiers_invalid: "fee tiers must be ordered from a zero threshold"
+        definition_digest_mismatch: "the fee definition digest is stale"
+        invalid_currency: "currency must be an ISO alpha-3 code"

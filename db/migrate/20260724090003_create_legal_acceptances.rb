@@ -17,7 +17,7 @@ class CreateLegalAcceptances < ActiveRecord::Migration[8.1]
     end
 
     add_check_constraint :legal_acceptances,
-      "subject_type IN ('user','organization','order')",
+      "subject_type IN ('user','organization','order','commercial_assignment')",
       name: "chk_legal_acceptance_subject_type"
     add_check_constraint :legal_acceptances,
       "acceptance_method IN ('checkbox','otp')",

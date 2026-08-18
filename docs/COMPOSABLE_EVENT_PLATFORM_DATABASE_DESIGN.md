@@ -1018,6 +1018,16 @@ One resumable coordinator for irreversible full-event cancellation and automatic
 
 Only a primary-organization owner/admin or platform administrator may initiate cancellation. Event managers and collaborator organizations cannot perform this irreversible financial action. A cancelled event is never restored; a replacement event is created separately.
 
+`events_event_cancellation_payments` is the durable payment-work snapshot for
+this coordinator. It stores one row per accepted payment selected at the
+cancellation boundary, with a unique `(event_cancellation_id, payment_id)`
+pair and resumable `pending`, `processing`, `resolved`, or `failed` state. The
+row is orchestration evidence only; refund amounts and provider state remain
+in the immutable `orders_refunds` rows. This separate snapshot is required so
+payments with no refundable value, failed preparation, and retry progress are
+represented without inventing zero-value refunds or double-counting the
+cancellation counters.
+
 The cancellation workflow:
 
 1. lock the event, cancellation row, future dates, products, and active inventory holds in deterministic order;
@@ -1037,7 +1047,29 @@ Provider failures never roll the event back to published. Jobs retry safely, sup
 
 Indexes: unique `(event_id)`, unique `(idempotency_key)`, and `(status, updated_at)` for retry/reconciliation workers.
 
-### 6.13 `events_access_zones`
+### 6.13 `events_event_cancellation_payments`
+
+One durable work snapshot for each accepted payment affected by one event
+cancellation.
+
+| Column | Type | Rules |
+|---|---|---|
+| `event_cancellation_id` | UUID | Required FK |
+| `payment_id` | UUID | Required FK to an accepted payment in the same event |
+| `status` | string | `pending`, `processing`, `resolved`, or `failed` |
+| `attempts` | integer | Required nonnegative retry count |
+| `next_retry_at` | timestamptz | Optional retry gate for pending/ambiguous work |
+| `resolved_at` | timestamptz | Required when `resolved` |
+| `last_error` | text | Scrubbed operational error, never provider secrets |
+| `lock_version` | integer | Required optimistic-lock counter |
+| timestamps | timestamptz | Required |
+
+Unique `(event_cancellation_id, payment_id)`, plus indexes for cancellation
+and retry status. Database integrity rejects a payment from another event or
+an unaccepted payment. Workers claim rows with `FOR UPDATE SKIP LOCKED`, and
+retries reuse the same refund idempotency keys.
+
+### 6.14 `events_access_zones`
 
 Optional lightweight gate/area definitions. This is not reserved seating.
 
@@ -1987,12 +2019,13 @@ Immutable history of each mutually exclusive credential set for a package.
 | `version` | integer | Required positive monotonic version |
 | `mode` | string | `group` or `delegated` |
 | `status` | string | `active` or `revoked` |
+| `excluded_event_date_ids` | UUID[] | Required sorted immutable snapshot of event dates excluded from this generation; default empty |
 | `activated_at` | timestamptz | Required |
 | `revoked_at` | timestamptz | Optional |
 | `revocation_reason` | string | Optional controlled reason |
 | timestamps | timestamptz | Required |
 
-Unique `(ticket_id, version)` and partial unique `(ticket_id)` where status is `active`. The ticket's current generation, mode, and version must match this row. Revoked generations are immutable and never reactivated.
+Unique `(ticket_id, version)` and partial unique `(ticket_id)` where status is `active`. The ticket's current generation, mode, and version must match this row. A date-scoped refund replaces the active row with a newer generation whose sorted exclusion snapshot is used by QR, PNR, attendee-index, and scanner authorization; failed provider submission restores access only through another newer generation. Revoked generations are immutable and never reactivated.
 
 ### 8.8 `ticketing_credentials`
 
@@ -2209,9 +2242,10 @@ For `entry_validation_mode = 'qr'`, identity result is `not_required`. For `qr_a
 | `client_upload_id` | UUID | Required device-generated idempotency key |
 | `received_at` | timestamptz | Required |
 | `completed_at` | timestamptz | Optional |
+| `results_snapshot` | JSONB | Required when completed; immutable allowlisted per-scan results plus the synchronization delta returned to the scanner |
 | timestamps | timestamptz | Required |
 
-Unique `(scanner_device_assignment_id, client_upload_id)`. Batch retries return the original per-scan results; each nested scan remains independently idempotent through `client_scan_id`.
+Unique `(scanner_device_assignment_id, client_upload_id)`. Batch retries return the original per-scan results and synchronization delta from `results_snapshot`; each nested scan remains independently idempotent through `client_scan_id`. The snapshot is written in the same transaction as the check-in and admission-use rows, and it is never rebuilt after `completed_at` is set.
 
 ### 8.13 `ticketing_stream_sessions`
 
@@ -2893,7 +2927,7 @@ Sale fulfillment posts positive gross proceeds and a separate negative marketpla
 
 Seller payout: `seller_user_id`, verified `seller_payout_account_id`, provider/reference, amount/currency, status (`pending`, `processing`, `succeeded`, `failed`, `cancelled`), idempotency key, requested/processed timestamps, and failure code. Allocation rows connect one payout to seller-ledger entries with positive same-currency `amount_minor`.
 
-The same ledger-allocation rules as organizer payouts apply: allocations are unique per payout/entry, cannot exceed remaining entry value, lock deterministically, and become consumed only on provider success. Payout dispatch rechecks event completion/buffer, unresolved refunds/chargebacks, seller/account status, and provider liquidity.
+The same ledger-allocation rules as organizer payouts apply: allocations are unique per payout/entry, cannot exceed remaining entry value, lock deterministically, and become consumed only on provider success. The allocation amount is always a positive reservation of the absolute signed ledger value; negative fee, refund, cancellation, or chargeback facts therefore offset positive proceeds without changing the allocation column's sign contract. Payout dispatch rechecks event completion/buffer, unresolved refunds/chargebacks, seller/account status, and provider liquidity. Because seller ledger entries retain a required `event_id`, the launch payout command batches one event's seller ledger facts at a time; a future cross-event treasury batch must preserve per-event payout ledger rows rather than inventing a nullable event scope.
 
 ### Resale cancellation/refund chain
 

@@ -29,6 +29,9 @@ module Legal
           )
         end
 
+        version_mismatch = commercial_assignment_version_mismatch(version)
+        return failure(version_mismatch) if version_mismatch
+
         lock_subject(subject)
 
         evidence_digest = LegalDocumentVersion.evidence_digest_for(
@@ -55,6 +58,8 @@ module Legal
           request_uuid: request_uuid,
           accepted_at: accepted_at
         )
+
+        link_commercial_assignment!(acceptance)
 
         record_audit(acceptance)
         success(acceptance)
@@ -92,9 +97,28 @@ module Legal
       case subject
       when Core::User then "user"
       when Organizations::Organization then "organization"
+      when Commercial::Assignment then "commercial_assignment"
       when Orders::Order then "order"
       else raise ArgumentError, I18n.t("core.errors.unsupported_subject_type")
       end
+    end
+
+    def commercial_assignment_version_mismatch(version)
+      return unless subject.is_a?(Commercial::Assignment)
+
+      expected_version_id = subject.fee_schedule_version&.legal_document_version_id
+      return if expected_version_id.present? && expected_version_id == version.id
+
+      Core::BusinessError.new(
+        I18n.t("legal_document.errors.commercial_version_mismatch"),
+        code: "commercial_legal_version_mismatch", status: :unprocessable_entity
+      )
+    end
+
+    def link_commercial_assignment!(acceptance)
+      return unless subject.is_a?(Commercial::Assignment)
+
+      subject.update!(legal_acceptance: acceptance)
     end
 
     def lock_subject(subject)

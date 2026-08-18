@@ -225,7 +225,18 @@ module Ticketing
       end
 
       def locked_ticket_type!
-        Ticketing::TicketType.lock.find(ticket_type.id)
+        locked = Ticketing::TicketType.includes(event_product: :event).lock.find(ticket_type.id)
+        event = Events::Event.lock.find(locked.event.id)
+        raise Halt, Core::BaseService::Result.failure(event_cancelled_error) if event.status == "cancelled"
+
+        locked
+      end
+
+      def event_cancelled_error
+        Core::BusinessError.new(
+          I18n.t("ticketing.registration_workflows.errors.event_cancelled"),
+          code: "event_cancelled", status: :conflict
+        )
       end
 
       def unwrap(result)

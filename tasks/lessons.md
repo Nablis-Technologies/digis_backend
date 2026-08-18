@@ -1,5 +1,7 @@
 # Lessons
 
+- When a user asks to finish a plan, reconcile the canonical plan checkboxes with the actual committed code before advancing; distinguish completed implementation from remaining gated tasks and update the plan as each tranche is verified.
+
 - For pre-launch invitation delivery, use the hybrid boundary: persist the
   one-time token encrypted alongside its lookup digest, publish only the
   invitation ID through the outbox, and let a provider-injection job decrypt
@@ -33,3 +35,27 @@
 - Never stage or commit changes without explicit user permission. Providing
   suggested commit commands is not permission to execute them; leave the
   worktree unchanged until the user authorizes the commit operation.
+
+- When two canonical plans share database and service contracts, document the
+  exact inter-plan handoff in the master roadmap and both implementation plans.
+  A plan-level dependency is not enough when one task must create a real
+  foreign-key target before another plan can proceed; never use a placeholder
+  table or seed data to hide that ordering.
+
+- When a later schema replaces an older cross-module key, update every
+  defensive probe and its tests to use the canonical ownership path. For
+  event-scoped orders, organization ownership is derived through the event and
+  ticket commitments are derived through the product; do not reintroduce
+  redundant `organization_id` or `ticket_type_id` columns just to satisfy an
+  older query.
+
+- When canonical plans contain inter-plan dependency gates, do not interpret
+  “continue” as permission to start a different plan or to implement a later
+  dependent task early. Before coding, state the executable sequence and label
+  each task complete, pending by design, or prerequisite-gated; ask when the
+  requested scope conflicts with that sequence.
+
+- Performance budgets measured inside the full parallel CI suite are
+  environment-sensitive. Keep a strict local budget, define an explicit CI
+  allowance or isolate the benchmark in a dedicated job, and do not treat one
+  fast local run as proof that an absolute CI threshold is stable.

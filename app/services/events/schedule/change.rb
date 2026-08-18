@@ -31,7 +31,7 @@ module Events
           return success(existing_changes) if Core::OutboxEvent.exists?(idempotency_key: outbox_key)
 
           date_changes = apply_changes(entries)
-          event.increment!(:version)
+          event.update!(version: event.version + 1, schedule_version: event.schedule_version + 1)
 
           record_audit(date_changes)
           publish_outbox(date_changes)

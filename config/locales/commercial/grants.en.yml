@@ -1,0 +1,14 @@
+# frozen_string_literal: true
+
+en:
+  commercial:
+    grants:
+      errors:
+        invalid_matrix: "the commercial comparison matrix is invalid"
+        incomplete_comparison: "the complete commercial comparison cannot be proven"
+        rate_increase: "the proposed grant increases a charge rate or amount"
+        cap_removed: "the proposed grant removes or increases a charge cap"
+        payer_switch: "the proposed grant switches a charge to the organizer"
+        benefit_shortened: "the proposed grant shortens an existing benefit"
+        subsidy_removed: "the proposed grant removes or reduces an existing subsidy"
+        organizer_funded_component_added: "the proposed grant adds an organizer-funded component"

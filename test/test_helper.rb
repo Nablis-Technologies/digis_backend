@@ -9,6 +9,9 @@ if ENV["COVERAGE"]
 end
 
 ENV["RAILS_ENV"] ||= "test"
+# Load before Rails initializes test hooks because some tests use
+# Prosopite.pause even when N+1 scanning is disabled.
+require "prosopite"
 require_relative "../config/environment"
 require "rails/test_help"
 

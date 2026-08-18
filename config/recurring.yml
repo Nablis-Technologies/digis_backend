@@ -21,12 +21,40 @@ production:
     class: Catalog::ExpireInventoryReservationsJob
     queue: default
     schedule: every minute
+  enter_payment_settlement_grace:
+    class: Orders::EnterSettlementGraceJob
+    queue: payments
+    schedule: every minute
   reconcile_inventory:
     class: Catalog::ReconcileInventoryJob
     queue: default
     schedule: every day at 3am
+  monitor_provider_reserves:
+    class: Finance::ProviderReserveMonitorJob
+    queue: default
+    schedule: "*/5 * * * *"
+  expire_commercial_scheduled_state:
+    class: Commercial::ExpireScheduledStateJob
+    queue: default
+    schedule: every minute
+  reconcile_commercial_evidence:
+    class: Commercial::ReconciliationJob
+    queue: default
+    schedule: every hour at minute 25
+  compare_commercial_shadow:
+    class: Commercial::ShadowComparisonJob
+    queue: default
+    schedule: every hour at minute 40
   expire_invitations:
     class: Ticketing::ExpireInvitationsJob
+    queue: default
+    schedule: every minute
+  expire_credential_claims:
+    class: Ticketing::ExpireCredentialClaimsJob
+    queue: default
+    schedule: every minute
+  expire_ticket_transfers:
+    class: Ticketing::ExpireTransfersJob
     queue: default
     schedule: every minute
   process_outbox:
@@ -44,7 +72,7 @@ production:
   expire_attendee_exports:
     class: Ticketing::ExpireAttendeeExportsJob
     queue: default
-    schedule: every five minutes
+    schedule: "*/5 * * * *"
   offer_waitlisted_registrations:
     class: Ticketing::OfferWaitlistJob
     queue: default
@@ -53,3 +81,7 @@ production:
     class: Ticketing::ExpireWaitlistOffersJob
     queue: default
     schedule: every minute
+  escalate_overdue_ticket_suspensions:
+    class: Ticketing::EscalateOverdueSuspensionsJob
+    queue: default
+    schedule: every hour at minute 20

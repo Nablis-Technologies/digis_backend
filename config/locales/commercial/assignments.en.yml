@@ -1,0 +1,24 @@
+# frozen_string_literal: true
+
+en:
+  commercial:
+    assignments:
+      errors:
+        invalid_assignment_type: "the assignment type is not supported"
+        invalid_baseline_digest: "the baseline resolution digest is invalid"
+        baseline_required: "is required for a platform grant"
+        event_organization_mismatch: "must belong to the organization"
+        effective_interval: "must be after effective_from"
+        program_required: "is required for a program assignment"
+        program_version_mismatch: "must belong to the assigned program"
+        mutual_evidence_required: "requires in-app acceptance or an external reference"
+        external_metadata_required: "requires an acceptance actor and time"
+        activated_metadata: "is required when an assignment is active"
+        terminated_metadata: "is required when an assignment is terminated"
+        legal_subject_mismatch: "must reference this commercial assignment"
+        legal_version_mismatch: "must reference the assigned schedule's legal version"
+        invalid_assignment: "the commercial assignment is invalid"
+        created: "commercial assignment draft created"
+        external_reference_required: "an external reference is required"
+        assignment_type_not_mutual: "external acceptance is only available for mutual agreements"
+        external_reference_conflict: "the assignment already has a different external reference"

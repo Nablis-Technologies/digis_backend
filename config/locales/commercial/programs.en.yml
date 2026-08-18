@@ -1,0 +1,8 @@
+# frozen_string_literal: true
+
+en:
+  commercial:
+    programs:
+      errors:
+        program_schedule_required: "must have schedule_type program"
+        effective_interval: "must be after starts_at"

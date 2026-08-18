@@ -408,6 +408,15 @@ module Ticketing
         assert_equal "awaiting_approval", result.value.type
       end
 
+      test "rejects registration after the event is cancelled" do
+        @event.update!(status: "cancelled")
+
+        result = submit
+
+        assert_predicate result, :failure?
+        assert_equal "event_cancelled", result.error.code
+      end
+
       private
 
       def submit(ticket_type: @ticket_type, actor: @actor, phone: @actor.phone, package_quantity: 1,

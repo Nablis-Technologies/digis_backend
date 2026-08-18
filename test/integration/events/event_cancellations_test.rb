@@ -11,7 +11,7 @@ module Events
     end
 
     def payload
-      { cancellation: { reason: "internal", attendee_reason: "postponed" } }
+      { cancellation: { internal_note: "internal", attendee_reason: "postponed" } }
     end
 
     def url
@@ -24,13 +24,35 @@ module Events
       end
       assert_response :created
       assert_equal "cancelled", @event.reload.status
-      assert_nil JSON.parse(response.body).dig("data", "reason")
+      assert_equal "pending", JSON.parse(response.body).dig("data", "status")
       assert_equal "postponed", JSON.parse(response.body).dig("data", "attendee_reason")
     end
 
     test "outsider cannot initiate a cancellation" do
       post url, params: payload, headers: user_headers.merge("Idempotency-Key" => "cancel-2"), as: :json
       assert_response :forbidden
+    end
+
+    test "event manager cannot initiate a cancellation" do
+      Events::EventStaffAssignment.create!(
+        event: @event,
+        user: core_users(:support),
+        organization: @event.organization,
+        role: "manager",
+        status: "active"
+      )
+      headers = { "Authorization" => "Bearer #{issue_token(:support)}", "Idempotency-Key" => "cancel-manager" }
+      post url, params: payload, headers:, as: :json
+      assert_response :forbidden
+    end
+
+    test "serializer excludes internal notes and treasury state" do
+      post url, params: payload, headers: owner_headers.merge("Idempotency-Key" => "cancel-private"), as: :json
+      assert_response :created
+      data = JSON.parse(response.body).fetch("data")
+      assert_not data.key?("internal_note")
+      assert_not data.key?("last_error")
+      assert_not data.key?("lock_version")
     end
 
     test "missing Idempotency-Key header returns 400" do

@@ -21,7 +21,7 @@ class CreateTicketingTicketTypes < ActiveRecord::Migration[8.1]
       t.bigint :resale_fixed_cap_minor
       t.string :resale_fixed_cap_currency, limit: 3
       t.integer :resale_percentage_cap_bps
-      t.integer :max_completed_resales, null: false, default: 1
+      t.integer :max_completed_resales, limit: 2, null: false, default: 1
 
       t.timestamps
     end
@@ -51,16 +51,20 @@ class CreateTicketingTicketTypes < ActiveRecord::Migration[8.1]
       "resale_cutoff_seconds_before_start >= 0",
       name: "ticketing_ticket_types_resale_cutoff_check"
     add_check_constraint :ticketing_ticket_types,
-      "max_completed_resales > 0",
+      "max_completed_resales BETWEEN 1 AND 32767",
       name: "ticketing_ticket_types_max_resales_check"
     add_check_constraint :ticketing_ticket_types,
       "max_packages_per_user IS NULL OR max_packages_per_user > 0",
       name: "ticketing_ticket_types_max_per_user_check"
     add_check_constraint :ticketing_ticket_types,
-      "(resale_price_cap_type IS NULL) OR " \
-        "(resale_price_cap_type = 'fixed' AND resale_fixed_cap_minor IS NOT NULL " \
-        "AND resale_fixed_cap_currency IS NOT NULL AND resale_percentage_cap_bps IS NULL) OR " \
-        "(resale_price_cap_type = 'percentage' AND resale_percentage_cap_bps IS NOT NULL " \
+      "(resale_enabled = false AND resale_price_cap_type IS NULL " \
+        "AND resale_fixed_cap_minor IS NULL AND resale_fixed_cap_currency IS NULL " \
+        "AND resale_percentage_cap_bps IS NULL) OR " \
+        "(resale_enabled = true AND resale_price_cap_type = 'fixed' " \
+        "AND resale_fixed_cap_minor > 0 AND resale_fixed_cap_currency ~ '^[A-Z]{3}$' " \
+        "AND resale_percentage_cap_bps IS NULL) OR " \
+        "(resale_enabled = true AND resale_price_cap_type = 'percentage' " \
+        "AND resale_percentage_cap_bps BETWEEN 1 AND 10000 " \
         "AND resale_fixed_cap_minor IS NULL AND resale_fixed_cap_currency IS NULL)",
       name: "ticketing_ticket_types_resale_cap_check"
 

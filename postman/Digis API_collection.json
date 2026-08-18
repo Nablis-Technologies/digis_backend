@@ -36,6 +36,16 @@
       "type": "string"
     },
     {
+      "key": "restartIdempotencyKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "paymentAttemptIdempotencyKey",
+      "value": "",
+      "type": "string"
+    },
+    {
       "key": "reauthenticationPurpose",
       "value": "attendee_export_request",
       "type": "string"
@@ -46,7 +56,167 @@
       "type": "string"
     },
     {
+      "key": "eventProductId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "quoteToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "orderId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "paymentAttemptId",
+      "value": "",
+      "type": "string"
+    },
+    {
       "key": "reauthenticationProof",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "commercialIdempotencyKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "feeScheduleId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "feeScheduleVersionId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "feeComponentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "programId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "assignmentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "simulationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "subsidyBudgetId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "payerSelectionId",
+      "value": "",
+      "type": "string"
+    },
+  {
+    "key": "ticketId",
+    "value": "",
+    "type": "string"
+  },
+  {
+    "key": "suspensionReviewDeadline",
+    "value": "",
+    "type": "string"
+  },
+  {
+      "key": "credentialId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "claimId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "transferId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "recipientPhone",
+      "value": "251911000002",
+      "type": "string"
+    },
+    {
+      "key": "recipientUserId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "credentialClaimToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ticketTransferToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "scannerDeviceIdentifier",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "scannerToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refundId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "payoutId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "financeProvider",
+      "value": "chapa",
+      "type": "string"
+    },
+    {
+      "key": "financeCurrency",
+      "value": "ETB",
+      "type": "string"
+    },
+    {
+      "key": "financeIdempotencyKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "resaleListingId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "resaleTicketTypeId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "sellerPayoutId",
       "value": "",
       "type": "string"
     }
@@ -429,6 +599,532 @@
               }
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Scanner",
+      "item": [
+        {
+          "name": "Authenticate Scanner",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Scanner-Token",
+                "value": "{{scannerToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_id\": \"{{eventId}}\",\n  \"device_identifier\": \"{{scannerDeviceIdentifier}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/scanner/auth",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "scanner",
+                "auth"
+              ]
+            },
+            "description": "Authenticate the scanner device for an event using the signed-in operator JWT and the scanner token returned at registration."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Response contains scanner context\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property(\"success\", true);",
+                  "  pm.expect(json.data).to.have.property(\"device_id\");",
+                  "  pm.expect(json.data).to.have.property(\"assignment_id\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify Online Admission",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Scanner-Token",
+                "value": "{{scannerToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"verification\": {\n    \"qr_token\": \"{{qrToken}}\",\n    \"product_access_id\": \"{{productAccessId}}\",\n    \"client_scan_id\": \"{{$guid}}\",\n    \"scanned_at\": \"{{$isoTimestamp}}\",\n    \"lookup_via\": \"qr\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/scanner/events/{{eventId}}/verifications?device_identifier={{scannerDeviceIdentifier}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "scanner",
+                "events",
+                "{{eventId}}",
+                "verifications"
+              ],
+              "query": [
+                {
+                  "key": "device_identifier",
+                  "value": "{{scannerDeviceIdentifier}}"
+                }
+              ]
+            },
+            "description": "Verify one signed QR credential against the selected product access and atomically record the online admission attempt. Retries with the same client_scan_id return the stored attempt."
+          },
+          "response": []
+        },
+        {
+          "name": "Upload Offline Scans",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Scanner-Token",
+                "value": "{{scannerToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"upload\": {\n    \"client_upload_id\": \"{{$guid}}\",\n    \"cursors\": {\"revocations\": 0, \"attendee_index\": 0, \"schedule\": 0, \"reversals\": 0},\n    \"scans\": [\n      {\n        \"credential_id\": \"{{credentialId}}\",\n        \"ticket_id\": \"{{ticketId}}\",\n        \"credential_version\": 1,\n        \"product_access_id\": \"{{productAccessId}}\",\n        \"client_scan_id\": \"{{$guid}}\",\n        \"scanned_at\": \"{{$isoTimestamp}}\",\n        \"result\": \"success\",\n        \"lookup_via\": \"qr\",\n        \"identity_check_result\": \"not_required\"\n      }\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/scanner/events/{{eventId}}/scan_uploads?device_identifier={{scannerDeviceIdentifier}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "scanner",
+                "events",
+                "{{eventId}}",
+                "scan_uploads"
+              ],
+              "query": [
+                {
+                  "key": "device_identifier",
+                  "value": "{{scannerDeviceIdentifier}}"
+                }
+              ]
+            },
+            "description": "Upload at most 500 offline scans. Retry the same client_upload_id after an interrupted request to receive the stored snapshot; each client_scan_id is independently idempotent. Send an empty scans array for a heartbeat and synchronization delta. The reported result is advisory and the server reconciles the credential, revocations, zones, and admission uses authoritatively."
+          },
+          "response": []
+        },
+        {
+          "name": "Manual Credential Lookup",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Scanner-Token",
+                "value": "{{scannerToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lookup\": {\n    \"method\": \"code\",\n    \"query\": \"{{lookupCode}}\",\n    \"product_access_id\": \"{{productAccessId}}\",\n    \"client_scan_id\": \"{{$guid}}\",\n    \"scanned_at\": \"{{$isoTimestamp}}\",\n    \"reason_code\": \"no_qr_printout\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/scanner/events/{{eventId}}/lookups?device_identifier={{scannerDeviceIdentifier}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "scanner",
+                "events",
+                "{{eventId}}",
+                "lookups"
+              ],
+              "query": [
+                {
+                  "key": "device_identifier",
+                  "value": "{{scannerDeviceIdentifier}}"
+                }
+              ]
+            },
+            "description": "Recover an active credential by checksummed PNR, canonical Ethiopian phone, or authorized online help-desk search. Every manual admission requires a controlled reason code, returns minimal disambiguation, and sends the selected credential through the same admission validator as QR. For phone use method=phone; for online help-desk search use method=online and omit admission fields until a result is selected."
+          },
+          "response": []
+        },
+        {
+          "name": "Override Identity Mismatch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identity_override\": {\n    \"reason_code\": \"operator_error\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/checkin_logs/{{checkinLogId}}/identity_override",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "checkin_logs",
+                "{{checkinLogId}}",
+                "identity_override"
+              ]
+            },
+            "description": "Online manager correction for an immutable identity-mismatch attempt. The server revalidates the current credential, schedule, zones, revocations, and usage limit, then appends one linked successful check-in when eligible. Offline scan uploads cannot use this endpoint."
+          },
+          "response": []
+        },
+        {
+          "name": "Reverse Admission Uses",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"admission_use_reversal\": {\n    \"reason_code\": \"operator_error\",\n    \"note\": \"Corrected at the event desk\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/checkin_logs/{{checkinLogId}}/admission_use_reversal",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "checkin_logs",
+                "{{checkinLogId}}",
+                "admission_use_reversal"
+              ]
+            },
+            "description": "Append-only manager reversal for every admission use created by a successful check-in. The operation creates one complete reversal group, never edits historical check-in or use rows, and publishes the reversal version for scanner synchronization."
+          },
+          "response": []
+        }
+      ]
+    },
+        {
+          "name": "Ticketing Package Workflow",
+      "item": [
+        {
+          "name": "Open Ticket Suspension",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason_code\": \"suspected_fraud\",\n  \"review_deadline_at\": \"{{suspensionReviewDeadline}}\",\n  \"internal_note\": \"Restricted review detail\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/tickets/{{ticketId}}/suspension",
+            "description": "Temporarily suspends admission for fraud or risk review without changing ticket ownership or financial history."
+          },
+          "response": []
+        },
+        {
+          "name": "Restore Ticket Suspension",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resolution_reason\": \"review_cleared\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/tickets/{{ticketId}}/suspension/restore",
+            "description": "Restores a suspended package only when no independent terminal refund, chargeback, event cancellation, or permanent revocation has won."
+          },
+          "response": []
+        },
+        {
+          "name": "Resolve Ticket Suspension",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resolution\": \"revoked_free\",\n  \"resolution_reason\": \"organizer_cancellation\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/tickets/{{ticketId}}/suspension/resolve",
+            "description": "Terminally invalidates a financially free package. Paid packages remain suspended until the later refund workflow provides durable success evidence."
+          },
+          "response": []
+        },
+        {
+          "name": "Activate Delegation",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assignments\": {\n    \"1\": \"{{recipientUserId}}\",\n    \"2\": null,\n    \"3\": null\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/tickets/{{ticketId}}/delegation",
+            "description": "Replaces the package group credential with one delegated credential per admission slot. Only the ticket owner may call this command."
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Delegation",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "url": "{{baseUrl}}/tickets/{{ticketId}}/delegation/cancel",
+            "description": "Revokes the delegated generation and creates a newer group generation."
+          },
+          "response": []
+        },
+        {
+          "name": "Reassign Delegated Slot",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"position\": 2,\n  \"replacement_user_id\": \"{{recipientUserId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/tickets/{{ticketId}}/delegation/reassign",
+            "description": "Reassigns one delegated admission slot through a new credential generation."
+          },
+          "response": []
+        },
+        {
+          "name": "Invite Credential Recipient",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"credential_id\": \"{{credentialId}}\",\n  \"phone\": \"{{recipientPhone}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/tickets/{{ticketId}}/credential_claims",
+            "description": "Creates a one-time credential claim. The plaintext token is returned only in this response and is never persisted."
+          },
+          "response": []
+        },
+        {
+          "name": "Accept Credential Claim",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{credentialClaimToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/credential_claims/{{claimId}}/accept",
+            "description": "Authenticates the invited recipient and activates the slot only after personal requirements are complete."
+          },
+          "response": []
+        },
+        {
+          "name": "Initiate Package Transfer",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{recipientPhone}}\",\n  \"reason\": \"Recipient change\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/tickets/{{ticketId}}/transfers",
+            "description": "Creates a pending package transfer. Ownership and the current credential remain unchanged until acceptance."
+          },
+          "response": []
+        },
+        {
+          "name": "Accept Package Transfer",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{ticketTransferToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/ticket_transfers/{{transferId}}/accept",
+            "description": "Authenticates the recipient, changes package ownership, revokes delegated claims, and creates a newer group generation."
+          },
+          "response": []
+        },
+        {
+          "name": "Decline Package Transfer",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "url": "{{baseUrl}}/ticket_transfers/{{transferId}}/decline",
+            "description": "Declines a pending transfer as the intended recipient without changing ownership."
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Package Transfer",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "url": "{{baseUrl}}/ticket_transfers/{{transferId}}/cancel",
+            "description": "Cancels a pending transfer as the original owner without changing the current credential."
+          },
+          "response": []
         }
       ]
     },
@@ -1725,7 +2421,7 @@
                 "header": [
                   {
                     "key": "Idempotency-Key",
-                    "value": "{{idempotencyKey}}",
+                    "value": "{{restartIdempotencyKey}}",
                     "type": "text"
                   }
                 ],
@@ -4996,16 +5692,94 @@
                     "response": [],
                     "body": {
                       "mode": "raw",
-                      "raw": "{\n  \"cancellation\": {\n    \"reason\": \"internal note (not exposed)\",\n    \"attendee_reason\": \"Event postponed.\"\n  }\n}",
+                      "raw": "{\n  \"cancellation\": {\n    \"internal_note\": \"internal note (not exposed)\",\n    \"attendee_reason\": \"Event postponed.\"\n  }\n}",
                       "options": {
                         "raw": {
                           "language": "json"
                         }
                       }
-                    }
-                  }
+            }
+          }
+        },
+        {
+          "name": "Download Full Scanner Snapshot",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Scanner-Token",
+                "value": "{{scannerToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/scanner/events/{{eventId}}/sync?mode=full&device_identifier={{scannerDeviceIdentifier}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "scanner",
+                "events",
+                "{{eventId}}",
+                "sync"
+              ],
+              "query": [
+                {
+                  "key": "mode",
+                  "value": "full"
+                },
+                {
+                  "key": "device_identifier",
+                  "value": "{{scannerDeviceIdentifier}}"
                 }
               ]
+            },
+            "description": "Download the complete scanner-safe event snapshot. The response contains public signing keys, revocations, attendee index, schedule/access mappings, server use IDs, and reversal rows without advancing server cursors."
+          },
+          "response": []
+        },
+        {
+          "name": "Download Scanner Delta",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Scanner-Token",
+                "value": "{{scannerToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/scanner/events/{{eventId}}/sync?mode=delta&device_identifier={{scannerDeviceIdentifier}}&cursors=%7B%22revocations%22%3A0%2C%22attendee_index%22%3A0%2C%22schedule%22%3A0%2C%22reversals%22%3A0%7D",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "scanner",
+                "events",
+                "{{eventId}}",
+                "sync"
+              ],
+              "query": [
+                {
+                  "key": "mode",
+                  "value": "delta"
+                },
+                {
+                  "key": "device_identifier",
+                  "value": "{{scannerDeviceIdentifier}}"
+                },
+                {
+                  "key": "cursors",
+                  "value": "{\"revocations\":0,\"attendee_index\":0,\"schedule\":0,\"reversals\":0}"
+                }
+              ]
+            },
+            "description": "Download scanner synchronization changes after applying the previous response locally. Revocations and attendee tombstones must be applied before active attendee additions."
+          },
+          "response": []
+        }
+      ]
             },
             {
               "name": "Event Dates",
@@ -6879,6 +7653,114 @@
                   }
                 }
               ]
+            },
+            {
+              "name": "Commercial",
+              "item": [
+                {
+                  "name": "Get Organization Terms",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/commercial/organizations/{{organizationId}}/terms",
+                      "host": ["{{baseUrl}}"],
+                      "path": ["commercial", "organizations", "{{organizationId}}", "terms"]
+                    },
+                    "description": "Read applicable current and scheduled terms without internal economics or approval evidence."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "List Event Payer Selections",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/commercial/events/{{eventId}}/event_payer_selections",
+                      "host": ["{{baseUrl}}"],
+                      "path": ["commercial", "events", "{{eventId}}", "event_payer_selections"]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Get Event Payer Selection",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/commercial/events/{{eventId}}/event_payer_selections/{{payerSelectionId}}",
+                      "host": ["{{baseUrl}}"],
+                      "path": ["commercial", "events", "{{eventId}}", "event_payer_selections", "{{payerSelectionId}}"]
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Set Event Payer Selection",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {"key": "Content-Type", "value": "application/json", "type": "text"},
+                      {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"event_payer_selection\": {\n    \"fee_component_id\": \"{{feeComponentId}}\",\n    \"charged_to\": \"organizer\"\n  }\n}",
+                      "options": {"raw": {"language": "json"}}
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/commercial/events/{{eventId}}/event_payer_selections",
+                      "host": ["{{baseUrl}}"],
+                      "path": ["commercial", "events", "{{eventId}}", "event_payer_selections"]
+                    },
+                    "description": "Organizer-only payer selection; replay with the same Idempotency-Key is safe."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Set Payer Selection - Missing Key",
+                  "request": {
+                    "method": "POST",
+                    "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"event_payer_selection\": {\n    \"fee_component_id\": \"{{feeComponentId}}\",\n    \"charged_to\": \"organizer\"\n  }\n}",
+                      "options": {"raw": {"language": "json"}}
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/commercial/events/{{eventId}}/event_payer_selections",
+                      "host": ["{{baseUrl}}"],
+                      "path": ["commercial", "events", "{{eventId}}", "event_payer_selections"]
+                    },
+                    "description": "Expected 400 with code missing_idempotency_key."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Set Event Payer Selection - Replay",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {"key": "Content-Type", "value": "application/json", "type": "text"},
+                      {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"event_payer_selection\": {\n    \"fee_component_id\": \"{{feeComponentId}}\",\n    \"charged_to\": \"organizer\"\n  }\n}",
+                      "options": {"raw": {"language": "json"}}
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/commercial/events/{{eventId}}/event_payer_selections",
+                      "host": ["{{baseUrl}}"],
+                      "path": ["commercial", "events", "{{eventId}}", "event_payer_selections"]
+                    },
+                    "description": "Replay the prior request with the identical key; no second selection is created."
+                  },
+                  "response": []
+                }
+              ]
             }
           ],
           "variable": [
@@ -6893,6 +7775,189 @@
               "type": "string"
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Refunds & Finance",
+      "item": [
+        {
+          "name": "List My Refunds",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/refunds",
+              "host": ["{{baseUrl}}"],
+              "path": ["refunds"]
+            },
+            "description": "Returns refund status with buyer-safe amount, currency, reason, status, and timestamps. Provider and recovery fields are excluded."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Refund Status",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/refunds/{{refundId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["refunds", "{{refundId}}"]
+            },
+            "description": "Shows one authorized refund obligation without provider fees, reserve, or retry internals."
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Paid Ticket Package",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json", "type": "text"},
+              {"key": "Idempotency-Key", "value": "{{financeIdempotencyKey}}", "type": "text"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tickets/{{ticketId}}/cancel",
+              "host": ["{{baseUrl}}"],
+              "path": ["tickets", "{{ticketId}}", "cancel"]
+            },
+            "description": "Organizer cancellation delegates suspension, refund creation, credential revocation, and idempotency to the ticket command."
+          },
+          "response": []
+        },
+        {
+          "name": "List Organizer Payouts",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/payouts",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "organizations", "{{organizationId}}", "payouts"]
+            },
+            "description": "Lists payouts for an authorized organization. Provider references, failure codes, and idempotency keys are hidden from organizers."
+          },
+          "response": []
+        },
+        {
+          "name": "Request Organizer Payout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json", "type": "text"},
+              {"key": "Idempotency-Key", "value": "{{financeIdempotencyKey}}", "type": "text"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payout\": {\n    \"currency\": \"{{financeCurrency}}\",\n    \"amount_minor\": 10000\n  }\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {
+              "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/payouts",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "organizations", "{{organizationId}}", "payouts"]
+            },
+            "description": "Creates one idempotent payout intent from mature same-currency ledger facts."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Organizer Balance",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/balance?currency={{financeCurrency}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "organizations", "{{organizationId}}", "balance"],
+              "query": [{"key": "currency", "value": "{{financeCurrency}}"}]
+            },
+            "description": "Derives the organizer balance from immutable ledger facts and reserved payout allocations; it never reads provider treasury."
+          },
+          "response": []
+        },
+        {
+          "name": "List Organizer Ledger Entries",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/ledger_entries?currency={{financeCurrency}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "organizations", "{{organizationId}}", "ledger_entries"],
+              "query": [{"key": "currency", "value": "{{financeCurrency}}"}]
+            },
+            "description": "Lists authorized append-only organizer ledger evidence with organizer-safe fields."
+          },
+          "response": []
+        },
+        {
+          "name": "Dispatch Payout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json", "type": "text"},
+              {"key": "Idempotency-Key", "value": "{{financeIdempotencyKey}}", "type": "text"}
+            ],
+            "body": {"mode": "raw", "raw": "{\n  \"provider\": \"{{financeProvider}}\"\n}", "options": {"raw": {"language": "json"}}},
+            "url": {
+              "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/payouts/{{payoutId}}/dispatch",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "organizations", "{{organizationId}}", "payouts", "{{payoutId}}", "dispatch"]
+            },
+            "description": "Platform finance control. Rechecks maturity and reserve gates before one provider dispatch."
+          },
+          "response": []
+        },
+        {
+          "name": "Reconcile Payout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json", "type": "text"},
+              {"key": "Idempotency-Key", "value": "{{financeIdempotencyKey}}", "type": "text"}
+            ],
+            "body": {"mode": "raw", "raw": "{\n  \"provider\": \"{{financeProvider}}\"\n}", "options": {"raw": {"language": "json"}}},
+            "url": {
+              "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/payouts/{{payoutId}}/reconcile",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "organizations", "{{organizationId}}", "payouts", "{{payoutId}}", "reconcile"]
+            },
+            "description": "Platform finance control. Verifies an in-flight payout without resubmitting it."
+          },
+          "response": []
+        },
+        {
+          "name": "Approve No-Balance Provider Dispatch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json", "type": "text"},
+              {"key": "Idempotency-Key", "value": "{{financeIdempotencyKey}}", "type": "text"}
+            ],
+            "body": {"mode": "raw", "raw": "{\n  \"reason\": \"Manual treasury review completed\"\n}", "options": {"raw": {"language": "json"}}},
+            "url": {
+              "raw": "{{baseUrl}}/finance/payouts/{{payoutId}}/approve_no_balance_api",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "payouts", "{{payoutId}}", "approve_no_balance_api"]
+            },
+            "description": "Platform finance control. Creates immutable audit evidence before dispatching through a provider without a balance API."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Provider Reserve Policy",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key": "Content-Type", "value": "application/json", "type": "text"},
+              {"key": "Idempotency-Key", "value": "{{financeIdempotencyKey}}", "type": "text"}
+            ],
+            "body": {"mode": "raw", "raw": "{\n  \"target_minor\": 5000\n}", "options": {"raw": {"language": "json"}}},
+            "url": {
+              "raw": "{{baseUrl}}/finance/reserve_policies/{{financeProvider}}/{{financeCurrency}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "reserve_policies", "{{financeProvider}}", "{{financeCurrency}}"]
+            },
+            "description": "Platform finance control. Updates the soft provider/currency reserve floor under the existing audited command."
+          },
+          "response": []
         }
       ]
     },
@@ -10144,6 +11209,272 @@
                   }
                 }
               ]
+            },
+            {
+              "name": "Commercial",
+              "description": "Governed Commercial definitions, lifecycle commands, simulations, and subsidy-budget inspection.",
+              "item": [
+                {
+                  "name": "List Fee Schedules",
+                  "request": {"method": "GET", "header": [], "url": "{{baseUrl}}/admin/commercial/fee_schedules"},
+                  "response": []
+                },
+                {
+                  "name": "Create Fee Schedule",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {"key": "Content-Type", "value": "application/json", "type": "text"},
+                      {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}
+                    ],
+                    "body": {"mode": "raw", "raw": "{\n  \"fee_schedule\": {\n    \"name\": \"Platform Default ETB\",\n    \"code\": \"platform_default_etb\",\n    \"schedule_type\": \"platform_default\"\n  }\n}", "options": {"raw": {"language": "json"}}},
+                    "url": "{{baseUrl}}/admin/commercial/fee_schedules"
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Create Fee Schedule - Missing Key",
+                  "request": {
+                    "method": "POST",
+                    "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}],
+                    "body": {"mode": "raw", "raw": "{\n  \"fee_schedule\": {\n    \"name\": \"Platform Default ETB\",\n    \"code\": \"platform_default_etb\",\n    \"schedule_type\": \"platform_default\"\n  }\n}", "options": {"raw": {"language": "json"}}},
+                    "url": "{{baseUrl}}/admin/commercial/fee_schedules"
+                  },
+                  "description": "Expected 400 with code missing_idempotency_key.",
+                  "response": []
+                },
+                {
+                  "name": "Create Fee Schedule - Forbidden for View-only Admin",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {"key": "Content-Type", "value": "application/json", "type": "text"},
+                      {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}
+                    ],
+                    "body": {"mode": "raw", "raw": "{\n  \"fee_schedule\": {\n    \"name\": \"Should Be Forbidden\",\n    \"code\": \"forbidden_schedule\",\n    \"schedule_type\": \"custom\"\n  }\n}", "options": {"raw": {"language": "json"}}},
+                    "url": "{{baseUrl}}/admin/commercial/fee_schedules"
+                  },
+                  "description": "Run with a delegated administrator holding commercial.view but not commercial.draft; expected 403."
+                },
+                {
+                  "name": "Create Fee Schedule - Replay",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {"key": "Content-Type", "value": "application/json", "type": "text"},
+                      {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}
+                    ],
+                    "body": {"mode": "raw", "raw": "{\n  \"fee_schedule\": {\n    \"name\": \"Platform Default ETB\",\n    \"code\": \"platform_default_etb\",\n    \"schedule_type\": \"platform_default\"\n  }\n}", "options": {"raw": {"language": "json"}}},
+                    "url": "{{baseUrl}}/admin/commercial/fee_schedules"
+                  },
+                  "description": "Replay the prior create request with the identical key; the response must not create another schedule."
+                },
+                {
+                  "name": "Get Fee Schedule",
+                  "request": {"method": "GET", "header": [], "url": "{{baseUrl}}/admin/commercial/fee_schedules/{{feeScheduleId}}"},
+                  "response": []
+                },
+                {
+                  "name": "Update Fee Schedule",
+                  "request": {
+                    "method": "PATCH",
+                    "header": [
+                      {"key": "Content-Type", "value": "application/json", "type": "text"},
+                      {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}
+                    ],
+                    "body": {"mode": "raw", "raw": "{\n  \"fee_schedule\": {\n    \"name\": \"Updated Platform Default ETB\"\n  }\n}", "options": {"raw": {"language": "json"}}},
+                    "url": "{{baseUrl}}/admin/commercial/fee_schedules/{{feeScheduleId}}"
+                  },
+                  "response": []
+                },
+                {
+                  "name": "List Fee Schedule Versions",
+                  "request": {"method": "GET", "header": [], "url": "{{baseUrl}}/admin/commercial/fee_schedules/{{feeScheduleId}}/fee_schedule_versions"},
+                  "response": []
+                },
+                {
+                  "name": "Create Fee Schedule Version",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {"key": "Content-Type", "value": "application/json", "type": "text"},
+                      {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}
+                    ],
+                    "body": {"mode": "raw", "raw": "{\n  \"fee_schedule_version\": {\n    \"acceptance_policy\": \"none\",\n    \"components\": [\n      {\n        \"component_type\": \"service_fee\",\n        \"calculation_type\": \"percentage\",\n        \"charged_to\": \"buyer\",\n        \"basis_type\": \"ticket_subtotal\",\n        \"currency\": \"ETB\",\n        \"rate_bps\": 500,\n        \"label\": \"Service fee\"\n      }\n    ]\n  }\n}", "options": {"raw": {"language": "json"}}},
+                    "url": "{{baseUrl}}/admin/commercial/fee_schedules/{{feeScheduleId}}/fee_schedule_versions"
+                  },
+                  "response": []
+                },
+                {
+                  "name": "List Simulations",
+                  "request": {"method": "GET", "header": [], "url": "{{baseUrl}}/admin/commercial/simulations"},
+                  "response": []
+                },
+                {
+                  "name": "Create Simulation",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {"key": "Content-Type", "value": "application/json", "type": "text"},
+                      {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}
+                    ],
+                    "body": {"mode": "raw", "raw": "{\n  \"simulation\": {\n    \"fee_schedule_version_id\": \"{{feeScheduleVersionId}}\",\n    \"scenario\": {\n      \"currency\": \"ETB\",\n      \"ticket_subtotal_minor\": 100000\n    }\n  }\n}", "options": {"raw": {"language": "json"}}},
+                    "url": "{{baseUrl}}/admin/commercial/simulations"
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Get Simulation",
+                  "request": {"method": "GET", "header": [], "url": "{{baseUrl}}/admin/commercial/simulations/{{simulationId}}"},
+                  "response": []
+                },
+                {
+                  "name": "Get Fee Schedule Version",
+                  "request": {"method": "GET", "header": [], "url": "{{baseUrl}}/admin/commercial/fee_schedule_versions/{{feeScheduleVersionId}}"},
+                  "response": []
+                },
+                {
+                  "name": "Update Fee Schedule Version",
+                  "request": {
+                    "method": "PATCH",
+                    "header": [
+                      {"key": "Content-Type", "value": "application/json", "type": "text"},
+                      {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}
+                    ],
+                    "body": {"mode": "raw", "raw": "{\n  \"fee_schedule_version\": {\n    \"acceptance_policy\": \"notice_only\"\n  }\n}", "options": {"raw": {"language": "json"}}},
+                    "url": "{{baseUrl}}/admin/commercial/fee_schedule_versions/{{feeScheduleVersionId}}"
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Simulate Fee Schedule Version",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {"key": "Content-Type", "value": "application/json", "type": "text"},
+                      {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}
+                    ],
+                    "body": {"mode": "raw", "raw": "{\n  \"scenario\": {\n    \"currency\": \"ETB\",\n    \"ticket_subtotal_minor\": 100000\n  }\n}", "options": {"raw": {"language": "json"}}},
+                    "url": "{{baseUrl}}/admin/commercial/fee_schedule_versions/{{feeScheduleVersionId}}/simulate"
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Submit Fee Schedule Version",
+                  "request": {"method": "POST", "header": [{"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}], "url": "{{baseUrl}}/admin/commercial/fee_schedule_versions/{{feeScheduleVersionId}}/submit"},
+                  "response": []
+                },
+                {
+                  "name": "Approve Fee Schedule Version",
+                  "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}, {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}], "body": {"mode": "raw", "raw": "{\n  \"reason\": \"Approved after independent review\",\n  \"break_glass\": false\n}", "options": {"raw": {"language": "json"}}}, "url": "{{baseUrl}}/admin/commercial/fee_schedule_versions/{{feeScheduleVersionId}}/approve"},
+                  "response": []
+                },
+                {
+                  "name": "Reject Fee Schedule Version",
+                  "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}, {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}], "body": {"mode": "raw", "raw": "{\n  \"reason\": \"Needs a clearer fee label\"\n}", "options": {"raw": {"language": "json"}}}, "url": "{{baseUrl}}/admin/commercial/fee_schedule_versions/{{feeScheduleVersionId}}/reject"},
+                  "response": []
+                },
+                {
+                  "name": "Schedule Fee Schedule Version",
+                  "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}, {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}], "body": {"mode": "raw", "raw": "{\n  \"reason\": \"Scheduled for the next pricing window\",\n  \"break_glass\": false\n}", "options": {"raw": {"language": "json"}}}, "url": "{{baseUrl}}/admin/commercial/fee_schedule_versions/{{feeScheduleVersionId}}/schedule"},
+                  "response": []
+                },
+                {
+                  "name": "Activate Fee Schedule Version",
+                  "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}, {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}], "body": {"mode": "raw", "raw": "{\n  \"reason\": \"Activate the approved terms\",\n  \"break_glass\": false\n}", "options": {"raw": {"language": "json"}}}, "url": "{{baseUrl}}/admin/commercial/fee_schedule_versions/{{feeScheduleVersionId}}/activate"},
+                  "response": []
+                },
+                {
+                  "name": "Terminate Fee Schedule Version",
+                  "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}, {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}], "body": {"mode": "raw", "raw": "{\n  \"reason\": \"Retire superseded terms\"\n}", "options": {"raw": {"language": "json"}}}, "url": "{{baseUrl}}/admin/commercial/fee_schedule_versions/{{feeScheduleVersionId}}/terminate"},
+                  "response": []
+                },
+                {
+                  "name": "Deliver Term Notice",
+                  "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}, {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}], "body": {"mode": "raw", "raw": "{\n  \"organization_id\": \"{{organizationId}}\",\n  \"delivery_method\": \"in_app\"\n}", "options": {"raw": {"language": "json"}}}, "url": "{{baseUrl}}/admin/commercial/fee_schedule_versions/{{feeScheduleVersionId}}/deliver_notice"},
+                  "response": []
+                },
+                {
+                  "name": "List Programs",
+                  "request": {"method": "GET", "header": [], "url": "{{baseUrl}}/admin/commercial/programs"},
+                  "response": []
+                },
+                {
+                  "name": "Create Program",
+                  "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}, {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}], "body": {"mode": "raw", "raw": "{\n  \"program\": {\n    \"fee_schedule_id\": \"{{feeScheduleId}}\",\n    \"program_type\": \"first_event\",\n    \"enrollment_mode\": \"automatic\",\n    \"active\": true\n  }\n}", "options": {"raw": {"language": "json"}}}, "url": "{{baseUrl}}/admin/commercial/programs"},
+                  "response": []
+                },
+                {
+                  "name": "Get Program",
+                  "request": {"method": "GET", "header": [], "url": "{{baseUrl}}/admin/commercial/programs/{{programId}}"},
+                  "response": []
+                },
+                {
+                  "name": "Update Program",
+                  "request": {"method": "PATCH", "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}, {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}], "body": {"mode": "raw", "raw": "{\n  \"program\": {\n    \"active\": false\n  }\n}", "options": {"raw": {"language": "json"}}}, "url": "{{baseUrl}}/admin/commercial/programs/{{programId}}"},
+                  "response": []
+                },
+                {
+                  "name": "List Assignments",
+                  "request": {"method": "GET", "header": [], "url": "{{baseUrl}}/admin/commercial/assignments"},
+                  "response": []
+                },
+                {
+                  "name": "Create Assignment Draft",
+                  "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}, {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}], "body": {"mode": "raw", "raw": "{\n  \"assignment\": {\n    \"organization_id\": \"{{organizationId}}\",\n    \"fee_schedule_version_id\": \"{{feeScheduleVersionId}}\",\n    \"assignment_type\": \"platform_grant\",\n    \"reason\": \"Approved community benefit\"\n  }\n}", "options": {"raw": {"language": "json"}}}, "url": "{{baseUrl}}/admin/commercial/assignments"},
+                  "response": []
+                },
+                {
+                  "name": "Get Assignment",
+                  "request": {"method": "GET", "header": [], "url": "{{baseUrl}}/admin/commercial/assignments/{{assignmentId}}"},
+                  "response": []
+                },
+                {
+                  "name": "Submit Assignment",
+                  "request": {"method": "POST", "header": [{"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}], "url": "{{baseUrl}}/admin/commercial/assignments/{{assignmentId}}/submit"},
+                  "response": []
+                },
+                {
+                  "name": "Approve Assignment",
+                  "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}, {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}], "body": {"mode": "raw", "raw": "{\n  \"reason\": \"Approved by the independent checker\",\n  \"break_glass\": false\n}", "options": {"raw": {"language": "json"}}}, "url": "{{baseUrl}}/admin/commercial/assignments/{{assignmentId}}/approve"},
+                  "response": []
+                },
+                {
+                  "name": "Reject Assignment",
+                  "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}, {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}], "body": {"mode": "raw", "raw": "{\n  \"reason\": \"Baseline digest is stale\"\n}", "options": {"raw": {"language": "json"}}}, "url": "{{baseUrl}}/admin/commercial/assignments/{{assignmentId}}/reject"},
+                  "response": []
+                },
+                {
+                  "name": "Activate Assignment",
+                  "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}, {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}], "body": {"mode": "raw", "raw": "{\n  \"reason\": \"Activate the approved grant\",\n  \"break_glass\": false\n}", "options": {"raw": {"language": "json"}}}, "url": "{{baseUrl}}/admin/commercial/assignments/{{assignmentId}}/activate"},
+                  "response": []
+                },
+                {
+                  "name": "Terminate Assignment",
+                  "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}, {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}], "body": {"mode": "raw", "raw": "{\n  \"reason\": \"Retire the event grant\"\n}", "options": {"raw": {"language": "json"}}}, "url": "{{baseUrl}}/admin/commercial/assignments/{{assignmentId}}/terminate"},
+                  "response": []
+                },
+                {
+                  "name": "List Subsidy Budgets",
+                  "request": {"method": "GET", "header": [], "url": "{{baseUrl}}/admin/commercial/subsidy_budgets"},
+                  "response": []
+                },
+                {
+                  "name": "Create Subsidy Budget",
+                  "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}, {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}], "body": {"mode": "raw", "raw": "{\n  \"subsidy_budget\": {\n    \"assignment_id\": \"{{assignmentId}}\",\n    \"fee_component_id\": \"{{feeComponentId}}\",\n    \"currency\": \"ETB\",\n    \"limit_minor\": 5000000\n  }\n}", "options": {"raw": {"language": "json"}}}, "url": "{{baseUrl}}/admin/commercial/subsidy_budgets"},
+                  "response": []
+                },
+                {
+                  "name": "Get Subsidy Budget",
+                  "request": {"method": "GET", "header": [], "url": "{{baseUrl}}/admin/commercial/subsidy_budgets/{{subsidyBudgetId}}"},
+                  "response": []
+                },
+                {
+                  "name": "Update Subsidy Budget",
+                  "request": {"method": "PATCH", "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}, {"key": "Idempotency-Key", "value": "{{commercialIdempotencyKey}}", "type": "text"}], "body": {"mode": "raw", "raw": "{\n  \"subsidy_budget\": {\n    \"limit_minor\": 7500000\n  }\n}", "options": {"raw": {"language": "json"}}}, "url": "{{baseUrl}}/admin/commercial/subsidy_budgets/{{subsidyBudgetId}}"},
+                  "response": []
+                }
+              ]
             }
           ],
           "variable": [
@@ -10408,6 +11739,549 @@
           },
           "response": [],
           "event": []
+        },
+        {
+          "name": "Orders",
+          "item": [
+            {
+              "name": "Build Checkout Quote",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"charge_currency\": \"ETB\",\n  \"items\": [\n    {\n      \"event_product_id\": \"{{eventProductId}}\",\n      \"quantity\": 1\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/events/{{eventId}}/order_quotes",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    "{{eventId}}",
+                    "order_quotes"
+                  ]
+                },
+                "description": "Builds a buyer-visible quote. The response contains display totals and an encrypted quote_token bound to the authenticated buyer and event; Commercial definitions and provider internals are not exposed.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Quote request succeeds\", function () {",
+                      "  pm.response.to.have.status(200);",
+                      "});",
+                      "const token = pm.response.json()?.data?.quote_token;",
+                      "if (token) { pm.collectionVariables.set(\"quoteToken\", token); }"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Create Checkout",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{idempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"order\": {\n    \"quote_token\": \"{{quoteToken}}\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/events/{{eventId}}/orders",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "events",
+                    "{{eventId}}",
+                    "orders"
+                  ]
+                },
+                "description": "Creates one checkout from the buyer/event-bound quote token. Reuse the same Idempotency-Key and quote token for a safe retry after a timeout.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Checkout request succeeds\", function () {",
+                      "  pm.expect(pm.response.code).to.be.oneOf([201, 409]);",
+                      "});",
+                      "const orderId = pm.response.json()?.data?.id;",
+                      "if (orderId) { pm.collectionVariables.set(\"orderId\", orderId); }"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Start Payment Attempt",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{paymentAttemptIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"payment_attempt\": {\n    \"provider\": \"chapa\",\n    \"payment_method\": \"telebirr\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/orders/{{orderId}}/payment_attempts",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "orders",
+                    "{{orderId}}",
+                    "payment_attempts"
+                  ]
+                },
+                "description": "Starts or switches one bounded payment attempt for the immutable order total. Reuse the same Idempotency-Key after a timeout; an ambiguous provider result remains processing for later verification.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Payment attempt request returns a documented status\", function () {",
+                      "  pm.expect(pm.response.code).to.be.oneOf([201, 409, 422, 503]);",
+                      "});",
+                      "const paymentId = pm.response.json()?.data?.id;",
+                      "if (paymentId) { pm.collectionVariables.set(\"paymentAttemptId\", paymentId); }"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Payment Webhook",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "X-Provider-Signature",
+                    "value": "{{paymentWebhookSignature}}",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event_id\": \"{{providerEventId}}\",\n  \"type\": \"payment.succeeded\",\n  \"status\": \"paid\",\n  \"provider_reference\": \"{{providerReference}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/payments/{{paymentProvider}}/webhook",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "payments",
+                    "{{paymentProvider}}",
+                    "webhook"
+                  ]
+                },
+                "description": "Receives a provider-signed payment event. The endpoint is unauthenticated, verifies the provider signature, durably deduplicates the event, and acknowledges it before asynchronous processing.",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Webhook is durably acknowledged\", function () {",
+                      "  pm.expect(pm.response.code).to.be.oneOf([202, 401, 422]);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Restart Checkout",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{restartIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"order\": {\n    \"quote_token\": \"{{quoteToken}}\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/orders/{{orderId}}/restart",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "orders",
+                    "{{orderId}}",
+                    "restart"
+                  ]
+                },
+                "description": "Releases the old checkout's holds and creates one linked replacement under the buyer/event restart limit. The request is idempotent and requires a fresh valid quote token.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "response": [],
+              "event": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Marketplace",
+      "item": [
+        {
+          "name": "Create Resale Listing",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resale_listing\": {\n    \"asking_amount_minor\": 2500\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/tickets/{{ticketId}}/resale",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "tickets", "{{ticketId}}", "resale" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Active Resale Listings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/resale_listings",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "resale_listings" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Show Resale Listing",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/resale_listings/{{resaleListingId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "resale_listings", "{{resaleListingId}}" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Purchase Resale Listing",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"purchase\": {\n    \"answers\": {},\n    \"consents\": {}\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/resale_listings/{{resaleListingId}}/purchase",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "resale_listings", "{{resaleListingId}}", "purchase" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Resale Listing",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resale_listing\": {\n    \"reason\": \"seller_requested\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/resale_listings/{{resaleListingId}}/cancel",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "resale_listings", "{{resaleListingId}}", "cancel" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Resale Policy",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ticket_types/{{resaleTicketTypeId}}/resale_policy",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "ticket_types", "{{resaleTicketTypeId}}", "resale_policy" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Resale Policy",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resale_policy\": {\n    \"resale_enabled\": true,\n    \"resale_price_cap_type\": \"percentage\",\n    \"resale_percentage_cap_bps\": 10000,\n    \"max_completed_resales\": 2\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ticket_types/{{resaleTicketTypeId}}/resale_policy",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "ticket_types", "{{resaleTicketTypeId}}", "resale_policy" ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Seller",
+          "item": [
+            {
+              "name": "Seller Balance",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/marketplace/seller/balance",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "marketplace", "seller", "balance" ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Seller History",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/marketplace/seller/history",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "marketplace", "seller", "history" ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "List Seller Payout Accounts",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/marketplace/seller/payout_accounts",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "marketplace", "seller", "payout_accounts" ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Verify Seller Payout Account",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json", "type": "text" },
+                  { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"payout_account\": {\n    \"type\": \"mobile_money\",\n    \"provider\": \"telebirr\",\n    \"account_details\": {\n      \"phone\": \"251911000003\"\n    },\n    \"account_label\": \"Primary wallet\",\n    \"holder_name\": \"Seller Holder\"\n  }\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/marketplace/seller/payout_accounts",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "marketplace", "seller", "payout_accounts" ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Admin Payouts",
+          "item": [
+            {
+              "name": "List Seller Payouts",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/marketplace/seller_payouts",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "admin", "marketplace", "seller_payouts" ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Dispatch Seller Payout",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/marketplace/seller_payouts/{{sellerPayoutId}}/dispatch",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "admin", "marketplace", "seller_payouts", "{{sellerPayoutId}}", "dispatch" ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Reconcile Seller Payout",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/marketplace/seller_payouts/{{sellerPayoutId}}/reconcile",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "admin", "marketplace", "seller_payouts", "{{sellerPayoutId}}", "reconcile" ]
+                }
+              },
+              "response": []
+            }
+          ]
         }
       ]
     }

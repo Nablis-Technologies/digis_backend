@@ -1,0 +1,16 @@
+# frozen_string_literal: true
+
+en:
+  commercial:
+    permissions:
+      view: "View commercial definitions"
+      draft: "Draft commercial definitions"
+      simulate: "Simulate commercial definitions"
+      submit: "Submit commercial definitions"
+      approve: "Approve commercial definitions"
+      activate: "Activate commercial definitions"
+      grant: "Grant commercial terms"
+      terminate: "Terminate commercial terms"
+      audit: "Audit commercial operations"
+      budget_view: "View commercial subsidy budgets"
+      break_glass: "Use commercial break-glass access"

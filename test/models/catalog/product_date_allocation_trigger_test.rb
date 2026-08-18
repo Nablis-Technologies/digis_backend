@@ -14,6 +14,7 @@ class Catalog::ProductDateAllocationTriggerTest < ActiveSupport::TestCase
 
   def teardown
     Catalog::ProductDateAllocation.where(event_product: @product).delete_all if @product
+    Catalog::ProductAccess.where(event_product: @product).delete_all if @product
     @product&.destroy
     @date&.destroy
     @product = nil
@@ -28,6 +29,7 @@ class Catalog::ProductDateAllocationTriggerTest < ActiveSupport::TestCase
     @date = Events::EventDate.create!(
       event: @event, starts_at: 1.day.from_now, ends_at: 1.day.from_now + 4.hours
     )
+    @product.product_accesses.create!(event_date: @date, type: "venue")
 
     assert_raises(ActiveRecord::CheckViolation) do
       Catalog::ProductDateAllocation.create!(
@@ -49,6 +51,8 @@ class Catalog::ProductDateAllocationTriggerTest < ActiveSupport::TestCase
     @date = Events::EventDate.create!(
       event: @event, starts_at: 1.day.from_now, ends_at: 1.day.from_now + 4.hours
     )
+    @product.product_accesses.create!(event_date: @date, type: "venue")
+    @product.product_accesses.create!(event_date: date_two, type: "venue")
     @date_extra = date_two
 
     Catalog::ProductDateAllocation.transaction do
@@ -67,5 +71,21 @@ class Catalog::ProductDateAllocationTriggerTest < ActiveSupport::TestCase
     @date_extra&.destroy
     @product&.destroy
     @date&.destroy
+  end
+
+  test "deferred constraint trigger rejects removing an access covered by an allocation" do
+    @product = Catalog::EventProduct.create!(
+      event: @event, name: "Access Removal Trigger Test", type: "merchandise",
+      status: "draft", inventory_mode: "unlimited"
+    )
+    @date = Events::EventDate.create!(
+      event: @event, starts_at: 1.day.from_now, ends_at: 1.day.from_now + 4.hours
+    )
+    access = @product.product_accesses.create!(event_date: @date, type: "venue")
+    @product.product_date_allocations.create!(
+      event_date: @date, allocation_basis_points: 10_000
+    )
+
+    assert_raises(ActiveRecord::CheckViolation) { access.destroy! }
   end
 end

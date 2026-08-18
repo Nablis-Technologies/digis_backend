@@ -1,0 +1,32 @@
+# frozen_string_literal: true
+
+en:
+  commercial:
+    volume:
+      errors:
+        currency_required: "is required for accepted gross volume"
+        currency_forbidden: "must be blank for accepted unit volume"
+        order_currency_mismatch: "must match the order settlement currency"
+        window_bounds: "must be after the window start"
+        event_window_event_required: "is required for an event volume window"
+        event_organization_mismatch: "must belong to the organization"
+        order_organization_mismatch: "must match the order event organization"
+        order_event_mismatch: "must match the order event"
+        order_not_accepted: "must reference an accepted order"
+        usage_immutable: "accepted volume usage is immutable and retained"
+        component_not_tiered: "the commercial component is not tiered"
+        invalid_metric: "the accepted volume metric is not supported"
+        invalid_window: "the commercial volume window is not supported"
+        counter_not_found: "the prospective volume counter could not be found"
+        currency_mismatch: "the accepted gross currency does not match the order"
+        usage_conflict: "the accepted order already has different volume evidence"
+        counter_drift: "the prospective volume counter was repaired from usage evidence"
+        invalid_order: "an accepted order is required for volume recording"
+        invalid_component: "the commercial volume component is invalid"
+        invalid_value: "the accepted volume value is invalid"
+        invalid_timestamp: "the accepted volume timestamp is invalid"
+        selection_event_mismatch: "the payer selection component does not belong to the event"
+        payer_selection_forbidden: "the current commercial terms do not permit this payer selection"
+        invalid_payer: "the selected commercial payer is not supported"
+        idempotency_conflict: "the payer selection idempotency key conflicts with existing request data"
+        record_not_found: "the commercial volume record could not be found"
