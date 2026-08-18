@@ -19,7 +19,14 @@ BCrypt::Engine.cost = BCrypt::Engine::MIN_COST
 require "minitest/reporters"
 require "mocha/minitest"
 
-Minitest::Reporters.use! Minitest::Reporters::SpecReporter.new
+reporter = if ENV["CI"].present?
+  # Keep CI logs compact while preserving the failure summary and backtrace.
+  Minitest::Reporters::ProgressReporter.new
+else
+  Minitest::Reporters::SpecReporter.new
+end
+
+Minitest::Reporters.use! reporter
 
 Shoulda::Matchers.configure do |config|
   config.integrate do |with|

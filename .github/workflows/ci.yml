@@ -5,6 +5,10 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   scan_ruby:
     runs-on: ubuntu-latest
@@ -50,18 +54,28 @@ jobs:
       - name: Lint code for consistent style
         run: bin/rubocop -f github
 
-  test:
+  test_shard:
+    name: Test shard ${{ matrix.shard }}
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
 
     services:
       postgres:
-        image: postgres
+        image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
         ports:
           - 5432:5432
-        options: --health-cmd="pg_isready" --health-interval=10s --health-timeout=5s --health-retries=3
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=1s
+          --health-timeout=5s
+          --health-retries=30
 
       # redis:
       #   image: valkey/valkey:8
@@ -85,8 +99,76 @@ jobs:
         env:
           RAILS_ENV: test
           DATABASE_URL: postgres://postgres:postgres@localhost:5432
-          PARALLEL_WORKERS: "6"
+          PARALLEL_WORKERS: "2"
           N_PLUS_ONE: "1"
+          CI: "true"
+          CI_TEST_SHARD_COUNT: "4"
           # RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
           # REDIS_URL: redis://localhost:6379/0
-        run: bin/rails db:test:prepare test -v --backtrace
+        run: |
+          mapfile -t TEST_FILES < <(bin/ci_test_shard --shard-index "${{ matrix.shard }}" --shard-count "$CI_TEST_SHARD_COUNT")
+          test "${#TEST_FILES[@]}" -gt 0
+          bin/rails db:test:prepare
+          bin/rails test "${TEST_FILES[@]}" --backtrace
+
+  performance:
+    name: Performance tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=1s
+          --health-timeout=5s
+          --health-retries=30
+
+    steps:
+      - name: Install packages
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libpq-dev
+
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Run performance tests
+        env:
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432
+          PARALLEL_WORKERS: "1"
+          N_PLUS_ONE: "1"
+          CI: "true"
+        run: |
+          bin/rails db:test:prepare
+          bin/rails test test/performance --backtrace
+
+  test:
+    if: ${{ always() }}
+    needs: [scan_ruby, lint, test_shard, performance]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Require every CI lane to pass
+        env:
+          SCAN_RESULT: ${{ needs.scan_ruby.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          TEST_RESULT: ${{ needs.test_shard.result }}
+          PERFORMANCE_RESULT: ${{ needs.performance.result }}
+        run: |
+          if [ "$SCAN_RESULT" != "success" ] || \
+            [ "$LINT_RESULT" != "success" ] || \
+            [ "$TEST_RESULT" != "success" ] || \
+            [ "$PERFORMANCE_RESULT" != "success" ]; then
+            echo "One or more required CI lanes did not pass." >&2
+            exit 1
+          fi
