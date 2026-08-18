@@ -77,6 +77,10 @@ production:
     class: Streaming::ExpireSessionsJob
     queue: streaming
     schedule: every minute
+  purge_expired_short_link_clicks:
+    class: Links::PurgeExpiredClicksJob
+    queue: default
+    schedule: every day at 3am
   offer_waitlisted_registrations:
     class: Ticketing::OfferWaitlistJob
     queue: default
