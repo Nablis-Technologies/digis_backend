@@ -29,7 +29,7 @@ services:
       - key: WEB_CONCURRENCY
         value: "1"
       - key: RAILS_MAX_THREADS
-        value: "3"
+        value: "5"
       - key: RAILS_MASTER_KEY
         sync: false
       - key: CORE_ENCRYPTION_PRIMARY_KEY
