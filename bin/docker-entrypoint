@@ -16,7 +16,8 @@ if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
     table_exists="$(psql "$RENDER_PREVIEW_DATABASE_URL" --tuples-only --no-align --quiet \
       --command "SELECT to_regclass('public.${table}') IS NOT NULL")"
     if [ "$table_exists" != "t" ]; then
-      SCHEMA_FORMAT=ruby SCHEMA="db/${database}_schema.rb" ./bin/rails "db:schema:load:${database}"
+      DISABLE_DATABASE_ENVIRONMENT_CHECK=1 SCHEMA_FORMAT=ruby \
+        SCHEMA="db/${database}_schema.rb" ./bin/rails "db:schema:load:${database}"
     fi
   }
 
