@@ -23,6 +23,9 @@ module Events
         return failure(missing_date)
       end
 
+      streaming = streaming_readiness
+      return streaming if streaming.failure?
+
       media = Events::Media::Readiness.call(event: @event)
       return failure(media_not_ready) unless media.success?
 
@@ -59,6 +62,56 @@ module Events
       Core::BusinessError.new(
         I18n.t("events.event_media.errors.not_ready"),
         code: "not_ready",
+        status: :unprocessable_entity
+      )
+    end
+
+    def streaming_readiness
+      streams = Events::EventStream
+        .includes(event_date: :event)
+        .where(event_date_id: @event.event_dates.select(:id))
+        .to_a
+      accesses = Catalog::ProductAccess
+        .includes(:event_product, :event_date)
+        .where(event_product_id: @event.event_products.select(:id), type: "stream")
+        .to_a
+
+      streams.each { |stream| Streaming::Providers::Registry.for(stream) }
+      return success(@event) if accesses.empty?
+
+      accesses.each do |access|
+        stream = streams.find { |candidate| candidate.event_date_id == access.event_date_id }
+        return failure(streaming_access_missing) unless stream
+        return failure(streaming_protection_unsupported) if protection_rank(stream.access_protection) < protection_rank(access.required_access_protection)
+      end
+
+      success(@event)
+    rescue Streaming::Providers::UnknownProvider
+      failure(streaming_provider_unavailable)
+    rescue Streaming::Providers::InvalidConfiguration
+      failure(streaming_protection_unsupported)
+    end
+
+    def protection_rank(protection)
+      { "public" => 0, "soft_gated" => 1, "signed" => 2 }.fetch(protection.to_s, -1)
+    end
+
+    def streaming_provider_unavailable
+      streaming_error(:streaming_provider_unavailable)
+    end
+
+    def streaming_protection_unsupported
+      streaming_error(:streaming_protection_unsupported)
+    end
+
+    def streaming_access_missing
+      streaming_error(:streaming_access_missing)
+    end
+
+    def streaming_error(key)
+      Core::BusinessError.new(
+        I18n.t("streaming.errors.#{key}"),
+        code: key.to_s,
         status: :unprocessable_entity
       )
     end
