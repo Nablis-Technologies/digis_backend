@@ -33,6 +33,9 @@ module StreamingTestHelpers
     @stream_product = create_stream_product(access_protection:)
     @stream_registration = create_stream_registration
     @stream_ticket = Ticketing::Ticket.create!(stream_ticket_attributes)
+    1.upto(@stream_ticket.admissions_per_unit_snapshot) do |position|
+      @stream_ticket.admission_slots.create!(position:, assignment_status: "unassigned")
+    end
     generation = @stream_ticket.credential_generations.create!(
       version: 1,
       mode: "group",
