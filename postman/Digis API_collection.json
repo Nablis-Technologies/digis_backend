@@ -131,6 +131,21 @@
     "type": "string"
   },
   {
+    "key": "eventStreamId",
+    "value": "",
+    "type": "string"
+  },
+  {
+    "key": "streamSessionId",
+    "value": "",
+    "type": "string"
+  },
+  {
+    "key": "streamSessionToken",
+    "value": "",
+    "type": "string"
+  },
+  {
     "key": "suspensionReviewDeadline",
     "value": "",
     "type": "string"
@@ -981,6 +996,63 @@
             },
             "url": "{{baseUrl}}/tickets/{{ticketId}}/suspension/resolve",
             "description": "Terminally invalidates a financially free package. Paid packages remain suspended until the later refund workflow provides durable success evidence."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Stream Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_stream_id\": \"{{eventStreamId}}\",\n  \"device_id\": \"ios:9f0f6af3\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/tickets/{{ticketId}}/stream_sessions",
+            "description": "Creates a short-lived authorized live/replay session. The Digis session token is returned only in this response; token digests and provider secrets are never serialized."
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Stream Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_token\": \"{{streamSessionToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/stream_sessions/{{streamSessionId}}/refresh",
+            "description": "Revalidates the current ticket credential and returns a bounded playback grant without returning the session token again."
+          },
+          "response": []
+        },
+        {
+          "name": "Revoke Stream Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_token\": \"{{streamSessionToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/stream_sessions/{{streamSessionId}}/revoke",
+            "description": "Revokes Digis playback authority idempotently. Provider cleanup cannot restore local authorization."
           },
           "response": []
         },
