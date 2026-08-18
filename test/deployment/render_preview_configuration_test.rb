@@ -95,6 +95,17 @@ class RenderPreviewConfigurationTest < ActiveSupport::TestCase
     assert_includes Rails.root.join("Gemfile").read, 'gem "aws-sdk-s3", require: false'
   end
 
+  test "preview entrypoint prepares shared auxiliary schemas idempotently" do
+    entrypoint = Rails.root.join("bin/docker-entrypoint").read
+
+    assert_includes entrypoint, 'if [ "${RENDER_PREVIEW}" == "true" ]'
+    assert_includes entrypoint, 'prepare_preview_schema "cache" "solid_cache_entries"'
+    assert_includes entrypoint, 'prepare_preview_schema "queue" "solid_queue_recurring_tasks"'
+    assert_includes entrypoint, 'prepare_preview_schema "cable" "solid_cable_messages"'
+    assert_includes entrypoint, 'SCHEMA_FORMAT=ruby SCHEMA="db/${database}_schema.rb"'
+    assert_includes entrypoint, "db:schema:load:${database}"
+  end
+
   test "production URL defaults are environment-backed" do
     production = Rails.root.join("config/environments/production.rb").read
 
