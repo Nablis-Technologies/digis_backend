@@ -438,41 +438,55 @@ git commit -m "feat(streaming): add honest YouTube playback adapter"
 - Create: `app/jobs/streaming/expire_sessions_job.rb`
 - Create: `app/jobs/streaming/revoke_ticket_sessions_job.rb`
 - Create: `app/services/streaming/outbox_handlers/revoke_ticket_sessions.rb`
-- Modify: `config/initializers/outbox_handlers.rb`
+- Create: `config/initializers/streaming_outbox_handlers.rb`
+- Modify: `config/initializers/events_outbox_handlers.rb`
+- Modify: `config/initializers/ticketing_outbox_handlers.rb`
+- Modify: `config/recurring.yml`
 - Reuse: `app/jobs/core/dispatch_outbox_event_job.rb`
 - Test: `test/jobs/streaming/expire_sessions_job_test.rb`
 - Test: `test/integration/streaming/ticket_lifecycle_test.rb`
 
-- [ ] **Step 1: RED — cover every lifecycle producer**
+- [x] **Step 1: RED — cover every lifecycle producer**
 
 Test transfer, delegation away, suspension, refund, event/date cancellation, replay expiry, resale reservation, and generation replacement. New authorization fails immediately from DB state; already issued sessions close idempotently.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/jobs/streaming test/integration/streaming/ticket_lifecycle_test.rb`
 
 Expected: FAIL because handlers/jobs are missing.
 
-- [ ] **Step 3: GREEN — register outbox handlers and bounded jobs**
+- [x] **Step 3: GREEN — register outbox handlers and bounded jobs**
 
 Register `Streaming::OutboxHandlers::RevokeTicketSessions` for approved lifecycle types. It enqueues with the outbox idempotency key. Job locks active sessions, marks revoked once, then calls the registered provider adapter idempotently after authoritative state changes. Expiry uses `FOR UPDATE SKIP LOCKED` batches and never extends tokens. Never call providers inside ticket transactions.
 
 For YouTube, adapter revocation is deliberately a successful no-op: the revoked Digis session can no longer refresh or receive playback configuration, but a viewer who already copied the unlisted YouTube identifier may still use it. Tests must prove both sides of that contract. Future signed providers must invalidate or expire their provider grant according to their adapter contract.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/jobs/streaming test/integration/streaming/ticket_lifecycle_test.rb`
 
-Expected: PASS.
+Verified focused Task 3 suite: 8 tests, 51 assertions, 0 failures, and 0
+errors with `N_PLUS_ONE=1`.
 
-- [ ] **Step 5: REFACTOR — keep lifecycle truth in ticket/event records**
+The final full suite passes 2,642 tests and 10,930 assertions with zero
+failures and zero errors under `N_PLUS_ONE=1`.
+
+- [x] **Step 5: REFACTOR — keep lifecycle truth in ticket/event records**
 
 Provider cleanup failure cannot make an invalid ticket authorize playback.
 
-- [ ] **Step 6: Commit**
+The existing event and ticketing outbox handlers are composed in place, while
+the new streaming initializer owns only lifecycle event types with no existing
+domain handler. Local session revocation commits before provider cleanup, and
+the bounded workers use `FOR UPDATE SKIP LOCKED` without extending expiry.
+`Streaming::ExpireSessionsJob` is scheduled every minute on the streaming queue
+so expired local sessions are closed even when no refresh request arrives.
+
+- [ ] **Step 6: Commit — user-owned**
 
 ```bash
-git add app/jobs/streaming app/services/streaming/outbox_handlers config/initializers/outbox_handlers.rb test/jobs/streaming test/integration/streaming
+git add app/jobs/streaming app/services/streaming/outbox_handlers config/initializers/events_outbox_handlers.rb config/initializers/streaming_outbox_handlers.rb config/initializers/ticketing_outbox_handlers.rb config/locales/streaming.en.yml config/recurring.yml test/jobs/streaming test/integration/streaming docs/superpowers/plans/2026-07-17-streaming-addons-links-implementation.md
 git commit -m "feat(streaming): revoke sessions on lifecycle changes"
 ```
 
