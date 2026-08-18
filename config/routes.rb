@@ -179,6 +179,7 @@ Rails.application.routes.draw do
   post "checkin_logs/:id/admission_use_reversal", to: "ticketing/admission_use_reversals#create"
 
   resources :tickets, only: [] do
+    resources :stream_sessions, only: :create, controller: "ticketing/stream_sessions"
     post :resale, on: :member, controller: "marketplace/resale_listings", action: :create
     resource :suspension, only: :create, controller: "ticketing/suspensions" do
       post :restore
@@ -190,6 +191,11 @@ Rails.application.routes.draw do
     end
     resources :credential_claims, only: :create, controller: "ticketing/credential_claims"
     resources :transfers, only: :create, controller: "ticketing/transfers"
+  end
+
+  resources :stream_sessions, only: [] do
+    post :refresh, on: :member, controller: "ticketing/stream_sessions"
+    post :revoke, on: :member, controller: "ticketing/stream_sessions"
   end
 
   post "tickets/:ticket_id/cancel", to: "ticketing/cancellations#create"
