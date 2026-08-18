@@ -500,17 +500,23 @@ git commit -m "feat(streaming): revoke sessions on lifecycle changes"
 - Create: `app/services/orders/fulfillment/food.rb`
 - Create: `app/services/orders/fulfillment/donation.rb`
 - Create: `app/services/orders/fulfillment/digital_add_on.rb`
+- Create: `config/locales/catalog/add_ons.en.yml`
+- Create: `config/locales/orders/fulfillment.en.yml`
 - Test: `test/services/catalog/add_ons/validate_product_test.rb`
 - Test: `test/services/orders/fulfillment/fulfill_add_on_test.rb`
-- Reuse fixtures: `test/fixtures/catalog_event_products.yml`, `test/fixtures/orders_order_items.yml`
+- Test data is created dynamically because this repository has no order-item
+  fixtures and add-on fulfillment rows are runtime order state.
 
-- [ ] **Step 1: RED — specify supported types and retry-safe order-item fulfillment**
+- [x] **Step 1: RED — specify supported types and retry-safe order-item fulfillment**
 
-Cover parking, merchandise, food, donation, digital add-on, other; custom donation price; inventory race; fulfilled quantity never exceeding paid quantity; retry returning the same fulfilled order item; noncredential products never receiving QR.
+Cover parking, merchandise, food, donation, digital add-on, other; custom
+donation price; inventory race; immutable whole-item quantity after payment;
+retry returning the same fulfilled order item; and noncredential products never
+receiving QR.
 
 ```ruby
 test "retry returns the fulfilled order item without another side effect" do
-  item = orders_order_items(:paid_merchandise)
+  item = create_paid_add_on_item(type: "merchandise")
   first = Orders::Fulfillment::FulfillAddOn.call(order_item: item, idempotency_key: "addon:#{item.id}")
   second = Orders::Fulfillment::FulfillAddOn.call(order_item: item, idempotency_key: "addon:#{item.id}")
   assert first.success?
@@ -520,13 +526,14 @@ test "retry returns the fulfilled order item without another side effect" do
 end
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/catalog/add_ons test/services/orders/fulfillment/fulfill_add_on_test.rb`
 
-Expected: FAIL because registry/handlers are missing.
+Verified RED after correcting the dynamic paid-order setup: 10 tests, 0
+assertions, 0 failures, and 10 expected missing-implementation errors.
 
-- [ ] **Step 3: GREEN — dispatch explicit handlers and return the order item**
+- [x] **Step 3: GREEN — dispatch explicit handlers and return the order item**
 
 ```ruby
 module Orders
@@ -540,7 +547,7 @@ module Orders
       }.freeze
 
       def self.fetch(type)
-        HANDLERS.fetch(type) { fail ArgumentError, "unsupported noncredential add-on: #{type}" }
+        HANDLERS[type.to_s]
       end
     end
 
@@ -551,13 +558,23 @@ module Orders
       end
 
       def call
-        @order_item.with_lock do
-          return success(@order_item) if @order_item.fulfilled?
-          handler = AddOnRegistry.fetch(@order_item.event_product.type)
-          result = handler.call(order_item: @order_item, idempotency_key: @idempotency_key.to_s)
+        ActiveRecord::Base.transaction do
+          item = Orders::OrderItem.includes(:order, :event_product).lock.find(@order_item.id)
+          return success(item) if item.fulfilled?
+          return failure(error(:item_not_pending)) unless item.fulfillment_status == "pending"
+          return failure(error(:order_not_paid)) unless item.order.paid?
+
+          validation = Catalog::AddOns::ValidateProduct.call(product: item.event_product)
+          return failure(validation.error) if validation.failure?
+
+          handler = AddOnRegistry.fetch(item.event_product.type)
+          return failure(error(:unsupported_add_on_type)) unless handler
+
+          result = handler.call(order_item: item, idempotency_key: @idempotency_key.to_s)
           return result if result.failure?
-          @order_item.update!(fulfillment_status: "fulfilled", fulfilled_at: Time.current)
-          success(@order_item.reload)
+
+          item.update!(fulfillment_status: "fulfilled")
+          success(item)
         end
       end
     end
@@ -565,22 +582,34 @@ module Orders
 end
 ```
 
-There is no invented generic fulfillment association/table. The fulfilled order item is the command result. Parking is absent because Task 5 uses package issuance. `other` requires an explicitly registered handler; never constantize database input.
+There is no invented generic fulfillment association/table, fulfilled timestamp,
+or partial-quantity counter. The existing `fulfillment_status` on the immutable
+order item is the command result and whole-item idempotency boundary. The
+command requires a paid order and pending item, then locks the item, dispatches
+an explicit handler, and marks only that status. Parking is absent because Task
+5 uses package issuance. `other` requires an explicitly registered handler;
+database input is never constantized.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/catalog/add_ons test/services/orders/fulfillment`
 
-Expected: PASS.
+Verified: 10 tests, 79 assertions, 0 failures, and 0 errors with
+`N_PLUS_ONE=1`.
 
-- [ ] **Step 5: REFACTOR — extract only repeated immutable side-effect evidence**
+The final full suite passes 2,652 tests and 11,009 assertions with zero
+failures and zero errors under `N_PLUS_ONE=1`.
 
-Keep delivery-specific logic in handlers and lifecycle fields on the order item per the orders plan.
+- [x] **Step 5: REFACTOR — extract only repeated immutable side-effect evidence**
 
-- [ ] **Step 6: Commit**
+Keep delivery-specific logic in handlers and use the existing order-item
+`fulfillment_status` per the Orders plan. Noncredential add-ons never create
+tickets, credentials, QR/PNR values, or a parallel fulfillment table.
+
+- [ ] **Step 6: Commit — user-owned**
 
 ```bash
-git add app/services/catalog/add_ons app/services/orders/fulfillment test/services/catalog/add_ons test/services/orders/fulfillment
+git add app/services/catalog/add_ons app/services/orders/fulfillment config/locales/catalog/add_ons.en.yml config/locales/orders/fulfillment.en.yml test/services/catalog/add_ons test/services/orders/fulfillment docs/superpowers/plans/2026-07-17-streaming-addons-links-implementation.md
 git commit -m "feat(catalog): fulfill typed add-ons"
 ```
 
