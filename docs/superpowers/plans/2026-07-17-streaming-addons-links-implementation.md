@@ -74,7 +74,9 @@ Models retain associations, validations, lifecycle predicates, and scopes only;
 provider behavior and plaintext session tokens are absent. Zeitwerk and targeted
 RuboCop checks pass.
 
-- [ ] **Step 6: Commit — user-owned**
+- [x] **Step 6: Commit — user-owned**
+
+Committed in `f660b53`, `80465b6`, and `ffd90c5`.
 
 ```bash
 git add db/migrate/20260818090001_create_ticketing_stream_sessions.rb db/structure.sql app/models/core/user.rb app/models/events/event_stream.rb app/models/ticketing/ticket.rb app/models/ticketing/stream_session.rb test/models/ticketing/stream_session_test.rb
@@ -878,16 +880,26 @@ git commit -m "feat(links): backfill canonical links safely"
 
 ## Acceptance gate
 
-- [ ] Run `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:test:prepare`.
-- [ ] Run streaming model/service/job/controller and lifecycle integration tests.
-- [ ] Run catalog add-on, order fulfillment, parking, reporting, and transfer-boundary tests.
-- [ ] Run link service/job/controller and concurrency tests.
-- [ ] Prove concurrent stream creation cannot exceed device limit and lifecycle changes block immediately.
-- [ ] Prove paid `soft_gated` YouTube products disclose link-sharing risk, YouTube cannot satisfy `signed`, and no internal/self-hosted provider is registered.
-- [ ] Prove the Digis session token and provider playback grant are separate, bounded values and neither token digest nor provider credentials enter public serializers.
-- [ ] Prove included access follows ticket while separate add-ons retain ownership and only credential-bearing products enter QR/PNR.
-- [ ] Prove short links neither contain nor bypass credential, audience, visibility, or authentication authority.
-- [ ] Prove serializers expose no provider secrets, token digests, answers, consent, or finance/payout data.
-- [ ] Run `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test`.
+- [x] Run `N_PLUS_ONE=1 bin/rails db:test:prepare`.
+- [x] Run streaming model/service/job/controller and lifecycle integration tests.
+- [x] Run catalog add-on, order fulfillment, parking, reporting, and transfer-boundary tests.
+- [x] Run link service/job/controller and concurrency tests.
+- [x] Prove concurrent stream creation cannot exceed device limit and lifecycle changes block immediately.
+- [x] Prove paid `soft_gated` YouTube products disclose link-sharing risk, YouTube cannot satisfy `signed`, and no internal/self-hosted provider is registered.
+- [x] Prove the Digis session token and provider playback grant are separate, bounded values and neither token digest nor provider credentials enter public serializers.
+- [x] Prove included access follows ticket while separate add-ons retain ownership and only credential-bearing products enter QR/PNR.
+- [x] Prove short links neither contain nor bypass credential, audience, visibility, or authentication authority.
+- [x] Prove serializers expose no provider secrets, token digests, answers, consent, or finance/payout data.
+- [x] Run `N_PLUS_ONE=1 PARALLEL_WORKERS=6 bin/rails test`.
+
+Acceptance evidence: streaming passes 38 tests and 142 assertions, add-on/
+parking/reporting/transfer coverage passes 33 tests and 221 assertions,
+serializer/security contracts pass 47 tests and 267 assertions, and the full
+suite passes 2,689 tests and 11,174 assertions with zero failures and zero
+errors. The concurrent stream test also required the shared streaming fixture
+helper to create the database-required admission slots before credential
+generation. The additional race coverage lives in
+`test/integration/streaming/concurrent_session_creation_test.rb`, with the
+contract-aligned setup in `test/support/streaming_test_helpers.rb`.
 
 Accept only when streaming lifecycle integration, parking scanner reuse, add-on ownership, and normal-route fallback all pass.

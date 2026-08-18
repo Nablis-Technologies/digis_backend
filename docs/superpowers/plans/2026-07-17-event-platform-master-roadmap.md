@@ -174,20 +174,30 @@ domain prerequisites, but it is not a reason to introduce a temporary
   suite (2,599 tests, 10,688 assertions), three repeated entitlement/subsidy
   concurrency runs (18 tests, 97 assertions each), RuboCop, Zeitwerk, and
   PostgreSQL migration verification.
+- Streaming / Add-ons / Links Plan 9 is now implemented and acceptance-
+  verified locally. Streaming lifecycle, provider, session, and true
+  concurrent-device coverage passes 38 tests and 142 assertions; add-on,
+  parking, reporting, fulfillment, and transfer-boundary coverage passes 33
+  tests and 221 assertions; serializer/security contracts pass 47 tests and
+  267 assertions; and the full N+1-enabled suite passes 2,689 tests and
+  11,174 assertions with zero failures and zero errors. The branch contains
+  the final concurrency acceptance test/helper and plan-checkpoint updates
+  awaiting the user's commit and merge.
 
 The next human-visible action is therefore:
 
-1. Keep the Scanner Task 8 contract files synchronized with the eventual
+1. Commit and merge the completed Streaming / Add-ons / Links branch,
+   including its final concurrency acceptance coverage and synchronized plan
+   checkpoints.
+2. Keep the Scanner Task 8 contract files synchronized with the eventual
    Swift/Kotlin/Flutter client, then run that client-side SQLite acceptance
-   gate when the client exists. It is independent of the next Rails task.
-2. Start the Streaming / Add-ons / Links plan on its dedicated branch. It is a
-   separate Wave 6 track and may run in parallel because its Rails prerequisites
-   are now merged; keep ownership explicit for shared access-validation and
-   link contracts.
-3. Return to the first unresolved dependency in the master roadmap. Keep the
-   native scanner SQLite acceptance row and any other explicitly documented
-   external gates visible rather than silently treating them as Rails-complete.
-4. Finish Launch Hardening only after all plans 0–9 are green.
+   gate when the client exists. It remains an independent external gate.
+3. Start Launch Hardening Plan 10 on a new branch after the Streaming plan is
+   merged. Do not introduce new product behavior there; it owns the final
+   security, observability, reconciliation, performance, and launch gates.
+4. Keep the native scanner SQLite acceptance row and any other explicitly
+   documented external gates visible rather than silently treating them as
+   Rails-complete.
 
 Do not use a plan's numeric task number by itself as the next-task signal. Use
 the current checkpoint above and the explicit gate at the top of each dependent
