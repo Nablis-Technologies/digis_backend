@@ -44,12 +44,10 @@ Implementation must preserve these decisions:
 
 The dependency-ordered Commercial tranche is complete through Task 12, the
 final Commercial/Phase 3.5 reconciliation and operational gate. Orders Tasks
-1–9 have passed their focused and full repository gates; the integrated Orders,
-Ticket Packages, Scanner, and Refunds/Finance tranches remain subject to the
-user's final review/commit boundary. Controlled Resale Task 11 was committed in
-`b3ca5cb`. Commercial Task 12 is implemented and phase-gate verified locally;
-its final review/commit boundary remains with the user. Streaming / Add-ons /
-Links remains a separate Wave 6 track.
+1–9 have passed their focused and full repository gates, and the integrated
+Orders, Ticket Packages, Scanner, and Refunds/Finance Rails tranches are merged
+into `main`. Controlled Resale Task 11 was committed in `b3ca5cb`. Streaming /
+Add-ons / Links remains a separate Wave 6 track.
 
 | Task | Status | Evidence / boundary |
 |---|---|---|
@@ -60,7 +58,7 @@ Links remains a separate Wave 6 track.
 | 9 | Complete | Admin/organizer API, privacy policies, serializers, routes, locales, tests, and Postman synchronization are implemented and verified. |
 | 10 | Complete through the Orders Task 6 boundary | Orders checkout snapshots immutable Commercial results, the provider contract persists payment-attempt evidence, and sequential attempt start/switch behavior exists in Orders. Commercial owns the evidence contract; Orders owns payment orchestration. |
 | 11 | Complete with Controlled Resale Task 3 | The Marketplace adapter consumes one immutable `resale_platform_fee` result with precedence, isolation, bounded specificity, evidence, and gross-cap tests. Listing/sale snapshot consumers remain in later Controlled Resale tasks; the Commercial/Task 3 handoff is committed. |
-| 12 | Complete locally; commit pending | Reconciliation, shadow comparison, deduplicated audit/outbox operational alerts, scheduled expiry, recurring jobs, PostgreSQL verification, repeated entitlement/subsidy concurrency checks, full-suite verification, RuboCop, and Zeitwerk checks pass. |
+| 12 | Complete and merged | Reconciliation, shadow comparison, deduplicated audit/outbox operational alerts, scheduled expiry, recurring jobs, PostgreSQL verification, repeated entitlement/subsidy concurrency checks, full-suite verification, RuboCop, and Zeitwerk checks passed; the completed tranche is merged into `main`. |
 
 ### Current Commercial branch route
 
@@ -1072,15 +1070,15 @@ configuration model, or new API surface was introduced. Existing Commercial
 privacy, idempotency, audit, outbox, route, serializer, and Postman checks
 remain green in the full suite.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main` with the Commercial branch
 
 ```bash
 git add app/services/commercial app/jobs/commercial test config docs/superpowers/plans/2026-07-17-event-platform-master-roadmap.md
 git commit -m "feat(commercial): add reconciliation and operational safeguards"
 ```
 
-The implementation is complete locally. The user owns the review and commit;
-do not execute the command above from the agent.
+The implementation is complete and the reviewed Task 12 tranche is merged
+into `main`; the command above is retained as historical evidence only.
 
 ## Final implementation handoff
 

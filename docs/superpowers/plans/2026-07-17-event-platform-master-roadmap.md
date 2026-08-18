@@ -75,15 +75,17 @@ Commercial Task 9 (admin and organizer API/UX) may follow its own documented
 domain prerequisites, but it is not a reason to introduce a temporary
 `orders_orders` table or to move 7B ahead of Orders Task 2.
 
-**2026-08-15 execution checkpoint — follow this queue:**
+**2026-08-18 execution checkpoint — follow this queue:**
 
-- Commercial Tasks 1–12 are complete locally through the final Commercial/
+- Commercial Tasks 1–12 are complete and merged through the final Commercial/
   Phase 3.5 gate. The Commercial API, immutable checkout adjustment projection,
   provider contract, sequential payment-attempt behavior, distinct resale-
   platform-fee adapter, append-only reconciliation, shadow comparison,
-  operational alerts, and scheduled expiry are verified. The Task 12 review/
-  commit boundary remains with the user.
-- Orders Tasks 1–9 are implemented and verified in the current branch,
+  operational alerts, and scheduled expiry are verified. Task 12 is merged
+  into `main`; Commercial is complete. A fresh merged-main verification on
+  2026-08-18 passes 2,610 tests, 10,799 assertions, with zero failures and
+  zero errors under `N_PLUS_ONE=1`.
+- Orders Tasks 1–9 are implemented and verified in the merged `main`,
   including checkout, payment-attempt persistence, provider compatibility,
   sequential attempt start/switch behavior, durable webhook receipt, exactly-
   once acceptance, full reversal obligations, the Orders fulfillment boundary,
@@ -91,20 +93,21 @@ domain prerequisites, but it is not a reason to introduce a temporary
   prior Orders gate passed with 2,155 tests and 8,044 assertions. After
   Ticket Packages Tasks 2–4, the full `N_PLUS_ONE=1` suite passes with 2,179
   tests, 8,225 assertions,
-  zero failures, and zero errors. The user review/commit remains pending.
+  zero failures, and zero errors. The verified Orders tranche is merged into
+  `main`.
 - Ticket Packages Task 1 (schema/models) was committed early and is retained
   because it is a valid prerequisite. Tasks 2–6 (deterministic fulfillment
   issuance, credential generations, QR/PNR/index projection, delegation,
   claims, transfer, reversible suspension, terminal free-package invalidation,
-  and the shared validator/revocation contract) are implemented and focused-
-  verified in the current working tree. User review/commit remains pending.
+  and the shared validator/revocation contract) are implemented, verified, and
+  merged into `main`.
 - Scanner Tasks 1–8 (schema/models, device authorization, sync feeds, online
   admission, idempotent offline uploads, PNR/phone/audited lookup, immutable
   identity-mismatch override, append-only admission-use reversal, and the
   versioned native contract/scale gate) are implemented and Rails-focused-
-  verified in the current working tree. User review/commit remains pending.
-  The native client SQLite acceptance row remains open because no native
-  scanner client is present in this repository.
+  verified in the merged Rails implementation. The native client SQLite
+  acceptance row remains external because no native scanner client is present
+  in this repository.
 - Refunds/Finance Tasks 1–8 (refund/cancellation schema, immutable refund-item
   scope, exact signed/date allocation, idempotent obligations, provider
   submission/reconciliation, soft-liquidity handling, crash recovery, package/
@@ -116,17 +119,18 @@ domain prerequisites, but it is not a reason to introduce a temporary
   maturity/reserve-policy tests and the broader finance suite. Targeted Ruby
   files pass RuboCop, and the PostgreSQL structure dump contains the event
   completion field, ledger/payout tables, foreign keys, checks, and integrity/
-  immutability triggers. User review/commit remains pending. Refunds/Finance
-  Task 9 is implemented and focused-verified with `N_PLUS_ONE=1` in the
-  current worktree: authorized refund status, ticket cancellation, organizer
+  immutability triggers. The verified Refunds/Finance tranche is merged into
+  `main`. Refunds/Finance Task 9 is implemented and focused-verified with
+  `N_PLUS_ONE=1` in the
+  merged Rails implementation: authorized refund status, ticket cancellation, organizer
   ledger/payout/balance views, and platform reserve/treasury controls are
   covered by 24 focused tests and 148 assertions, with safe buyer/organizer
-  serialization, localized errors, routes, seeds, and Postman updates. User
-  review/commit remains pending. Refunds/Finance Task 10 is now implemented
+  serialization, localized errors, routes, seeds, and Postman updates.
+  Refunds/Finance Task 10 is now implemented
   and phase-gate verified: the final N+1-enabled full suite passes with 2,470
   tests and 9,842 assertions, all test migrations are up, and the required
   Orders/Finance/Ticketing race suite passes with 86 tests and 441 assertions.
-  The user review/commit remains pending.
+  and merged into `main`.
 - Commercial Task 11 is committed together with Controlled Resale Task 3. Its
   Marketplace adapter consumes Commercial's immutable
   `resale_platform_fee` result. Controlled Resale Tasks 4–5 are committed
@@ -173,21 +177,17 @@ domain prerequisites, but it is not a reason to introduce a temporary
 
 The next human-visible action is therefore:
 
-1. Review and commit the verified Orders, Ticket Packages, and Refunds/
-   Finance tranches, including Finance Task 10. The native scanner SQLite
-   acceptance row remains external and does not block the Rails Finance gate.
-2. Keep the Scanner Task 8 contract files synchronized with the eventual
+1. Keep the Scanner Task 8 contract files synchronized with the eventual
    Swift/Kotlin/Flutter client, then run that client-side SQLite acceptance
    gate when the client exists. It is independent of the next Rails task.
-3. Refunds/Finance Tasks 1–10 and Controlled Resale Tasks 1–10 are now green
-   and committed; Streaming / Add-ons / Links remains a separate Wave 6 track
-   and may run in parallel when ownership is explicit.
-4. Review and commit Commercial Task 12. Commercial is then complete; do not
-   start another Commercial task.
-5. Return to the first unresolved dependency in the master roadmap. Keep the
+2. Start the Streaming / Add-ons / Links plan on its dedicated branch. It is a
+   separate Wave 6 track and may run in parallel because its Rails prerequisites
+   are now merged; keep ownership explicit for shared access-validation and
+   link contracts.
+3. Return to the first unresolved dependency in the master roadmap. Keep the
    native scanner SQLite acceptance row and any other explicitly documented
    external gates visible rather than silently treating them as Rails-complete.
-6. Finish Launch Hardening only after all plans 0–9 are green.
+4. Finish Launch Hardening only after all plans 0–9 are green.
 
 Do not use a plan's numeric task number by itself as the next-task signal. Use
 the current checkpoint above and the explicit gate at the top of each dependent

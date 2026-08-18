@@ -104,7 +104,7 @@ Expected: PASS.
 
 No callbacks determine scan results, allocate ordinals, or bump feed versions.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add db/migrate/20260812090013_create_ticketing_scanner_devices.rb db/migrate/20260812090014_create_ticketing_scanner_device_assignments.rb db/migrate/20260812090015_create_ticketing_scanner_assignment_zones.rb db/migrate/20260812090016_create_ticketing_scan_uploads.rb db/migrate/20260812090017_create_ticketing_checkin_logs.rb db/migrate/20260812090018_create_ticketing_admission_uses.rb db/migrate/20260812090019_create_ticketing_admission_use_reversals.rb app/models/ticketing test/models/ticketing/scanner_admission_schema_test.rb test/fixtures/ticketing_scanner_*.yml test/fixtures/ticketing_checkin_logs.yml test/fixtures/ticketing_admission_uses.yml
@@ -161,7 +161,7 @@ Expected: PASS.
 
 The concern may set the assignment/operator; it cannot decide credential or zone eligibility.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add app/services/ticketing/scanners app/services/ticketing/zones app/controllers/concerns/ticketing app/controllers/ticketing/scanner app/policies/ticketing config/routes.rb test/services/ticketing test/controllers/ticketing/scanner
@@ -234,7 +234,7 @@ across DB, JSON, and local SQLite. Schedule-version writers use an atomic
 counter update to avoid validation-driven N+1 queries during recurrence
 materialization.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add \
@@ -309,7 +309,7 @@ Expected: PASS with one winner in a two-connection single-use race.
 
 `UsagePolicy` receives already locked rows and performs no locking itself.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add app/services/ticketing/admissions app/services/ticketing/checkins app/controllers/ticketing/scanner test/services/ticketing/admissions test/integration/ticketing test/controllers/ticketing/scanner
@@ -360,7 +360,7 @@ Observed: PASS — 56 tests, 222 assertions, zero failures/errors.
 
 Persist results before acknowledging; never mark client scans synchronized merely because the request reached the server. The snapshot excludes holder, consent, financial, and raw credential data, and completed snapshots are immutable through the model contract.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add app/services/ticketing/scanner_sync app/controllers/ticketing/scanner test/services/ticketing/scanner_sync test/integration/ticketing test/controllers/ticketing/scanner
@@ -407,7 +407,7 @@ Observed: PASS — 12 tests, 55 assertions, zero failures/errors with `N_PLUS_ON
 
 Code, phone, and online search selection share one index-to-claims constructor and the existing admission validator/consumer. The controller adds the event-scoped lookups contract, locales, and Postman example.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add app/services/ticketing/manual_lookup \
@@ -473,7 +473,7 @@ Adjacent regression coverage also passed with `N_PLUS_ONE=1`: 35 tests and
 150 assertions across admission consumption, scanner sync/upload, controller,
 schema, and concurrency tests.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add \
@@ -544,7 +544,7 @@ remains unverified here.
 No divergent native/reference algorithm was added. The JSON fixtures and
 decision table remain the sole cross-language authority.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add docs/scanner test/contracts/ticketing test/performance/ticketing test/fixtures/files/ticketing
@@ -557,13 +557,16 @@ The Rails-side Task 8 gate is focused-verified. The native-client rows below
 remain open until a Swift, Kotlin, or Flutter scanner is available to execute
 the same fixtures against its real SQLite implementation.
 
-- [ ] Run `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:test:prepare`.
-- [ ] Run scanner models/services/controllers under `test/models/ticketing`, `test/services/ticketing`, and `test/controllers/ticketing/scanner`.
-- [ ] Run `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/contracts/ticketing test/integration/ticketing test/performance/ticketing/scanner_sync_performance_test.rb`.
-- [ ] Prove QR, PNR, phone, and online selection call one validator.
-- [ ] Prove group consume/reversal is atomic and uploads are idempotent at batch and scan levels.
-- [ ] Prove current scanners reject revoked/dead/suspended/wrong-zone/exhausted credentials and stale behavior matches the documented limitation.
-- [ ] Prove scanner responses contain no answers, consent evidence, ID documents, finance, resale, payout, or notes.
-- [ ] Run `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test`.
+- [x] Run `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:test:prepare`.
+- [x] Run scanner models/services/controllers under `test/models/ticketing`, `test/services/ticketing`, and `test/controllers/ticketing/scanner`.
+- [x] Run `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/contracts/ticketing test/integration/ticketing test/performance/ticketing/scanner_sync_performance_test.rb`.
+- [x] Prove QR, PNR, phone, and online selection call one validator.
+- [x] Prove group consume/reversal is atomic and uploads are idempotent at batch and scan levels.
+- [x] Prove current scanners reject revoked/dead/suspended/wrong-zone/exhausted credentials and stale behavior matches the documented limitation.
+- [x] Prove scanner responses contain no answers, consent evidence, ID documents, finance, resale, payout, or notes.
+- [x] Run `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test` with `N_PLUS_ONE=1`.
+
+- [ ] Native Swift/Kotlin/Flutter SQLite fixture acceptance — remains external
+  because no native scanner client exists in this repository.
 
 Accept only when Rails and native clients pass identical fixtures and cursor application is atomic.

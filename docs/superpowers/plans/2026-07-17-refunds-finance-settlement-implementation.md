@@ -28,12 +28,11 @@ that handoff belongs to the Controlled Resale plan's Marketplace Task 3.
 Scanner Tasks 1–8 are now complete on the Rails side; the native client
 SQLite acceptance gate remains external because no native scanner client is
 present in this repository. Refunds/Finance Tasks 1–10 are implemented and
-phase-gate verified in this worktree; user review/commit remains pending.
-Task 10 remains independent of the native scanner-client gate. After this
-plan is reviewed and committed, the next repository work is Controlled
-Resale Tasks 1–2. Commercial Task 11 starts only with Controlled Resale
-Task 3, and Commercial Task 12 remains last. Do not begin Commercial Task 11
-or Controlled Resale Task 3 from this plan.
+phase-gate verified in the merged Rails implementation. Task 10 remains
+independent of the native scanner-client gate. The reviewed
+Refunds/Finance tranche is merged into `main`; the next product work follows
+the master roadmap. Do not begin Commercial Task 11 or Controlled Resale Task
+3 from this plan.
 
 - There is no voluntary buyer change-of-mind refund at launch.
 - Refunds arise only from cancellation, eligible schedule changes, unaccepted payments, legal remedies, or audited platform administration.
@@ -168,10 +167,9 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/orders test/mo
 
 Expected: migrations and tests PASS; deferred trigger is present.
 
-- [ ] **Step 6: Commit (user-owned)**
+- [x] **Step 6: Commit — merged into `main`**
 
-Codex intentionally does not run this commit. Review the diff, stage the
-approved files, and commit the Task 1 tranche before starting Task 2.
+The reviewed Task 1 tranche is merged into `main`.
 
 ```bash
 git add db/migrate db/schema.rb app/models/orders app/models/events app/models/catalog test/models test/fixtures
@@ -231,10 +229,9 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/orders/alloc
 
 Expected: PASS across every currency/date/discount fixture.
 
-- [ ] **Step 6: Commit (user-owned)**
+- [x] **Step 6: Commit — merged into `main`**
 
-Codex intentionally does not run this commit. Review and stage only the Task 2
-files after confirming the existing shared allocator change is approved.
+The reviewed Task 2 tranche is merged into `main`.
 
 ```bash
 git add app/services/orders test/services/orders
@@ -285,11 +282,10 @@ PATH="$HOME/.asdf/shims:$PATH" N_PLUS_ONE=1 bundle exec rails test test/integrat
 Expected: PASS with no cumulative over-refund. The race test passed twice with
 seed `77391`; the changed service files pass RuboCop with no offenses.
 
-- [ ] **Step 6: Commit (user-owned)**
+- [x] **Step 6: Commit — merged into `main`**
 
-Codex intentionally does not run this commit. Review and stage only the Task
-3 files, including the replacement of the superseded reversal command, before
-starting Task 4.
+The reviewed Task 3 tranche, including the replacement of the superseded
+reversal command, is merged into `main`.
 
 ```bash
 git add app/services/orders test/services/orders test/integration/orders
@@ -348,11 +344,10 @@ Expected: PASS; injected crashes converge without double refund. Verified with
 96 tests and 617 assertions, zero failures/errors. Changed Task 4 Ruby files
 also pass RuboCop with no offenses.
 
-- [ ] **Step 6: Commit (user-owned)**
+- [x] **Step 6: Commit — merged into `main`**
 
-Codex intentionally does not run this commit. Review and stage only the Task 4
-files, including deletion of the superseded payment-only reconciliation job,
-before starting Task 5.
+The reviewed Task 4 tranche, including deletion of the superseded payment-only
+reconciliation job, is merged into `main`.
 
 ```bash
 git add app/services/orders app/jobs/orders app/services/payments/providers test/services/orders test/jobs/orders
@@ -404,7 +399,7 @@ for all changed Task 5 Ruby files. The test database was recreated from the
 current schema and the structure dump was synchronized with the immutable
 generation exclusion column and organizer-cancellation suspension reason.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit — merged into `main`**
 
 ```bash
 git add app/services/ticketing test/services/ticketing test/integration/ticketing
@@ -471,7 +466,7 @@ trigger, indexes, and date-change foreign key. The existing cancellation
 endpoint and Postman request remain route-compatible, so no Postman change was
 needed for this task; no seed data is required for orchestration rows.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit — merged into `main`**
 
 ```bash
 git add db/migrate/20260813090003_create_events_event_cancellation_payments.rb app/models/events/event_cancellation_payment.rb app/services/events/cancellation app/jobs/events/process_cancellation_batch_job.rb test/services/events/cancellation test/jobs/events/process_cancellation_batch_job_test.rb test/models/events/event_cancellation_payment_test.rb test/integration/events/event_cancellations_test.rb
@@ -526,7 +521,7 @@ refund, chargeback, and reversal sums against immutable order facts. No finance
 seed data is required because ledger rows are runtime facts, and Task 7 adds no
 API route or serializer surface.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add db/migrate db/schema.rb app/models/finance app/services/finance test/models/finance test/services/finance test/fixtures/finance
@@ -592,7 +587,7 @@ Ruby files pass RuboCop with no offenses. The PostgreSQL structure dump
 contains the event completion field, payout tables, foreign keys, checks,
 allocation triggers, and ledger immutability trigger.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add db/migrate db/schema.rb app/models/finance app/services/finance app/jobs/finance test/models/finance test/services/finance test/integration/finance test/jobs/finance test/fixtures/finance
@@ -649,7 +644,7 @@ treasury, fee, internal-error, recovery, and idempotency fields out of
 buyer/organizer responses. Existing event cancellation and schedule-remedy
 boundaries are reused rather than duplicated.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add app/controllers/orders app/controllers/finance app/policies app/serializers config/routes.rb test/controllers/orders test/controllers/finance test/policies test/serializers
@@ -735,7 +730,7 @@ skips. The focused Task 10 regression command passes with 27 tests and 123
 assertions, and the reserve-monitor job/service command passes with 5 tests
 and 19 assertions; the targeted Ruby files pass syntax checks and RuboCop.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add app db config test
@@ -751,4 +746,4 @@ changes, append-only organizer accounting, post-event payout maturity,
 negative-first same-currency allocation, soft reserve semantics, authorized
 private APIs, and idempotent failure recovery end to end. The complete suite,
 migration status, and required cross-module race suite now provide that
-evidence. Step 6 remains unchecked because the user owns review and commit.
+evidence. The reviewed implementation is merged into `main`.

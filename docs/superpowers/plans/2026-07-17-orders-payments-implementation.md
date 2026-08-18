@@ -207,7 +207,7 @@ Expected: PASS with no float calculations. Verified: 4 tests, 17 assertions,
 0 failures, 0 errors with `N_PLUS_ONE=1`; RuboCop reported no offenses in the
 4 changed Ruby files.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add app/services/orders test/services/orders
@@ -276,7 +276,7 @@ development and test databases, loaded the tracked `db/structure.sql` into a
 disposable PostgreSQL database, ran Zeitwerk, and ran full RuboCop with no
 offenses.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add db/migrate/20260811090001_create_orders.rb \
@@ -296,11 +296,11 @@ git commit -m "feat(orders): add immutable order aggregate"
 - Test: `test/services/orders/create_checkout_test.rb`
 - Test: `test/integration/orders/concurrent_checkout_test.rb`
 
-- [ ] **Step 1: RED — test multi-currency snapshots and last-unit concurrency**
+- [x] **Step 1: RED — test multi-currency snapshots and last-unit concurrency**
 
 Cover fixed price override, Phase 2 automatic FX conversion, expired quote, unsupported currency, immutable order/item FX evidence, Commercial event/organization/program/default component inheritance, allowed payer selection, explicit zero versus failure, exact Commercial source snapshots, shared ten-minute inventory/promotion/subsidy holds, package versus admission capacity, promotion reservation, zero-total fulfillment, and two buyers racing for the last inventory or subsidy-budget unit.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/orders/build_quote_test.rb test/services/orders/create_checkout_test.rb test/integration/orders/concurrent_checkout_test.rb
@@ -308,7 +308,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/orders/build
 
 Expected: FAIL because commands do not exist.
 
-- [ ] **Step 3: GREEN — implement one locked transaction**
+- [x] **Step 3: GREEN — implement one locked transaction**
 
 `Orders::CreateCheckout < Core::BaseService` validates quote/provider-compatible currency, locks inventories then physical dates and Commercial subsidy budgets by the shared deterministic order, calls `Commercial::ResolveCharges`, creates order/items/exact commercial adjustments, reserves package stock, attendee capacity, promotion, and subsidy funding, reconciles buyer totals plus organizer settlement evidence, and calls `Core::Outbox::Publish` for durable effects. Return `success(order)`. Expected failures use:
 
@@ -323,11 +323,11 @@ failure Core::BusinessError.new(
 
 Use the same typed contract for stale quote, unsupported currency, promotion unavailable, active checkout, missing/ambiguous commercial configuration, forbidden payer selection, and exhausted subsidy funding. Do not rescue broken database invariants and never convert commercial resolution failure into zero fees.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
 Run the Task 3 command. Expected: PASS.
 
-- [ ] **Step 5: Refactor and repeat race tests**
+- [x] **Step 5: Refactor and repeat race tests**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/orders test/integration/orders --seed 19427
@@ -335,7 +335,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/orders test/
 
 Expected: PASS with no oversell.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add app/services/orders test/services/orders test/integration/orders
@@ -416,7 +416,7 @@ N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/controll
 
 Expected: PASS with no internal leakage. The remaining active-payment behavior is intentionally completed with the payment association and test in Task 5.
 
-- [ ] **Step 6: Commit — user-owned**
+- [x] **Step 6: Commit — merged into `main`**
 
 ```bash
 git add app/controllers/orders app/policies/orders app/serializers/orders \
@@ -483,7 +483,7 @@ Expected: PASS. The focused provider/model suite and the broader Orders
 checkout suite were also run with `N_PLUS_ONE=1`; the latter required
 refreshing the stale checked-in structure trigger before it passed.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add db/migrate db/structure.sql app/models/orders app/services/payments test/models/orders test/services/payments test/fixtures/orders
@@ -536,7 +536,7 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/orders/start
 The concurrency case passed with one current attempt. Full RuboCop, Zeitwerk,
 route, locale, Postman JSON, and affected model/service checks also passed.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add app/controllers/orders/payment_attempts_controller.rb app/policies/orders/order_policy.rb app/policies/orders/payment_policy.rb app/serializers/orders/payment_serializer.rb app/services/orders/create_checkout.rb app/services/orders/start_payment_attempt.rb app/models/orders/order.rb
@@ -603,7 +603,7 @@ after fulfillment commit produces one fulfillment outbox event. Refund
 obligation submission and provider reconciliation are verified by
 Refunds/Finance Task 4, not this Orders task.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add app/controllers/orders/payment_webhooks_controller.rb app/jobs/orders/process_payment_event_job.rb
@@ -617,8 +617,7 @@ git commit -m "feat(payments): process webhooks exactly once"
 ## Task 8: Enforce checkout expiry and settlement grace
 
 **Status:** Implementation and verification complete on 2026-08-12. The
-working tree remains intentionally uncommitted; review and commit the changed
-files before beginning Task 9.
+verified implementation is merged into `main`.
 
 **Files:**
 - Create: expiry commands/jobs from file map
@@ -654,18 +653,18 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/orders test/se
 
 Expected: PASS.
 
-- [x] **Step 6: Prepare handoff; commit remains user-controlled**
+- [x] **Step 6: Prepare handoff; merged into `main`**
 
-The implementation is verified and ready for review. Do not begin Task 9
-until the changed files have been reviewed and committed by the user.
+The implementation was verified and is merged into `main`; Task 9 is included
+in the merged Orders tranche.
 
 ## Task 9: Final phase gate
 
 **Status:** Verification complete on 2026-08-12. The full repository gate now
 passes after `db/structure.sql` was regenerated from the canonical migrations;
 the schema had drifted from the existing attendee-export, Registration Consent,
-Events consent immutability, and Core retention contracts. Review and commit
-remain user-controlled before beginning Ticket Packages Task 2.
+Events consent immutability, and Core retention contracts. The verified Orders
+tranche is merged into `main`.
 
 **Files:**
 - Modify only files introduced above when correcting findings
@@ -717,7 +716,7 @@ Orders integration seed `50321` passed: 4 tests, 31 assertions. The complete
 Orders-focused suite passed with `N_PLUS_ONE=1`: 102 tests, 626 assertions.
 All repository migrations are up in the disposable verification database.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add app db config test
@@ -731,5 +730,5 @@ exact adjustments, concurrency-safe inventory/promotions, one active checkout,
 bounded restarts/attempts, durable verified webhooks, one accepted payment,
 reversal of all unaccepted success, bounded grace, exactly-once
 fulfillment/outbox/ledger behavior, Pundit/AMS privacy, and injected-failure
-recovery. These verification conditions now pass. The remaining unchecked
-commit step is intentionally user-controlled.
+recovery. These verification conditions now pass. The verified implementation
+and commit gate are complete in `main`.
