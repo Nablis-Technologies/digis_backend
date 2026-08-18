@@ -148,7 +148,7 @@ class AddTicketingPackageCredentialConstraints < ActiveRecord::Migration[8.1]
         SELECT event_id, type INTO product_event_id, product_type
           FROM catalog_event_products
          WHERE id = NEW.event_product_id;
-        IF product_event_id IS DISTINCT FROM NEW.event_id OR product_type IS DISTINCT FROM 'ticket' THEN
+        IF product_event_id IS DISTINCT FROM NEW.event_id OR product_type NOT IN ('ticket', 'parking') THEN
           RAISE EXCEPTION 'ticket product and event do not match'
             USING ERRCODE = '23514';
         END IF;

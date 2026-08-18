@@ -118,13 +118,14 @@ module Ticketing
         ticket = loaded_credential.ticket
         product = ticket.event_product
         ticket_type = product.ticket_type
+        entry_validation_mode = ticket_type&.entry_validation_mode || "qr"
         owner = ticket.owner_user
         holder = loaded_credential.holder_user || owner
         {
           lookup_code: loaded_credential.lookup_code,
           phone_hash: phone_hash(holder),
           owner_phone_hash: phone_hash(owner),
-          holder_name: ticket_type.entry_validation_mode == "qr_and_id" ? loaded_credential.holder_name : nil,
+          holder_name: entry_validation_mode == "qr_and_id" ? loaded_credential.holder_name : nil,
           slot_positions: loaded_credential.slot_positions,
           credential_mode: loaded_credential.credential_generation.mode,
           generation_version: loaded_credential.credential_generation.version,
@@ -135,7 +136,7 @@ module Ticketing
           product_access_ids: product.product_accesses.filter_map do |access|
             access.id if loaded_credential.credential_generation.allows_event_date?(access.event_date_id)
           end,
-          entry_validation_mode: ticket_type.entry_validation_mode
+          entry_validation_mode:
         }
       end
 

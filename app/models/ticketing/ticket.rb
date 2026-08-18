@@ -125,7 +125,8 @@ module Ticketing
       else
         Catalog::EventProduct.where(id: event_product_id).pick(:type)
       end
-      errors.add(:event_product, :invalid) if product_type.present? && product_type != "ticket"
+      errors.add(:event_product, :invalid) if product_type.present? &&
+        !Catalog::EventProduct::CREDENTIAL_PRODUCT_TYPES.include?(product_type)
 
       registration_event_id = if association(:registration).loaded?
         registration&.event_id

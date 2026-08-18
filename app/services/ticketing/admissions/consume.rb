@@ -280,7 +280,7 @@ module Ticketing
       end
 
       def identity_snapshot(ticket)
-        expected = ticket.event_product.ticket_type.entry_validation_mode
+        expected = ticket.event_product.ticket_type&.entry_validation_mode || "qr"
         requested = normalize_identity_check
 
         if expected == "qr" && requested.nil?

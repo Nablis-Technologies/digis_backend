@@ -103,7 +103,7 @@ module Ticketing
         return error(:ticket_suspended, :conflict) if ticket.package_suspended?
         return error(:ticket_not_active, :conflict) unless ticket.status == "active"
         return error(:event_not_active, :conflict) if ticket.event.status.in?(%w[cancelled completed])
-        return error(:transfer_not_enabled, :unprocessable_entity) unless ticket.event_product.ticket_type.transferable?
+        return error(:transfer_not_enabled, :unprocessable_entity) unless ticket.event_product.ticket_type&.transferable?
         return error(:generation_not_current, :conflict) unless current_generation?(ticket)
         return error(:transfer_cutoff_passed, :conflict) if cutoff_passed?(ticket)
 
@@ -134,7 +134,7 @@ module Ticketing
         dates = ticket.event_product.product_accesses.map(&:event_date).compact.reject { |date| date.status == "cancelled" }
         return if dates.empty?
 
-        seconds = ticket.event_product.ticket_type.transfer_cutoff_seconds_before_start.to_i
+        seconds = ticket.event_product.ticket_type&.transfer_cutoff_seconds_before_start.to_i
         dates.map { |date| date.starts_at - seconds.seconds }.min
       end
 

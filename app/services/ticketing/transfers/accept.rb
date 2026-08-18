@@ -127,7 +127,7 @@ module Ticketing
         dates = ticket.event_product.product_accesses.map(&:event_date).compact.reject { |date| date.status == "cancelled" }
         return false if dates.empty?
 
-        seconds = ticket.event_product.ticket_type.transfer_cutoff_seconds_before_start.to_i
+        seconds = ticket.event_product.ticket_type&.transfer_cutoff_seconds_before_start.to_i
         Time.current >= dates.map { |date| date.starts_at - seconds.seconds }.min
       end
 
