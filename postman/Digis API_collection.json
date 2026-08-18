@@ -61,6 +61,21 @@
       "type": "string"
     },
     {
+      "key": "addOnReportType",
+      "value": "merchandise",
+      "type": "string"
+    },
+    {
+      "key": "addOnReportCurrency",
+      "value": "ETB",
+      "type": "string"
+    },
+    {
+      "key": "addOnReportSettlementCurrency",
+      "value": "ETB",
+      "type": "string"
+    },
+    {
       "key": "quoteToken",
       "value": "",
       "type": "string"
@@ -2538,6 +2553,57 @@
             {
               "name": "Event Products",
               "item": [
+                {
+                  "name": "List Event Add-on Sales Report",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/events/{{eventId}}/add_on_reports?type={{addOnReportType}}&currency={{addOnReportCurrency}}&settlement_currency={{addOnReportSettlementCurrency}}",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "events",
+                        "{{eventId}}",
+                        "add_on_reports"
+                      ],
+                      "query": [
+                        {
+                          "key": "type",
+                          "value": "{{addOnReportType}}",
+                          "disabled": true
+                        },
+                        {
+                          "key": "currency",
+                          "value": "{{addOnReportCurrency}}",
+                          "disabled": true
+                        },
+                        {
+                          "key": "settlement_currency",
+                          "value": "{{addOnReportSettlementCurrency}}",
+                          "disabled": true
+                        }
+                      ]
+                    },
+                    "description": "Organizer report of immutable non-ticket add-on sales and successful refunds. Amounts remain in the item's charge currency; settlement_currency is returned as the order-level settlement snapshot.",
+                    "response": [],
+                    "event": [
+                      {
+                        "listen": "test",
+                        "script": {
+                          "type": "text/javascript",
+                          "exec": [
+                            "pm.test(\"Event add-on report returns success\", function () {",
+                            "  pm.response.to.have.status(200);",
+                            "  pm.expect(pm.response.json()).to.have.property(\"success\", true);",
+                            "});"
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
                 {
                   "name": "List Event Products",
                   "request": {
