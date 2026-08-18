@@ -747,6 +747,7 @@ git commit -m "feat(catalog): report add-on sales"
 
 **Files:**
 - Create: `db/migrate/20260717210202_create_links_short_links.rb`
+- Create: `db/migrate/20260717210203_create_links_short_link_clicks.rb`
 - Create: `app/models/links/short_link.rb`
 - Create: `app/models/links/short_link_click.rb`
 - Create: `app/services/links/create.rb`
@@ -755,79 +756,64 @@ git commit -m "feat(catalog): report add-on sales"
 - Create: `app/jobs/links/record_click_job.rb`
 - Create: `app/controllers/links/redirects_controller.rb`
 - Create: `app/policies/links/short_link_policy.rb`
+- Create: `config/initializers/short_links.rb`
+- Create: `config/locales/links.en.yml`
+- Modify: `db/structure.sql`
 - Modify: `config/routes.rb`
+- Modify: `postman/Digis API_collection.json`
 - Test: `test/services/links/resolve_test.rb`
 - Test: `test/integration/links/redirect_concurrency_test.rb`
 - Test: `test/controllers/links/redirects_controller_test.rb`
 
-- [ ] **Step 1: RED — specify safe redirects and atomic click cap**
+- [x] **Step 1: RED — specify safe redirects and atomic click cap**
 
-```ruby
-test "resolves internal target while atomically consuming one click" do
-  link = links_short_links(:limited_event)
-  result = Links::Resolve.call(slug: link.slug, now: Time.current)
-  assert result.success?
-  assert_equal Rails.application.routes.url_helpers.event_path(link.target_id), result.value.location
-  assert_equal 1, link.reload.click_count
-end
-```
+The tests specify internal event resolution, disabled fallback, case-insensitive
+slugs, reserved routes, target/custom-URL XOR, HTTPS-only destinations, expiry,
+canonical uniqueness, atomic click limits under concurrency, and ticket links
+that resolve only to a page path rather than credential material.
 
-Also cover disabled fallback, lower-case collision, reserved route, target XOR HTTPS URL, non-HTTPS rejection, expiry, one canonical target, concurrent last click, private discoverability without audience bypass, and authenticated ticket page without credential material.
+- [x] **Step 2: Run RED**
 
-- [ ] **Step 2: Run RED**
+Run: `N_PLUS_ONE=1 bin/rails test test/services/links test/integration/links test/controllers/links/redirects_controller_test.rb`
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/links test/integration/links test/controllers/links/redirects_controller_test.rb`
+Initial RED result: 12 tests, 0 assertions, and 12 `NameError` errors because
+the `Links` implementation did not yet exist.
 
-Expected: FAIL because links are missing.
+- [x] **Step 3: GREEN — allowlist targets and conditionally increment**
 
-- [ ] **Step 3: GREEN — allowlist targets and conditionally increment**
+Implemented feature-gated branded redirects with:
 
-```ruby
-module Links
-  class Resolve < Core::BaseService
-    Resolution = Data.define(:location, :short_link_id)
+- a separate migration for each table, UUIDv7 keys, foreign keys, reserved
+  route validation, lower-case slug uniqueness, canonical-target uniqueness,
+  target/custom-URL XOR, HTTPS checks, and click-bound constraints;
+- an allowlisted target resolver that never constantizes database input and
+  maps internal resources back through normal application routes;
+- a policy-protected `Links::Create` service and a public `Links::Resolve`
+  service whose click cap is enforced by one conditional atomic `UPDATE`;
+- a host-constrained redirect route, configuration defaulting to disabled, and
+  normal-route fallback while the feature is disabled;
+- asynchronous, sanitized click-detail recording that cannot make a successful
+  redirect fail; and
+- locale-backed error messages plus a Postman request and variables for the
+  branded host and slug.
 
-    def initialize(slug:, now:)
-      @slug, @now = slug.to_s.downcase, now
-    end
+- [x] **Step 4: Run GREEN**
 
-    def call
-      return failure(error("Short links are disabled", "short_links_disabled", :not_found)) unless Rails.configuration.x.short_links.enabled
-      link = ShortLink.find_by!("lower(slug) = ?", @slug)
-      return failure(error("Short link expired", "short_link_expired", :gone)) if link.expires_at && link.expires_at <= @now
-      affected = ShortLink.where(id: link.id)
-        .where("max_clicks IS NULL OR click_count < max_clicks")
-        .update_all("click_count = click_count + 1, updated_at = NOW()")
-      return failure(error("Click limit reached", "short_link_click_limit_reached", :gone)) unless affected == 1
-      location = link.custom_url.presence || TargetResolver.call(link.target_type, link.target_id)
-      success(Resolution.new(location:, short_link_id: link.id))
-    rescue ActiveRecord::RecordNotFound
-      failure(error("Short link not found", "short_link_not_found", :not_found))
-    end
+Run: `N_PLUS_ONE=1 bin/rails test test/services/links test/integration/links test/controllers/links/redirects_controller_test.rb`
 
-    private
+Verified: 12 tests, 43 assertions, 0 failures, and 0 errors with `N_PLUS_ONE=1`.
 
-    def error(message, code, status) = Core::BusinessError.new(message, code:, status:)
-  end
-end
-```
+- [x] **Step 5: REFACTOR — preserve normal-route fallback**
 
-Migration adds unique `lower(slug)`, partial canonical internal target, positive click cap/nonnegative count, and internal-target XOR custom-URL checks. `TargetResolver` uses a frozen mapping for events/tickets/organizations and never constantizes input. Analytics enqueue after redirect decision; failure never breaks redirect.
+Branded links remain opt-in through `SHORT_LINKS_ENABLED`; the main host keeps
+its normal routes, and disabled branded links resolve through their normal
+internal target without consuming clicks. Ticket targets remain page paths and
+do not expose credential material.
 
-- [ ] **Step 4: Run GREEN**
-
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/links test/integration/links test/controllers/links/redirects_controller_test.rb`
-
-Expected: PASS including one winner for the final click.
-
-- [ ] **Step 5: REFACTOR — preserve normal-route fallback**
-
-Callers return normal app routes when links are disabled/unavailable; events/tickets never depend on branded host.
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Commit — user-owned**
 
 ```bash
-git add db/migrate/20260717210202_create_links_short_links.rb app/models/links app/services/links app/jobs/links app/controllers/links app/policies/links config/routes.rb test/services/links test/integration/links test/controllers/links
+git add db/migrate/20260717210202_create_links_short_links.rb db/migrate/20260717210203_create_links_short_link_clicks.rb db/structure.sql app/models/links app/services/links app/jobs/links app/controllers/links app/policies/links config/initializers/short_links.rb config/locales/links.en.yml config/routes.rb postman/'Digis API_collection.json' test/services/links test/integration/links test/controllers/links docs/superpowers/plans/2026-07-17-streaming-addons-links-implementation.md
 git commit -m "feat(links): add optional branded redirects"
 ```
 
