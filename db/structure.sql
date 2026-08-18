@@ -6592,7 +6592,6 @@ CREATE TABLE public.ticketing_stream_sessions (
     CONSTRAINT ticketing_stream_sessions_device_id_check CHECK ((((device_id)::text = btrim((device_id)::text)) AND (btrim((device_id)::text) <> ''::text))),
     CONSTRAINT ticketing_stream_sessions_digest_check CHECK (((session_token_digest)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT ticketing_stream_sessions_expiry_check CHECK ((expires_at > created_at)),
-    CONSTRAINT ticketing_stream_sessions_last_seen_check CHECK (((last_seen_at IS NULL) OR (last_seen_at >= created_at))),
     CONSTRAINT ticketing_stream_sessions_revocation_check CHECK (((((status)::text = 'revoked'::text) AND (revoked_at IS NOT NULL)) OR (((status)::text <> 'revoked'::text) AND (revoked_at IS NULL)))),
     CONSTRAINT ticketing_stream_sessions_status_check CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'expired'::character varying, 'revoked'::character varying])::text[])))
 );

@@ -34,9 +34,6 @@ class CreateTicketingStreamSessions < ActiveRecord::Migration[8.1]
                          "expires_at > created_at",
                          name: "ticketing_stream_sessions_expiry_check"
     add_check_constraint :ticketing_stream_sessions,
-                         "last_seen_at IS NULL OR last_seen_at >= created_at",
-                         name: "ticketing_stream_sessions_last_seen_check"
-    add_check_constraint :ticketing_stream_sessions,
                          "((status = 'revoked' AND revoked_at IS NOT NULL) OR " \
                            "(status <> 'revoked' AND revoked_at IS NULL))",
                          name: "ticketing_stream_sessions_revocation_check"
