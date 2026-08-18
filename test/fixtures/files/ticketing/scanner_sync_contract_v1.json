@@ -49,6 +49,7 @@
     "snapshot_attendee_entries": 50000,
     "upload_scans": 500,
     "snapshot_seconds": 8.0,
+    "snapshot_seconds_ci": 12.0,
     "upload_seconds": 2.0
   },
   "sample_payload": {
