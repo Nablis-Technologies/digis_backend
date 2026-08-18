@@ -32,7 +32,7 @@ production:
   monitor_provider_reserves:
     class: Finance::ProviderReserveMonitorJob
     queue: default
-    schedule: every five minutes
+    schedule: "*/5 * * * *"
   expire_commercial_scheduled_state:
     class: Commercial::ExpireScheduledStateJob
     queue: default
@@ -72,7 +72,7 @@ production:
   expire_attendee_exports:
     class: Ticketing::ExpireAttendeeExportsJob
     queue: default
-    schedule: every five minutes
+    schedule: "*/5 * * * *"
   offer_waitlisted_registrations:
     class: Ticketing::OfferWaitlistJob
     queue: default
