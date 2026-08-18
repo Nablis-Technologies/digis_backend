@@ -73,6 +73,10 @@ production:
     class: Ticketing::ExpireAttendeeExportsJob
     queue: default
     schedule: "*/5 * * * *"
+  expire_stream_sessions:
+    class: Streaming::ExpireSessionsJob
+    queue: streaming
+    schedule: every minute
   offer_waitlisted_registrations:
     class: Ticketing::OfferWaitlistJob
     queue: default

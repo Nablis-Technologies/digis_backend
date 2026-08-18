@@ -38,3 +38,4 @@ en:
       streaming_provider_unavailable: "The streaming provider is unavailable"
       streaming_protection_unsupported: "The streaming provider cannot deliver the promised access protection"
       streaming_access_missing: "A configured stream access has no matching event stream"
+      invalid_lifecycle_event: "The streaming lifecycle event is invalid"
