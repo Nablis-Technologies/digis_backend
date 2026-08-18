@@ -8,7 +8,7 @@ module Streaming
       include StreamingTestHelpers
 
       setup do
-        @now = Time.current
+        @now = Time.current.change(usec: 0)
         build_streaming_ticket(now: @now)
         @session_token = SecureRandom.urlsafe_base64(32)
         @session = Ticketing::StreamSession.create!(

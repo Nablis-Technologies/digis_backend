@@ -7,7 +7,7 @@ module Streaming
     include StreamingTestHelpers
 
     setup do
-      @now = Time.current
+      @now = Time.current.change(usec: 0)
       build_streaming_ticket(now: @now)
       @expired_session = create_stream_session(expires_at: @now + 1.hour)
       @active_session = create_stream_session(device_id: "ios:active", expires_at: @now + 2.hours)
