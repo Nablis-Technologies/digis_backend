@@ -21,6 +21,16 @@
       "type": "string"
     },
     {
+      "key": "shortLinkBaseUrl",
+      "value": "http://dig.is",
+      "type": "string"
+    },
+    {
+      "key": "shortLinkSlug",
+      "value": "",
+      "type": "string"
+    },
+    {
       "key": "accessToken",
       "value": "",
       "type": "string"
@@ -1210,6 +1220,21 @@
             ],
             "url": "{{baseUrl}}/ticket_transfers/{{transferId}}/cancel",
             "description": "Cancels a pending transfer as the original owner without changing the current credential."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Links",
+      "item": [
+        {
+          "name": "Resolve Branded Link",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{shortLinkBaseUrl}}/{{shortLinkSlug}}",
+            "description": "Resolves an optional branded link on the configured short-link host. Set shortLinkBaseUrl to the deployed branded-link host and shortLinkSlug to a stored slug. When the feature is disabled, the service falls back to the normal internal route without consuming a click."
           },
           "response": []
         }
