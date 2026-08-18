@@ -15,7 +15,7 @@ class RenderPreviewConfigurationTest < ActiveSupport::TestCase
     assert_equal "free", service.fetch("plan")
     assert_equal "./Dockerfile", service.fetch("dockerfilePath")
     assert_equal "/up", service.fetch("healthCheckPath")
-    assert_equal "feat/commercial-agreements-platform-pricing", service.fetch("branch")
+    assert_equal "main", service.fetch("branch")
     assert_equal "free", database.fetch("plan")
     keys = service.fetch("envVars").map { |entry| entry.fetch("key") }
     assert_includes keys, "RENDER_PREVIEW"
