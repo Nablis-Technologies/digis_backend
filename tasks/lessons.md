@@ -54,3 +54,8 @@
   dependent task early. Before coding, state the executable sequence and label
   each task complete, pending by design, or prerequisite-gated; ask when the
   requested scope conflicts with that sequence.
+
+- Performance budgets measured inside the full parallel CI suite are
+  environment-sensitive. Keep a strict local budget, define an explicit CI
+  allowance or isolate the benchmark in a dedicated job, and do not treat one
+  fast local run as proof that an absolute CI threshold is stable.
