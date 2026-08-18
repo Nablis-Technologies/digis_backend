@@ -1,0 +1,6 @@
+en:
+  catalog:
+    add_on_sales_report:
+      errors:
+        event_required: "An event is required for the add-on report"
+        invalid_filter: "The add-on report filter is invalid"

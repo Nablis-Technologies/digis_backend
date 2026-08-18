@@ -61,6 +61,9 @@ Rails.application.routes.draw do
   get "public/events/:event_slug/ticket_types/:ticket_type_id/consent_requirements",
       to: "ticketing/public_consent_requirements#index"
 
+  get "events/:event_id/add_on_reports", to: "catalog/event_add_on_reports#index",
+      as: :event_add_on_reports
+
   scope path: :catalog, module: :catalog do
     resources :product_prices, only: %i[index show create]
     resources :product_quotes, only: %i[create]
