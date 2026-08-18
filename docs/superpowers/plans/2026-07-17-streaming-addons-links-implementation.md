@@ -824,37 +824,55 @@ This task owns append-only `links_short_link_clicks`; redirects never require a 
 **Files:**
 - Create: `app/jobs/links/backfill_canonical_links_job.rb`
 - Create: `app/jobs/links/purge_expired_clicks_job.rb`
+- Modify: `app/services/links/create.rb`
+- Modify: `app/policies/links/short_link_policy.rb`
+- Modify: `config/recurring.yml`
 - Test: `test/jobs/links/backfill_canonical_links_job_test.rb`
 - Test: `test/jobs/links/purge_expired_clicks_job_test.rb`
 
-- [ ] **Step 1: RED — specify enable-later operation and retention**
+- [x] **Step 1: RED — specify enable-later operation and retention**
 
-Test repeatable events/tickets/organizations backfill, existing canonical preservation, collision retry, disabled no-op, deleting only expired click details, and retaining target/counter.
+Tests cover repeatable event/ticket/organization backfill, existing canonical
+preservation, deterministic collision retry, disabled no-op, deleting only
+expired click details, retaining the target and aggregate counter, bounded
+purge batches, and the production recurring schedule.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/jobs/links`
+Run: `N_PLUS_ONE=1 bin/rails test test/jobs/links`
 
-Expected: FAIL because jobs are missing.
+Initial RED result: 6 tests, 0 assertions, and 6 `NameError` errors because the
+two jobs were missing.
 
-- [ ] **Step 3: GREEN — process bounded Solid Queue batches**
+- [x] **Step 3: GREEN — process bounded Solid Queue batches**
 
-Backfill uses `in_batches`, `Links::Create`, and stable target-derived idempotency; rely on canonical unique index. Purge deletes click-detail rows only beyond platform retention; aggregate `click_count` remains. Use `Rails.configuration.x.short_links.enabled` and configured host without dual-write compatibility branches.
+Backfill uses bounded `in_batches`, preloads canonical target IDs per batch,
+and calls `Links::Create` with an explicit system-only permission that accepts
+only canonical internal targets. It preserves existing canonical links and
+retries slug collisions using deterministic target-ID suffixes. Purge deletes
+only click details older than the bounded retention window, leaves target and
+aggregate counter data untouched, and runs through Solid Queue’s recurring
+configuration.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/jobs/links`
+Run: `N_PLUS_ONE=1 bin/rails test test/jobs/links`
 
-Expected: PASS.
+Verified Task 8 suite: 7 tests, 24 assertions, 0 failures, and 0 errors with
+`N_PLUS_ONE=1`. The combined links suite passes 19 tests and 67 assertions.
+The full suite passes 2,688 tests and 11,171 assertions with zero failures and
+zero errors under `N_PLUS_ONE=1`.
 
-- [ ] **Step 5: REFACTOR — keep feature rollout configuration-only**
+- [x] **Step 5: REFACTOR — keep feature rollout configuration-only**
 
-No ticket/event schema or serializer branch is required when the short domain is absent.
+No ticket/event schema or serializer branch was added. Backfill remains a
+configuration-gated enable-later operation; click retention remains safe even
+when branded-link resolution is disabled, and the purge schedule is explicit.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Commit — user-owned**
 
 ```bash
-git add app/jobs/links test/jobs/links
+git add app/jobs/links app/services/links/create.rb app/policies/links/short_link_policy.rb config/recurring.yml test/jobs/links docs/superpowers/plans/2026-07-17-streaming-addons-links-implementation.md
 git commit -m "feat(links): backfill canonical links safely"
 ```
 
