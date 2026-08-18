@@ -3538,6 +3538,35 @@ $$;
 
 
 --
+-- Name: ticketing_stream_session_same_event(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_stream_session_same_event() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  ticket_event_id uuid;
+  stream_event_id uuid;
+BEGIN
+  SELECT event_id INTO ticket_event_id
+  FROM ticketing_tickets
+  WHERE id = NEW.ticket_id;
+
+  SELECT event_date.event_id INTO stream_event_id
+  FROM events_event_streams stream
+  JOIN events_event_dates event_date ON event_date.id = stream.event_date_id
+  WHERE stream.id = NEW.event_stream_id;
+
+  IF ticket_event_id IS DISTINCT FROM stream_event_id THEN
+    RAISE EXCEPTION 'ticketing_stream_session_event_scope' USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: ticketing_ticket_scope_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6544,6 +6573,32 @@ CREATE TABLE public.ticketing_scanner_devices (
 
 
 --
+-- Name: ticketing_stream_sessions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_stream_sessions (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    ticket_id uuid NOT NULL,
+    event_stream_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    device_id character varying NOT NULL,
+    session_token_digest character varying(64) NOT NULL,
+    status character varying DEFAULT 'active'::character varying NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    last_seen_at timestamp with time zone,
+    revoked_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_stream_sessions_device_id_check CHECK ((((device_id)::text = btrim((device_id)::text)) AND (btrim((device_id)::text) <> ''::text))),
+    CONSTRAINT ticketing_stream_sessions_digest_check CHECK (((session_token_digest)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT ticketing_stream_sessions_expiry_check CHECK ((expires_at > created_at)),
+    CONSTRAINT ticketing_stream_sessions_last_seen_check CHECK (((last_seen_at IS NULL) OR (last_seen_at >= created_at))),
+    CONSTRAINT ticketing_stream_sessions_revocation_check CHECK (((((status)::text = 'revoked'::text) AND (revoked_at IS NOT NULL)) OR (((status)::text <> 'revoked'::text) AND (revoked_at IS NULL)))),
+    CONSTRAINT ticketing_stream_sessions_status_check CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'expired'::character varying, 'revoked'::character varying])::text[])))
+);
+
+
+--
 -- Name: ticketing_ticket_suspensions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -7651,6 +7706,14 @@ ALTER TABLE ONLY public.ticketing_scanner_device_assignments
 
 ALTER TABLE ONLY public.ticketing_scanner_devices
     ADD CONSTRAINT ticketing_scanner_devices_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_stream_sessions ticketing_stream_sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_stream_sessions
+    ADD CONSTRAINT ticketing_stream_sessions_pkey PRIMARY KEY (id);
 
 
 --
@@ -8894,6 +8957,13 @@ CREATE UNIQUE INDEX idx_registration_submissions_registration_version ON public.
 --
 
 CREATE UNIQUE INDEX idx_scanner_assignment_zones_unique ON public.ticketing_scanner_assignment_zones USING btree (scanner_device_assignment_id, access_zone_id);
+
+
+--
+-- Name: idx_stream_session_authorization; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_stream_session_authorization ON public.ticketing_stream_sessions USING btree (ticket_id, event_stream_id, status, expires_at);
 
 
 --
@@ -10416,6 +10486,13 @@ CREATE UNIQUE INDEX index_ticketing_scanner_devices_on_token_digest ON public.ti
 
 
 --
+-- Name: index_ticketing_stream_sessions_on_session_token_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_ticketing_stream_sessions_on_session_token_digest ON public.ticketing_stream_sessions USING btree (session_token_digest);
+
+
+--
 -- Name: index_ticketing_ticket_suspensions_on_idempotency_key; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -11046,6 +11123,13 @@ CREATE TRIGGER trg_ticketing_scanner_assignment_zone_scope BEFORE INSERT OR UPDA
 
 
 --
+-- Name: ticketing_stream_sessions trg_ticketing_stream_session_same_event; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER trg_ticketing_stream_session_same_event AFTER INSERT OR UPDATE ON public.ticketing_stream_sessions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.ticketing_stream_session_same_event();
+
+
+--
 -- Name: ticketing_tickets trg_ticketing_ticket_scope_guard; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -11378,6 +11462,14 @@ ALTER TABLE ONLY public.ticketing_admission_use_reversals
 
 ALTER TABLE ONLY public.events_event_cancellations
     ADD CONSTRAINT fk_rails_181e9ab2b0 FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ticketing_stream_sessions fk_rails_1a0f652307; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_stream_sessions
+    ADD CONSTRAINT fk_rails_1a0f652307 FOREIGN KEY (ticket_id) REFERENCES public.ticketing_tickets(id);
 
 
 --
@@ -12261,6 +12353,14 @@ ALTER TABLE ONLY public.commercial_fee_schedule_versions
 
 
 --
+-- Name: ticketing_stream_sessions fk_rails_781edb11ec; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_stream_sessions
+    ADD CONSTRAINT fk_rails_781edb11ec FOREIGN KEY (event_stream_id) REFERENCES public.events_event_streams(id);
+
+
+--
 -- Name: events_events fk_rails_784925b6cd; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12506,6 +12606,14 @@ ALTER TABLE ONLY public.catalog_inventory_reservations
 
 ALTER TABLE ONLY public.ticketing_registration_answer_revisions
     ADD CONSTRAINT fk_rails_92c24f7cf5 FOREIGN KEY (registration_answer_id) REFERENCES public.ticketing_registration_answers(id);
+
+
+--
+-- Name: ticketing_stream_sessions fk_rails_967d5c090b; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_stream_sessions
+    ADD CONSTRAINT fk_rails_967d5c090b FOREIGN KEY (user_id) REFERENCES public.core_users(id);
 
 
 --
@@ -13483,6 +13591,7 @@ ALTER TABLE ONLY public.ticketing_ticket_suspensions
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260818090001'),
 ('20260814090006'),
 ('20260814090005'),
 ('20260814090004'),
