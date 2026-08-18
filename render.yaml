@@ -3,7 +3,7 @@ services:
     name: digis-backend-preview
     runtime: docker
     plan: free
-    branch: feat/commercial-agreements-platform-pricing
+    branch: main
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /up
