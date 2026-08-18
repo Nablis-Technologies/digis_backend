@@ -96,21 +96,28 @@ production:
     <<: *default
     <% if render_preview_database_url %>
     url: <%= render_preview_database_url.inspect %>
-    <% end %>
+    <% else %>
     database: <%= ENV.fetch("DIGIS_BACKEND_DATABASE", "digis_backend_production") %>
     username: <%= ENV.fetch("DIGIS_BACKEND_DATABASE_USERNAME", "digis_backend") %>
     password: <%= ENV["DIGIS_BACKEND_DATABASE_PASSWORD"] %>
     host: <%= ENV["DIGIS_BACKEND_DATABASE_HOST"] %>
     port: <%= ENV.fetch("DIGIS_BACKEND_DATABASE_PORT", 5432) %>
+    <% end %>
   cache:
     <<: *primary_production
+    <% unless render_preview_database_url %>
     database: <%= ENV.fetch("DIGIS_BACKEND_CACHE_DATABASE", "digis_backend_production_cache") %>
+    <% end %>
     migrations_paths: db/cache_migrate
   queue:
     <<: *primary_production
+    <% unless render_preview_database_url %>
     database: <%= ENV.fetch("DIGIS_BACKEND_QUEUE_DATABASE", "digis_backend_production_queue") %>
+    <% end %>
     migrations_paths: db/queue_migrate
   cable:
     <<: *primary_production
+    <% unless render_preview_database_url %>
     database: <%= ENV.fetch("DIGIS_BACKEND_CABLE_DATABASE", "digis_backend_production_cable") %>
+    <% end %>
     migrations_paths: db/cable_migrate

@@ -48,7 +48,9 @@ class RenderPreviewConfigurationTest < ActiveSupport::TestCase
     )
 
     %w[primary cache queue cable].each do |role|
-      assert_equal "postgres://render-preview.example/db", configurations.fetch(role).fetch("url")
+      configuration = configurations.fetch(role)
+      assert_equal "postgres://render-preview.example/db", configuration.fetch("url")
+      assert_nil configuration["database"], "#{role} must inherit the preview URL database"
     end
   end
 
