@@ -618,38 +618,68 @@ git commit -m "feat(catalog): fulfill typed add-ons"
 **Files:**
 - Create: `app/services/parking/issue_package.rb`
 - Create: `app/services/parking/fulfill_order_item.rb`
+- Create: `config/locales/parking.en.yml`
+- Modify: `app/models/catalog/event_product.rb`
+- Modify: `app/models/ticketing/ticket.rb`
+- Modify: `app/services/ticketing/packages/issue.rb`
+- Modify: `app/services/ticketing/credential_generations/create_initial_group.rb`
+- Modify: `app/services/ticketing/credential_generations/replace.rb`
+- Modify: `app/services/ticketing/attendee_index/upsert.rb`
+- Modify: `app/services/ticketing/admissions/consume.rb`
+- Modify: `app/services/ticketing/transfers/initiate.rb`
+- Modify: `app/services/ticketing/transfers/accept.rb`
+- Modify: `app/services/ticketing/outbox_handlers/order_fulfilled.rb`
+- Modify: `db/migrate/20260812090009_add_ticketing_package_credential_constraints.rb`
+- Modify: `db/structure.sql`
 - Test: `test/services/parking/issue_package_test.rb`
 - Test: `test/integration/parking/parking_admission_test.rb`
 - Test: `test/integration/ticketing/add_on_transfer_boundary_test.rb`
 
-- [ ] **Step 1: RED — distinguish included access from separate parking product**
+- [x] **Step 1: RED — distinguish included access from separate parking product**
 
 Prove included parking follows ticket transfer; separately purchased parking remains with parking package owner; parking zones/use limits use common scanner admission; ticket delegation does not assign separate parking.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/parking test/integration/parking test/integration/ticketing/add_on_transfer_boundary_test.rb`
 
-Expected: FAIL because parking fulfillment is missing.
+Verified initial RED: 7 tests, 0 assertions, and 7 expected missing-service
+errors because the parking boundary did not exist.
 
-- [ ] **Step 3: GREEN — reuse package issuance and product-access scanning**
+- [x] **Step 3: GREEN — reuse package issuance and product-access scanning**
 
-Validate paid/free fulfillment, then call `Ticketing::Packages::Issue` for each parking unit. Parking uses `catalog_product_accesses.type = 'parking'`, date, explicit use limit, and zone grants. Create no parking QR table and use the common credential validator/check-ins/uses.
+Validate fulfilled paid parking items, then call `Ticketing::Packages::Issue`
+for each parking unit. The shared ticket package boundary now accepts the
+credential-bearing product types `ticket` and `parking`; ticket-only settings
+(registrations, ticket types, transfer/delegation controls, and `qr_and_id`)
+remain optional or disabled for parking. Parking uses
+`catalog_product_accesses.type = 'parking'`, event date, explicit usage limit,
+and zone grants. No parking QR table is created; the common credential,
+attendee-index, validator, check-in, and admission-use pipeline is reused.
 
-- [ ] **Step 4: Run GREEN**
+Separately purchased parking remains a distinct ticket/order-item owner. Only
+access rows on the transferred ticket product follow a ticket transfer; order
+co-location and delegation never move the separate parking package.
+
+- [x] **Step 4: Run GREEN**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/parking test/integration/parking test/integration/ticketing/add_on_transfer_boundary_test.rb`
 
-Expected: PASS.
+Verified: 8 tests, 53 assertions, 0 failures, and 0 errors with `N_PLUS_ONE=1`.
 
-- [ ] **Step 5: REFACTOR — remove implicit order bundles**
+The final full suite passes 2,660 tests and 11,062 assertions with zero
+failures and zero errors under `N_PLUS_ONE=1`.
 
-Only access rows on the same package move together; order co-location never changes ownership.
+- [x] **Step 5: REFACTOR — remove implicit order bundles**
 
-- [ ] **Step 6: Commit**
+Only access rows on the same package move together; order co-location never
+changes ownership. The existing shared credential schema remains the only
+parking credential representation.
+
+- [ ] **Step 6: Commit — user-owned**
 
 ```bash
-git add app/services/parking test/services/parking test/integration/parking test/integration/ticketing/add_on_transfer_boundary_test.rb
+git add app/services/parking config/locales/parking.en.yml app/models/catalog/event_product.rb app/models/ticketing/ticket.rb app/services/ticketing/packages/issue.rb app/services/ticketing/credential_generations/create_initial_group.rb app/services/ticketing/credential_generations/replace.rb app/services/ticketing/attendee_index/upsert.rb app/services/ticketing/admissions/consume.rb app/services/ticketing/transfers/initiate.rb app/services/ticketing/transfers/accept.rb app/services/ticketing/outbox_handlers/order_fulfilled.rb db/migrate/20260812090009_add_ticketing_package_credential_constraints.rb db/structure.sql test/services/parking test/integration/parking test/integration/ticketing/add_on_transfer_boundary_test.rb docs/superpowers/plans/2026-07-17-streaming-addons-links-implementation.md
 git commit -m "feat(parking): issue parking credentials"
 ```
 
@@ -660,38 +690,56 @@ git commit -m "feat(parking): issue parking credentials"
 - Create: `app/controllers/catalog/event_add_on_reports_controller.rb`
 - Create: `app/policies/catalog/add_on_report_policy.rb`
 - Create: `app/serializers/catalog/add_on_sales_row_serializer.rb`
+- Create: `config/locales/catalog/add_on_sales_report.en.yml`
 - Modify: `config/routes.rb`
+- Modify: `postman/Digis API_collection.json`
 - Test: `test/queries/catalog/add_on_sales_report_test.rb`
 - Test: `test/controllers/catalog/event_add_on_reports_controller_test.rb`
+- Test support: `test/support/catalog/add_on_report_test_helpers.rb`
 
-- [ ] **Step 1: RED — define event/product/currency-safe aggregates and policy**
+- [x] **Step 1: RED — define event/product/currency-safe aggregates and policy**
 
 Test type/name/quantity/gross/refunded/net per settlement currency, event isolation, owner/admin/manager access, staff/scanner denial, and exclusion of answers, consent, stream tokens, QR/PNR, payouts, and notes.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/queries/catalog/add_on_sales_report_test.rb test/controllers/catalog/event_add_on_reports_controller_test.rb`
 
-Expected: FAIL because report query/controller are missing.
+Verified initial RED: 8 tests, 4 assertions, 4 expected route failures, and
+4 missing-query errors.
 
-- [ ] **Step 3: GREEN — aggregate immutable order/refund facts**
+- [x] **Step 3: GREEN — aggregate immutable order/refund facts**
 
-Use one SQL query grouped by product/currency; never convert currencies in reporting. `Catalog::EventAddOnReportsController` validates filters, authorizes, calls query, and renders explicit AMS fields. `/api/v1` stays in routes, not Ruby namespaces.
+Use one SQL query grouped by product and both currency snapshots; successful
+refunds are pre-aggregated before joining so item gross values are not
+multiplied by refund rows. Amounts remain in the immutable item charge
+currency, while the order-level settlement currency is returned explicitly;
+reporting never performs live FX conversion. The controller validates
+allowlisted filters, authorizes the event, calls the query, and renders
+explicit AMS fields. `/api/v1` stays in routes, not Ruby namespaces.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/queries/catalog/add_on_sales_report_test.rb test/controllers/catalog/event_add_on_reports_controller_test.rb`
 
-Expected: PASS.
+Verified focused Task 6 suite: 9 tests, 41 assertions, 0 failures, and 0
+errors with `N_PLUS_ONE=1`. The broader Catalog authorization/report suite
+passes 12 tests and 47 assertions with zero failures and zero errors.
 
-- [ ] **Step 5: REFACTOR — enforce bounded query count**
+The final full suite passes 2,669 tests and 11,103 assertions with zero
+failures and zero errors under `N_PLUS_ONE=1`.
 
-Use `EXPLAIN (ANALYZE, BUFFERS)` on production-shaped fixtures and add only demonstrated indexes.
+- [x] **Step 5: REFACTOR — enforce bounded query count**
 
-- [ ] **Step 6: Commit**
+The report maps one SQL result set directly into immutable rows, performs no
+association loading while serializing, and adds no speculative indexes. Mixed
+charge/settlement currencies remain visible as separate fields rather than
+being silently converted.
+
+- [ ] **Step 6: Commit — user-owned**
 
 ```bash
-git add app/queries/catalog app/controllers/catalog app/policies/catalog app/serializers/catalog config/routes.rb test/queries/catalog test/controllers/catalog
+git add app/queries/catalog app/controllers/catalog app/policies/catalog app/serializers/catalog config/locales/catalog/add_on_sales_report.en.yml config/routes.rb postman/'Digis API_collection.json' test/queries/catalog test/controllers/catalog test/support/catalog/add_on_report_test_helpers.rb docs/superpowers/plans/2026-07-17-streaming-addons-links-implementation.md
 git commit -m "feat(catalog): report add-on sales"
 ```
 
