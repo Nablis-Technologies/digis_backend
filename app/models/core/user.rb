@@ -79,6 +79,10 @@ module Core
              class_name: "Ticketing::TicketTransfer",
              inverse_of: :initiated_by,
              foreign_key: :initiated_by_id
+    has_many :stream_sessions,
+             class_name: "Ticketing::StreamSession",
+             inverse_of: :user,
+             dependent: :restrict_with_exception
 
     has_many :legal_documents,
              class_name: "Legal::LegalDocument",

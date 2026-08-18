@@ -10,6 +10,11 @@ module Events
 
     belongs_to :event_date, class_name: "Events::EventDate", inverse_of: :event_stream
 
+    has_many :stream_sessions,
+             class_name: "Ticketing::StreamSession",
+             dependent: :restrict_with_exception,
+             inverse_of: :event_stream
+
     validates :provider, presence: true
     validates :access_protection, presence: true, inclusion: { in: PROTECTIONS }
     validates :status, presence: true, inclusion: { in: STATUSES }
@@ -25,7 +30,7 @@ module Events
     end
 
     def self.ransackable_associations(_auth_object = nil)
-      %w[event_date]
+      %w[event_date stream_sessions]
     end
 
     private
