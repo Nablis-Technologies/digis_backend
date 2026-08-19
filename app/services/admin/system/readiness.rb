@@ -24,7 +24,9 @@ module Admin
       private
 
       def component_status(check)
-        public_send(check) ? "ok" : "degraded"
+        # COMPONENTS is an internal allowlist; its checks stay private so the
+        # readiness service exposes only statuses, never dependency probes.
+        send(check) ? "ok" : "degraded"
       rescue StandardError
         "degraded"
       end

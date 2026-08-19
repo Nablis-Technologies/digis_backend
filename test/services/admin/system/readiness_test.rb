@@ -9,6 +9,7 @@ class Admin::System::ReadinessTest < ActiveSupport::TestCase
     assert_predicate result, :success?
     assert_equal %w[database encryption outbox queue storage], result.value.fetch(:components).keys.map(&:to_s).sort
     assert_includes %w[ok degraded], result.value.fetch(:status)
+    assert_equal "ok", result.value.fetch(:components).fetch(:database)
     refute_match(/password|secret|host|provider/i, result.value.inspect)
   end
 
