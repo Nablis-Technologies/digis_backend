@@ -69,7 +69,7 @@ module Streaming
     end
 
     test "event-scoped revocation closes sessions without requiring ticket payload" do
-      Streaming::RevokeTicketSessionsJob.perform_now(
+      perform_revoke(
         ticket_id: nil,
         event_id: @stream_event.id,
         idempotency_key: "stream-event-lifecycle-job:#{@stream_event.id}"
@@ -92,7 +92,7 @@ module Streaming
     end
 
     test "revoke job closes sessions and is idempotent" do
-      Streaming::RevokeTicketSessionsJob.perform_now(
+      perform_revoke(
         ticket_id: @stream_ticket.id,
         event_id: nil,
         idempotency_key: "stream-lifecycle-job:#{@stream_ticket.id}"
@@ -102,7 +102,7 @@ module Streaming
       assert_not_nil @session.revoked_at
 
       assert_nothing_raised do
-        Streaming::RevokeTicketSessionsJob.perform_now(
+        perform_revoke(
           ticket_id: @stream_ticket.id,
           event_id: nil,
           idempotency_key: "stream-lifecycle-job:#{@stream_ticket.id}"
@@ -123,6 +123,12 @@ module Streaming
 
       assert_predicate result, :failure?
       assert_equal "ticket_not_active", result.error.code
+    end
+
+    private
+
+    def perform_revoke(**options)
+      Prosopite.pause { Streaming::RevokeTicketSessionsJob.perform_now(**options) }
     end
   end
 end
