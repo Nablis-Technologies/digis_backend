@@ -4,8 +4,7 @@ module Links
   # Creation authorization for branded links. Resolution is public, but
   # creating a link remains tied to the creator and its target ownership.
   class ShortLinkPolicy < Core::ApplicationPolicy
-    def create?(system: false)
-      return true if system && record.canonical? && record.internal_target?
+    def create?
       return false unless user.present? && record.creator_id == user.id
       return true if user.super_admin?
 
