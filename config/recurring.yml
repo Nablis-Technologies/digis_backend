@@ -61,6 +61,16 @@ production:
     class: Core::ProcessOutboxJob
     queue: outbox
     schedule: every minute
+  reconcile_fast:
+    class: Reconciliation::SupervisorJob
+    queue: maintenance
+    args: [ "fast" ]
+    schedule: <%= ENV.fetch("RECONCILIATION_FAST_SCHEDULE", "every minute") %>
+  reconcile_slow:
+    class: Reconciliation::SupervisorJob
+    queue: maintenance
+    args: [ "slow" ]
+    schedule: <%= ENV.fetch("RECONCILIATION_SLOW_SCHEDULE", "every hour at minute 30") %>
   remind_pending_consents:
     class: Ticketing::ConsentReminderJob
     queue: default
