@@ -70,7 +70,9 @@ the provider delivery log and the final inbox/outbox IDs.
 
 ## Staging drill
 
-Send a reverse-ordered batch followed by duplicate deliveries. Confirm all
-unique provider identities are retained once, every duplicate is acknowledged
-without a second business effect, and the outbox replay reaches the same final
-state.
+Configure Chapa Test Mode to deliver to the deployed
+`/payments/chapa/webhook` endpoint with the same secret as
+`CHAPA_WEBHOOK_SECRET`. Send a reverse-ordered batch followed by duplicate
+deliveries. Confirm HMAC validation, one inbox row per unique provider
+identity, duplicate acknowledgment without a second business effect, and an
+outbox replay reaching the same final state.
