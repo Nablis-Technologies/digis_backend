@@ -88,6 +88,7 @@ class RenderPreviewConfigurationTest < ActiveSupport::TestCase
 
     assert_equal "S3", private_exports.fetch("service")
     assert_equal "https://eu-west-1.s3.fil.one", private_exports.fetch("endpoint")
+    assert_equal true, private_exports.fetch("force_path_style")
     assert_equal "eu-west-1", private_exports.fetch("region")
     assert_equal "preview-bucket", private_exports.fetch("bucket")
     assert_equal "preview-access", private_exports.fetch("access_key_id")
@@ -100,6 +101,7 @@ class RenderPreviewConfigurationTest < ActiveSupport::TestCase
 
     assert_equal "S3", preview.fetch("service")
     assert_equal "https://eu-west-1.s3.fil.one", preview.fetch("endpoint")
+    assert_equal true, preview.fetch("force_path_style")
     assert_equal "preview-bucket", preview.fetch("bucket")
   end
 

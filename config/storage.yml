@@ -6,6 +6,8 @@ private_exports:
   <% if ENV["RENDER_PREVIEW"] == "true" %>
   service: S3
   endpoint: <%= ENV.fetch("FIL_ENDPOINT") %>
+  # FIL's S3-compatible endpoint does not publish bucket-prefixed DNS names.
+  force_path_style: true
   region: <%= ENV.fetch("FIL_REGION") %>
   bucket: <%= ENV.fetch("FIL_BUCKET") %>
   access_key_id: <%= ENV.fetch("FIL_ACCESS_KEY") %>
@@ -19,6 +21,8 @@ preview:
   <% if ENV["RENDER_PREVIEW"] == "true" %>
   service: S3
   endpoint: <%= ENV.fetch("FIL_ENDPOINT") %>
+  # FIL's S3-compatible endpoint does not publish bucket-prefixed DNS names.
+  force_path_style: true
   region: <%= ENV.fetch("FIL_REGION") %>
   bucket: <%= ENV.fetch("FIL_BUCKET") %>
   access_key_id: <%= ENV.fetch("FIL_ACCESS_KEY") %>
