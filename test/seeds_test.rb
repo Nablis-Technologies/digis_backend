@@ -4,6 +4,13 @@ require "test_helper"
 
 class SeedsTest < ActiveSupport::TestCase
   self.fixture_table_names = []
+  parallelize(workers: 1)
+
+  setup do
+    # Seed verification needs a clean user namespace, while the surrounding
+    # suite loads fixture users with intentionally different email mappings.
+    ActiveRecord::Base.connection.execute("TRUNCATE TABLE core_users CASCADE")
+  end
 
   test "canonical seed provides an idempotent Chapa checkout fixture" do
     load_seed
@@ -34,6 +41,16 @@ class SeedsTest < ActiveSupport::TestCase
       Catalog::EventProduct.where(id: product.id).count,
       Core::Review.where(reviewable: organization, context: "verification").count
     ]
+  end
+
+  test "canonical seed reuses users stored with a leading plus in their phone" do
+    load_seed
+    admin = Core::User.find_by!(email: "admin@digis.et")
+    admin.update_column(:phone, "+251911000001")
+
+    assert_nothing_raised { load_seed }
+    assert_equal 1, Core::User.where(email: "admin@digis.et").count
+    assert_equal "+251911000001", admin.reload.phone
   end
 
   private
