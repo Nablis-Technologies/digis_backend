@@ -17,7 +17,11 @@ class RenderPreviewConfigurationTest < ActiveSupport::TestCase
     assert_equal "/up", service.fetch("healthCheckPath")
     assert_equal "feat/launch-hardening-telemetry", service.fetch("branch")
     assert_equal "free", database.fetch("plan")
-    keys = service.fetch("envVars").map { |entry| entry.fetch("key") }
+    env_vars = service.fetch("envVars").to_h { |entry| [ entry.fetch("key"), entry["value"] ] }
+    assert_equal "0", env_vars.fetch("WEB_CONCURRENCY")
+    assert_equal "3", env_vars.fetch("RAILS_MAX_THREADS")
+    assert_equal "1", env_vars.fetch("JOB_THREADS")
+    keys = env_vars.keys
     assert_includes keys, "RENDER_PREVIEW"
     assert_includes keys, "RENDER_PREVIEW_DATABASE_URL"
     assert_includes keys, "SOLID_QUEUE_IN_PUMA"
