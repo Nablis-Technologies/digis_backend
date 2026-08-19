@@ -1,5 +1,7 @@
 # This file should ensure the existence of records required to run the application in every environment.
 # The code here is idempotent — safe to run multiple times without duplicating data.
+# This branch uses the canonical seed as the shared development, preview, and API-test fixture.
+# The synthetic Chapa records below must not be carried into a production seed policy.
 #
 # Load with: bin/rails db:seed
 
@@ -12,19 +14,19 @@ puts "=" * 60
 # ─────────────────────────────────────────────
 puts "\n👤 Seeding users..."
 
-admin_user = Core::User.find_or_create_by!(phone: "+251911000001") do |u|
+admin_user = Core::User.find_or_create_by!(phone: "251911000001") do |u|
   u.email = "admin@digis.et"
   u.password = "password123"
   u.verified_at = Time.current
 end
 
-organizer_user = Core::User.find_or_create_by!(phone: "+251911000002") do |u|
+organizer_user = Core::User.find_or_create_by!(phone: "251911000002") do |u|
   u.email = "organizer@digis.et"
   u.password = "password123"
   u.verified_at = Time.current
 end
 
-attendee_user = Core::User.find_or_create_by!(phone: "+251911000003") do |u|
+attendee_user = Core::User.find_or_create_by!(phone: "251911000003") do |u|
   u.email = "attendee@example.com"
   u.password = "password123"
   u.verified_at = Time.current
@@ -387,6 +389,20 @@ end
 
 puts "✓ #{Organizations::Organization.count} organizations seeded"
 
+# The shared seed includes one verified organizer so local and preview checkout
+# tests can exercise the real publication and payment-provider gates. The review
+# is intentionally marked as a seeded fixture; it is not a substitute for the
+# document-backed verification workflow used by real organizers.
+chapa_organization_review = org_music.reviews.find_or_initialize_by(context: "verification")
+chapa_organization_review.assign_attributes(
+  status: "approved",
+  feedback: { "source" => "seeded_test_fixture" },
+  reviewed_by: nil,
+  reviewed_at: Time.current
+)
+chapa_organization_review.save!
+puts "✓ #{org_music.name} marked verified for seeded checkout tests"
+
 # ─────────────────────────────────────────────
 # 8. Commercial programs and assignments
 # ─────────────────────────────────────────────
@@ -480,7 +496,113 @@ end
 puts "✓ #{Events::Venue.count} venues seeded"
 
 # ─────────────────────────────────────────────
-# 11. Events::Artists
+# 11. Chapa checkout smoke fixture
+# ─────────────────────────────────────────────
+puts "\n💳 Seeding Chapa checkout fixture..."
+
+chapa_category = Events::Category.find_by!(name: "Music")
+chapa_venue = Events::Venue.find_by!(name: "Millennium Hall")
+
+chapa_event = Events::Event.find_by(title: "Chapa Test Event", organization: org_music)
+unless chapa_event
+  result = Events::Create.call(
+    organization: org_music,
+    actor: organizer_user,
+    attributes: {
+      title: "Chapa Test Event",
+      description: "Shared event fixture for Chapa test-mode checkout flows.",
+      visibility: "public",
+      timezone: "Africa/Addis_Ababa",
+      currency: "ETB"
+    },
+    category_ids: [ chapa_category.id ]
+  )
+  raise result.error.message unless result.success?
+
+  chapa_event = result.value
+end
+
+unless chapa_event.event_categories.exists?
+  result = Events::ReplaceCategories.call(
+    event: chapa_event,
+    category_ids: [ chapa_category.id ],
+    actor: organizer_user
+  )
+  raise result.error.message unless result.success?
+end
+
+chapa_event.event_dates.find_or_create_by!(source_key: "chapa-test-date-v1") do |date|
+  date.name = "Main performance"
+  date.venue = chapa_venue
+  date.doors_at = Time.zone.parse("2030-01-15 18:00")
+  date.starts_at = Time.zone.parse("2030-01-15 19:00")
+  date.ends_at = Time.zone.parse("2030-01-15 22:00")
+  date.status = "scheduled"
+  date.venue_capacity = chapa_venue.capacity
+end
+
+unless chapa_event.event_media.cover.exists?
+  cover = chapa_event.event_media.new(
+    created_by: organizer_user,
+    type: "cover",
+    position: 0,
+    alt_text: "Chapa test event cover"
+  )
+  File.open(Rails.root.join("test/fixtures/files/pixel.png")) do |file|
+    cover.file.attach(io: file, filename: "chapa-test-event.png", content_type: "image/png")
+    cover.save!
+    cover.file.blob.analyze
+  end
+else
+  cover = chapa_event.event_media.cover.first
+  cover.update!(alt_text: "Chapa test event cover") if cover.alt_text.blank?
+  cover.file.blob.analyze unless cover.file.blob.analyzed?
+end
+
+unless chapa_event.published?
+  result = Events::Publish.call(
+    event: chapa_event,
+    actor: organizer_user,
+    idempotency_key: "seed-chapa-test-event-publish-v1"
+  )
+  raise result.error.message unless result.success?
+end
+
+chapa_product = Catalog::EventProduct.find_by(event: chapa_event, name: "Chapa Test Product")
+unless chapa_product
+  result = Catalog::Products::CreateDraft.call(
+    event: chapa_event,
+    actor: organizer_user,
+    product_attributes: {
+      name: "Chapa Test Product",
+      description: "One-unit paid product for Chapa test-mode checkout.",
+      type: "other",
+      min_per_order: 1,
+      max_per_order: 4,
+      sales_start_at: Time.zone.parse("2026-01-01 00:00")
+    },
+    inventory_configuration: { mode: "unlimited" },
+    price_attributes: {
+      type: "override",
+      currency: "ETB",
+      amount_minor: 100,
+      active_from: Time.zone.parse("2026-01-01 00:00")
+    }
+  )
+  raise result.error.message unless result.success?
+
+  chapa_product = result.value
+end
+
+unless chapa_product.status == "active"
+  result = Catalog::Products::Activate.call(product: chapa_product, actor: organizer_user)
+  raise result.error.message unless result.success?
+end
+
+puts "✓ #{chapa_event.title} published with #{chapa_product.name} active at 1 ETB"
+
+# ─────────────────────────────────────────────
+# 12. Events::Artists
 # ─────────────────────────────────────────────
 puts "\n🎤 Seeding artists..."
 
@@ -499,12 +621,12 @@ end
 puts "✓ #{Events::Artist.count} artists seeded"
 
 # ─────────────────────────────────────────────
-# 12. Core::Follows (sample follows)
+# 13. Core::Follows (sample follows)
 # ─────────────────────────────────────────────
 puts "\n❤️  Seeding sample follows..."
 
-attendee = Core::User.find_by(phone: "+251911000003")
-organizer = Core::User.find_by(phone: "+251911000002")
+attendee = Core::User.find_by(phone: "251911000003")
+organizer = Core::User.find_by(phone: "251911000002")
 
 if attendee
   followables = [

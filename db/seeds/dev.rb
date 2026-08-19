@@ -75,25 +75,25 @@ end
 # ─────────────────────────────────────────────
 puts "\n👤 Ensuring users + roles..."
 
-admin = Core::User.find_or_create_by!(phone: "+251911000001") do |u|
+admin = Core::User.find_or_create_by!(phone: "251911000001") do |u|
   u.email = "admin@digis.et"
   u.password = "password123"
   u.verified_at = Time.current
 end
 
-organizer = Core::User.find_or_create_by!(phone: "+251911000002") do |u|
+organizer = Core::User.find_or_create_by!(phone: "251911000002") do |u|
   u.email = "organizer@digis.et"
   u.password = "password123"
   u.verified_at = Time.current
 end
 
-attendee = Core::User.find_or_create_by!(phone: "+251911000003") do |u|
+attendee = Core::User.find_or_create_by!(phone: "251911000003") do |u|
   u.email = "attendee@example.com"
   u.password = "password123"
   u.verified_at = Time.current
 end
 
-staff_user = Core::User.find_or_create_by!(phone: "+251911000009") do |u|
+staff_user = Core::User.find_or_create_by!(phone: "251911000009") do |u|
   u.email = "staff@example.com"
   u.password = "password123"
   u.verified_at = Time.current
@@ -170,6 +170,16 @@ fest_org = seed_organization(name: "Addis Music Fest", organizer_type: "company"
 dev_org  = seed_organization(name: "Dev Test Organizer", organizer_type: "company",
                               category: "conference", owner: admin)
 
+# This is a synthetic API-test organizer, so its approved review represents
+# fixture state only. Real organizer verification still requires documents and
+# the normal review workflow.
+fest_org.reviews.find_or_initialize_by(context: "verification").update!(
+  status: "approved",
+  feedback: { "source" => "seeded_test_fixture" },
+  reviewed_by: nil,
+  reviewed_at: Time.current
+)
+
 puts "✓ #{Organizations::Organization.count} organizations"
 
 # ─────────────────────────────────────────────
@@ -211,14 +221,17 @@ Events::EventStaffAssignment.find_or_create_by!(event: fest_event, user: staff_u
 end
 
 # --- EventDates (fixed timestamps so re-runs are idempotent) ---
-fest_date = Events::EventDate.find_or_create_by!(
-  event: fest_event, starts_at: Time.zone.parse("2026-08-01 19:00")
-) do |d|
-  d.ends_at = Time.zone.parse("2026-08-01 23:00")
-  d.status = "scheduled"
-  d.held_venue_count = 0
-  d.issued_venue_count = 0
-end
+old_fest_date = fest_event.event_dates.find_by(starts_at: Time.zone.parse("2026-08-01 19:00"))
+fest_date = old_fest_date || fest_event.event_dates.find_or_initialize_by(
+  starts_at: Time.zone.parse("2030-08-01 19:00")
+)
+fest_date.assign_attributes(
+  ends_at: Time.zone.parse("2030-08-01 23:00"),
+  status: "scheduled",
+  held_venue_count: 0,
+  issued_venue_count: 0
+)
+fest_date.save!
 
 # --- EventParticipants ---
 Events::EventParticipant.find_or_create_by!(event: fest_event, name: "Teddy Afro", type: "performer") do |p|
@@ -246,6 +259,7 @@ end
 unless fest_event.event_media.where(type: "cover").exists?
   cover = fest_event.event_media.new(created_by: admin, type: "cover", position: 0)
   cover.file.attach(**dev_image(filename: "cover.jpg"))
+  cover.alt_text = "Addis Music Fest cover"
   cover.save!
 end
 unless fest_event.event_media.where(type: "gallery").exists?
