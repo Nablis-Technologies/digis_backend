@@ -611,14 +611,16 @@ with `N_PLUS_ONE=1`, covering webhook processing, outbox recovery, refunds,
 cancellation batches, scanner token/key/revocation recovery, and reconciliation
 domain jobs. This is not staging evidence and does not complete this step.
 
-Staging preflight after branch deployment: live commit `7a87915` is deployed;
+Staging preflight after branch deployment: live commit `cf7c6b2` is deployed;
 `GET /up` returned HTTP 200, the
 seeded fixture administrator authenticated successfully with `SUPER_ADMIN`,
 `GET /admin/organizations` returned HTTP 200, and public/admin organization
 responses omitted `business_license_url` and `tin_certificate_url`. The live
-Render deploy is `7a87915`. `GET /admin/system/readiness` returns HTTP 200
+Render deploy is `cf7c6b2`. `GET /admin/system/readiness` returns HTTP 200
 with status `ok`; database, encryption, outbox, queue, and storage all report
-`ok`. Render logs show Solid Queue reconciliation jobs running. Payment/refund
+`ok`. The preceding `7a87915` instance had an OOM exit; the current deploy
+contains single-mode Puma, three web threads, and one Solid Queue worker thread.
+The current health and readiness probes pass. Payment/refund
 drills still require a configured provider sandbox or a staging-only fake
 adapter; neither is currently registered by the deployed service.
 
