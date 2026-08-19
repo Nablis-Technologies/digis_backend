@@ -24,7 +24,7 @@ module Streaming
           return failure(session_error(:stream_session_invalid)) unless session.token_matches?(@session_token)
           return failure(session_error(:stream_session_not_owned, status: :forbidden)) unless session.user_id == @user&.id
           return failure(session_error(:stream_session_revoked, status: :conflict)) if session.revoked?
-          return expire(session) if session.expired?
+          return expire(session) if session.expired?(at: @now)
 
           authorization = Streaming::Authorization.call(
             ticket: session.ticket,
@@ -67,10 +67,10 @@ module Streaming
         ).lock.find(@session.id)
       end
 
-      def expire(session)
-        session.update!(status: "expired") if session.status == "active"
-        failure(session_error(:stream_session_expired, :conflict))
-      end
+    def expire(session)
+      session.update!(status: "expired") if session.status == "active"
+      failure(session_error(:stream_session_expired, status: :conflict))
+    end
 
       def session_error(key, status: :unprocessable_entity)
         Core::BusinessError.new(I18n.t("streaming.errors.#{key}"), code: key.to_s, status:)
