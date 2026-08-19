@@ -8128,6 +8128,25 @@
       "name": "Admin",
       "item": [
         {
+          "name": "System",
+          "item": [
+            {
+              "name": "Readiness",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/system/readiness",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "admin", "system", "readiness" ]
+                },
+                "description": "Authenticated platform-admin readiness for local database, encryption, outbox, queue, and storage dependencies. The response intentionally excludes hosts, credentials, provider checks, queue contents, and exception details."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
           "name": "Events",
           "item": [
             {
