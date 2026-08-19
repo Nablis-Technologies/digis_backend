@@ -8,7 +8,7 @@ module Orders
     class FulfillAddOn < Core::BaseService
       def initialize(order_item:, idempotency_key:)
         @order_item = order_item
-        @idempotency_key = Core::IdempotencyKey.new(idempotency_key)
+        Core::IdempotencyKey.new(idempotency_key)
       rescue ArgumentError => error
         @initialization_error = error
       end
@@ -24,12 +24,6 @@ module Orders
 
           validation = Catalog::AddOns::ValidateProduct.call(product: item.event_product)
           return failure(validation.error) if validation.failure?
-
-          handler = AddOnRegistry.fetch(item.event_product.type)
-          return failure(error(:unsupported_add_on_type)) unless handler
-
-          result = handler.call(order_item: item, idempotency_key: @idempotency_key.to_s)
-          return failure(result.error) if result.failure?
 
           item.update!(fulfillment_status: "fulfilled")
           success(item)
