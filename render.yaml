@@ -56,6 +56,20 @@ services:
         sync: false
       - key: FIL_SECRET_KEY
         sync: false
+      - key: CHAPA_ENABLED
+        value: "false"
+      - key: CHAPA_MODE
+        value: test
+      - key: CHAPA_SECRET_KEY
+        sync: false
+      - key: CHAPA_WEBHOOK_SECRET
+        sync: false
+      - key: CHAPA_API_BASE_URL
+        value: https://api.chapa.co/v1
+      - key: CHAPA_CALLBACK_URL
+        sync: false
+      - key: CHAPA_RETURN_URL
+        sync: false
 
 databases:
   - name: digis-backend-preview-db
