@@ -24,11 +24,9 @@ puts "=" * 60
 puts "🧪 Digis Backend — Dev / API-test seed"
 puts "=" * 60
 
-# Reconcile preview databases that stored seeded phones with a leading plus.
+# Seed users with the canonical Ethiopian international phone format.
 def seed_dev_user(phone:, email:, password:)
-  digits = phone.delete_prefix("+")
-  user = Core::User.where(phone: [ digits, "+#{digits}" ]).first || Core::User.find_by(email: email)
-  user ||= Core::User.new(phone: digits)
+  user = Core::User.find_or_initialize_by(phone: phone)
   user.assign_attributes(email: email, password: password, verified_at: Time.current)
   user.save!
   user
@@ -85,10 +83,10 @@ end
 # ─────────────────────────────────────────────
 puts "\n👤 Ensuring users + roles..."
 
-admin = seed_dev_user(phone: "251911000001", email: "admin@digis.et", password: "password123")
-organizer = seed_dev_user(phone: "251911000002", email: "organizer@digis.et", password: "password123")
-attendee = seed_dev_user(phone: "251911000003", email: "attendee@example.com", password: "password123")
-staff_user = seed_dev_user(phone: "251911000009", email: "staff@example.com", password: "password123")
+admin = seed_dev_user(phone: "+251911000001", email: "admin@digis.et", password: "password123")
+organizer = seed_dev_user(phone: "+251911000002", email: "organizer@digis.et", password: "password123")
+attendee = seed_dev_user(phone: "+251911000003", email: "attendee@example.com", password: "password123")
+staff_user = seed_dev_user(phone: "+251911000009", email: "staff@example.com", password: "password123")
 
 super_admin_role = Core::Role.find_or_create_by!(code: "SUPER_ADMIN") do |r|
   r.name = "Super Admin"

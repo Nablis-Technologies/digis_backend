@@ -9,12 +9,9 @@ puts "=" * 60
 puts "🌱 Digis Backend — Seeding Database"
 puts "=" * 60
 
-# Reconcile both phone formats because older preview databases stored the
-# leading plus while current seeds use the canonical digits-only value.
+# Seed users with the canonical Ethiopian international phone format.
 def seed_user(phone:, email:, password:)
-  digits = phone.delete_prefix("+")
-  user = Core::User.where(phone: [ digits, "+#{digits}" ]).first || Core::User.find_by(email: email)
-  user ||= Core::User.new(phone: digits)
+  user = Core::User.find_or_initialize_by(phone: phone)
   user.assign_attributes(email: email, password: password, verified_at: Time.current)
   user.save!
   user
@@ -25,9 +22,9 @@ end
 # ─────────────────────────────────────────────
 puts "\n👤 Seeding users..."
 
-admin_user = seed_user(phone: "251911000001", email: "admin@digis.et", password: "password123")
-organizer_user = seed_user(phone: "251911000002", email: "organizer@digis.et", password: "password123")
-attendee_user = seed_user(phone: "251911000003", email: "attendee@example.com", password: "password123")
+admin_user = seed_user(phone: "+251911000001", email: "admin@digis.et", password: "password123")
+organizer_user = seed_user(phone: "+251911000002", email: "organizer@digis.et", password: "password123")
+attendee_user = seed_user(phone: "+251911000003", email: "attendee@example.com", password: "password123")
 
 puts "✓ #{Core::User.count} users seeded"
 
@@ -622,8 +619,8 @@ puts "✓ #{Events::Artist.count} artists seeded"
 # ─────────────────────────────────────────────
 puts "\n❤️  Seeding sample follows..."
 
-attendee = Core::User.find_by(phone: "251911000003")
-organizer = Core::User.find_by(phone: "251911000002")
+attendee = attendee_user
+organizer = organizer_user
 
 if attendee
   followables = [
