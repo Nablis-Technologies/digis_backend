@@ -206,27 +206,34 @@ git commit -m "feat(admin): add authenticated dependency readiness"
 
 **Files:**
 - Create: `app/jobs/reconciliation/supervisor_job.rb`
+- Create: `app/jobs/reconciliation/support.rb`
 - Create: `app/jobs/reconciliation/outbox_job.rb`
 - Create: `app/jobs/reconciliation/payment_attempts_job.rb`
 - Create: `app/jobs/reconciliation/refunds_job.rb`
 - Create: `app/jobs/reconciliation/organizer_payouts_job.rb`
 - Create: `app/jobs/reconciliation/seller_payouts_job.rb`
 - Create: `app/jobs/reconciliation/credential_projection_job.rb`
+- Create: `app/jobs/reconciliation/credential_projection.rb`
 - Create: `test/jobs/reconciliation/supervisor_job_test.rb`
 - Create: `test/jobs/reconciliation/domain_jobs_test.rb`
 - Modify: `config/recurring.yml`
+- Modify: `test/config/private_attendee_exports_configuration_test.rb`
 
-- [ ] **Step 1: Write failing supervisor tests**
+- [x] **Step 1: Write failing supervisor tests**
 
 Assert the supervisor enqueues each domain job exactly once and does no domain mutation itself. Assert each domain job selects a bounded batch with `FOR UPDATE SKIP LOCKED`, delegates each record to its owning command, and remains safe when two job instances overlap.
 
-- [ ] **Step 2: Run the jobs tests and verify RED**
+Added supervisor and domain-job tests for fast/slow scheduling groups, non-mutating supervision, bounded overdue/uncertain-state selection, stable owner-command delegation, transition audit evidence, and revocation-safe credential projection repair. The credential test also proves admission-use history remains present.
+
+- [x] **Step 2: Run the jobs tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/jobs/reconciliation
 ```
 
-- [ ] **Step 3: Implement the thin supervisor**
+RED captured with 9 errors because the seven reconciliation job classes did not yet exist. Test-only fixture setup errors were corrected before implementation; the next RED run contained only the expected missing-implementation errors.
+
+- [x] **Step 3: Implement the thin supervisor**
 
 ```ruby
 # frozen_string_literal: true
@@ -235,17 +242,13 @@ module Reconciliation
   class SupervisorJob < ApplicationJob
     queue_as :maintenance
 
-    JOBS = [
-      OutboxJob,
-      PaymentAttemptsJob,
-      RefundsJob,
-      OrganizerPayoutsJob,
-      SellerPayoutsJob,
-      CredentialProjectionJob
-    ].freeze
+    FAST_JOBS = [ OutboxJob, PaymentAttemptsJob, RefundsJob ].freeze
+    SLOW_JOBS = [ OrganizerPayoutsJob, SellerPayoutsJob, CredentialProjectionJob ].freeze
+    JOBS = (FAST_JOBS + SLOW_JOBS).freeze
 
-    def perform
-      JOBS.each(&:perform_later)
+    def perform(group = "all")
+      { "all" => JOBS, "fast" => FAST_JOBS, "slow" => SLOW_JOBS }
+        .fetch(group.to_s, JOBS).each(&:perform_later)
     end
   end
 end
@@ -262,20 +265,28 @@ Each domain job must:
 
 The credential job compares active generation, active credential rows, revocations, and admission projections. It may repair a derived projection but must never recreate a revoked credential or erase an admission use.
 
-- [ ] **Step 4: Schedule recurring supervision**
+Implemented the supervisor and six domain jobs. `Reconciliation::Support` centralizes only bounded limits, delayed rescheduling, privacy-safe telemetry, and idempotent transition audits; domain jobs continue to select their own rows and call the existing Orders, Finance, Marketplace, Core, and Ticketing commands. `CredentialProjection` owns eager loading and derived-index repair so the job remains an orchestration boundary. Provider-unknown payout/refund results remain processing for the next pass, and payment grace verification continues to use the existing Orders command and stable payment verification identity.
+
+- [x] **Step 4: Schedule recurring supervision**
 
 Configure a short production cadence for payments/outbox and a slower cadence for payouts/projection audits. Keep schedule values environment-configurable. Do not run provider reconciliation in web requests. The primary outbox *delivery* driver, `Core::ProcessOutboxJob` (Plan 0, core-foundation Task 5 Step 8), must also be scheduled here; `Reconciliation::OutboxJob` is only the backstop for rows the enqueuer misses or that exhausted their `DispatchOutboxEventJob` retries, not a substitute for the enqueuer.
 
-- [ ] **Step 5: Verify retries, overlap, and unknown outcomes**
+Added `reconcile_fast` every minute and `reconcile_slow` hourly at minute 30, both environment-configurable through `RECONCILIATION_FAST_SCHEDULE` and `RECONCILIATION_SLOW_SCHEDULE`. The existing `process_outbox` recurring driver remains in place. The recurring configuration test now uses Rails/Solid Queue's ERB-aware configuration loader and verifies every production schedule through Fugit.
+
+- [x] **Step 5: Verify retries, overlap, and unknown outcomes**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/jobs/reconciliation test/services/orders test/services/payments test/services/refunds test/services/finance test/services/ticketing
 ```
 
-- [ ] **Step 6: Commit**
+Focused Task 3 verification passes 9 tests and 31 assertions with `N_PLUS_ONE=1`. The broader reconciliation/owner-command suites pass 448 tests and 2,731 assertions with zero failures/errors. The final full repository suite passes 2,707 tests and 11,253 assertions with zero failures/errors under `N_PLUS_ONE=1`; RuboCop passes on all changed Ruby files, Zeitwerk passes, recurring YAML/ERB parsing passes, and `git diff --check` passes.
+
+- [ ] **Step 6: Commit — user-owned**
 
 ```bash
-git add app/jobs/reconciliation test/jobs/reconciliation config/recurring.yml
+git add app/jobs/reconciliation test/jobs/reconciliation \
+  config/recurring.yml test/config/private_attendee_exports_configuration_test.rb \
+  docs/superpowers/plans/2026-07-17-launch-hardening-observability-implementation.md
 git commit -m "feat(operations): reconcile uncertain domain state"
 ```
 
