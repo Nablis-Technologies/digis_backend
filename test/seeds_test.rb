@@ -20,6 +20,7 @@ class SeedsTest < ActiveSupport::TestCase
     product = Catalog::EventProduct.find_by!(name: "Chapa Test Product", event: event)
 
     assert organization.verified?
+    assert_equal "+251911000001", Core::User.find_by!(email: "admin@digis.et").phone
     assert_equal "published", event.status
     assert_equal "public", event.visibility
     assert event.event_dates.where(status: "scheduled").exists?
@@ -41,16 +42,6 @@ class SeedsTest < ActiveSupport::TestCase
       Catalog::EventProduct.where(id: product.id).count,
       Core::Review.where(reviewable: organization, context: "verification").count
     ]
-  end
-
-  test "canonical seed reuses users stored with a leading plus in their phone" do
-    load_seed
-    admin = Core::User.find_by!(email: "admin@digis.et")
-    admin.update_column(:phone, "+251911000001")
-
-    assert_nothing_raised { load_seed }
-    assert_equal 1, Core::User.where(email: "admin@digis.et").count
-    assert_equal "+251911000001", admin.reload.phone
   end
 
   private

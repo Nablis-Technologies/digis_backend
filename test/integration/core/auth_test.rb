@@ -6,7 +6,7 @@ class CoreAuthTest < ActionDispatch::IntegrationTest
       post "/auth/signup",
            params: {
              user: {
-               phone: "251911123456",
+               phone: "+251911123456",
                password: "password123",
                password_confirmation: "password123"
              }
