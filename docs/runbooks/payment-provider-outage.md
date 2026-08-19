@@ -73,6 +73,13 @@ evidence plus reconciliation audit IDs to the incident.
 
 ## Staging drill
 
-Use a provider fake that returns an unknown result, advance settlement grace,
-run the fast reconciliation supervisor, restore provider verification, and
-confirm one final payment outcome with no duplicate fulfillment or ledger row.
+For the external-provider path, enable Chapa Test Mode only after entering
+`CHAPA_SECRET_KEY` and `CHAPA_WEBHOOK_SECRET` in the staging environment.
+Configure the Chapa webhook URL as the deployed
+`/payments/chapa/webhook` endpoint. Start one low-value hosted test payment,
+leave its provider result unresolved, advance settlement grace, run the fast
+reconciliation supervisor, restore provider verification, and confirm one
+final payment outcome with no duplicate fulfillment or ledger row.
+
+Use the deterministic provider fake for forced timeouts and failure responses
+that Chapa Test Mode cannot schedule on demand.
