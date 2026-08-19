@@ -28,6 +28,12 @@ en:
           invalid_webhook_signature: "The payment notification signature is invalid"
           payment_event_not_found: "The payment notification could not be found"
           payment_event_processing_failed: "The payment notification could not be processed"
+      callbacks:
+        received: "Payment callback verified"
+        errors:
+          invalid_callback: "The payment callback is invalid"
+          payment_not_found: "The payment callback does not match a payment attempt"
+          provider_unavailable: "The payment provider could not verify this callback"
       fulfillment:
         errors:
           order_not_paid: "The order is not ready for fulfillment"
