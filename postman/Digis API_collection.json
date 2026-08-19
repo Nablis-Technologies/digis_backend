@@ -56,6 +56,31 @@
       "type": "string"
     },
     {
+      "key": "paymentProvider",
+      "value": "chapa",
+      "type": "string"
+    },
+    {
+      "key": "transactionReference",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "providerReference",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "providerEventId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "paymentWebhookSignature",
+      "value": "",
+      "type": "string"
+    },
+    {
       "key": "reauthenticationPurpose",
       "value": "attendee_export_request",
       "type": "string"
@@ -12194,6 +12219,56 @@
                     "exec": [
                       "pm.test(\"Webhook is durably acknowledged\", function () {",
                       "  pm.expect(pm.response.code).to.be.oneOf([202, 401, 422]);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Payment Callback",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/payments/{{paymentProvider}}/callback?trx_ref={{transactionReference}}&ref_id={{providerReference}}&status=success",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "payments",
+                    "{{paymentProvider}}",
+                    "callback"
+                  ],
+                  "query": [
+                    {
+                      "key": "trx_ref",
+                      "value": "{{transactionReference}}"
+                    },
+                    {
+                      "key": "ref_id",
+                      "value": "{{providerReference}}"
+                    },
+                    {
+                      "key": "status",
+                      "value": "success"
+                    }
+                  ]
+                },
+                "description": "Receives Chapa's unauthenticated redirect callback. Query parameters are used for lookup only; the server verifies the transaction with Chapa before recording a durable payment event.",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Callback returns a normalized acknowledgment or expected verification error\", function () {",
+                      "  pm.expect(pm.response.code).to.be.oneOf([202, 404, 422, 503]);",
                       "});"
                     ]
                   }
