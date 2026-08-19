@@ -26,6 +26,20 @@ module Reconciliation
       assert_equal 10, second.reload.attempts
     end
 
+    test "outbox reconciliation publishes exhausted commercial evidence" do
+      event = core_outbox_events(:exhausted)
+      event.update!(
+        topic: "commercial",
+        event_type: "commercial.program_entitlement.reserved",
+        occurred_at: @now - 4.hours,
+        available_at: @now - 3.hours
+      )
+
+      Reconciliation::OutboxJob.perform_now(1, now: @now)
+
+      assert event.reload.published_at?
+    end
+
     test "payment reconciliation delegates only one due attempt and records its transition" do
       first = create_payment(user: core_users(:attendee), suffix: "first")
       second = create_payment(user: core_users(:support), suffix: "second")
