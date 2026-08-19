@@ -620,9 +620,24 @@ Render deploy is `cf7c6b2`. `GET /admin/system/readiness` returns HTTP 200
 with status `ok`; database, encryption, outbox, queue, and storage all report
 `ok`. The preceding `7a87915` instance had an OOM exit; the current deploy
 contains single-mode Puma, three web threads, and one Solid Queue worker thread.
-The current health and readiness probes pass. Payment/refund
-drills still require a configured provider sandbox or a staging-only fake
-adapter; neither is currently registered by the deployed service.
+The current health and readiness probes pass. Payment/refund drills still
+require staging execution. The code now provides an explicit Chapa test-mode
+registration path and the deterministic fake remains available, but the
+deployed Render service remains disabled until its operator supplies test
+secrets and enables it; no staging payment evidence exists yet.
+
+Task 8 staging now has an approved Chapa test-mode integration extension. The
+existing provider boundary did not persist Chapa's hosted `checkout_url`, so a
+real gateway cannot be enabled safely without extending the normalized result,
+payment snapshot, and buyer-safe serializer together. The implementation must
+remain transport-injected in tests, register Chapa only when explicitly
+enabled, reject live keys in the Render preview, verify Chapa's documented HMAC
+webhook headers, and keep raw payloads/secrets out of durable state. The
+deterministic fake remains required for failure modes the provider sandbox does
+not control.
+
+The approved design is recorded in
+`docs/superpowers/specs/2026-08-19-chapa-payment-provider-design.md`.
 
 Run and record:
 
