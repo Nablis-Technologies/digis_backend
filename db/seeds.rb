@@ -5,6 +5,8 @@
 #
 # Load with: bin/rails db:seed
 
+require "vips"
+
 puts "=" * 60
 puts "🌱 Digis Backend — Seeding Database"
 puts "=" * 60
@@ -15,6 +17,33 @@ def seed_user(phone:, email:, password:)
   user.assign_attributes(email: email, password: password, verified_at: Time.current)
   user.save!
   user
+end
+
+# Repairs a partially seeded cover without reading an object created by an
+# earlier storage configuration. The marker makes the replacement idempotent
+# while allowing a bucket change to heal the preview fixture on the next boot.
+def seed_event_cover(event:, organizer:, fixture_marker:)
+  cover = event.event_media.cover.first || event.event_media.new(
+    created_by: organizer,
+    type: "cover",
+    position: 0,
+    alt_text: "Chapa test event cover"
+  )
+  return cover if cover.file.attached? && cover.file.blob.metadata["seed_fixture"] == fixture_marker
+
+  fixture_path = Rails.root.join("test/fixtures/files/pixel.png")
+  fixture_image = Vips::Image.new_from_file(fixture_path.to_s, access: :sequential)
+  File.open(fixture_path) do |file|
+    cover.file.attach(io: file, filename: "chapa-test-event.png", content_type: "image/png")
+    cover.save!
+  end
+  cover.file.blob.update!(metadata: cover.file.blob.metadata.merge(
+    "seed_fixture" => fixture_marker,
+    "analyzed" => true,
+    "width" => fixture_image.width,
+    "height" => fixture_image.height
+  ))
+  cover
 end
 
 # ─────────────────────────────────────────────
@@ -597,23 +626,12 @@ chapa_event.event_dates.find_or_create_by!(source_key: "chapa-test-date-v1") do 
   date.venue_capacity = chapa_venue.capacity
 end
 
-unless chapa_event.event_media.cover.exists?
-  cover = chapa_event.event_media.new(
-    created_by: organizer_user,
-    type: "cover",
-    position: 0,
-    alt_text: "Chapa test event cover"
-  )
-  File.open(Rails.root.join("test/fixtures/files/pixel.png")) do |file|
-    cover.file.attach(io: file, filename: "chapa-test-event.png", content_type: "image/png")
-    cover.save!
-    cover.file.blob.analyze
-  end
-else
-  cover = chapa_event.event_media.cover.first
-  cover.update!(alt_text: "Chapa test event cover") if cover.alt_text.blank?
-  cover.file.blob.analyze unless cover.file.blob.analyzed?
-end
+cover = seed_event_cover(
+  event: chapa_event,
+  organizer: organizer_user,
+  fixture_marker: "chapa-test-event-cover-v1:#{ENV.fetch("FIL_BUCKET", "local")}"
+)
+cover.update!(alt_text: "Chapa test event cover") if cover.alt_text.blank?
 
 unless chapa_event.published?
   result = Events::Publish.call(

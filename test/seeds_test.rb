@@ -54,6 +54,18 @@ class SeedsTest < ActiveSupport::TestCase
     ]
   end
 
+  test "canonical seed repairs a partial Chapa cover fixture" do
+    load_seed
+
+    event = Events::Event.find_by!(title: "Chapa Test Event")
+    cover = event.event_media.cover.first
+    cover.file.blob.update!(metadata: cover.file.blob.metadata.except("analyzed", "seed_fixture"))
+
+    load_seed
+
+    assert_equal "chapa-test-event-cover-v1:local", cover.reload.file.blob.metadata.fetch("seed_fixture")
+  end
+
   private
 
   # The canonical seed performs many independent reference-data lookups by
