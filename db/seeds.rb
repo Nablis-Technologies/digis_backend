@@ -54,6 +54,7 @@ puts "\n👤 Seeding users..."
 admin_user = seed_user(phone: "+251911000001", email: "admin@digis.et", password: "password123")
 organizer_user = seed_user(phone: "+251911000002", email: "organizer@digis.et", password: "password123")
 attendee_user = seed_user(phone: "+251911000003", email: "attendee@example.com", password: "password123")
+chapa_test_user = seed_user(phone: "+251900123456", email: "chapa.test@gmail.com", password: "password123")
 
 puts "✓ #{Core::User.count} users seeded"
 
@@ -259,6 +260,10 @@ Core::UserRole.find_or_create_by!(user: organizer_user, role: organizer_role) do
 end
 
 Core::UserRole.find_or_create_by!(user: attendee_user, role: user_role) do |ur|
+  ur.assigned_by = admin_user
+end
+
+Core::UserRole.find_or_create_by!(user: chapa_test_user, role: user_role) do |ur|
   ur.assigned_by = admin_user
 end
 

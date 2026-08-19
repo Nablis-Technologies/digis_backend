@@ -21,6 +21,7 @@ class SeedsTest < ActiveSupport::TestCase
 
     assert organization.verified?
     assert_equal "+251911000001", Core::User.find_by!(email: "admin@digis.et").phone
+    assert_equal "+251900123456", Core::User.find_by!(email: "chapa.test@gmail.com").phone
     assert_equal "published", event.status
     assert_equal "public", event.visibility
     assert event.event_dates.where(status: "scheduled").exists?

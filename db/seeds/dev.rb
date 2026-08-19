@@ -86,6 +86,7 @@ puts "\n👤 Ensuring users + roles..."
 admin = seed_dev_user(phone: "+251911000001", email: "admin@digis.et", password: "password123")
 organizer = seed_dev_user(phone: "+251911000002", email: "organizer@digis.et", password: "password123")
 attendee = seed_dev_user(phone: "+251911000003", email: "attendee@example.com", password: "password123")
+chapa_test_user = seed_dev_user(phone: "+251900123456", email: "chapa.test@gmail.com", password: "password123")
 staff_user = seed_dev_user(phone: "+251911000009", email: "staff@example.com", password: "password123")
 
 super_admin_role = Core::Role.find_or_create_by!(code: "SUPER_ADMIN") do |r|
