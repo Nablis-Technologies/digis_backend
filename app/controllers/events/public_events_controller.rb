@@ -19,7 +19,12 @@ module Events
     end
 
     def show
-      event = Events::Event.publicly_visible.find_by(slug: params[:slug])
+      event = Events::Event.publicly_visible
+                            .includes(
+                              :categories, :event_dates, :event_organizations, :event_streams,
+                              event_media: { file_attachment: :blob }
+                            )
+                            .find_by(slug: params[:slug])
       return render_error(I18n.t("errors.not_found", model: "event"),
                           status: :not_found) unless event
 
