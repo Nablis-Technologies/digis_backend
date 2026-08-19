@@ -4,7 +4,7 @@ module Payments
   module Providers
     # Chapa's HTTP client is injected so this adapter remains a deterministic
     # boundary in tests and does not let provider payloads or fee math leak
-    # into Orders. Actual request orchestration belongs to Orders Task 6.
+    # into Orders.
     class ChapaAdapter < Adapter
       PROVIDER = "chapa"
 
