@@ -156,24 +156,15 @@ module Ticketing
       end
 
       test "two workers cannot create duplicate offers" do
-        ready = Queue.new
-        start = Queue.new
-        workers = 2.times.map do |index|
-          Thread.new do
-            Ticketing::ApplicationRecord.connection_pool.with_connection do
-              ready << true
-              start.pop
-              Ticketing::Waitlist::OfferNext.call(
-                ticket_type: Ticketing::TicketType.find(@ticket_type.id),
-                idempotency_key: "concurrent-offer-#{index}"
-              )
-            end
-          end
+        race = run_database_race do |index|
+          Ticketing::Waitlist::OfferNext.call(
+            ticket_type: Ticketing::TicketType.find(@ticket_type.id),
+            idempotency_key: "concurrent-offer-#{index}"
+          )
         end
-        2.times { ready.pop }
-        2.times { start << true }
-        results = workers.map(&:value)
+        results = race.results
 
+        assert_empty race.errors, race.errors.inspect
         assert results.all?(&:success?)
         assert_equal 1, Ticketing::Registration.where(id: @registration.id, status: "offered").count
         assert_equal 1, Catalog::InventoryReservation.where(registration_id: @registration.id).count

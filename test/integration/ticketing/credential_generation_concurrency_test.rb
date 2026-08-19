@@ -38,29 +38,19 @@ module Ticketing
     end
 
     test "serializes concurrent replacements into one active complete generation" do
-      ready = Queue.new
-      start = Queue.new
       key = "delegate:#{@ticket.id}:concurrent"
-      threads = 2.times.map do
-        Thread.new do
-          ready << true
-          start.pop
-          Ticketing::ApplicationRecord.connection_pool.with_connection do
-            Ticketing::CredentialGenerations::Replace.call(
-              ticket: Ticketing::Ticket.find(@ticket.id),
-              target_mode: "delegated",
-              reason: "owner_delegated",
-              assignments: { 1 => Core::User.find(@buyer.id), 2 => nil, 3 => nil },
-              idempotency_key: key
-            )
-          end
-        end
+      race = run_database_race do
+        Ticketing::CredentialGenerations::Replace.call(
+          ticket: Ticketing::Ticket.find(@ticket.id),
+          target_mode: "delegated",
+          reason: "owner_delegated",
+          assignments: { 1 => Core::User.find(@buyer.id), 2 => nil, 3 => nil },
+          idempotency_key: key
+        )
       end
+      results = race.results
 
-      2.times { ready.pop }
-      2.times { start << true }
-      results = threads.map(&:value)
-
+      assert_empty race.errors, race.errors.inspect
       assert results.all?(&:success?), results.map { |result| result.error&.code }.inspect
       assert_equal 2, Ticketing::CredentialGeneration.where(ticket_id: @ticket.id).count
       assert_equal 1, Ticketing::CredentialGeneration.where(ticket_id: @ticket.id, status: "active").count
@@ -71,8 +61,6 @@ module Ticketing
       assert_equal 1, Core::OutboxEvent.where(
         aggregate_id: @ticket.id, event_type: "ticketing.credential_generation_replaced"
       ).count
-    ensure
-      threads&.each(&:join)
     end
 
     private

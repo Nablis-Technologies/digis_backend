@@ -70,22 +70,12 @@ module Orders
     end
 
     test "accepts only one concurrent success and reverses the loser" do
-      ready = Queue.new
-      start = Queue.new
-      threads = @events.map do |event|
-        Thread.new do
-          ready << true
-          start.pop
-          Orders::ApplicationRecord.connection_pool.with_connection do
-            Orders::ProcessPaymentEvent.call(event:)
-          end
-        end
+      race = run_database_race(worker_count: @events.length) do |index|
+        Orders::ProcessPaymentEvent.call(event_id: @events.fetch(index).id)
       end
+      results = race.results
 
-      2.times { ready.pop }
-      2.times { start << true }
-      results = threads.map(&:value)
-
+      assert_empty race.errors, race.errors.inspect
       assert results.all?(&:success?), results.map { |result| [ result.error&.code, result.error&.message ] }.inspect
       assert_equal 1, Orders::Payment.where(id: @payments.map(&:id)).where.not(accepted_at: nil).count
       assert_equal 1, Orders::Refund.where(payment_id: @payments.map(&:id), type: "payment_reversal").count

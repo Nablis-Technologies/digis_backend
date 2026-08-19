@@ -50,34 +50,20 @@ module Marketplace
     test "concurrent expiry and fulfillment produce either one sale or one restoration" do
       @order.update_columns(status: "paid", paid_at: Time.current)
       @payment = create_accepted_payment(order: @order)
-      ready = Queue.new
-      start = Queue.new
-
-      threads = [
-        Thread.new do
-          ready << true
-          start.pop
-          ActiveRecord::Base.connection_pool.with_connection do
-            ExpireReservation.call(listing: Marketplace::ResaleListing.find(@listing.id), at: @expiry_at)
-          end
-        end,
-        Thread.new do
-          ready << true
-          start.pop
-          ActiveRecord::Base.connection_pool.with_connection do
-            FulfillSale.call(
-              listing: Marketplace::ResaleListing.find(@listing.id),
-              order: Orders::Order.find(@order.id),
-              payment: Orders::Payment.find(@payment.id)
-            )
-          end
+      race = run_database_race do |index|
+        if index.zero?
+          ExpireReservation.call(listing: Marketplace::ResaleListing.find(@listing.id), at: @expiry_at)
+        else
+          FulfillSale.call(
+            listing: Marketplace::ResaleListing.find(@listing.id),
+            order: Orders::Order.find(@order.id),
+            payment: Orders::Payment.find(@payment.id)
+          )
         end
-      ]
+      end
+      results = race.results
 
-      2.times { ready.pop }
-      2.times { start << true }
-      results = threads.map(&:value)
-
+      assert_empty race.errors, race.errors.inspect
       listing = @listing.reload
       ticket = @ticket.reload
       sale_count = ResaleSale.where(resale_listing_id: listing.id).count
@@ -93,8 +79,6 @@ module Marketplace
         refute_predicate ticket, :package_suspended?
       end
       assert results.all? { |result| result.success? || result.failure? }, results.inspect
-    ensure
-      threads&.each(&:join)
     end
   end
 end

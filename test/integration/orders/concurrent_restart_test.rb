@@ -40,27 +40,15 @@ module Orders
     end
 
     test "concurrent restarts with one key return one replacement" do
-      ready = Queue.new
-      start = Queue.new
-      threads = 2.times.map do
-        Thread.new do
-          ready << true
-          start.pop
-          Orders::ApplicationRecord.connection_pool.with_connection do
-            Orders::RestartCheckout.call(
-              old_order: Orders::Order.find(@source.id),
-              buyer: @buyer,
-              quote: @quote,
-              idempotency_key: "concurrent-restart"
-            )
-          end
-        end
+      race = run_database_race do
+        Orders::RestartCheckout.call(
+          old_order: Orders::Order.find(@source.id), buyer: Core::User.find(@buyer.id),
+          quote: @quote, idempotency_key: "concurrent-restart"
+        )
       end
+      results = race.results
 
-      2.times { ready.pop }
-      2.times { start << true }
-      results = threads.map(&:value)
-
+      assert_empty race.errors, race.errors.inspect
       assert results.all?(&:success?), results.map { |result| result.error&.message }
       assert_equal 1, results.map { |result| result.value.id }.uniq.length
       assert_equal 1, Orders::Order.where(replaces_order_id: @source.id).count

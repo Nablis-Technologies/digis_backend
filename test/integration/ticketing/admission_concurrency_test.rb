@@ -82,37 +82,22 @@ module Ticketing
 
     test "only one concurrent single-use scan can consume the slot" do
       claims = Ticketing::Qr::Verifier.call(token: @ticket.current_credential_generation.credentials.first.qr_token).value
-      ready = Queue.new
-      start = Queue.new
-      threads = 2.times.map do
-        Thread.new do
-          ready << true
-          start.pop
-          Ticketing::ApplicationRecord.connection_pool.with_connection do
-            Ticketing::Admissions::Consume.call(
-              claims:,
-              product_access: Catalog::ProductAccess.find(@product_access.id),
-              assignment: Ticketing::ScannerDeviceAssignment.find(@assignment.id),
-              client_scan_id: SecureRandom.uuid,
-              scanned_at: @event_date.starts_at + 1.minute,
-              lookup_via: "qr",
-              identity_check: nil,
-              now: @event_date.starts_at + 1.minute
-            )
-          end
-        end
+      race = run_database_race do
+        scan_time = @event_date.starts_at + 1.minute
+        Ticketing::Admissions::Consume.call(
+          claims:, product_access: Catalog::ProductAccess.find(@product_access.id),
+          assignment: Ticketing::ScannerDeviceAssignment.find(@assignment.id),
+          client_scan_id: SecureRandom.uuid, scanned_at: scan_time, lookup_via: "qr",
+          identity_check: nil, now: scan_time
+        )
       end
+      results = race.results
 
-      2.times { ready.pop }
-      2.times { start << true }
-      results = threads.map(&:value)
-
+      assert_empty race.errors, race.errors.inspect
       assert results.all?(&:success?), results.map { |result| result.error&.message }.inspect
       assert_equal [ "duplicate", "success" ], results.map { |result| result.value.result }.sort,
         results.map { |result| result.value.attributes.slice("result", "credential_id", "ticket_id") }.inspect
       assert_equal 1, Ticketing::AdmissionUse.where(product_access: @product_access).count
-    ensure
-      threads&.each(&:join)
     end
   end
 end

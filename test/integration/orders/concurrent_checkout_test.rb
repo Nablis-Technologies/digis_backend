@@ -70,27 +70,16 @@ module Orders
     end
 
     test "only one buyer wins the final checkout inventory unit" do
-      ready = Queue.new
-      start = Queue.new
-      threads = @quotes.map do |buyer, quote|
-        Thread.new do
-          ready << true
-          start.pop
-          Orders::ApplicationRecord.connection_pool.with_connection do
-            Orders::CreateCheckout.call(
-              quote:,
-              event: @event,
-              buyer:,
-              idempotency_key: "race-#{buyer.id}-#{SecureRandom.hex(4)}"
-            )
-          end
-        end
+      race = run_database_race(worker_count: @quotes.length) do |index|
+        buyer, quote = @quotes.fetch(index)
+        Orders::CreateCheckout.call(
+          quote:, event: Events::Event.find(@event.id), buyer: Core::User.find(buyer.id),
+          idempotency_key: "race-#{buyer.id}-#{SecureRandom.hex(4)}"
+        )
       end
+      results = race.results
 
-      2.times { ready.pop }
-      2.times { start << true }
-      results = threads.map(&:value)
-
+      assert_empty race.errors, race.errors.inspect
       assert_equal 1, results.count(&:success?)
       assert_equal 1, results.count(&:failure?)
       assert_equal "inventory_unavailable", results.find(&:failure?).error.code
