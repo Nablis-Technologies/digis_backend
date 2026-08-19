@@ -117,6 +117,13 @@ class RenderPreviewConfigurationTest < ActiveSupport::TestCase
     assert_includes entrypoint, "db:schema:load:${database}"
   end
 
+  test "preview server seeds the shared fixture after preparing the database" do
+    entrypoint = Rails.root.join("bin/docker-entrypoint").read
+
+    assert_includes entrypoint, 'if [ "${RENDER_PREVIEW}" == "true" ]; then'
+    assert_includes entrypoint, "./bin/rails db:seed"
+  end
+
   test "production URL defaults are environment-backed" do
     production = Rails.root.join("config/environments/production.rb").read
 
