@@ -27,6 +27,16 @@ class SeedsTest < ActiveSupport::TestCase
     assert_equal "active", product.status
     assert product.prices.active_at(Time.current).where(currency: "ETB").exists?
 
+    quote = Orders::BuildQuote.call(
+      event: event,
+      buyer: Core::User.find_by!(email: "attendee@example.com"),
+      items: [ { product_id: product.id, quantity: 1 } ],
+      charge_currency: "ETB",
+      provider: "chapa",
+      payment_method: "telebirr"
+    )
+    assert quote.success?, quote.error&.message
+
     counts = [
       Organizations::Organization.where(name: organization.name).count,
       Events::Event.where(id: event.id).count,

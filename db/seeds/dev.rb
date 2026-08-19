@@ -392,7 +392,58 @@ commercial_program = Commercial::Program.find_or_create_by!(fee_schedule: commer
   program.active = true
 end
 
-Commercial::Assignment.find_or_create_by!(
+# Keep the API-test fixture checkout-ready with an authoritative definition.
+commercial_components = [
+  {
+    component_type: "platform_commission",
+    calculation_type: "percentage",
+    charged_to: "organizer",
+    funded_by: "organizer",
+    basis_type: "eligible_order_subtotal",
+    rate_bps: 750,
+    refund_policy: "nonrefundable",
+    label: "Seeded platform commission"
+  },
+  {
+    component_type: "buyer_service_fee",
+    calculation_type: "percentage",
+    charged_to: "buyer",
+    funded_by: "buyer",
+    basis_type: "item_face_value",
+    rate_bps: 250,
+    refund_policy: "nonrefundable",
+    label: "Seeded buyer service fee"
+  },
+  {
+    component_type: "processing_cost_recovery",
+    calculation_type: "explicit_zero",
+    charged_to: "buyer",
+    funded_by: "buyer",
+    refund_policy: "nonrefundable",
+    label: "Seeded processing cost recovery"
+  }
+]
+
+if commercial_version.status == "draft"
+  commercial_components.each do |attributes|
+    component = commercial_version.fee_components.find_or_initialize_by(
+      component_type: attributes[:component_type]
+    )
+    component.assign_attributes(attributes)
+    component.save!
+  end
+
+  digest = Commercial::Definitions::Canonicalize.call(version: commercial_version).value.digest
+  commercial_version.update!(
+    definition_digest: digest,
+    status: "active",
+    effective_from: Time.zone.parse("2026-01-01 00:00"),
+    activated_by: admin,
+    activated_at: Time.current
+  )
+end
+
+commercial_assignment = Commercial::Assignment.find_or_create_by!(
   organization: fest_org,
   event: fest_event,
   fee_schedule_version: commercial_version,
@@ -404,6 +455,14 @@ Commercial::Assignment.find_or_create_by!(
   assignment.effective_from = Time.zone.parse("2026-01-01 00:00")
   assignment.risk_level = "low"
   assignment.created_by = admin
+end
+
+if commercial_assignment.status == "draft"
+  commercial_assignment.update!(
+    status: "active",
+    activated_by: admin,
+    activated_at: Time.current
+  )
 end
 
 puts "✓ #{Commercial::Program.count} programs; #{Commercial::Assignment.count} assignments"

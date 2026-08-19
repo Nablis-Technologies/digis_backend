@@ -1,6 +1,6 @@
 super_admin:
   id: 019e5f69-db1c-77b6-be88-3afbf8b65410
-  email: superadmin@digis.et
+  email: admin@digis.et
   phone: "+251911000001"
   verified_at: <%= Time.current %>
   password_digest: <%= BCrypt::Password.create("password123") %>
@@ -9,7 +9,7 @@ super_admin:
 
 core_admin:
   id: 019e5f69-da01-72fb-bef2-17eddb579932
-  email: admin@digis.et
+  email: organizer@digis.et
   phone: "+251911000002"
   verified_at: <%= Time.current %>
   password_digest: <%= BCrypt::Password.create("password123") %>
