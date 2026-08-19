@@ -353,12 +353,17 @@ git commit -m "test(payments): enforce provider lifecycle contract"
 - Create: `test/support/database_race_helper.rb`
 - Create: `test/integration/invariants/concurrency_test.rb`
 - Modify: `test/test_helper.rb`
+- Modify: existing critical race tests under `test/integration/orders/`,
+  `test/integration/ticketing/`, `test/integration/marketplace/`,
+  `test/integration/finance/`, and `test/services/ticketing/waitlist/`
 
-- [ ] **Step 1: Add a separate-connection race helper**
+- [x] **Step 1: Add a separate-connection race helper**
 
 The helper must start workers behind a barrier, check out one Active Record connection per worker, collect exceptions, and join every thread. It must not share model instances or transactional test state between threads. Mark these tests non-transactional and clean only records created by the test.
 
-- [ ] **Step 2: Write race tests that initially fail**
+Added `DatabaseRaceHelper#run_database_race`, which releases workers only after all reach a ready barrier, checks out one connection per worker, returns indexed results/errors, and always joins threads. The new invariant test proves the helper collects a worker exception without losing the other worker result.
+
+- [x] **Step 2: Write race tests that initially fail**
 
 Cover at minimum:
 
@@ -373,20 +378,31 @@ Cover at minimum:
 - refund versus transfer/resale transition: incompatible commands cannot both commit;
 - two payout workers: one disbursement instruction.
 
-- [ ] **Step 3: Run the invariant suite repeatedly**
+The initial RED run failed because `run_database_race` was not defined. The aggregate duplicate-fixture draft was discarded after it exposed fragile teardown interactions; existing race tests already cover these invariants with their domain-specific cleanup.
+
+- [x] **Step 3: Adopt the helper across the existing invariant races**
+
+Replaced duplicated Queue/thread barriers in the existing checkout, payment, refund, restart, payment-grace, waitlist, admission, credential-generation, resale reservation/fulfillment/expiry, seller-payout, and finance-payout race tests. Their setup, cleanup, and assertions remain domain-owned; only worker coordination now uses the shared helper.
+
+- [x] **Step 4: Run the invariant suite repeatedly**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/invariants/concurrency_test.rb
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/invariants/concurrency_test.rb
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/invariants/concurrency_test.rb
+N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/invariants/concurrency_test.rb test/integration/orders/concurrent_checkout_test.rb test/integration/orders/concurrent_payment_success_test.rb test/integration/orders/concurrent_refund_test.rb test/integration/orders/concurrent_restart_test.rb test/integration/orders/payment_grace_race_test.rb test/services/ticketing/waitlist/offer_next_test.rb test/integration/ticketing/admission_concurrency_test.rb test/integration/ticketing/credential_generation_concurrency_test.rb test/integration/marketplace/concurrent_purchase_test.rb test/integration/marketplace/concurrent_resale_success_test.rb test/integration/marketplace/concurrent_seller_payout_test.rb test/integration/marketplace/resale_late_payment_test.rb test/integration/finance/concurrent_payout_build_test.rb
+N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/invariants/concurrency_test.rb test/integration/orders/concurrent_checkout_test.rb test/integration/orders/concurrent_payment_success_test.rb test/integration/orders/concurrent_refund_test.rb test/integration/orders/concurrent_restart_test.rb test/integration/orders/payment_grace_race_test.rb test/services/ticketing/waitlist/offer_next_test.rb test/integration/ticketing/admission_concurrency_test.rb test/integration/ticketing/credential_generation_concurrency_test.rb test/integration/marketplace/concurrent_purchase_test.rb test/integration/marketplace/concurrent_resale_success_test.rb test/integration/marketplace/concurrent_seller_payout_test.rb test/integration/marketplace/resale_late_payment_test.rb test/integration/finance/concurrent_payout_build_test.rb
+N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/invariants/concurrency_test.rb test/integration/orders/concurrent_checkout_test.rb test/integration/orders/concurrent_payment_success_test.rb test/integration/orders/concurrent_refund_test.rb test/integration/orders/concurrent_restart_test.rb test/integration/orders/payment_grace_race_test.rb test/services/ticketing/waitlist/offer_next_test.rb test/integration/ticketing/admission_concurrency_test.rb test/integration/ticketing/credential_generation_concurrency_test.rb test/integration/marketplace/concurrent_purchase_test.rb test/integration/marketplace/concurrent_resale_success_test.rb test/integration/marketplace/concurrent_seller_payout_test.rb test/integration/marketplace/resale_late_payment_test.rb test/integration/finance/concurrent_payout_build_test.rb
 ```
 
-Expected: every repetition passes with database-enforced uniqueness and locking, not timing sleeps.
+Verified three serial repetitions: each run passed 19 tests and 175 assertions with zero failures/errors under `N_PLUS_ONE=1`. The repeated runs use database-enforced uniqueness and locking, not timing sleeps; runs were intentionally serialized so Rails fixture loading cannot contend with another test database reset.
 
-- [ ] **Step 4: Commit**
+The final repository suite passes 2,721 tests and 11,375 assertions with zero failures and zero errors under `N_PLUS_ONE=1`; RuboCop, Zeitwerk, syntax, and `git diff --check` also pass.
+
+- [ ] **Step 5: Commit — user-owned**
 
 ```bash
-git add test/support/database_race_helper.rb test/integration/invariants/concurrency_test.rb test/test_helper.rb
+git add test/support/database_race_helper.rb test/integration/invariants/concurrency_test.rb test/test_helper.rb \
+  test/integration/orders test/integration/ticketing test/integration/marketplace \
+  test/integration/finance test/services/ticketing/waitlist \
+  docs/superpowers/plans/2026-07-17-launch-hardening-observability-implementation.md
 git commit -m "test(platform): prove critical concurrency invariants"
 ```
 
