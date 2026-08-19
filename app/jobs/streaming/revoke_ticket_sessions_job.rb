@@ -12,15 +12,12 @@ module Streaming
     def perform(ticket_id: nil, event_id: nil, idempotency_key: nil, now: Time.current)
       Core::IdempotencyKey.new(idempotency_key) if idempotency_key.present?
 
-      runner = lambda do
-        loop do
-          sessions = revoke_batch(ticket_id:, event_id:, now:)
-          break if sessions.empty?
+      loop do
+        sessions = revoke_batch(ticket_id:, event_id:, now:)
+        break if sessions.empty?
 
-          revoke_provider_playback(sessions)
-        end
+        revoke_provider_playback(sessions)
       end
-      defined?(Prosopite) ? Prosopite.pause(&runner) : runner.call
     end
 
     private
