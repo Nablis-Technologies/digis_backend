@@ -12115,7 +12115,7 @@
                     "payment_attempts"
                   ]
                 },
-                "description": "Starts or switches one bounded payment attempt for the immutable order total. Reuse the same Idempotency-Key after a timeout; an ambiguous provider result remains processing for later verification.",
+                "description": "Starts or switches one bounded payment attempt for the immutable order total. Reuse the same Idempotency-Key after a timeout; an ambiguous provider result remains processing for later verification. When Chapa initializes a hosted payment, the buyer-safe response includes checkout_url; redirects never prove payment and the server verifies provider state.",
                 "auth": {
                   "type": "bearer",
                   "bearer": [
