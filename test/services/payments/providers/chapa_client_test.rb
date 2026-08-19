@@ -84,6 +84,32 @@ module Payments
         assert_equal "/transaction/verify/attempt-1", transport.requests.sole.fetch(:path)
       end
 
+      test "logs safe metadata for a rejected transaction" do
+        transport = FakeTransport.new(
+          Response.new(
+            status: 404,
+            body: {
+              status: "failed",
+              message: "Payments through API is disabled, please contact us",
+              data: nil
+            }
+          )
+        )
+        Rails.logger.expects(:warn).with(
+          includes("status_code=404", "status=failed", "Payments through API is disabled")
+        )
+
+        result = build_client(transport:).create(
+          amount_minor: 1_000,
+          currency: "ETB",
+          idempotency_key: "attempt-rejected",
+          email: "buyer@example.com",
+          phone_number: "+251911000000"
+        )
+
+        assert_predicate result, :failure?
+      end
+
       test "verifies Chapa webhook signatures against the exact raw body" do
         raw_body = '{"event":"charge.success","tx_ref":"attempt-1"}'
         signature = OpenSSL::HMAC.hexdigest("SHA256", "webhook-secret", raw_body)

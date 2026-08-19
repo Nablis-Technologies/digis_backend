@@ -114,10 +114,12 @@ module Payments
         status = data[:status].presence || response.body[:status]
         status = response.status.between?(200, 299) ? "success" : "failure" if status == true
         status = "failure" if status == false
+        failure_code = failure_code_for(status, data, response.body)
+        log_provider_failure(response, status, failure_code)
         Result.new(
           status: status || "unknown",
           provider_reference: data[:tx_ref].presence || data[:ref_id].presence || data[:reference],
-          failure_code: failure_code_for(status, data, response.body),
+          failure_code:,
           provider_fee_minor: minor_amount(data[:charge]),
           provider_fee_currency: data[:currency],
           raw_status: status,
@@ -135,6 +137,18 @@ module Payments
         candidate = data[:failure_code].presence || data[:status].presence || body[:status]
         candidate = "provider_rejected" if candidate.blank? || candidate == false
         candidate.to_s.downcase.gsub(/[^a-z0-9]+/, "_").sub(/\A_+|_+\z/, "")[0, 64]
+      end
+
+      # Keep provider rejection diagnostics available without logging the raw
+      # response, which may contain customer or gateway payload data.
+      def log_provider_failure(response, status, failure_code)
+        return unless %w[failure failed declined error reversed].include?(status.to_s.downcase)
+
+        message = response.body[:message].to_s.gsub(/\s+/, " ").truncate(200)
+        Rails.logger.warn(
+          "Chapa provider rejected response status_code=#{response.status} " \
+          "status=#{status} failure_code=#{failure_code} message=#{message}"
+        )
       end
 
       def major_amount(amount_minor)
