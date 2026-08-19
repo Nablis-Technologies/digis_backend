@@ -94,6 +94,15 @@ class RenderPreviewConfigurationTest < ActiveSupport::TestCase
     assert_equal "preview-secret", private_exports.fetch("secret_access_key")
   end
 
+  test "preview uses durable S3-compatible storage for ordinary media" do
+    storage = evaluate_storage_configuration(preview: true)
+    preview = storage.fetch("preview")
+
+    assert_equal "S3", preview.fetch("service")
+    assert_equal "https://eu-west-1.s3.fil.one", preview.fetch("endpoint")
+    assert_equal "preview-bucket", preview.fetch("bucket")
+  end
+
   test "non-preview private export storage remains local disk" do
     private_exports = evaluate_storage_configuration(preview: false).fetch("private_exports")
 

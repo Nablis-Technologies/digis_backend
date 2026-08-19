@@ -15,6 +15,19 @@ private_exports:
   root: <%= Rails.root.join(Rails.env.test? ? "tmp/private_exports" : "storage/private_exports") %>
   <% end %>
 
+preview:
+  <% if ENV["RENDER_PREVIEW"] == "true" %>
+  service: S3
+  endpoint: <%= ENV.fetch("FIL_ENDPOINT") %>
+  region: <%= ENV.fetch("FIL_REGION") %>
+  bucket: <%= ENV.fetch("FIL_BUCKET") %>
+  access_key_id: <%= ENV.fetch("FIL_ACCESS_KEY") %>
+  secret_access_key: <%= ENV.fetch("FIL_SECRET_KEY") %>
+  <% else %>
+  service: Disk
+  root: <%= Rails.root.join(Rails.env.test? ? "tmp/preview" : "storage/preview") %>
+  <% end %>
+
 local:
   service: Disk
   root: <%= Rails.root.join("storage") %>
