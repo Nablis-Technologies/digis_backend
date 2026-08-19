@@ -25,8 +25,9 @@
 - Create: `app/lib/core/telemetry.rb`
 - Create: `test/lib/core/telemetry_test.rb`
 - Modify: `config/initializers/filter_parameter_logging.rb`
+- Modify: `config/locales/core/errors.en.yml`
 
-- [ ] **Step 1: Write the failing telemetry tests**
+- [x] **Step 1: Write the failing telemetry tests**
 
 ```ruby
 # frozen_string_literal: true
@@ -61,15 +62,17 @@ class Core::TelemetryTest < ActiveSupport::TestCase
 end
 ```
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/lib/core/telemetry_test.rb
+N_PLUS_ONE=1 bin/rails test test/lib/core/telemetry_test.rb
 ```
 
-Expected: error because `Core::Telemetry` does not exist.
+RED captured: 3 tests, 5 assertions, 2 failures, and 1 error because
+`Core::Telemetry` did not exist and the new sensitive-key contract was not yet
+configured.
 
-- [ ] **Step 3: Implement the allowlisted telemetry seam**
+- [x] **Step 3: Implement the allowlisted telemetry seam**
 
 ```ruby
 # frozen_string_literal: true
@@ -99,16 +102,20 @@ end
 
 Add `:token`, `:qr`, `:credential`, `:lookup_code`, `:pnr`, `:invitation`, `:phone`, `:email`, `:id_number`, `:provider_payload`, and `:webhook_body` to the parameter filter. Do not log request bodies from payment, transfer, registration, or scan endpoints.
 
-- [ ] **Step 4: Run the tests and verify GREEN**
+- [x] **Step 4: Run the tests and verify GREEN**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/lib/core/telemetry_test.rb test/controllers
+N_PLUS_ONE=1 bin/rails test test/lib/core/telemetry_test.rb test/controllers
 ```
 
-- [ ] **Step 5: Commit**
+Verified: 75 tests, 310 assertions, 0 failures, and 0 errors. The complete
+CI-equivalent suite passes 2,693 tests and 11,196 assertions with zero failures
+and zero errors under `N_PLUS_ONE=1`; RuboCop and Zeitwerk also pass.
+
+- [ ] **Step 5: Commit — user-owned**
 
 ```bash
-git add app/lib/core/telemetry.rb test/lib/core/telemetry_test.rb config/initializers/filter_parameter_logging.rb
+git add app/lib/core/telemetry.rb test/lib/core/telemetry_test.rb config/initializers/filter_parameter_logging.rb config/locales/core/errors.en.yml docs/superpowers/plans/2026-07-17-launch-hardening-observability-implementation.md
 git commit -m "feat(core): add privacy-safe domain telemetry"
 ```
 
