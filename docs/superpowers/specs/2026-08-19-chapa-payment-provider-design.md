@@ -39,19 +39,24 @@ Git or seeds:
 - `CHAPA_SECRET_KEY`
 - `CHAPA_WEBHOOK_SECRET`
 - `CHAPA_API_BASE_URL` (defaults to Chapa's official API host)
-- `CHAPA_CALLBACK_URL`
+- `CHAPA_CALLBACK_URL` (the unauthenticated GET callback endpoint, separate from the webhook)
 - `CHAPA_RETURN_URL`
 
 Render's Blueprint declares the secret fields with `sync: false`; the values
-are entered manually in the Render service environment. Chapa's dashboard
-webhook URL is the deployed `/payments/chapa/webhook` endpoint and its secret
-hash must match `CHAPA_WEBHOOK_SECRET`.
+are entered manually in the Render service environment. `CHAPA_CALLBACK_URL`
+points to the deployed `/payments/chapa/callback` GET endpoint, while Chapa's
+dashboard webhook URL is the deployed `/payments/chapa/webhook` POST endpoint
+and its secret hash must match `CHAPA_WEBHOOK_SECRET`.
 
 ## Failure and security behavior
 
 - Provider timeouts remain `unknown`/`timeout` and never become success.
 - Browser redirects and callbacks never prove payment; the server verifies
-  the transaction with Chapa before accepting it.
+  the transaction with Chapa before accepting it. The Chapa callback receives
+  `trx_ref`, `ref_id`, and `status` over GET; the server looks up the payment
+  by transaction reference, verifies `trx_ref`, and only then writes the
+  normalized `Orders::PaymentEvent` inbox row. The signed POST webhook remains
+  a separate ingestion path.
 - Both documented Chapa signature headers are accepted only when one matches
   the HMAC-SHA256 digest of the exact raw body using constant-time comparison.
 - HTTP errors, malformed responses, and missing provider references map to the
