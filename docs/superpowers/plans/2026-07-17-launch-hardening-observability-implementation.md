@@ -611,6 +611,15 @@ with `N_PLUS_ONE=1`, covering webhook processing, outbox recovery, refunds,
 cancellation batches, scanner token/key/revocation recovery, and reconciliation
 domain jobs. This is not staging evidence and does not complete this step.
 
+Staging preflight: `GET /up` returned HTTP 200, the seeded fixture
+administrator authenticated successfully with `SUPER_ADMIN`, and
+`GET /admin/organizations` returned HTTP 200. The deployed Render service is
+currently tracking `main` at commit `493781d`; `/admin/system/readiness` returns
+404 there, so the launch-hardening branch is not yet deployed to this staging
+service. Payment/refund drills also require a configured provider sandbox or a
+staging-only fake adapter; neither is currently registered by the deployed
+service.
+
 Run and record:
 
 - provider accepts payment but callback is delayed;
