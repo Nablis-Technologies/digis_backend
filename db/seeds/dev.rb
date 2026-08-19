@@ -24,6 +24,16 @@ puts "=" * 60
 puts "🧪 Digis Backend — Dev / API-test seed"
 puts "=" * 60
 
+# Reconcile preview databases that stored seeded phones with a leading plus.
+def seed_dev_user(phone:, email:, password:)
+  digits = phone.delete_prefix("+")
+  user = Core::User.where(phone: [ digits, "+#{digits}" ]).first || Core::User.find_by(email: email)
+  user ||= Core::User.new(phone: digits)
+  user.assign_attributes(email: email, password: password, verified_at: Time.current)
+  user.save!
+  user
+end
+
 # A real 1x1 white JPEG (ActiveStorage validates the bytes via Marcel).
 JPEG_B64 = "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAr/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
 
@@ -75,29 +85,10 @@ end
 # ─────────────────────────────────────────────
 puts "\n👤 Ensuring users + roles..."
 
-admin = Core::User.find_or_create_by!(phone: "251911000001") do |u|
-  u.email = "admin@digis.et"
-  u.password = "password123"
-  u.verified_at = Time.current
-end
-
-organizer = Core::User.find_or_create_by!(phone: "251911000002") do |u|
-  u.email = "organizer@digis.et"
-  u.password = "password123"
-  u.verified_at = Time.current
-end
-
-attendee = Core::User.find_or_create_by!(phone: "251911000003") do |u|
-  u.email = "attendee@example.com"
-  u.password = "password123"
-  u.verified_at = Time.current
-end
-
-staff_user = Core::User.find_or_create_by!(phone: "251911000009") do |u|
-  u.email = "staff@example.com"
-  u.password = "password123"
-  u.verified_at = Time.current
-end
+admin = seed_dev_user(phone: "251911000001", email: "admin@digis.et", password: "password123")
+organizer = seed_dev_user(phone: "251911000002", email: "organizer@digis.et", password: "password123")
+attendee = seed_dev_user(phone: "251911000003", email: "attendee@example.com", password: "password123")
+staff_user = seed_dev_user(phone: "251911000009", email: "staff@example.com", password: "password123")
 
 super_admin_role = Core::Role.find_or_create_by!(code: "SUPER_ADMIN") do |r|
   r.name = "Super Admin"
