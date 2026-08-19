@@ -12,17 +12,12 @@ module Links
 
     def perform(retention_days: RETENTION_DAYS, batch_size: BATCH_SIZE, now: Time.current)
       cutoff = now - normalized_retention_days(retention_days).days
-      runner = lambda do
-        deleted = 0
+      deleted = 0
 
-        Links::ShortLinkClick.where("clicked_at < ?", cutoff)
-          .in_batches(of: normalized_batch_size(batch_size)) do |batch|
-          deleted += batch.delete_all
-        end
-
-        deleted
+      Links::ShortLinkClick.where("clicked_at < ?", cutoff)
+        .in_batches(of: normalized_batch_size(batch_size)) do |batch|
+        deleted += batch.delete_all
       end
-      deleted = defined?(Prosopite) ? Prosopite.pause(&runner) : runner.call
 
       { deleted: }
     end
