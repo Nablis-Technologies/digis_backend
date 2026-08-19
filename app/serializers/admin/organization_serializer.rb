@@ -11,7 +11,7 @@ module Admin
                 :events_count, :follower_count, :memberships_count,
                 :verified,
                 :created_at, :updated_at, :profile_url,
-               :banner_url, :business_license_url, :tin_certificate_url
+               :banner_url
 
     has_one :owner, serializer: ::Admin::UserSerializer
 
@@ -21,14 +21,6 @@ module Admin
 
     def banner_url
       object.banner.attached? ? url_for(object.banner) : nil
-    end
-
-    def business_license_url
-      object.business_license.attached? ? url_for(object.business_license) : nil
-    end
-
-    def tin_certificate_url
-      object.tin_certificate.attached? ? url_for(object.tin_certificate) : nil
     end
 
     def follower_count

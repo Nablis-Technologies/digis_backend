@@ -36,14 +36,6 @@ module Organizations
       attribute :banner_url do
         object.banner.attached? ? url_for(object.banner) : nil
       end
-
-      attribute :business_license_url do
-        object.business_license.attached? ? url_for(object.business_license) : nil
-      end
-
-      attribute :tin_certificate_url do
-        object.tin_certificate.attached? ? url_for(object.tin_certificate) : nil
-      end
     end
   end
 end

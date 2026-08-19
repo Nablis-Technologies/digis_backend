@@ -41,7 +41,6 @@ module Organizations
       },
       show: {
         default: { fields: %i[id name slug description profile_url banner_url
-                              business_license_url tin_certificate_url
                               social_links follower_count memberships_count
                               organizer_type category contact_phone contact_email website_url
                               tin_number address_line1 address_line2 city region

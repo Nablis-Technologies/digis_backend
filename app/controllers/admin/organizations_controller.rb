@@ -8,6 +8,8 @@ module Admin
 
     auditable on: %i[create update destroy transfer_ownership]
 
+    before_action :set_download_object, only: :download
+
     def create
       unless params.dig(:organization, :owner_id)
         return render_error(:"admin.organizations.errors.owner_id_required",
@@ -19,6 +21,16 @@ module Admin
     def destroy
       @obj.memberships.delete_all
       super
+    end
+
+    # Private verification documents are delivered only after authorization;
+    # the signed redirect is intentionally absent from organization JSON.
+    def download
+      authorize @obj, :download_documents?
+      attachment = document_attachment
+      return render_error(I18n.t("organization.errors.document_not_found"), status: :not_found) unless attachment&.attached?
+
+      redirect_to rails_blob_url(attachment, disposition: "inline", expires_in: 5.minutes)
     end
 
     def transfer_ownership
@@ -91,6 +103,17 @@ module Admin
         :estimated_audience, :event_frequency,
         social_links: {}
       )
+    end
+
+    def document_attachment
+      case params[:document_type]
+      when "business_license" then @obj.business_license
+      when "tin_certificate" then @obj.tin_certificate
+      end
+    end
+
+    def set_download_object
+      set_object
     end
 
     def after_create_hook(organization)

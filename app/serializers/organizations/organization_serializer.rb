@@ -8,9 +8,9 @@ module Organizations
                :contact_phone, :contact_email, :website_url,
                :tin_number, :address_line1, :address_line2, :city, :region,
                :estimated_audience, :event_frequency,
-                :events_count, :follower_count, :memberships_count,
+               :events_count, :follower_count, :memberships_count,
                 :verified, :is_following,
-                :created_at
+               :created_at
 
     attribute :follower_count do
       object.followers_count
@@ -38,14 +38,6 @@ module Organizations
 
     attribute :banner_url do
       object.banner.attached? ? url_for(object.banner) : nil
-    end
-
-    attribute :business_license_url do
-      object.business_license.attached? ? url_for(object.business_license) : nil
-    end
-
-    attribute :tin_certificate_url do
-      object.tin_certificate.attached? ? url_for(object.tin_certificate) : nil
     end
   end
 end

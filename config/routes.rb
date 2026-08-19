@@ -304,6 +304,7 @@ Rails.application.routes.draw do
     resources :organizations, except: %i[new edit] do
       member do
         post :transfer_ownership
+        get "documents/:document_type", to: "organizations#download", as: :download_document
       end
       resources :memberships, only: %i[index show create update destroy]
     end
