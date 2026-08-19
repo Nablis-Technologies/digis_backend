@@ -6,10 +6,8 @@ module Links
   class Create < Core::BaseService
     def initialize(creator:, slug:, target_type: nil, target_id: nil, custom_url: nil,
       canonical: false, expires_at: nil, max_clicks: nil, utm_source: nil,
-      utm_medium: nil, utm_campaign: nil, system: false, target: nil)
+      utm_medium: nil, utm_campaign: nil)
       @creator = creator
-      @system = system
-      @target = target
       @attributes = {
         slug:, target_type:, target_id:, custom_url:, creator_id: creator&.id,
         canonical:, expires_at:, max_clicks:, click_count: 0,
@@ -22,8 +20,7 @@ module Links
 
       link = Links::ShortLink.new(@attributes)
       policy = Links::ShortLinkPolicy.new(@creator, link)
-      return failure(error(:unauthorized, :forbidden)) unless policy.create?(system: @system)
-      return failure(error(:target_not_found, :unprocessable_entity)) if link.internal_target? && target_location.nil?
+      return failure(error(:unauthorized, :forbidden)) unless policy.create?
 
       link.save!
       success(link)
@@ -37,14 +34,6 @@ module Links
 
     def enabled?
       Rails.application.config.x.short_links.enabled
-    end
-
-    def target_location
-      return @target if @target
-
-      @target_location ||= TargetResolver.call(@attributes[:target_type], @attributes[:target_id])
-    rescue Core::Error
-      nil
     end
 
     def error(key, status, errors: nil)
