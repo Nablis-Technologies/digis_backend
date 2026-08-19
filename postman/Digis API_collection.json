@@ -8553,6 +8553,28 @@
               ]
             },
             {
+              "name": "Download Verification Document",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/organizations/{{organizationId}}/documents/{{documentType}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "organizations",
+                    "{{organizationId}}",
+                    "documents",
+                    "{{documentType}}"
+                  ]
+                }
+              },
+              "description": "Download a private business_license or tin_certificate. Requires a platform-admin role; the response redirects to a five-minute signed delivery URL.",
+              "response": []
+            },
+            {
               "name": "Create Organization",
               "request": {
                 "method": "POST",
@@ -9093,6 +9115,13 @@
                   }
                 }
               ]
+            }
+          ],
+          "variable": [
+            {
+              "key": "documentType",
+              "value": "business_license",
+              "type": "string"
             }
           ]
         },
