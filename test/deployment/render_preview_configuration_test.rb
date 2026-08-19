@@ -121,7 +121,12 @@ class RenderPreviewConfigurationTest < ActiveSupport::TestCase
     entrypoint = Rails.root.join("bin/docker-entrypoint").read
 
     assert_includes entrypoint, 'if [ "${RENDER_PREVIEW}" == "true" ]; then'
+    assert_includes entrypoint, "./bin/rails db:migrate"
     assert_includes entrypoint, "./bin/rails db:seed"
+    assert_operator entrypoint.index("./bin/rails db:migrate"), :<,
+                    entrypoint.index('prepare_preview_schema "queue"')
+    assert_operator entrypoint.index('prepare_preview_schema "cable"'), :<,
+                    entrypoint.index("./bin/rails db:seed")
   end
 
   test "production URL defaults are environment-backed" do

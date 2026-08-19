@@ -35,6 +35,13 @@ module Orders
       assert_includes missing_signature.errors.attribute_names, :commercial_signature
     end
 
+    test "allows a provider attempt before a hosted checkout URL exists" do
+      payment = Orders::Payment.new(payment_attributes)
+
+      assert_predicate payment, :valid?, payment.errors.full_messages
+      assert_nil payment.checkout_url
+    end
+
     test "allows compatible cross-provider retries with the same commercial signature" do
       first = Orders::Payment.create!(payment_attributes(provider: "chapa", payment_method: "telebirr"))
       retry_payment = Orders::Payment.new(
