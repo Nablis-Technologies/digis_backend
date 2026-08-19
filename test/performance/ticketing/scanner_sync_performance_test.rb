@@ -8,6 +8,11 @@ module Ticketing
     class ScannerSyncPerformanceTest < ActiveSupport::TestCase
       CONTRACT_PATH = Rails.root.join("test/fixtures/files/ticketing/scanner_sync_contract_v1.json")
 
+      setup do
+        skip "set EVENT_PLATFORM_PERFORMANCE=1 to run throughput benchmarks" unless
+          ENV["EVENT_PLATFORM_PERFORMANCE"] == "1"
+      end
+
       test "serializes a production-shaped 50K attendee snapshot within the contract budget" do
         contract = load_contract
         count = contract.dig(:performance, :snapshot_attendee_entries)
@@ -18,6 +23,21 @@ module Ticketing
         elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
 
         assert_equal count, @snapshot.fetch("attendee_index").fetch("changed").length
+        assert_operator elapsed, :<, snapshot_budget(contract)
+      end
+
+      test "serializes a production-shaped 50K attendee delta within the contract budget" do
+        contract = load_contract
+        count = contract.dig(:performance, :snapshot_attendee_entries)
+        payload = payload_with_attendee_entries(contract.fetch(:sample_payload), count)
+                       .merge(sync_mode: "delta")
+
+        started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        @delta = Ticketing::ScannerSyncSerializer.call(payload)
+        elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
+
+        assert_equal "delta", @delta.fetch("sync_mode")
+        assert_equal count, @delta.fetch("attendee_index").fetch("changed").length
         assert_operator elapsed, :<, snapshot_budget(contract)
       end
 
