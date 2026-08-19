@@ -24,8 +24,9 @@ module Streaming
       return failure(error(:stream_date_inactive, :conflict)) unless @event_stream.event_date.status.in?(%w[scheduled completed])
 
       generation = @ticket.current_credential_generation
-      return failure(error(:stream_not_authorized, :forbidden)) unless requester_matches_generation?(generation)
-      return failure(error(:credential_not_active, :conflict)) unless current_credential?(generation)
+      credential_error = credential_error_for(generation)
+      return failure(error(credential_error, :forbidden)) if credential_error == :stream_not_authorized
+      return failure(error(credential_error, :conflict)) if credential_error
       return failure(error(:credential_date_revoked, :conflict)) unless generation.allows_event_date?(@event_stream.event_date_id)
 
       product_access = stream_access
@@ -43,28 +44,23 @@ module Streaming
       @ticket.event_id == @event_stream.event_date.event_id
     end
 
-    def current_credential?(generation)
-      return false unless generation&.status == "active"
+    def credential_error_for(generation)
+      return :stream_not_authorized unless generation
 
       credentials = generation.credentials
       if generation.mode == "group"
-        return false unless @ticket.owner_user_id == @user.id
+        return :stream_not_authorized unless @ticket.owner_user_id == @user.id
+        return :credential_not_active unless generation.status == "active"
 
-        credentials.any? { |credential| credential.type == "package" && credential.status == "active" }
+        return nil if credentials.any? { |credential| credential.type == "package" && credential.status == "active" }
       else
-        credentials.any? do |credential|
-          credential.type == "individual" &&
-            credential.status == "active" &&
-            credential.holder_user_id == @user.id
-        end
+        holder_credential = credentials.find { |credential| credential.holder_user_id == @user.id }
+        return :stream_not_authorized unless holder_credential
+        return :credential_not_active unless generation.status == "active"
+        return nil if holder_credential.type == "individual" && holder_credential.status == "active"
       end
-    end
 
-    def requester_matches_generation?(generation)
-      return false unless generation
-      return @ticket.owner_user_id == @user.id if generation.mode == "group"
-
-      generation.credentials.any? { |credential| credential.holder_user_id == @user.id }
+      :credential_not_active
     end
 
     def stream_access
