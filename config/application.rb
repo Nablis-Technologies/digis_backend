@@ -41,6 +41,7 @@ module DigisBackend
     config.i18n.load_path |= Dir[Rails.root.join("config/locales/**/*.yml")]
 
     config.x.outbox_handlers = {}
+    config.x.outbox_namespace_handlers = {}
 
     # Application-level encryption (Active Record Encryption). Keys are sourced
     # from the environment and never committed. In test we fall back to stable
