@@ -52,6 +52,20 @@ module Streaming
         assert_equal "stream_session_invalid", result.error.code
       end
 
+      test "uses the injected clock when expiring a session" do
+        result = Refresh.call(
+          session: @session,
+          session_token: @session_token,
+          user: @stream_buyer,
+          now: @now + 3.minutes,
+          idempotency_key: "stream-refresh:future-expiry:#{@session.id}"
+        )
+
+        assert_predicate result, :failure?
+        assert_equal "stream_session_expired", result.error.code
+        assert_equal "expired", @session.reload.status
+      end
+
       test "revokes a session idempotently" do
         first = Revoke.call(
           session: @session, session_token: @session_token, user: @stream_buyer, now: @now,
