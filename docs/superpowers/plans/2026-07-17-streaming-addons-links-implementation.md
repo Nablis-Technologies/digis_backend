@@ -497,11 +497,6 @@ git commit -m "feat(streaming): revoke sessions on lifecycle changes"
 **Files:**
 - Create: `app/services/catalog/add_ons/validate_product.rb`
 - Create: `app/services/orders/fulfillment/fulfill_add_on.rb`
-- Create: `app/services/orders/fulfillment/add_on_registry.rb`
-- Create: `app/services/orders/fulfillment/merchandise.rb`
-- Create: `app/services/orders/fulfillment/food.rb`
-- Create: `app/services/orders/fulfillment/donation.rb`
-- Create: `app/services/orders/fulfillment/digital_add_on.rb`
 - Create: `config/locales/catalog/add_ons.en.yml`
 - Create: `config/locales/orders/fulfillment.en.yml`
 - Test: `test/services/catalog/add_ons/validate_product_test.rb`
@@ -535,62 +530,25 @@ Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/catalo
 Verified RED after correcting the dynamic paid-order setup: 10 tests, 0
 assertions, 0 failures, and 10 expected missing-implementation errors.
 
-- [x] **Step 3: GREEN — dispatch explicit handlers and return the order item**
+- [x] **Step 3: GREEN — validate supported types and return the order item**
 
 ```ruby
-module Orders
-  module Fulfillment
-    class AddOnRegistry
-      HANDLERS = {
-        "merchandise" => Merchandise,
-        "food" => Food,
-        "donation" => Donation,
-        "digital_addon" => DigitalAddOn
-      }.freeze
+validation = Catalog::AddOns::ValidateProduct.call(product: item.event_product)
+return failure(validation.error) if validation.failure?
 
-      def self.fetch(type)
-        HANDLERS[type.to_s]
-      end
-    end
-
-    class FulfillAddOn < Core::BaseService
-      def initialize(order_item:, idempotency_key:)
-        @order_item = order_item
-        @idempotency_key = Core::IdempotencyKey.new(idempotency_key)
-      end
-
-      def call
-        ActiveRecord::Base.transaction do
-          item = Orders::OrderItem.includes(:order, :event_product).lock.find(@order_item.id)
-          return success(item) if item.fulfilled?
-          return failure(error(:item_not_pending)) unless item.fulfillment_status == "pending"
-          return failure(error(:order_not_paid)) unless item.order.paid?
-
-          validation = Catalog::AddOns::ValidateProduct.call(product: item.event_product)
-          return failure(validation.error) if validation.failure?
-
-          handler = AddOnRegistry.fetch(item.event_product.type)
-          return failure(error(:unsupported_add_on_type)) unless handler
-
-          result = handler.call(order_item: item, idempotency_key: @idempotency_key.to_s)
-          return result if result.failure?
-
-          item.update!(fulfillment_status: "fulfilled")
-          success(item)
-        end
-      end
-    end
-  end
-end
+item.update!(fulfillment_status: "fulfilled")
+success(item)
 ```
 
 There is no invented generic fulfillment association/table, fulfilled timestamp,
 or partial-quantity counter. The existing `fulfillment_status` on the immutable
 order item is the command result and whole-item idempotency boundary. The
-command requires a paid order and pending item, then locks the item, dispatches
-an explicit handler, and marks only that status. Parking is absent because Task
-5 uses package issuance. `other` requires an explicitly registered handler;
-database input is never constantized.
+command requires a paid order and pending item, validates the explicit
+noncredential type, then locks and fulfills the item directly. Real per-type
+delivery behavior should introduce a handler only when that behavior exists.
+Parking is absent because Task 5 uses package issuance, and `other` remains
+rejected by the explicit supported-type validator. Database input is never
+constantized.
 
 - [x] **Step 4: Run GREEN**
 
@@ -604,8 +562,8 @@ failures and zero errors under `N_PLUS_ONE=1`.
 
 - [x] **Step 5: REFACTOR — extract only repeated immutable side-effect evidence**
 
-Keep delivery-specific logic in handlers and use the existing order-item
-`fulfillment_status` per the Orders plan. Noncredential add-ons never create
+Use the existing order-item `fulfillment_status` per the Orders plan.
+Noncredential add-ons never create
 tickets, credentials, QR/PNR values, or a parallel fulfillment table.
 
 - [ ] **Step 6: Commit — user-owned**
@@ -825,6 +783,7 @@ This task owns append-only `links_short_link_clicks`; redirects never require a 
 
 **Files:**
 - Create: `app/jobs/links/backfill_canonical_links_job.rb`
+- Create: `app/services/links/backfill_canonical.rb`
 - Create: `app/jobs/links/purge_expired_clicks_job.rb`
 - Modify: `app/services/links/create.rb`
 - Modify: `app/policies/links/short_link_policy.rb`
@@ -849,8 +808,9 @@ two jobs were missing.
 - [x] **Step 3: GREEN — process bounded Solid Queue batches**
 
 Backfill uses bounded `in_batches`, preloads canonical target IDs per batch,
-and calls `Links::Create` with an explicit system-only permission that accepts
-only canonical internal targets. It preserves existing canonical links and
+and delegates one allowlisted target to the dedicated internal
+`Links::BackfillCanonical` command. User-created links remain behind the normal
+authorization boundary. The command preserves existing canonical links and
 retries slug collisions using deterministic target-ID suffixes. Purge deletes
 only click details older than the bounded retention window, leaves target and
 aggregate counter data untouched, and runs through Solid Queue’s recurring
@@ -874,7 +834,7 @@ when branded-link resolution is disabled, and the purge schedule is explicit.
 - [ ] **Step 6: Commit — user-owned**
 
 ```bash
-git add app/jobs/links app/services/links/create.rb app/policies/links/short_link_policy.rb config/recurring.yml test/jobs/links docs/superpowers/plans/2026-07-17-streaming-addons-links-implementation.md
+git add app/jobs/links app/services/links app/policies/links/short_link_policy.rb config/recurring.yml test/jobs/links docs/superpowers/plans/2026-07-17-streaming-addons-links-implementation.md
 git commit -m "feat(links): backfill canonical links safely"
 ```
 
