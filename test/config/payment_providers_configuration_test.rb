@@ -19,7 +19,7 @@ class PaymentProvidersConfigurationTest < ActiveSupport::TestCase
       "CHAPA_WEBHOOK_SECRET" => "webhook-secret",
       "RENDER_PREVIEW" => "true"
     ) do
-      load Rails.root.join("config/initializers/payment_providers.rb")
+      Payments::Providers::Registration.call(env: ENV)
     end
 
     adapter = Payments::Providers::Registry.fetch("chapa")
@@ -36,7 +36,7 @@ class PaymentProvidersConfigurationTest < ActiveSupport::TestCase
         "CHAPA_WEBHOOK_SECRET" => "webhook-secret",
         "RENDER_PREVIEW" => "true"
       ) do
-        load Rails.root.join("config/initializers/payment_providers.rb")
+        Payments::Providers::Registration.call(env: ENV)
       end
     end
   end
