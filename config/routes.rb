@@ -244,6 +244,8 @@ Rails.application.routes.draw do
   end
 
   namespace :admin do
+    get "system/readiness", to: "system/readiness#show"
+
     namespace :marketplace do
       resources :seller_payouts, only: %i[index show], controller: "seller_payouts" do
         post :dispatch, on: :member, action: :dispatch_payout
