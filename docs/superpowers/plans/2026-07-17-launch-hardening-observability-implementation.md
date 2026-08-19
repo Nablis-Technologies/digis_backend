@@ -549,7 +549,7 @@ actually processes more than 1,000 rows.
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/performance/public_event_catalog_test.rb test/performance/order_checkout_test.rb
-EVENT_PLATFORM_PERFORMANCE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/performance/scanner_sync_test.rb test/performance/webhook_ingestion_test.rb
+EVENT_PLATFORM_PERFORMANCE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/performance/ticketing/scanner_sync_performance_test.rb test/performance/webhook_ingestion_test.rb
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails runner script/explain_event_platform_indexes
 ```
 
@@ -561,7 +561,9 @@ full suite passed 2,737 tests and 11,475 assertions with zero failures and zero
 errors under `N_PLUS_ONE=1`; RuboCop, Zeitwerk, the index-plan script, and diff
 checks also passed.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
+
+Committed across the performance implementation commits ending at `7997784`.
 
 ```bash
 git add \
@@ -588,11 +590,26 @@ git commit -m "test(platform): add launch performance budgets"
 - Create: `docs/runbooks/payout-hold-and-reconciliation.md`
 - Create: `docs/runbooks/backup-restore-and-disaster-recovery.md`
 
-- [ ] **Step 1: Give every runbook the same executable structure**
+- [x] **Step 1: Give every runbook the same executable structure**
 
 Each runbook states detection signal, severity, authority required, safe immediate action, prohibited action, diagnostic queries, reconciliation command, attendee/organizer communication owner, recovery verification, and audit evidence. Commands must be idempotent domain commands or read-only Rails runner queries; no direct financial or ticket-state SQL updates.
 
+Added seven runbooks covering provider outages, webhook delays/duplicates,
+refund liquidity, event cancellation, offline scanner compromise, payout
+reconciliation, and backup/restore disaster recovery. The scanner runbook
+records the current gap that token rotation exists but a dedicated device
+revocation command/API does not yet exist.
+
 - [ ] **Step 2: Exercise failure drills in staging**
+
+The runbook drill procedures are documented but not marked complete: they must
+be executed against the deployed staging environment and recorded with the
+expected audit, reconciliation, scanner-sync, and restore evidence.
+
+Local recovery-path verification is green: 48 tests and 220 assertions passed
+with `N_PLUS_ONE=1`, covering webhook processing, outbox recovery, refunds,
+cancellation batches, scanner token/key/revocation recovery, and reconciliation
+domain jobs. This is not staging evidence and does not complete this step.
 
 Run and record:
 
