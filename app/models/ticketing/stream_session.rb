@@ -31,12 +31,12 @@ module Ticketing
       Core::KeyedDigest.digest(namespace: "streaming-session", value: token)
     end
 
-    def active?
-      status == "active" && expires_at.present? && expires_at > Time.current
+    def active?(at: Time.current)
+      status == "active" && expires_at.present? && expires_at > at
     end
 
-    def expired?
-      status == "expired" || (expires_at.present? && expires_at <= Time.current)
+    def expired?(at: Time.current)
+      status == "expired" || (expires_at.present? && expires_at <= at)
     end
 
     def revoked?
