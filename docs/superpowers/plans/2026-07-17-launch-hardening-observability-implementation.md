@@ -467,7 +467,9 @@ errors under `N_PLUS_ONE=1`. Brakeman 8.0.6 reported zero security warnings,
 Bundler Audit reported no vulnerabilities, RuboCop reported no offenses, and
 Zeitwerk, routes, locale, Postman JSON, and diff checks passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
+
+Committed across `1d7cffc`, `beb13ad`, `b11d615`, `b2dfb35`, and `f6c700c`.
 
 ```bash
 git add \
@@ -495,28 +497,55 @@ git commit -m "test(platform): enforce launch security boundaries"
 **Files:**
 - Create: `test/performance/public_event_catalog_test.rb`
 - Create: `test/performance/order_checkout_test.rb`
-- Create: `test/performance/scanner_sync_test.rb`
+- Modify: `test/performance/ticketing/scanner_sync_performance_test.rb`
 - Create: `test/performance/webhook_ingestion_test.rb`
+- Create: `test/support/performance_query_helpers.rb`
 - Create: `script/explain_event_platform_indexes`
 - Create: `docs/operations/performance-budgets.md`
+- Modify: `app/controllers/events/public_events_controller.rb`
 
-- [ ] **Step 1: Define measured budgets before optimizing**
+- [x] **Step 1: Define measured budgets before optimizing**
 
 Document explicit launch budgets for public event list/detail query counts, organizer attendee pagination, checkout database time, webhook ingestion, scanner full snapshot generation, scanner delta generation, scan-upload batch size, and reconciliation batch size. Record fixture scale, machine profile, warm/cold state, and percentile method. Budgets are release gates only after they have been measured in a production-like environment.
 
-- [ ] **Step 2: Add deterministic query-count tests**
+Added `docs/operations/performance-budgets.md` with the query, throughput,
+fixture, machine, warm/cold, percentile, and index-plan methodology. Existing
+scanner contract limits are reused instead of inventing a second contract.
+
+- [x] **Step 2: Add deterministic query-count tests**
 
 Seed events with occurrences, venue/online access, cover plus ordered gallery, categories, products, price components, inventory pools, and collaborators. Assert bounded query counts as the collection grows. Use Prosopite for N+1 detection; do not assert wall-clock time in normal CI.
 
-- [ ] **Step 3: Add opt-in throughput harnesses**
+Added the public event index/detail and checkout query-budget tests. Public
+event detail now preloads categories, dates, collaborators, streams, and
+Active Storage media blobs; the new test reproduced the media/blob N+1 before
+that eager-load fix. Query counts use uncached SQL notifications while
+`N_PLUS_ONE=1` keeps Prosopite active.
 
-The scanner harness creates at least 50,000 attendee/package records and measures compressed full/delta payload size and generation time. The webhook harness sends duplicate and out-of-order batches. Tag these as opt-in performance tests so ordinary unit CI remains fast, while the production-candidate pipeline runs them on a fixed machine class.
+- [x] **Step 3: Add opt-in throughput harnesses**
 
-- [ ] **Step 4: Capture index plans**
+The scanner harness models at least 50,000 persisted-shaped attendee/package
+projection records and measures full/delta payload size and generation time;
+the database-backed 50K fixture remains a production-candidate follow-up when
+the fixed machine and representative database snapshot are available. The
+webhook harness sends duplicate and out-of-order batches. Tag these as opt-in
+performance tests so ordinary unit CI remains fast, while the
+production-candidate pipeline runs them on a fixed machine class.
+
+The existing production-shaped 50,000-entry/500-upload serializer harness is
+now opt-in, and the webhook harness sends 500 reverse-ordered events plus 20
+duplicates. The normal performance test run skips both workloads; the opt-in
+run passed all three heavy checks.
+
+- [x] **Step 4: Capture index plans**
 
 `script/explain_event_platform_indexes` must run `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` for browse, inventory reservation, idempotency lookup, admission first-scan, credential revocation delta, settlement ledger, and active resale listing queries. Fail the release review—not ordinary unit CI—when a critical query unexpectedly becomes a sequential scan at the documented dataset size.
 
-- [ ] **Step 5: Run query tests and the opt-in harness**
+Added and validated the executable index-plan script. It emits JSON summaries
+and only fails with `EVENT_PLATFORM_PERFORMANCE=1` when a sequential scan
+actually processes more than 1,000 rows.
+
+- [x] **Step 5: Run query tests and the opt-in harness**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/performance/public_event_catalog_test.rb test/performance/order_checkout_test.rb
@@ -524,10 +553,27 @@ EVENT_PLATFORM_PERFORMANCE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails te
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails runner script/explain_event_platform_indexes
 ```
 
+Verified: deterministic performance tests passed 6 tests, 13 assertions, and
+the normal run skipped only the three opt-in throughput cases. The opt-in run
+passed four tests and 534 assertions, including 50K full/delta scanner
+serialization and the 500-event webhook batch with duplicate retries. The
+full suite passed 2,737 tests and 11,475 assertions with zero failures and zero
+errors under `N_PLUS_ONE=1`; RuboCop, Zeitwerk, the index-plan script, and diff
+checks also passed.
+
 - [ ] **Step 6: Commit**
 
 ```bash
-git add test/performance script/explain_event_platform_indexes docs/operations/performance-budgets.md
+git add \
+  app/controllers/events/public_events_controller.rb \
+  docs/operations/performance-budgets.md \
+  docs/superpowers/plans/2026-07-17-launch-hardening-observability-implementation.md \
+  script/explain_event_platform_indexes \
+  test/performance/order_checkout_test.rb \
+  test/performance/public_event_catalog_test.rb \
+  test/performance/ticketing/scanner_sync_performance_test.rb \
+  test/performance/webhook_ingestion_test.rb \
+  test/support/performance_query_helpers.rb
 git commit -m "test(platform): add launch performance budgets"
 ```
 
