@@ -5,34 +5,47 @@ require "test_helper"
 module Payments
   module Providers
     class AdapterContractTest < ActiveSupport::TestCase
+      include PaymentProviderContract
+
       class FakeClient
+        def initialize(outcomes: {}, available_balance: { amount_minor: 10_000, currency: "ETB" })
+          @outcomes = outcomes.transform_values { |values| Array(values).dup }
+          @available_balance = available_balance
+        end
+
         def verify_webhook(**)
           true
         end
 
         def create(**)
-          { status: "paid", provider_reference: "chapa-ref", provider_fee_minor: 75,
-            provider_fee_currency: "ETB", raw_status: "paid" }
+          next_outcome(:create) || { status: "paid", provider_reference: "chapa-ref", provider_fee_minor: 75,
+                                     provider_fee_currency: "ETB", raw_status: "paid" }
         end
 
         def cancel(**)
-          { status: "cancelled", raw_status: "cancelled" }
+          next_outcome(:cancel) || { status: "cancelled", raw_status: "cancelled" }
         end
 
         def verify(**)
-          { status: "pending", raw_status: "pending" }
+          next_outcome(:verify) || { status: "pending", raw_status: "pending" }
         end
 
         def refund(**)
-          { status: "success", provider_reference: "refund-ref", raw_status: "refunded" }
+          next_outcome(:refund) || { status: "success", provider_reference: "refund-ref", raw_status: "refunded" }
         end
 
         def verify_refund(**)
-          { status: "timeout", raw_status: "timeout" }
+          next_outcome(:verify_refund) || { status: "timeout", raw_status: "timeout" }
         end
 
         def available_balance(**)
-          { amount_minor: 10_000, currency: "ETB" }
+          @available_balance
+        end
+
+        private
+
+        def next_outcome(operation)
+          @outcomes.fetch(operation, []).shift
         end
       end
 
@@ -103,6 +116,54 @@ module Payments
         assert_predicate result, :failure?
         assert_equal "commercial_requote_required", result.error.code
         assert_equal :conflict, result.error.status
+      end
+
+      private
+
+      def build_adapter(outcomes: {}, capabilities: {}, available_balance: { amount_minor: 10_000, currency: "ETB" })
+        ChapaAdapter.new(
+          client: FakeClient.new(outcomes:, available_balance:),
+          capabilities:
+        )
+      end
+    end
+
+    class FakePaymentProviderTest < ActiveSupport::TestCase
+      include PaymentProviderContract
+
+      test "records requests by idempotency key and returns queued outcomes" do
+        provider = FakePaymentProvider.new(
+          outcomes: { create: [ Result.success(provider_reference: "accepted-ref") ] }
+        )
+
+        result = provider.create(
+          idempotency_key: "attempt-key",
+          amount_minor: 1_000,
+          currency: "ETB"
+        )
+
+        assert_equal "success", result.status
+        assert_equal "accepted-ref", result.provider_reference
+        assert_equal [
+          { idempotency_key: "attempt-key", amount_minor: 1_000, currency: "ETB" }
+        ], provider.requests_for("attempt-key")
+      end
+
+      test "keeps a timeout a timeout instead of inferring provider success" do
+        provider = FakePaymentProvider.new(
+          outcomes: { create: [ Result.timeout(raw_status: "gateway_timeout") ] }
+        )
+
+        result = provider.create(idempotency_key: "timeout-key")
+
+        assert_predicate result, :timeout?
+        assert_nil result.provider_reference
+      end
+
+      private
+
+      def build_adapter(**options)
+        FakePaymentProvider.new(**options)
       end
     end
   end
