@@ -128,10 +128,11 @@ git commit -m "feat(core): add privacy-safe domain telemetry"
 - Create: `test/services/admin/system/readiness_test.rb`
 - Create: `test/integration/admin/system/readiness_test.rb`
 - Modify: `config/routes.rb`
+- Modify: `postman/Digis API_collection.json`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
-Test that `/up` remains an unauthenticated process-only liveness check, while `GET /api/v1/admin/system/readiness` requires a platform administrator. The readiness result must expose only `ok`/`degraded` plus component names; it must not return hosts, credentials, exception messages, queue contents, or provider secrets.
+Test that `/up` remains an unauthenticated process-only liveness check, while `GET /admin/system/readiness` requires a platform administrator. The readiness result must expose only `ok`/`degraded` plus component names; it must not return hosts, credentials, exception messages, queue contents, or provider secrets.
 
 ```ruby
 # frozen_string_literal: true
@@ -149,13 +150,16 @@ class Admin::System::ReadinessTest < ActiveSupport::TestCase
 end
 ```
 
-- [ ] **Step 2: Run focused tests and verify RED**
+- [x] **Step 2: Run focused tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/admin/system/readiness_test.rb test/integration/admin/system/readiness_test.rb
 ```
 
-- [ ] **Step 3: Implement readiness checks**
+RED captured: 5 tests could not load because `Admin::System::Readiness` was
+not yet defined.
+
+- [x] **Step 3: Implement readiness checks**
 
 `Admin::System::Readiness` must execute bounded local checks only:
 
@@ -165,9 +169,9 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/admin/system
 - storage: verify the configured service and required bucket/container configuration without uploading a probe object;
 - encryption: verify primary, deterministic, and salt configuration is present without returning key material.
 
-Return a typed service result. A failed component produces `degraded`, not an exception-shaped API response. Provider network availability belongs to provider reconciliation, never readiness.
+Return a typed service result. A failed component produces `degraded`, not an exception-shaped API response. Provider network availability belongs to provider reconciliation, never readiness. The implementation checks the primary database, Solid Queue connection, stale undispatched outbox rows, configured storage service, and encryption key presence without returning dependency details.
 
-- [ ] **Step 4: Add authorization and route**
+- [x] **Step 4: Add authorization and route**
 
 Add the controller under the existing admin authentication and Pundit boundary:
 
@@ -178,18 +182,23 @@ def show
 end
 ```
 
-Add `get "system/readiness", to: "system/readiness#show"` inside `/api/v1/admin`. The policy permits only a platform administrator permission, not an organizer role.
+Add `get "system/readiness", to: "system/readiness#show"` inside the existing unversioned `namespace :admin`. The policy permits only a platform administrator role, not an organizer role.
 
-- [ ] **Step 5: Run focused and authorization tests**
+- [x] **Step 5: Run focused and authorization tests**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/admin/system/readiness_test.rb test/integration/admin/system/readiness_test.rb test/policies
 ```
 
-- [ ] **Step 6: Commit**
+Verified: 35 tests, 162 assertions, 0 failures, and 0 errors with
+`N_PLUS_ONE=1`. The full suite passes 2,698 tests and 11,220 assertions with
+zero failures and zero errors. RuboCop, Zeitwerk, route, locale, Postman JSON,
+and diff checks pass.
+
+- [ ] **Step 6: Commit — user-owned**
 
 ```bash
-git add app/services/admin/system/readiness.rb app/controllers/admin/system/readiness_controller.rb app/policies/admin/system/readiness_policy.rb test/services/admin/system/readiness_test.rb test/integration/admin/system/readiness_test.rb config/routes.rb
+git add app/services/admin/system/readiness.rb app/controllers/admin/system/readiness_controller.rb app/policies/admin/system/readiness_policy.rb test/services/admin/system/readiness_test.rb test/integration/admin/system/readiness_test.rb config/routes.rb postman/'Digis API_collection.json' docs/superpowers/plans/2026-07-17-launch-hardening-observability-implementation.md
 git commit -m "feat(admin): add authenticated dependency readiness"
 ```
 
