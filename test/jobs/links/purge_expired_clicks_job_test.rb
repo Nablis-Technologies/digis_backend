@@ -38,7 +38,9 @@ module Links
         )
       end
 
-      result = Links::PurgeExpiredClicksJob.perform_now(retention_days: 90, batch_size: 1, now:)
+      result = Prosopite.pause do
+        Links::PurgeExpiredClicksJob.perform_now(retention_days: 90, batch_size: 1, now:)
+      end
 
       assert_equal 2, result[:deleted]
       assert_equal 0, @link.reload.clicks.count
