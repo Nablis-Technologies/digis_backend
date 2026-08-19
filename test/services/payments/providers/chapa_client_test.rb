@@ -59,6 +59,32 @@ module Payments
         assert_equal "0911000000", payload.fetch("phone_number")
       end
 
+      test "keeps hosted checkout initialization pending until payment confirmation" do
+        transport = FakeTransport.new(
+          Response.new(
+            status: 200,
+            body: {
+              status: "success",
+              data: {
+                checkout_url: "https://checkout.chapa.test/attempt-pending"
+              }
+            }
+          )
+        )
+
+        result = build_client(transport:).create(
+          amount_minor: 1_000,
+          currency: "ETB",
+          idempotency_key: "attempt-pending",
+          email: "buyer@example.com",
+          phone_number: "+251911000000"
+        )
+
+        assert_predicate result, :unknown?
+        assert_equal "initialized", result.raw_status
+        assert_equal "https://checkout.chapa.test/attempt-pending", result.checkout_url
+      end
+
       test "verifies a payment and normalizes the provider fee" do
         transport = FakeTransport.new(
           Response.new(

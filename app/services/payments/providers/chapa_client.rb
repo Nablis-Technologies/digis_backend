@@ -116,13 +116,14 @@ module Payments
         status = "failure" if status == false
         failure_code = failure_code_for(status, data, response.body)
         log_provider_failure(response, status, failure_code)
+        hosted_checkout = checkout_url && data[:checkout_url].present?
         Result.new(
-          status: status || "unknown",
+          status: hosted_checkout ? "pending" : (status || "unknown"),
           provider_reference: data[:tx_ref].presence || data[:ref_id].presence || data[:reference],
           failure_code:,
           provider_fee_minor: minor_amount(data[:charge]),
           provider_fee_currency: data[:currency],
-          raw_status: status,
+          raw_status: hosted_checkout ? "initialized" : status,
           checkout_url: checkout_url ? data[:checkout_url] : nil
         )
       end
