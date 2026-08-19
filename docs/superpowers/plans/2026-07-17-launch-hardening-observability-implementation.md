@@ -295,9 +295,9 @@ git commit -m "feat(operations): reconcile uncertain domain state"
 **Files:**
 - Create: `test/support/contracts/payment_provider_contract.rb`
 - Create: `test/support/fakes/fake_payment_provider.rb`
-- Modify: provider adapter tests created by the payments and refunds plans
+- Modify: `test/services/payments/providers/adapter_contract_test.rb`
 
-- [ ] **Step 1: Define the shared contract cases**
+- [x] **Step 1: Define the shared contract cases**
 
 Every payment/refund adapter test must include the same contract covering:
 
@@ -312,28 +312,38 @@ Every payment/refund adapter test must include the same contract covering:
 - provider success after the local order expired;
 - reconciliation returning `unknown` repeatedly and later resolving.
 
-The fake stores requests by the platform idempotency key and allows tests to enqueue outcomes. It never infers success from an HTTP timeout.
+The shared contract follows the existing `Payments::Providers::Result` boundary: normalized status, provider reference, failure code, provider fee evidence, and raw provider status. It also covers required operations, rejection, timeout before/after a provider reference, repeated unknown verification followed by resolution, refund fee evidence, refund capabilities, and liquidity. Order acceptance, webhook deduplication/order races, and refund state transitions remain covered by their existing Orders service and integration tests rather than being duplicated at the adapter boundary.
 
-- [ ] **Step 2: Run one adapter without the contract and verify RED**
+The fake stores requests by the platform idempotency key and allows tests to enqueue outcomes. It never infers success from an HTTP timeout; an unconfigured operation returns `unknown`.
+
+- [x] **Step 2: Run one adapter without the contract and verify RED**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/adapters/payments
+PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/payments/providers/adapter_contract_test.rb
 ```
 
-- [ ] **Step 3: Include the contract in every provider adapter test**
+RED captured with 2 missing-fake errors after the new contract tests loaded, while the existing Chapa adapter contract remained green.
 
-Require adapters to return a common result with `status`, `provider_reference`, `provider_idempotency_key`, `amount_minor`, `currency`, and sanitized `raw_code`. Provider-specific payloads remain encrypted or access-controlled evidence and are never copied to API responses.
+- [x] **Step 3: Include the contract in every provider adapter test**
 
-- [ ] **Step 4: Run all adapter and webhook tests**
+Included the shared contract in the repository's payment adapter contract test and added the deterministic fake. The contract deliberately preserves the existing Orders/Refunds result shape; it does not introduce unused `provider_idempotency_key`, `amount_minor`, `currency`, or `raw_code` fields into the result object. Provider-specific payloads remain outside the normalized result and are never copied to API responses.
+
+- [x] **Step 4: Run all adapter and webhook tests**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/adapters test/integration/payments test/integration/refunds
+N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/payments/providers test/services/orders test/integration/orders
 ```
 
-- [ ] **Step 5: Commit**
+Verified: 122 tests, 795 assertions, zero failures, zero errors with `N_PLUS_ONE=1`. This includes the shared contract, deterministic fake, payment attempts, refunds, provider webhooks, settlement grace, and Orders concurrency/integration coverage.
+
+The final repository suite also passes 2,719 tests and 11,335 assertions with zero failures and zero errors under `N_PLUS_ONE=1`; RuboCop, Ruby syntax, Zeitwerk, and `git diff --check` pass.
+
+- [ ] **Step 5: Commit — user-owned**
 
 ```bash
-git add test/support/contracts/payment_provider_contract.rb test/support/fakes/fake_payment_provider.rb test/adapters test/integration/payments test/integration/refunds
+git add test/support/contracts/payment_provider_contract.rb test/support/fakes/fake_payment_provider.rb \
+  test/services/payments/providers/adapter_contract_test.rb \
+  docs/superpowers/plans/2026-07-17-launch-hardening-observability-implementation.md
 git commit -m "test(payments): enforce provider lifecycle contract"
 ```
 
