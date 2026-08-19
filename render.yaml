@@ -26,10 +26,12 @@ services:
         value: "true"
       - key: JOB_CONCURRENCY
         value: "1"
-      - key: WEB_CONCURRENCY
+      - key: JOB_THREADS
         value: "1"
+      - key: WEB_CONCURRENCY
+        value: "0"
       - key: RAILS_MAX_THREADS
-        value: "5"
+        value: "3"
       - key: RAILS_MASTER_KEY
         sync: false
       - key: CORE_ENCRYPTION_PRIMARY_KEY
