@@ -414,20 +414,46 @@ git commit -m "test(platform): prove critical concurrency invariants"
 - Create: `test/integration/security/private_media_test.rb`
 - Create: `test/services/ticketing/key_rotation_test.rb`
 - Create: `docs/runbooks/security-key-rotation.md`
+- Modify: `app/controllers/admin/organizations_controller.rb`
+- Modify: `app/controllers/organizations/organizations_controller.rb`
+- Modify: `app/controllers/organizations/owner_organizations_controller.rb`
+- Modify: `app/policies/admin/organization_policy.rb`
+- Modify: `app/policies/organizations/organization_policy.rb`
+- Modify: organization serializers, routes, locales, parameter filtering, and
+  Postman coverage for private verification media
 
-- [ ] **Step 1: Build a response visibility matrix**
+- [x] **Step 1: Build a response visibility matrix**
 
 For public, attendee, organizer member, event collaborator, scanner device, finance operator, and platform administrator roles, assert both permitted and forbidden fields. Because public controllers bypass policy visibility, test public serializers explicitly. Include registration answers, consent evidence, invitation contact data, tax identities, payment payloads, payout accounts, QR claims, PNR/lookup codes, revocations, buyer/seller identity, and audit metadata.
 
-- [ ] **Step 2: Verify encryption and private media**
+Added the security response contract tests for public organization serialization,
+owner/admin verification responses, and generic credential/invitation/answer/
+payout-account serializers. Existing finance, payment, registration, export,
+marketplace, and scanner contract tests remain the domain-specific role matrix;
+the new public test explicitly proves that policy bypass cannot expose private
+verification URLs or tax identity.
+
+- [x] **Step 2: Verify encryption and private media**
 
 Assert encrypted columns do not expose plaintext through raw SQL. Assert private ticket media, ID evidence, exports, and provider artifacts require authorization and short-lived signed delivery; public cover/gallery assets remain the only intentionally public media. Never enable `support_unencrypted_data` or `extend_queries` as a migration shortcut.
 
-- [ ] **Step 3: Verify credential security operations**
+The gate proves ciphertext-only invitation delivery values, private attendee
+export storage and authorization, public profile/banner media, and
+authenticated five-minute owner/platform-admin verification-document delivery.
+Raw verification blob URLs were removed from public, owner, and admin JSON
+serializers rather than relying on a policy visibility intersection.
+
+- [x] **Step 3: Verify credential security operations**
 
 Test Ed25519 key activation/retirement, retained verification of still-valid older signatures, device revocation, delta synchronization after a revocation, and rejection after the applicable credential/key cutoff. Document the offline limitation: a disconnected device lacking the latest revocation can temporarily accept stale credentials; gates synchronize before opening, and high-security delegated events may require online validation.
 
-- [ ] **Step 4: Run static and dynamic security checks**
+Added key-grace/retirement tests, revoked-device authentication coverage,
+versioned scanner revocation-delta coverage, and the operational runbook at
+`docs/runbooks/security-key-rotation.md`. Key rotation remains a deployment
+secret/configuration operation; no unowned database key registry was
+introduced.
+
+- [x] **Step 4: Run static and dynamic security checks**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec brakeman --no-pager
@@ -435,10 +461,32 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec bundler-audit check --update
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/security test/services/ticketing/key_rotation_test.rb
 ```
 
+Verified: focused security tests passed 11 tests and 93 assertions; the full
+suite passed 2,732 tests and 11,468 assertions with zero failures and zero
+errors under `N_PLUS_ONE=1`. Brakeman 8.0.6 reported zero security warnings,
+Bundler Audit reported no vulnerabilities, RuboCop reported no offenses, and
+Zeitwerk, routes, locale, Postman JSON, and diff checks passed.
+
 - [ ] **Step 5: Commit**
 
 ```bash
-git add test/integration/security test/services/ticketing/key_rotation_test.rb docs/runbooks/security-key-rotation.md
+git add \
+  app/controllers/admin/organizations_controller.rb \
+  app/controllers/organizations/organizations_controller.rb \
+  app/controllers/organizations/owner_organizations_controller.rb \
+  app/policies/admin/organization_policy.rb \
+  app/policies/organizations/organization_policy.rb \
+  app/serializers/admin/organization_serializer.rb \
+  app/serializers/organizations/organization_serializer.rb \
+  app/serializers/organizations/public/organization_detail_serializer.rb \
+  config/initializers/filter_parameter_logging.rb \
+  config/locales/organizations/organization.en.yml \
+  config/routes.rb \
+  docs/runbooks/security-key-rotation.md \
+  docs/superpowers/plans/2026-07-17-launch-hardening-observability-implementation.md \
+  postman/'Digis API_collection.json' \
+  test/integration/security \
+  test/services/ticketing/key_rotation_test.rb
 git commit -m "test(platform): enforce launch security boundaries"
 ```
 
