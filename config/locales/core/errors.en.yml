@@ -17,6 +17,7 @@ en:
       unsupported_auth_operation: "Unsupported auth operation: %{operation}"
       service_not_implemented: "%{service} must implement #call"
       invalid_failure_error: "failure requires a Core::Error"
+      telemetry_invalid_event_name: "invalid telemetry event name"
       advisory_lock_transaction_required: "Advisory locks require an open transaction"
       idempotency_key_required: "The idempotency key is required"
       idempotency_key_too_long: "The idempotency key exceeds 255 bytes"
