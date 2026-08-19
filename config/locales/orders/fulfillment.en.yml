@@ -1,0 +1,11 @@
+en:
+  orders:
+    fulfillment:
+      add_ons:
+        errors:
+          invalid_idempotency_key: "The add-on fulfillment idempotency key is invalid"
+          order_item_not_found: "The order item could not be found"
+          order_not_paid: "The order is not ready for add-on fulfillment"
+          item_not_pending: "The order item is not pending fulfillment"
+          unsupported_add_on_type: "This order item requires another fulfillment workflow"
+          fulfillment_failed: "The add-on could not be fulfilled"

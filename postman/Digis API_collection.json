@@ -21,6 +21,16 @@
       "type": "string"
     },
     {
+      "key": "shortLinkBaseUrl",
+      "value": "http://dig.is",
+      "type": "string"
+    },
+    {
+      "key": "shortLinkSlug",
+      "value": "",
+      "type": "string"
+    },
+    {
       "key": "accessToken",
       "value": "",
       "type": "string"
@@ -58,6 +68,21 @@
     {
       "key": "eventProductId",
       "value": "",
+      "type": "string"
+    },
+    {
+      "key": "addOnReportType",
+      "value": "merchandise",
+      "type": "string"
+    },
+    {
+      "key": "addOnReportCurrency",
+      "value": "ETB",
+      "type": "string"
+    },
+    {
+      "key": "addOnReportSettlementCurrency",
+      "value": "ETB",
       "type": "string"
     },
     {
@@ -127,6 +152,21 @@
     },
   {
     "key": "ticketId",
+    "value": "",
+    "type": "string"
+  },
+  {
+    "key": "eventStreamId",
+    "value": "",
+    "type": "string"
+  },
+  {
+    "key": "streamSessionId",
+    "value": "",
+    "type": "string"
+  },
+  {
+    "key": "streamSessionToken",
     "value": "",
     "type": "string"
   },
@@ -985,6 +1025,63 @@
           "response": []
         },
         {
+          "name": "Create Stream Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_stream_id\": \"{{eventStreamId}}\",\n  \"device_id\": \"ios:9f0f6af3\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/tickets/{{ticketId}}/stream_sessions",
+            "description": "Creates a short-lived authorized live/replay session. The Digis session token is returned only in this response; token digests and provider secrets are never serialized."
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Stream Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_token\": \"{{streamSessionToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/stream_sessions/{{streamSessionId}}/refresh",
+            "description": "Revalidates the current ticket credential and returns a bounded playback grant without returning the session token again."
+          },
+          "response": []
+        },
+        {
+          "name": "Revoke Stream Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_token\": \"{{streamSessionToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/stream_sessions/{{streamSessionId}}/revoke",
+            "description": "Revokes Digis playback authority idempotently. Provider cleanup cannot restore local authorization."
+          },
+          "response": []
+        },
+        {
           "name": "Activate Delegation",
           "request": {
             "method": "POST",
@@ -1123,6 +1220,21 @@
             ],
             "url": "{{baseUrl}}/ticket_transfers/{{transferId}}/cancel",
             "description": "Cancels a pending transfer as the original owner without changing the current credential."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Links",
+      "item": [
+        {
+          "name": "Resolve Branded Link",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{shortLinkBaseUrl}}/{{shortLinkSlug}}",
+            "description": "Resolves an optional branded link on the configured short-link host. Set shortLinkBaseUrl to the deployed branded-link host and shortLinkSlug to a stored slug. When the feature is disabled, the service falls back to the normal internal route without consuming a click."
           },
           "response": []
         }
@@ -2466,6 +2578,57 @@
             {
               "name": "Event Products",
               "item": [
+                {
+                  "name": "List Event Add-on Sales Report",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/events/{{eventId}}/add_on_reports?type={{addOnReportType}}&currency={{addOnReportCurrency}}&settlement_currency={{addOnReportSettlementCurrency}}",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "events",
+                        "{{eventId}}",
+                        "add_on_reports"
+                      ],
+                      "query": [
+                        {
+                          "key": "type",
+                          "value": "{{addOnReportType}}",
+                          "disabled": true
+                        },
+                        {
+                          "key": "currency",
+                          "value": "{{addOnReportCurrency}}",
+                          "disabled": true
+                        },
+                        {
+                          "key": "settlement_currency",
+                          "value": "{{addOnReportSettlementCurrency}}",
+                          "disabled": true
+                        }
+                      ]
+                    },
+                    "description": "Organizer report of immutable non-ticket add-on sales and successful refunds. Amounts remain in the item's charge currency; settlement_currency is returned as the order-level settlement snapshot.",
+                    "response": [],
+                    "event": [
+                      {
+                        "listen": "test",
+                        "script": {
+                          "type": "text/javascript",
+                          "exec": [
+                            "pm.test(\"Event add-on report returns success\", function () {",
+                            "  pm.response.to.have.status(200);",
+                            "  pm.expect(pm.response.json()).to.have.property(\"success\", true);",
+                            "});"
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
                 {
                   "name": "List Event Products",
                   "request": {

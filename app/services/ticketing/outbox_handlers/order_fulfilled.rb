@@ -4,9 +4,9 @@ require "set"
 
 module Ticketing
   module OutboxHandlers
-    # Bridges Orders fulfillment into one idempotent Ticketing issuance call
-    # per ticket-product unit. Non-ticket order items remain owned by their
-    # domain and are intentionally ignored here.
+    # Bridges Orders fulfillment into idempotent credential issuance for ticket
+    # and parking product units. Merchandise, food, donation, and digital
+    # add-ons remain owned by their noncredential fulfillment handlers.
     class OrderFulfilled < Core::BaseService
       def initialize(event:)
         @event = event
@@ -32,6 +32,19 @@ module Ticketing
           end
 
           items.each do |item|
+            if item.type_snapshot == "parking"
+              parking = Parking::FulfillOrderItem.call(
+                order_item: item,
+                event:,
+                issuance_context: context,
+                existing_tickets:
+              )
+              if parking.failure?
+                outcome = failure(parking.error)
+                raise ActiveRecord::Rollback
+              end
+              next
+            end
             next unless item.type_snapshot == "ticket"
 
             1.upto(item.quantity) do |unit_number|

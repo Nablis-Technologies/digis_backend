@@ -101,7 +101,7 @@ module Ticketing
       end
 
       def identity_name_required?(loaded_ticket)
-        loaded_ticket.event_product.ticket_type.entry_validation_mode == "qr_and_id"
+        loaded_ticket.event_product.ticket_type&.entry_validation_mode == "qr_and_id"
       end
     end
   end

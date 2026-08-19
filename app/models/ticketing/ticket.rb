@@ -50,6 +50,10 @@ module Ticketing
              class_name: "Ticketing::TicketSuspension",
              inverse_of: :ticket,
              dependent: :restrict_with_exception
+    has_many :stream_sessions,
+             class_name: "Ticketing::StreamSession",
+             inverse_of: :ticket,
+             dependent: :restrict_with_exception
 
     validates :unit_number, :admissions_per_unit_snapshot, :credential_version,
               numericality: { only_integer: true, greater_than: 0 }
@@ -79,7 +83,7 @@ module Ticketing
     def self.ransackable_associations(_auth_object = nil)
       %w[event event_product registration order_item owner_user current_credential_generation
          admission_slots credential_generations credentials attendee_index_entries ticket_transfers revocation
-         ticket_suspensions]
+         ticket_suspensions stream_sessions]
     end
 
     def package_dead?
@@ -121,7 +125,8 @@ module Ticketing
       else
         Catalog::EventProduct.where(id: event_product_id).pick(:type)
       end
-      errors.add(:event_product, :invalid) if product_type.present? && product_type != "ticket"
+      errors.add(:event_product, :invalid) if product_type.present? &&
+        !Catalog::EventProduct::CREDENTIAL_PRODUCT_TYPES.include?(product_type)
 
       registration_event_id = if association(:registration).loaded?
         registration&.event_id

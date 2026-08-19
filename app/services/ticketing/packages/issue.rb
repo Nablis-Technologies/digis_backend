@@ -139,7 +139,7 @@ module Ticketing
         return failure(issuance_error(:source_not_fulfillable, "ticket_source_not_fulfillable", :conflict)) unless
           item.fulfilled? && item.order.status == "fulfilled" && @unit_number <= item.quantity
         return failure(issuance_error(:source_type_invalid, "ticket_source_type_invalid", :unprocessable_entity)) unless
-          item.type_snapshot == "ticket" && item.event_product.ticket?
+          item.type_snapshot == item.event_product.type && item.event_product.credential_bearing?
         return failure(issuance_error(:product_access_missing, "ticket_product_access_missing", :unprocessable_entity)) if
           item.event_product.product_accesses.empty?
 
@@ -178,7 +178,7 @@ module Ticketing
             registration: source.registration,
             order_item: source,
             unit_number: @unit_number,
-            admissions_per_unit_snapshot: source.admissions_per_unit_snapshot,
+            admissions_per_unit_snapshot: source.admissions_per_unit_snapshot || 1,
             owner_user: order.buyer_user,
             current_acquisition_type: order.sales_channel == "resale" ? "resale_purchase" : "primary_purchase",
             current_acquisition_order_item: source,

@@ -1,0 +1,11 @@
+en:
+  links:
+    errors:
+      short_links_disabled: "Branded links are disabled"
+      short_link_expired: "This branded link has expired"
+      short_link_click_limit_reached: "This branded link has reached its click limit"
+      short_link_not_found: "This branded link could not be found"
+      target_not_found: "The branded link target could not be found"
+      unauthorized: "You are not allowed to create this branded link"
+      invalid_link: "The branded link is invalid"
+      slug_taken: "That branded link slug is already in use"

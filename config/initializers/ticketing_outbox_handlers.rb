@@ -65,6 +65,9 @@ end
 Rails.application.config.x.outbox_handlers["ticketing.credential_generation_replaced"] = lambda do |outbox_event|
   result = Ticketing::OutboxHandlers::CredentialGenerationReplaced.call(event: outbox_event)
   raise result.error if result.failure?
+  streaming = Streaming::OutboxHandlers::RevokeTicketSessions.call(event: outbox_event)
+  raise streaming.error if streaming.failure?
+
   result
 end
 

@@ -22,41 +22,35 @@
 ## Task 1: Create playback-session schema on the existing event-stream model
 
 **Files:**
-- Create: `db/migrate/20260717210201_create_ticketing_stream_sessions.rb`
+- Create: `db/migrate/20260818090001_create_ticketing_stream_sessions.rb`
 - Reuse: `app/models/events/event_stream.rb`
 - Create: `app/models/ticketing/stream_session.rb`
-- Reuse fixtures: `test/fixtures/events_event_streams.yml`
-- Test fixtures: `test/fixtures/ticketing_stream_sessions.yml`
 - Test: `test/models/ticketing/stream_session_test.rb`
+- Test data is created dynamically because this repository has no event-date or
+  event-stream fixtures; stream-session rows remain runtime authorization data
+  and are intentionally not seeded.
 
-- [ ] **Step 1: RED — test unique token digest and lifecycle checks**
+- [x] **Step 1: RED — test unique token digest and lifecycle checks**
 
-```ruby
-require "test_helper"
+The test setup creates a valid event stream and ticket dynamically, then
+asserts that duplicate token digests are rejected and revoked sessions require
+`revoked_at`.
 
-class Ticketing::StreamSessionTest < ActiveSupport::TestCase
-  test "Digis session token digest is globally unique" do
-    duplicate = ticketing_stream_sessions(:active_friday).dup
-    assert_raises(ActiveRecord::RecordNotUnique) { duplicate.save!(validate: false) }
-  end
-
-  test "revoked session requires revocation time" do
-    session = ticketing_stream_sessions(:active_friday)
-    session.assign_attributes(status: "revoked", revoked_at: nil)
-    assert_not session.valid?
-  end
-end
-```
-
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing/stream_session_test.rb`
 
-Expected: FAIL because stream sessions are missing.
+Verified RED: 2 tests errored with `NameError: uninitialized constant
+Ticketing::StreamSession`, because the model did not exist yet.
 
-- [ ] **Step 3: GREEN — create only `ticketing_stream_sessions`**
+- [x] **Step 3: GREEN — create only `ticketing_stream_sessions`**
 
 Reuse the event-foundation plan's `events_event_streams` table and model. Create ticket, event stream, user, normalized device ID, unique token digest, active/expired/revoked status, expiry/last-seen/revoked times.
+
+The migration uses `20260818090001` rather than the plan's original historical
+date so the ticket and event-stream foreign-key targets already exist on a
+fresh install; this follows the repository's dependency-ordered migration
+convention.
 
 ```ruby
 add_index :ticketing_stream_sessions, :session_token_digest, unique: true
@@ -66,20 +60,26 @@ add_index :ticketing_stream_sessions, %i[ticket_id event_stream_id status expire
 
 Add status/time and expiry checks plus a deferred same-event ticket/stream FK trigger. Provider identifiers remain protected and secrets remain in Rails credentials/encrypted fields, never stream config or serializers.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:migrate && PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing/stream_session_test.rb`
 
-Expected: PASS.
+Verified: 3 tests, 4 assertions, 0 failures, 0 errors with `N_PLUS_ONE=1`,
+including the cross-event database guard. The fresh checked-in SQL structure
+also loads successfully with `db:test:prepare`.
 
-- [ ] **Step 5: REFACTOR — keep provider behavior out of models**
+- [x] **Step 5: REFACTOR — keep provider behavior out of models**
 
-Models retain associations, encryption, validations, and scopes only.
+Models retain associations, validations, lifecycle predicates, and scopes only;
+provider behavior and plaintext session tokens are absent. Zeitwerk and targeted
+RuboCop checks pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit — user-owned**
+
+Committed in `f660b53`, `80465b6`, and `ffd90c5`.
 
 ```bash
-git add db/migrate/20260717210201_create_ticketing_stream_sessions.rb app/models/ticketing/stream_session.rb test/models/ticketing/stream_session_test.rb test/fixtures/ticketing_stream_sessions.yml
+git add db/migrate/20260818090001_create_ticketing_stream_sessions.rb db/structure.sql app/models/core/user.rb app/models/events/event_stream.rb app/models/ticketing/ticket.rb app/models/ticketing/stream_session.rb test/models/ticketing/stream_session_test.rb
 git commit -m "feat(streaming): add playback sessions"
 ```
 
@@ -92,7 +92,7 @@ git commit -m "feat(streaming): add playback sessions"
 - Create: `app/services/streaming/authorization.rb`
 - Create: `app/values/streaming/playback_grant.rb`
 - Create: `app/values/streaming/window.rb`
-- Create: `app/services/streaming/providers/errors.rb`
+- Create: `app/services/streaming/providers/error.rb`, `unknown_provider.rb`, `invalid_configuration.rb`, `playback_unavailable.rb`
 - Create: `app/services/streaming/providers/base_adapter.rb`
 - Create: `app/services/streaming/providers/youtube_adapter.rb`
 - Create: `app/services/streaming/providers/registry.rb`
@@ -103,6 +103,7 @@ git commit -m "feat(streaming): add playback sessions"
 - Modify: `app/services/events/publication_readiness.rb`
 - Modify: `app/serializers/catalog/product_quote_serializer.rb`
 - Modify: `config/routes.rb`
+- Modify: `config/locales/streaming.en.yml`, `config/initializers/inflections.rb`, and `postman/Digis API_collection.json`
 - Create: `test/support/fakes/streaming/fake_adapter.rb`
 - Create: `test/support/contracts/streaming/provider_adapter_contract.rb`
 - Create: `test/services/streaming/providers/youtube_adapter_test.rb`
@@ -112,8 +113,10 @@ git commit -m "feat(streaming): add playback sessions"
 - Test: `test/services/streaming/sessions/refresh_test.rb`
 - Test: `test/services/events/publication_readiness_streaming_test.rb`
 - Test: `test/controllers/ticketing/stream_sessions_controller_test.rb`
+- Test: `test/serializers/catalog/product_quote_streaming_test.rb`
+- Test support: `test/support/streaming_test_helpers.rb`
 
-- [ ] **Step 1: RED — specify authorization, provider contract, and honest protection disclosure**
+- [x] **Step 1: RED — specify authorization, provider contract, and honest protection disclosure**
 
 ```ruby
 test "creates one short-lived session for an authorized current holder" do
@@ -144,13 +147,15 @@ The provider contract suite must run against `YouTubeAdapter` and the test-only 
 - a provider change cannot fall below a frozen or sold product-access requirement;
 - no stream can claim `internal`, self-hosted, signed, non-shareable, or provider-enforced playback without a registered adapter that actually supports it.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/streaming test/services/events/publication_readiness_streaming_test.rb test/controllers/ticketing/stream_sessions_controller_test.rb`
 
-Expected: FAIL because authorization is missing.
+Verified RED after the test loader was corrected: 17 tests, 3 assertions,
+1 expected publication/controller failure, and 15 missing-implementation
+errors.
 
-- [ ] **Step 3: GREEN — define immutable provider-neutral values and adapter contract**
+- [x] **Step 3: GREEN — define immutable provider-neutral values and adapter contract**
 
 ```ruby
 # frozen_string_literal: true
@@ -262,7 +267,7 @@ end
 
 `YouTubeAdapterTest` and `FakeAdapterTest` include this contract and provide those three fixtures/helpers. Adapter-specific tests still cover missing identifiers, supported protection tiers, token absence for YouTube, and configuration rejection.
 
-- [ ] **Step 4: GREEN — implement YouTube, registry, and test fake**
+- [x] **Step 4: GREEN — implement YouTube, registry, and test fake**
 
 ```ruby
 # frozen_string_literal: true
@@ -346,7 +351,7 @@ Rails.application.config.x.streaming.enabled_providers =
 
 Never read provider OAuth tokens, playback keys, or unlisted-broadcast credentials from `ENV` or this file; those live in encrypted credentials and are decrypted only inside the relevant adapter at call time.
 
-- [ ] **Step 5: GREEN — authorize under ticket/stream advisory lock and return separate tokens**
+- [x] **Step 5: GREEN — authorize under ticket/stream advisory lock and return separate tokens**
 
 ```ruby
 # frozen_string_literal: true
@@ -403,26 +408,29 @@ end
 
 Authorization requires an active ticket, current active credential held by requester, matching stream access/date, and open live/replay window. Serialize concurrent-device counting with transaction advisory lock `(ticket_id,event_stream_id)`. Store only the Digis session-token digest. The `session_token` plaintext is returned only on session creation and authenticates refresh/heartbeat calls; `playback_grant` contains provider playback material. They are deliberately different concepts.
 
-- [ ] **Step 6: GREEN — enforce publication compatibility and checkout disclosure**
+- [x] **Step 6: GREEN — enforce publication compatibility and checkout disclosure**
 
 `Events::PublicationReadiness` compares every stream access's immutable `required_access_protection` with the configured stream's provider-validated `access_protection`, using `public < soft_gated < signed`. It rejects unsupported/disabled adapters, any insufficient pairing, and any signed/non-shareable claim backed by YouTube. A provider change locks the event stream, checks every frozen/sold access requirement, revokes active Digis stream sessions through outbox work, and only then activates the new configuration.
 
 `Catalog::ProductQuoteSerializer` exposes `stream_access_protection` plus a stable notice code. Paid YouTube products return `soft_gated_youtube_link_sharing`; public streams return `public_stream`; signed providers later return `signed_provider_enforced`. Public/event serializers may expose provider name and protection tier only after publication, but never unpublished playback IDs, session tokens, token digests, or provider credentials.
 
-- [ ] **Step 7: Run GREEN**
+- [x] **Step 7: Run GREEN**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/streaming test/services/events/publication_readiness_streaming_test.rb test/controllers/ticketing/stream_sessions_controller_test.rb`
 
-Expected: PASS.
+Verified focused Task 2 suite: 21 tests, 75 assertions, 0 failures, and
+0 errors with `N_PLUS_ONE=1`; the locale contract suite adds two more passing
+tests. The final full suite passes 2,634 tests and 10,878 assertions with zero
+failures and zero errors under `N_PLUS_ONE=1`.
 
-- [ ] **Step 8: REFACTOR — keep provider capabilities explicit**
+- [x] **Step 8: REFACTOR — keep provider capabilities explicit**
 
 Controller remains `Ticketing::StreamSessionsController` and renders through existing JSON helpers and AMS. Keep `/api/v1` in routes rather than Ruby namespaces. Do not add a generic capability engine: the adapter's explicit protection allowlist and the product access's required tier are sufficient. Mux or Cloudflare Stream becomes a later adapter plus contract tests, not a new ticket/session schema.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 9: Commit — user-owned**
 
 ```bash
-git add app/services/streaming app/values/streaming app/controllers/ticketing/stream_sessions_controller.rb app/policies/ticketing app/serializers/ticketing app/services/events/publication_readiness.rb app/serializers/catalog/product_quote_serializer.rb config/initializers/streaming.rb config/routes.rb test/services/streaming test/services/events/publication_readiness_streaming_test.rb test/support/fakes/streaming test/support/contracts/streaming test/controllers/ticketing
+git add app/controllers/catalog/product_quotes_controller.rb app/controllers/ticketing/stream_sessions_controller.rb app/models/ticketing/stream_session.rb app/policies/ticketing/stream_session_policy.rb app/serializers/catalog/product_quote_serializer.rb app/serializers/ticketing/stream_session_serializer.rb app/services/events/publication_readiness.rb app/services/streaming app/values/streaming config/initializers/inflections.rb config/initializers/streaming.rb config/locales/streaming.en.yml config/routes.rb db/migrate/20260818090001_create_ticketing_stream_sessions.rb db/structure.sql postman/'Digis API_collection.json' test/controllers/ticketing/stream_sessions_controller_test.rb test/serializers/catalog/product_quote_streaming_test.rb test/services/events/publication_readiness_streaming_test.rb test/services/streaming test/support/contracts/streaming test/support/fakes/streaming test/support/streaming_test_helpers.rb
 git commit -m "feat(streaming): add honest YouTube playback adapter"
 ```
 
@@ -432,41 +440,55 @@ git commit -m "feat(streaming): add honest YouTube playback adapter"
 - Create: `app/jobs/streaming/expire_sessions_job.rb`
 - Create: `app/jobs/streaming/revoke_ticket_sessions_job.rb`
 - Create: `app/services/streaming/outbox_handlers/revoke_ticket_sessions.rb`
-- Modify: `config/initializers/outbox_handlers.rb`
+- Create: `config/initializers/streaming_outbox_handlers.rb`
+- Modify: `config/initializers/events_outbox_handlers.rb`
+- Modify: `config/initializers/ticketing_outbox_handlers.rb`
+- Modify: `config/recurring.yml`
 - Reuse: `app/jobs/core/dispatch_outbox_event_job.rb`
 - Test: `test/jobs/streaming/expire_sessions_job_test.rb`
 - Test: `test/integration/streaming/ticket_lifecycle_test.rb`
 
-- [ ] **Step 1: RED — cover every lifecycle producer**
+- [x] **Step 1: RED — cover every lifecycle producer**
 
 Test transfer, delegation away, suspension, refund, event/date cancellation, replay expiry, resale reservation, and generation replacement. New authorization fails immediately from DB state; already issued sessions close idempotently.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/jobs/streaming test/integration/streaming/ticket_lifecycle_test.rb`
 
 Expected: FAIL because handlers/jobs are missing.
 
-- [ ] **Step 3: GREEN — register outbox handlers and bounded jobs**
+- [x] **Step 3: GREEN — register outbox handlers and bounded jobs**
 
 Register `Streaming::OutboxHandlers::RevokeTicketSessions` for approved lifecycle types. It enqueues with the outbox idempotency key. Job locks active sessions, marks revoked once, then calls the registered provider adapter idempotently after authoritative state changes. Expiry uses `FOR UPDATE SKIP LOCKED` batches and never extends tokens. Never call providers inside ticket transactions.
 
 For YouTube, adapter revocation is deliberately a successful no-op: the revoked Digis session can no longer refresh or receive playback configuration, but a viewer who already copied the unlisted YouTube identifier may still use it. Tests must prove both sides of that contract. Future signed providers must invalidate or expire their provider grant according to their adapter contract.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/jobs/streaming test/integration/streaming/ticket_lifecycle_test.rb`
 
-Expected: PASS.
+Verified focused Task 3 suite: 8 tests, 51 assertions, 0 failures, and 0
+errors with `N_PLUS_ONE=1`.
 
-- [ ] **Step 5: REFACTOR — keep lifecycle truth in ticket/event records**
+The final full suite passes 2,642 tests and 10,930 assertions with zero
+failures and zero errors under `N_PLUS_ONE=1`.
+
+- [x] **Step 5: REFACTOR — keep lifecycle truth in ticket/event records**
 
 Provider cleanup failure cannot make an invalid ticket authorize playback.
 
-- [ ] **Step 6: Commit**
+The existing event and ticketing outbox handlers are composed in place, while
+the new streaming initializer owns only lifecycle event types with no existing
+domain handler. Local session revocation commits before provider cleanup, and
+the bounded workers use `FOR UPDATE SKIP LOCKED` without extending expiry.
+`Streaming::ExpireSessionsJob` is scheduled every minute on the streaming queue
+so expired local sessions are closed even when no refresh request arrives.
+
+- [ ] **Step 6: Commit — user-owned**
 
 ```bash
-git add app/jobs/streaming app/services/streaming/outbox_handlers config/initializers/outbox_handlers.rb test/jobs/streaming test/integration/streaming
+git add app/jobs/streaming app/services/streaming/outbox_handlers config/initializers/events_outbox_handlers.rb config/initializers/streaming_outbox_handlers.rb config/initializers/ticketing_outbox_handlers.rb config/locales/streaming.en.yml config/recurring.yml test/jobs/streaming test/integration/streaming docs/superpowers/plans/2026-07-17-streaming-addons-links-implementation.md
 git commit -m "feat(streaming): revoke sessions on lifecycle changes"
 ```
 
@@ -475,22 +497,23 @@ git commit -m "feat(streaming): revoke sessions on lifecycle changes"
 **Files:**
 - Create: `app/services/catalog/add_ons/validate_product.rb`
 - Create: `app/services/orders/fulfillment/fulfill_add_on.rb`
-- Create: `app/services/orders/fulfillment/add_on_registry.rb`
-- Create: `app/services/orders/fulfillment/merchandise.rb`
-- Create: `app/services/orders/fulfillment/food.rb`
-- Create: `app/services/orders/fulfillment/donation.rb`
-- Create: `app/services/orders/fulfillment/digital_add_on.rb`
+- Create: `config/locales/catalog/add_ons.en.yml`
+- Create: `config/locales/orders/fulfillment.en.yml`
 - Test: `test/services/catalog/add_ons/validate_product_test.rb`
 - Test: `test/services/orders/fulfillment/fulfill_add_on_test.rb`
-- Reuse fixtures: `test/fixtures/catalog_event_products.yml`, `test/fixtures/orders_order_items.yml`
+- Test data is created dynamically because this repository has no order-item
+  fixtures and add-on fulfillment rows are runtime order state.
 
-- [ ] **Step 1: RED — specify supported types and retry-safe order-item fulfillment**
+- [x] **Step 1: RED — specify supported types and retry-safe order-item fulfillment**
 
-Cover parking, merchandise, food, donation, digital add-on, other; custom donation price; inventory race; fulfilled quantity never exceeding paid quantity; retry returning the same fulfilled order item; noncredential products never receiving QR.
+Cover parking, merchandise, food, donation, digital add-on, other; custom
+donation price; inventory race; immutable whole-item quantity after payment;
+retry returning the same fulfilled order item; and noncredential products never
+receiving QR.
 
 ```ruby
 test "retry returns the fulfilled order item without another side effect" do
-  item = orders_order_items(:paid_merchandise)
+  item = create_paid_add_on_item(type: "merchandise")
   first = Orders::Fulfillment::FulfillAddOn.call(order_item: item, idempotency_key: "addon:#{item.id}")
   second = Orders::Fulfillment::FulfillAddOn.call(order_item: item, idempotency_key: "addon:#{item.id}")
   assert first.success?
@@ -500,67 +523,53 @@ test "retry returns the fulfilled order item without another side effect" do
 end
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/catalog/add_ons test/services/orders/fulfillment/fulfill_add_on_test.rb`
 
-Expected: FAIL because registry/handlers are missing.
+Verified RED after correcting the dynamic paid-order setup: 10 tests, 0
+assertions, 0 failures, and 10 expected missing-implementation errors.
 
-- [ ] **Step 3: GREEN — dispatch explicit handlers and return the order item**
+- [x] **Step 3: GREEN — validate supported types and return the order item**
 
 ```ruby
-module Orders
-  module Fulfillment
-    class AddOnRegistry
-      HANDLERS = {
-        "merchandise" => Merchandise,
-        "food" => Food,
-        "donation" => Donation,
-        "digital_addon" => DigitalAddOn
-      }.freeze
+validation = Catalog::AddOns::ValidateProduct.call(product: item.event_product)
+return failure(validation.error) if validation.failure?
 
-      def self.fetch(type)
-        HANDLERS.fetch(type) { fail ArgumentError, "unsupported noncredential add-on: #{type}" }
-      end
-    end
-
-    class FulfillAddOn < Core::BaseService
-      def initialize(order_item:, idempotency_key:)
-        @order_item = order_item
-        @idempotency_key = Core::IdempotencyKey.new(idempotency_key)
-      end
-
-      def call
-        @order_item.with_lock do
-          return success(@order_item) if @order_item.fulfilled?
-          handler = AddOnRegistry.fetch(@order_item.event_product.type)
-          result = handler.call(order_item: @order_item, idempotency_key: @idempotency_key.to_s)
-          return result if result.failure?
-          @order_item.update!(fulfillment_status: "fulfilled", fulfilled_at: Time.current)
-          success(@order_item.reload)
-        end
-      end
-    end
-  end
-end
+item.update!(fulfillment_status: "fulfilled")
+success(item)
 ```
 
-There is no invented generic fulfillment association/table. The fulfilled order item is the command result. Parking is absent because Task 5 uses package issuance. `other` requires an explicitly registered handler; never constantize database input.
+There is no invented generic fulfillment association/table, fulfilled timestamp,
+or partial-quantity counter. The existing `fulfillment_status` on the immutable
+order item is the command result and whole-item idempotency boundary. The
+command requires a paid order and pending item, validates the explicit
+noncredential type, then locks and fulfills the item directly. Real per-type
+delivery behavior should introduce a handler only when that behavior exists.
+Parking is absent because Task 5 uses package issuance, and `other` remains
+rejected by the explicit supported-type validator. Database input is never
+constantized.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/catalog/add_ons test/services/orders/fulfillment`
 
-Expected: PASS.
+Verified: 10 tests, 79 assertions, 0 failures, and 0 errors with
+`N_PLUS_ONE=1`.
 
-- [ ] **Step 5: REFACTOR — extract only repeated immutable side-effect evidence**
+The final full suite passes 2,652 tests and 11,009 assertions with zero
+failures and zero errors under `N_PLUS_ONE=1`.
 
-Keep delivery-specific logic in handlers and lifecycle fields on the order item per the orders plan.
+- [x] **Step 5: REFACTOR — extract only repeated immutable side-effect evidence**
 
-- [ ] **Step 6: Commit**
+Use the existing order-item `fulfillment_status` per the Orders plan.
+Noncredential add-ons never create
+tickets, credentials, QR/PNR values, or a parallel fulfillment table.
+
+- [ ] **Step 6: Commit — user-owned**
 
 ```bash
-git add app/services/catalog/add_ons app/services/orders/fulfillment test/services/catalog/add_ons test/services/orders/fulfillment
+git add app/services/catalog/add_ons app/services/orders/fulfillment config/locales/catalog/add_ons.en.yml config/locales/orders/fulfillment.en.yml test/services/catalog/add_ons test/services/orders/fulfillment docs/superpowers/plans/2026-07-17-streaming-addons-links-implementation.md
 git commit -m "feat(catalog): fulfill typed add-ons"
 ```
 
@@ -569,38 +578,68 @@ git commit -m "feat(catalog): fulfill typed add-ons"
 **Files:**
 - Create: `app/services/parking/issue_package.rb`
 - Create: `app/services/parking/fulfill_order_item.rb`
+- Create: `config/locales/parking.en.yml`
+- Modify: `app/models/catalog/event_product.rb`
+- Modify: `app/models/ticketing/ticket.rb`
+- Modify: `app/services/ticketing/packages/issue.rb`
+- Modify: `app/services/ticketing/credential_generations/create_initial_group.rb`
+- Modify: `app/services/ticketing/credential_generations/replace.rb`
+- Modify: `app/services/ticketing/attendee_index/upsert.rb`
+- Modify: `app/services/ticketing/admissions/consume.rb`
+- Modify: `app/services/ticketing/transfers/initiate.rb`
+- Modify: `app/services/ticketing/transfers/accept.rb`
+- Modify: `app/services/ticketing/outbox_handlers/order_fulfilled.rb`
+- Modify: `db/migrate/20260812090009_add_ticketing_package_credential_constraints.rb`
+- Modify: `db/structure.sql`
 - Test: `test/services/parking/issue_package_test.rb`
 - Test: `test/integration/parking/parking_admission_test.rb`
 - Test: `test/integration/ticketing/add_on_transfer_boundary_test.rb`
 
-- [ ] **Step 1: RED — distinguish included access from separate parking product**
+- [x] **Step 1: RED — distinguish included access from separate parking product**
 
 Prove included parking follows ticket transfer; separately purchased parking remains with parking package owner; parking zones/use limits use common scanner admission; ticket delegation does not assign separate parking.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/parking test/integration/parking test/integration/ticketing/add_on_transfer_boundary_test.rb`
 
-Expected: FAIL because parking fulfillment is missing.
+Verified initial RED: 7 tests, 0 assertions, and 7 expected missing-service
+errors because the parking boundary did not exist.
 
-- [ ] **Step 3: GREEN — reuse package issuance and product-access scanning**
+- [x] **Step 3: GREEN — reuse package issuance and product-access scanning**
 
-Validate paid/free fulfillment, then call `Ticketing::Packages::Issue` for each parking unit. Parking uses `catalog_product_accesses.type = 'parking'`, date, explicit use limit, and zone grants. Create no parking QR table and use the common credential validator/check-ins/uses.
+Validate fulfilled paid parking items, then call `Ticketing::Packages::Issue`
+for each parking unit. The shared ticket package boundary now accepts the
+credential-bearing product types `ticket` and `parking`; ticket-only settings
+(registrations, ticket types, transfer/delegation controls, and `qr_and_id`)
+remain optional or disabled for parking. Parking uses
+`catalog_product_accesses.type = 'parking'`, event date, explicit usage limit,
+and zone grants. No parking QR table is created; the common credential,
+attendee-index, validator, check-in, and admission-use pipeline is reused.
 
-- [ ] **Step 4: Run GREEN**
+Separately purchased parking remains a distinct ticket/order-item owner. Only
+access rows on the transferred ticket product follow a ticket transfer; order
+co-location and delegation never move the separate parking package.
+
+- [x] **Step 4: Run GREEN**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/parking test/integration/parking test/integration/ticketing/add_on_transfer_boundary_test.rb`
 
-Expected: PASS.
+Verified: 8 tests, 53 assertions, 0 failures, and 0 errors with `N_PLUS_ONE=1`.
 
-- [ ] **Step 5: REFACTOR — remove implicit order bundles**
+The final full suite passes 2,660 tests and 11,062 assertions with zero
+failures and zero errors under `N_PLUS_ONE=1`.
 
-Only access rows on the same package move together; order co-location never changes ownership.
+- [x] **Step 5: REFACTOR — remove implicit order bundles**
 
-- [ ] **Step 6: Commit**
+Only access rows on the same package move together; order co-location never
+changes ownership. The existing shared credential schema remains the only
+parking credential representation.
+
+- [ ] **Step 6: Commit — user-owned**
 
 ```bash
-git add app/services/parking test/services/parking test/integration/parking test/integration/ticketing/add_on_transfer_boundary_test.rb
+git add app/services/parking config/locales/parking.en.yml app/models/catalog/event_product.rb app/models/ticketing/ticket.rb app/services/ticketing/packages/issue.rb app/services/ticketing/credential_generations/create_initial_group.rb app/services/ticketing/credential_generations/replace.rb app/services/ticketing/attendee_index/upsert.rb app/services/ticketing/admissions/consume.rb app/services/ticketing/transfers/initiate.rb app/services/ticketing/transfers/accept.rb app/services/ticketing/outbox_handlers/order_fulfilled.rb db/migrate/20260812090009_add_ticketing_package_credential_constraints.rb db/structure.sql test/services/parking test/integration/parking test/integration/ticketing/add_on_transfer_boundary_test.rb docs/superpowers/plans/2026-07-17-streaming-addons-links-implementation.md
 git commit -m "feat(parking): issue parking credentials"
 ```
 
@@ -611,38 +650,56 @@ git commit -m "feat(parking): issue parking credentials"
 - Create: `app/controllers/catalog/event_add_on_reports_controller.rb`
 - Create: `app/policies/catalog/add_on_report_policy.rb`
 - Create: `app/serializers/catalog/add_on_sales_row_serializer.rb`
+- Create: `config/locales/catalog/add_on_sales_report.en.yml`
 - Modify: `config/routes.rb`
+- Modify: `postman/Digis API_collection.json`
 - Test: `test/queries/catalog/add_on_sales_report_test.rb`
 - Test: `test/controllers/catalog/event_add_on_reports_controller_test.rb`
+- Test support: `test/support/catalog/add_on_report_test_helpers.rb`
 
-- [ ] **Step 1: RED — define event/product/currency-safe aggregates and policy**
+- [x] **Step 1: RED — define event/product/currency-safe aggregates and policy**
 
 Test type/name/quantity/gross/refunded/net per settlement currency, event isolation, owner/admin/manager access, staff/scanner denial, and exclusion of answers, consent, stream tokens, QR/PNR, payouts, and notes.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/queries/catalog/add_on_sales_report_test.rb test/controllers/catalog/event_add_on_reports_controller_test.rb`
 
-Expected: FAIL because report query/controller are missing.
+Verified initial RED: 8 tests, 4 assertions, 4 expected route failures, and
+4 missing-query errors.
 
-- [ ] **Step 3: GREEN — aggregate immutable order/refund facts**
+- [x] **Step 3: GREEN — aggregate immutable order/refund facts**
 
-Use one SQL query grouped by product/currency; never convert currencies in reporting. `Catalog::EventAddOnReportsController` validates filters, authorizes, calls query, and renders explicit AMS fields. `/api/v1` stays in routes, not Ruby namespaces.
+Use one SQL query grouped by product and both currency snapshots; successful
+refunds are pre-aggregated before joining so item gross values are not
+multiplied by refund rows. Amounts remain in the immutable item charge
+currency, while the order-level settlement currency is returned explicitly;
+reporting never performs live FX conversion. The controller validates
+allowlisted filters, authorizes the event, calls the query, and renders
+explicit AMS fields. `/api/v1` stays in routes, not Ruby namespaces.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/queries/catalog/add_on_sales_report_test.rb test/controllers/catalog/event_add_on_reports_controller_test.rb`
 
-Expected: PASS.
+Verified focused Task 6 suite: 9 tests, 41 assertions, 0 failures, and 0
+errors with `N_PLUS_ONE=1`. The broader Catalog authorization/report suite
+passes 12 tests and 47 assertions with zero failures and zero errors.
 
-- [ ] **Step 5: REFACTOR — enforce bounded query count**
+The final full suite passes 2,669 tests and 11,103 assertions with zero
+failures and zero errors under `N_PLUS_ONE=1`.
 
-Use `EXPLAIN (ANALYZE, BUFFERS)` on production-shaped fixtures and add only demonstrated indexes.
+- [x] **Step 5: REFACTOR — enforce bounded query count**
 
-- [ ] **Step 6: Commit**
+The report maps one SQL result set directly into immutable rows, performs no
+association loading while serializing, and adds no speculative indexes. Mixed
+charge/settlement currencies remain visible as separate fields rather than
+being silently converted.
+
+- [ ] **Step 6: Commit — user-owned**
 
 ```bash
-git add app/queries/catalog app/controllers/catalog app/policies/catalog app/serializers/catalog config/routes.rb test/queries/catalog test/controllers/catalog
+git add app/queries/catalog app/controllers/catalog app/policies/catalog app/serializers/catalog config/locales/catalog/add_on_sales_report.en.yml config/routes.rb postman/'Digis API_collection.json' test/queries/catalog test/controllers/catalog test/support/catalog/add_on_report_test_helpers.rb docs/superpowers/plans/2026-07-17-streaming-addons-links-implementation.md
 git commit -m "feat(catalog): report add-on sales"
 ```
 
@@ -650,6 +707,7 @@ git commit -m "feat(catalog): report add-on sales"
 
 **Files:**
 - Create: `db/migrate/20260717210202_create_links_short_links.rb`
+- Create: `db/migrate/20260717210203_create_links_short_link_clicks.rb`
 - Create: `app/models/links/short_link.rb`
 - Create: `app/models/links/short_link_click.rb`
 - Create: `app/services/links/create.rb`
@@ -658,79 +716,64 @@ git commit -m "feat(catalog): report add-on sales"
 - Create: `app/jobs/links/record_click_job.rb`
 - Create: `app/controllers/links/redirects_controller.rb`
 - Create: `app/policies/links/short_link_policy.rb`
+- Create: `config/initializers/short_links.rb`
+- Create: `config/locales/links.en.yml`
+- Modify: `db/structure.sql`
 - Modify: `config/routes.rb`
+- Modify: `postman/Digis API_collection.json`
 - Test: `test/services/links/resolve_test.rb`
 - Test: `test/integration/links/redirect_concurrency_test.rb`
 - Test: `test/controllers/links/redirects_controller_test.rb`
 
-- [ ] **Step 1: RED — specify safe redirects and atomic click cap**
+- [x] **Step 1: RED — specify safe redirects and atomic click cap**
 
-```ruby
-test "resolves internal target while atomically consuming one click" do
-  link = links_short_links(:limited_event)
-  result = Links::Resolve.call(slug: link.slug, now: Time.current)
-  assert result.success?
-  assert_equal Rails.application.routes.url_helpers.event_path(link.target_id), result.value.location
-  assert_equal 1, link.reload.click_count
-end
-```
+The tests specify internal event resolution, disabled fallback, case-insensitive
+slugs, reserved routes, target/custom-URL XOR, HTTPS-only destinations, expiry,
+canonical uniqueness, atomic click limits under concurrency, and ticket links
+that resolve only to a page path rather than credential material.
 
-Also cover disabled fallback, lower-case collision, reserved route, target XOR HTTPS URL, non-HTTPS rejection, expiry, one canonical target, concurrent last click, private discoverability without audience bypass, and authenticated ticket page without credential material.
+- [x] **Step 2: Run RED**
 
-- [ ] **Step 2: Run RED**
+Run: `N_PLUS_ONE=1 bin/rails test test/services/links test/integration/links test/controllers/links/redirects_controller_test.rb`
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/links test/integration/links test/controllers/links/redirects_controller_test.rb`
+Initial RED result: 12 tests, 0 assertions, and 12 `NameError` errors because
+the `Links` implementation did not yet exist.
 
-Expected: FAIL because links are missing.
+- [x] **Step 3: GREEN — allowlist targets and conditionally increment**
 
-- [ ] **Step 3: GREEN — allowlist targets and conditionally increment**
+Implemented feature-gated branded redirects with:
 
-```ruby
-module Links
-  class Resolve < Core::BaseService
-    Resolution = Data.define(:location, :short_link_id)
+- a separate migration for each table, UUIDv7 keys, foreign keys, reserved
+  route validation, lower-case slug uniqueness, canonical-target uniqueness,
+  target/custom-URL XOR, HTTPS checks, and click-bound constraints;
+- an allowlisted target resolver that never constantizes database input and
+  maps internal resources back through normal application routes;
+- a policy-protected `Links::Create` service and a public `Links::Resolve`
+  service whose click cap is enforced by one conditional atomic `UPDATE`;
+- a host-constrained redirect route, configuration defaulting to disabled, and
+  normal-route fallback while the feature is disabled;
+- asynchronous, sanitized click-detail recording that cannot make a successful
+  redirect fail; and
+- locale-backed error messages plus a Postman request and variables for the
+  branded host and slug.
 
-    def initialize(slug:, now:)
-      @slug, @now = slug.to_s.downcase, now
-    end
+- [x] **Step 4: Run GREEN**
 
-    def call
-      return failure(error("Short links are disabled", "short_links_disabled", :not_found)) unless Rails.configuration.x.short_links.enabled
-      link = ShortLink.find_by!("lower(slug) = ?", @slug)
-      return failure(error("Short link expired", "short_link_expired", :gone)) if link.expires_at && link.expires_at <= @now
-      affected = ShortLink.where(id: link.id)
-        .where("max_clicks IS NULL OR click_count < max_clicks")
-        .update_all("click_count = click_count + 1, updated_at = NOW()")
-      return failure(error("Click limit reached", "short_link_click_limit_reached", :gone)) unless affected == 1
-      location = link.custom_url.presence || TargetResolver.call(link.target_type, link.target_id)
-      success(Resolution.new(location:, short_link_id: link.id))
-    rescue ActiveRecord::RecordNotFound
-      failure(error("Short link not found", "short_link_not_found", :not_found))
-    end
+Run: `N_PLUS_ONE=1 bin/rails test test/services/links test/integration/links test/controllers/links/redirects_controller_test.rb`
 
-    private
+Verified: 12 tests, 43 assertions, 0 failures, and 0 errors with `N_PLUS_ONE=1`.
 
-    def error(message, code, status) = Core::BusinessError.new(message, code:, status:)
-  end
-end
-```
+- [x] **Step 5: REFACTOR — preserve normal-route fallback**
 
-Migration adds unique `lower(slug)`, partial canonical internal target, positive click cap/nonnegative count, and internal-target XOR custom-URL checks. `TargetResolver` uses a frozen mapping for events/tickets/organizations and never constantizes input. Analytics enqueue after redirect decision; failure never breaks redirect.
+Branded links remain opt-in through `SHORT_LINKS_ENABLED`; the main host keeps
+its normal routes, and disabled branded links resolve through their normal
+internal target without consuming clicks. Ticket targets remain page paths and
+do not expose credential material.
 
-- [ ] **Step 4: Run GREEN**
-
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/links test/integration/links test/controllers/links/redirects_controller_test.rb`
-
-Expected: PASS including one winner for the final click.
-
-- [ ] **Step 5: REFACTOR — preserve normal-route fallback**
-
-Callers return normal app routes when links are disabled/unavailable; events/tickets never depend on branded host.
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Commit — user-owned**
 
 ```bash
-git add db/migrate/20260717210202_create_links_short_links.rb app/models/links app/services/links app/jobs/links app/controllers/links app/policies/links config/routes.rb test/services/links test/integration/links test/controllers/links
+git add db/migrate/20260717210202_create_links_short_links.rb db/migrate/20260717210203_create_links_short_link_clicks.rb db/structure.sql app/models/links app/services/links app/jobs/links app/controllers/links app/policies/links config/initializers/short_links.rb config/locales/links.en.yml config/routes.rb postman/'Digis API_collection.json' test/services/links test/integration/links test/controllers/links docs/superpowers/plans/2026-07-17-streaming-addons-links-implementation.md
 git commit -m "feat(links): add optional branded redirects"
 ```
 
@@ -740,53 +783,83 @@ This task owns append-only `links_short_link_clicks`; redirects never require a 
 
 **Files:**
 - Create: `app/jobs/links/backfill_canonical_links_job.rb`
+- Create: `app/services/links/backfill_canonical.rb`
 - Create: `app/jobs/links/purge_expired_clicks_job.rb`
+- Modify: `app/services/links/create.rb`
+- Modify: `app/policies/links/short_link_policy.rb`
+- Modify: `config/recurring.yml`
 - Test: `test/jobs/links/backfill_canonical_links_job_test.rb`
 - Test: `test/jobs/links/purge_expired_clicks_job_test.rb`
 
-- [ ] **Step 1: RED — specify enable-later operation and retention**
+- [x] **Step 1: RED — specify enable-later operation and retention**
 
-Test repeatable events/tickets/organizations backfill, existing canonical preservation, collision retry, disabled no-op, deleting only expired click details, and retaining target/counter.
+Tests cover repeatable event/ticket/organization backfill, existing canonical
+preservation, deterministic collision retry, disabled no-op, deleting only
+expired click details, retaining the target and aggregate counter, bounded
+purge batches, and the production recurring schedule.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/jobs/links`
+Run: `N_PLUS_ONE=1 bin/rails test test/jobs/links`
 
-Expected: FAIL because jobs are missing.
+Initial RED result: 6 tests, 0 assertions, and 6 `NameError` errors because the
+two jobs were missing.
 
-- [ ] **Step 3: GREEN — process bounded Solid Queue batches**
+- [x] **Step 3: GREEN — process bounded Solid Queue batches**
 
-Backfill uses `in_batches`, `Links::Create`, and stable target-derived idempotency; rely on canonical unique index. Purge deletes click-detail rows only beyond platform retention; aggregate `click_count` remains. Use `Rails.configuration.x.short_links.enabled` and configured host without dual-write compatibility branches.
+Backfill uses bounded `in_batches`, preloads canonical target IDs per batch,
+and delegates one allowlisted target to the dedicated internal
+`Links::BackfillCanonical` command. User-created links remain behind the normal
+authorization boundary. The command preserves existing canonical links and
+retries slug collisions using deterministic target-ID suffixes. Purge deletes
+only click details older than the bounded retention window, leaves target and
+aggregate counter data untouched, and runs through Solid Queue’s recurring
+configuration.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
-Run: `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/jobs/links`
+Run: `N_PLUS_ONE=1 bin/rails test test/jobs/links`
 
-Expected: PASS.
+Verified Task 8 suite: 7 tests, 24 assertions, 0 failures, and 0 errors with
+`N_PLUS_ONE=1`. The combined links suite passes 19 tests and 67 assertions.
+The full suite passes 2,688 tests and 11,171 assertions with zero failures and
+zero errors under `N_PLUS_ONE=1`.
 
-- [ ] **Step 5: REFACTOR — keep feature rollout configuration-only**
+- [x] **Step 5: REFACTOR — keep feature rollout configuration-only**
 
-No ticket/event schema or serializer branch is required when the short domain is absent.
+No ticket/event schema or serializer branch was added. Backfill remains a
+configuration-gated enable-later operation; click retention remains safe even
+when branded-link resolution is disabled, and the purge schedule is explicit.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Commit — user-owned**
 
 ```bash
-git add app/jobs/links test/jobs/links
+git add app/jobs/links app/services/links app/policies/links/short_link_policy.rb config/recurring.yml test/jobs/links docs/superpowers/plans/2026-07-17-streaming-addons-links-implementation.md
 git commit -m "feat(links): backfill canonical links safely"
 ```
 
 ## Acceptance gate
 
-- [ ] Run `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:test:prepare`.
-- [ ] Run streaming model/service/job/controller and lifecycle integration tests.
-- [ ] Run catalog add-on, order fulfillment, parking, reporting, and transfer-boundary tests.
-- [ ] Run link service/job/controller and concurrency tests.
-- [ ] Prove concurrent stream creation cannot exceed device limit and lifecycle changes block immediately.
-- [ ] Prove paid `soft_gated` YouTube products disclose link-sharing risk, YouTube cannot satisfy `signed`, and no internal/self-hosted provider is registered.
-- [ ] Prove the Digis session token and provider playback grant are separate, bounded values and neither token digest nor provider credentials enter public serializers.
-- [ ] Prove included access follows ticket while separate add-ons retain ownership and only credential-bearing products enter QR/PNR.
-- [ ] Prove short links neither contain nor bypass credential, audience, visibility, or authentication authority.
-- [ ] Prove serializers expose no provider secrets, token digests, answers, consent, or finance/payout data.
-- [ ] Run `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test`.
+- [x] Run `N_PLUS_ONE=1 bin/rails db:test:prepare`.
+- [x] Run streaming model/service/job/controller and lifecycle integration tests.
+- [x] Run catalog add-on, order fulfillment, parking, reporting, and transfer-boundary tests.
+- [x] Run link service/job/controller and concurrency tests.
+- [x] Prove concurrent stream creation cannot exceed device limit and lifecycle changes block immediately.
+- [x] Prove paid `soft_gated` YouTube products disclose link-sharing risk, YouTube cannot satisfy `signed`, and no internal/self-hosted provider is registered.
+- [x] Prove the Digis session token and provider playback grant are separate, bounded values and neither token digest nor provider credentials enter public serializers.
+- [x] Prove included access follows ticket while separate add-ons retain ownership and only credential-bearing products enter QR/PNR.
+- [x] Prove short links neither contain nor bypass credential, audience, visibility, or authentication authority.
+- [x] Prove serializers expose no provider secrets, token digests, answers, consent, or finance/payout data.
+- [x] Run `N_PLUS_ONE=1 PARALLEL_WORKERS=6 bin/rails test`.
+
+Acceptance evidence: streaming passes 38 tests and 142 assertions, add-on/
+parking/reporting/transfer coverage passes 33 tests and 221 assertions,
+serializer/security contracts pass 47 tests and 267 assertions, and the full
+suite passes 2,689 tests and 11,174 assertions with zero failures and zero
+errors. The concurrent stream test also required the shared streaming fixture
+helper to create the database-required admission slots before credential
+generation. The additional race coverage lives in
+`test/integration/streaming/concurrent_session_creation_test.rb`, with the
+contract-aligned setup in `test/support/streaming_test_helpers.rb`.
 
 Accept only when streaming lifecycle integration, parking scanner reuse, add-on ownership, and normal-route fallback all pass.

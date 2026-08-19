@@ -195,7 +195,7 @@ module Ticketing
         return failure(replacement_error(:generation_not_current, "generation_not_current", :conflict)) unless current_generation_matches_ticket?(ticket)
         return failure(replacement_error(:invalid_generation_slots, "invalid_generation_slots", :conflict)) unless valid_slots?(ticket, slots)
         return failure(replacement_error(:delegation_not_enabled, "delegation_not_enabled", :unprocessable_entity)) if
-          @target_mode == "delegated" && !ticket.event_product.ticket_type.delegation_enabled?
+          @target_mode == "delegated" && !ticket.event_product.ticket_type&.delegation_enabled?
         return failure(replacement_error(:invalid_generation_assignments, "invalid_generation_assignments", :unprocessable_entity)) unless
           valid_assignment_shape?(assignments, slots)
         # Restoration is the sole recovery path allowed to replace a revoked
@@ -341,7 +341,7 @@ module Ticketing
       end
 
       def identity_name_required?(ticket)
-        ticket.event_product.ticket_type.entry_validation_mode == "qr_and_id"
+        ticket.event_product.ticket_type&.entry_validation_mode == "qr_and_id"
       end
 
       def update_slots!(slots, assignments)

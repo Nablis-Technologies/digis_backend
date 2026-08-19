@@ -13,6 +13,7 @@ module Catalog
     PRODUCT_TYPES = %w[
       ticket parking merchandise food donation digital_addon other
     ].freeze
+    CREDENTIAL_PRODUCT_TYPES = %w[ticket parking].freeze
     REFUND_POLICIES = %w[full_or_partial full_only].freeze
     INVENTORY_MODES = %w[unlimited event_wide per_date event_wide_and_per_date].freeze
     STATUSES = %w[draft active retired].freeze
@@ -64,6 +65,14 @@ module Catalog
 
     def ticket?
       type == "ticket"
+    end
+
+    def parking?
+      type == "parking"
+    end
+
+    def credential_bearing?
+      CREDENTIAL_PRODUCT_TYPES.include?(type)
     end
 
     def free?

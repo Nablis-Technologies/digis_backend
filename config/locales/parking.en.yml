@@ -1,0 +1,7 @@
+en:
+  parking:
+    errors:
+      source_type_invalid: "The order item is not a parking product"
+      source_not_found: "The parking order item could not be found"
+      source_not_fulfillable: "The parking order item is not ready for fulfillment"
+      product_access_missing: "The parking product has no parking access"

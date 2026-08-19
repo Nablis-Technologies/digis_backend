@@ -3538,6 +3538,35 @@ $$;
 
 
 --
+-- Name: ticketing_stream_session_same_event(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ticketing_stream_session_same_event() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  ticket_event_id uuid;
+  stream_event_id uuid;
+BEGIN
+  SELECT event_id INTO ticket_event_id
+  FROM ticketing_tickets
+  WHERE id = NEW.ticket_id;
+
+  SELECT event_date.event_id INTO stream_event_id
+  FROM events_event_streams stream
+  JOIN events_event_dates event_date ON event_date.id = stream.event_date_id
+  WHERE stream.id = NEW.event_stream_id;
+
+  IF ticket_event_id IS DISTINCT FROM stream_event_id THEN
+    RAISE EXCEPTION 'ticketing_stream_session_event_scope' USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: ticketing_ticket_scope_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3558,7 +3587,7 @@ BEGIN
   SELECT event_id, type INTO product_event_id, product_type
     FROM catalog_event_products
    WHERE id = NEW.event_product_id;
-  IF product_event_id IS DISTINCT FROM NEW.event_id OR product_type IS DISTINCT FROM 'ticket' THEN
+  IF product_event_id IS DISTINCT FROM NEW.event_id OR product_type NOT IN ('ticket', 'parking') THEN
     RAISE EXCEPTION 'ticket product and event do not match'
       USING ERRCODE = '23514';
   END IF;
@@ -5255,6 +5284,49 @@ CREATE TABLE public.legal_documents (
 
 
 --
+-- Name: links_short_link_clicks; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.links_short_link_clicks (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    short_link_id uuid NOT NULL,
+    referrer text,
+    device_type character varying,
+    country character varying(2),
+    clicked_at timestamp with time zone NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL
+);
+
+
+--
+-- Name: links_short_links; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.links_short_links (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    slug character varying NOT NULL,
+    target_type character varying,
+    target_id uuid,
+    custom_url text,
+    creator_id uuid,
+    canonical boolean DEFAULT false NOT NULL,
+    expires_at timestamp with time zone,
+    max_clicks bigint,
+    click_count bigint DEFAULT 0 NOT NULL,
+    utm_source character varying,
+    utm_medium character varying,
+    utm_campaign character varying,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT links_short_links_click_bounds_check CHECK ((((max_clicks IS NULL) OR (max_clicks > 0)) AND (click_count >= 0) AND ((max_clicks IS NULL) OR (click_count <= max_clicks)))),
+    CONSTRAINT links_short_links_https_url_check CHECK (((custom_url IS NULL) OR (custom_url ~~ 'https://%'::text))),
+    CONSTRAINT links_short_links_target_type_check CHECK (((target_type IS NULL) OR ((target_type)::text = ANY ((ARRAY['event'::character varying, 'ticket'::character varying, 'organization'::character varying])::text[])))),
+    CONSTRAINT links_short_links_target_xor_check CHECK ((((target_type IS NOT NULL) AND (target_id IS NOT NULL) AND (custom_url IS NULL)) OR ((target_type IS NULL) AND (target_id IS NULL) AND (custom_url IS NOT NULL))))
+);
+
+
+--
 -- Name: marketplace_resale_listings; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6544,6 +6616,31 @@ CREATE TABLE public.ticketing_scanner_devices (
 
 
 --
+-- Name: ticketing_stream_sessions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_stream_sessions (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    ticket_id uuid NOT NULL,
+    event_stream_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    device_id character varying NOT NULL,
+    session_token_digest character varying(64) NOT NULL,
+    status character varying DEFAULT 'active'::character varying NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    last_seen_at timestamp with time zone,
+    revoked_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_stream_sessions_device_id_check CHECK ((((device_id)::text = btrim((device_id)::text)) AND (btrim((device_id)::text) <> ''::text))),
+    CONSTRAINT ticketing_stream_sessions_digest_check CHECK (((session_token_digest)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT ticketing_stream_sessions_expiry_check CHECK ((expires_at > created_at)),
+    CONSTRAINT ticketing_stream_sessions_revocation_check CHECK (((((status)::text = 'revoked'::text) AND (revoked_at IS NOT NULL)) OR (((status)::text <> 'revoked'::text) AND (revoked_at IS NULL)))),
+    CONSTRAINT ticketing_stream_sessions_status_check CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'expired'::character varying, 'revoked'::character varying])::text[])))
+);
+
+
+--
 -- Name: ticketing_ticket_suspensions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -7278,6 +7375,22 @@ ALTER TABLE ONLY public.legal_documents
 
 
 --
+-- Name: links_short_link_clicks links_short_link_clicks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.links_short_link_clicks
+    ADD CONSTRAINT links_short_link_clicks_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: links_short_links links_short_links_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.links_short_links
+    ADD CONSTRAINT links_short_links_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: marketplace_resale_listings marketplace_resale_listings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7651,6 +7764,14 @@ ALTER TABLE ONLY public.ticketing_scanner_device_assignments
 
 ALTER TABLE ONLY public.ticketing_scanner_devices
     ADD CONSTRAINT ticketing_scanner_devices_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ticketing_stream_sessions ticketing_stream_sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_stream_sessions
+    ADD CONSTRAINT ticketing_stream_sessions_pkey PRIMARY KEY (id);
 
 
 --
@@ -8033,6 +8154,20 @@ CREATE INDEX idx_inventory_reservations_on_status_and_expires ON public.catalog_
 --
 
 CREATE INDEX idx_legal_acceptances_by_actor ON public.legal_acceptances USING btree (accepted_by_user_id, accepted_at);
+
+
+--
+-- Name: idx_links_short_links_canonical_target; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_links_short_links_canonical_target ON public.links_short_links USING btree (target_type, target_id) WHERE ((canonical = true) AND (target_type IS NOT NULL));
+
+
+--
+-- Name: idx_links_short_links_lower_slug; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_links_short_links_lower_slug ON public.links_short_links USING btree (lower((slug)::text));
 
 
 --
@@ -8894,6 +9029,13 @@ CREATE UNIQUE INDEX idx_registration_submissions_registration_version ON public.
 --
 
 CREATE UNIQUE INDEX idx_scanner_assignment_zones_unique ON public.ticketing_scanner_assignment_zones USING btree (scanner_device_assignment_id, access_zone_id);
+
+
+--
+-- Name: idx_stream_session_authorization; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_stream_session_authorization ON public.ticketing_stream_sessions USING btree (ticket_id, event_stream_id, status, expires_at);
 
 
 --
@@ -10094,6 +10236,27 @@ CREATE UNIQUE INDEX index_legal_versions_on_doc_version ON public.legal_document
 
 
 --
+-- Name: index_links_short_link_clicks_on_short_link_id_and_clicked_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_links_short_link_clicks_on_short_link_id_and_clicked_at ON public.links_short_link_clicks USING btree (short_link_id, clicked_at DESC);
+
+
+--
+-- Name: index_links_short_links_on_creator_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_links_short_links_on_creator_id ON public.links_short_links USING btree (creator_id);
+
+
+--
+-- Name: index_links_short_links_on_target_type_and_target_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_links_short_links_on_target_type_and_target_id ON public.links_short_links USING btree (target_type, target_id);
+
+
+--
 -- Name: index_one_published_legal_doc; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10413,6 +10576,13 @@ CREATE INDEX index_ticketing_scanner_devices_on_organization_id_and_status ON pu
 --
 
 CREATE UNIQUE INDEX index_ticketing_scanner_devices_on_token_digest ON public.ticketing_scanner_devices USING btree (token_digest);
+
+
+--
+-- Name: index_ticketing_stream_sessions_on_session_token_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_ticketing_stream_sessions_on_session_token_digest ON public.ticketing_stream_sessions USING btree (session_token_digest);
 
 
 --
@@ -11046,6 +11216,13 @@ CREATE TRIGGER trg_ticketing_scanner_assignment_zone_scope BEFORE INSERT OR UPDA
 
 
 --
+-- Name: ticketing_stream_sessions trg_ticketing_stream_session_same_event; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER trg_ticketing_stream_session_same_event AFTER INSERT OR UPDATE ON public.ticketing_stream_sessions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.ticketing_stream_session_same_event();
+
+
+--
 -- Name: ticketing_tickets trg_ticketing_ticket_scope_guard; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -11378,6 +11555,14 @@ ALTER TABLE ONLY public.ticketing_admission_use_reversals
 
 ALTER TABLE ONLY public.events_event_cancellations
     ADD CONSTRAINT fk_rails_181e9ab2b0 FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ticketing_stream_sessions fk_rails_1a0f652307; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_stream_sessions
+    ADD CONSTRAINT fk_rails_1a0f652307 FOREIGN KEY (ticket_id) REFERENCES public.ticketing_tickets(id);
 
 
 --
@@ -11821,6 +12006,14 @@ ALTER TABLE ONLY public.ticketing_registration_consent_requirements
 
 
 --
+-- Name: links_short_links fk_rails_4629ad2839; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.links_short_links
+    ADD CONSTRAINT fk_rails_4629ad2839 FOREIGN KEY (creator_id) REFERENCES public.core_users(id);
+
+
+--
 -- Name: ticketing_access_codes fk_rails_46c5693101; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12261,6 +12454,14 @@ ALTER TABLE ONLY public.commercial_fee_schedule_versions
 
 
 --
+-- Name: ticketing_stream_sessions fk_rails_781edb11ec; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_stream_sessions
+    ADD CONSTRAINT fk_rails_781edb11ec FOREIGN KEY (event_stream_id) REFERENCES public.events_event_streams(id);
+
+
+--
 -- Name: events_events fk_rails_784925b6cd; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12298,6 +12499,14 @@ ALTER TABLE ONLY public.commercial_fee_tiers
 
 ALTER TABLE ONLY public.orders_refund_items
     ADD CONSTRAINT fk_rails_7b6a8628ea FOREIGN KEY (ticket_id) REFERENCES public.ticketing_tickets(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: links_short_link_clicks fk_rails_7bc77e7f20; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.links_short_link_clicks
+    ADD CONSTRAINT fk_rails_7bc77e7f20 FOREIGN KEY (short_link_id) REFERENCES public.links_short_links(id) ON DELETE RESTRICT;
 
 
 --
@@ -12506,6 +12715,14 @@ ALTER TABLE ONLY public.catalog_inventory_reservations
 
 ALTER TABLE ONLY public.ticketing_registration_answer_revisions
     ADD CONSTRAINT fk_rails_92c24f7cf5 FOREIGN KEY (registration_answer_id) REFERENCES public.ticketing_registration_answers(id);
+
+
+--
+-- Name: ticketing_stream_sessions fk_rails_967d5c090b; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_stream_sessions
+    ADD CONSTRAINT fk_rails_967d5c090b FOREIGN KEY (user_id) REFERENCES public.core_users(id);
 
 
 --
@@ -13483,6 +13700,7 @@ ALTER TABLE ONLY public.ticketing_ticket_suspensions
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260818090001'),
 ('20260814090006'),
 ('20260814090005'),
 ('20260814090004'),
@@ -13578,6 +13796,8 @@ INSERT INTO "schema_migrations" (version) VALUES
 ('20260724090003'),
 ('20260724090002'),
 ('20260724090001'),
+('20260717210203'),
+('20260717210202'),
 ('20260717011002'),
 ('20260717011001'),
 ('20260717010900'),

@@ -13,5 +13,8 @@ end
 Rails.application.config.x.outbox_handlers["events.cancellation_initiated"] = lambda do |outbox_event|
   result = Events::Cancellation::OutboxHandlers::CancellationInitiated.call(event: outbox_event)
   raise result.error if result.failure?
+  streaming = Streaming::OutboxHandlers::RevokeTicketSessions.call(event: outbox_event)
+  raise streaming.error if streaming.failure?
+
   result
 end

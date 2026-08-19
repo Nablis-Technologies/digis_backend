@@ -1,0 +1,8 @@
+en:
+  catalog:
+    add_ons:
+      errors:
+        product_required: "An add-on product is required"
+        unsupported_add_on_type: "This product type is fulfilled by another workflow"
+        custom_price_not_allowed: "A custom amount is allowed only for custom-price donations"
+        custom_amount_invalid: "The custom donation amount must be a positive integer"

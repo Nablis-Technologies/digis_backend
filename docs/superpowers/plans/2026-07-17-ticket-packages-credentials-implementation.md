@@ -157,7 +157,7 @@ Expected: PASS.
 
 Exercise every partial index/check with validations bypassed. Do not add callbacks that create credentials or mutate versions.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add db/migrate/20260812090001_create_ticketing_tickets.rb db/migrate/20260812090002_create_ticketing_admission_slots.rb db/migrate/20260812090003_create_ticketing_credential_generations.rb db/migrate/20260812090004_create_ticketing_credentials.rb db/migrate/20260812090005_create_ticketing_credential_claims.rb db/migrate/20260812090006_create_ticketing_revocations.rb db/migrate/20260812090007_create_ticketing_credential_revocations.rb db/migrate/20260812090008_create_ticketing_attendee_index_entries.rb db/migrate/20260812090009_add_ticketing_package_credential_constraints.rb app/models/ticketing test/models/ticketing/package_credential_schema_test.rb
@@ -305,7 +305,7 @@ package construction is identical and all fulfillment paths share the same
 idempotent command. Changed Ticket scope validation to use already-loaded
 associations, preserving the `N_PLUS_ONE=1` contract for multi-unit fulfillment.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add app/models/ticketing/ticket.rb app/services/core/lookup_code_service.rb app/services/ticketing/attendee_index app/services/ticketing/credential_generations/create_initial_group.rb app/services/ticketing/credentials/activate.rb app/services/ticketing/outbox_handlers app/services/ticketing/packages app/services/ticketing/qr config/initializers/ticketing_credentials.rb config/initializers/ticketing_outbox_handlers.rb config/locales/ticketing/package_issuance.en.yml test/services/core/lookup_code_service_test.rb test/services/ticketing/packages
@@ -422,7 +422,7 @@ constructs a replacement generation in the current tree. Future transition
 services must call `CredentialGenerations::Replace`; initial issuance remains
 owned by `CreateInitialGroup`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add app/services/ticketing/credential_generations/replace.rb \
@@ -512,7 +512,7 @@ Native scanner CI consumes this exact JSON corpus. QR verification and PNR or
 attendee-index validation now share `CredentialClaims` and
 `Credentials::Validator`; no alternate QR/manual decision tree was added.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add app/services/ticketing/qr app/services/ticketing/credentials app/services/core/lookup_code_service.rb app/values/ticketing test/services test/contracts test/fixtures/files/ticketing config/initializers/ticketing_credentials.rb config/locales/ticketing/package_issuance.en.yml
@@ -604,7 +604,7 @@ Result: PASS — 19 tests, 130 assertions, 0 failures, 0 errors, 0 skips.
 
 Recipient resolution remains on `Core::PhoneIdentity::ResolveOrCreate`; no workflow engine was introduced. Reassignment invokes `Consent::SupersedeForReassignment` in the same transaction when the slot has a current personal requirement, and acceptance routes bind their plaintext token to the URL resource ID before invoking the command.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add app/services/ticketing app/jobs/ticketing app/controllers/ticketing app/policies/ticketing app/serializers/ticketing config/routes.rb test/services/ticketing test/controllers/ticketing
@@ -672,7 +672,7 @@ is intentionally reserved here and does not invent payment-provider state.
 The overdue job marks unresolved review cases as `expired` for support escalation;
 it never restores admission and never terminally invalidates a paid package.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit** — merged into `main`
 
 ```bash
 git add \
@@ -703,12 +703,12 @@ git commit -m "feat(ticketing): add reversible suspension"
 
 ## Acceptance gate
 
-- [ ] Run `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:test:prepare`.
-- [ ] Run `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing test/services/ticketing test/contracts/ticketing test/integration/ticketing test/controllers/ticketing`.
-- [ ] Prove PostgreSQL rejects incomplete/mixed generations and all three deferred registration/package FKs.
-- [ ] Prove duplicate issuance, replacement, claim acceptance, transfer, and suspension races with separate DB connections.
-- [ ] Prove old QR/PNR values never reactivate after cancellation, transfer, or reassignment.
-- [ ] Prove outbox delivery cannot observe uncommitted credentials and contains no sensitive payload.
-- [ ] Run `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test`.
+- [x] Run `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails db:test:prepare`.
+- [x] Run `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/models/ticketing test/services/ticketing test/contracts/ticketing test/integration/ticketing test/controllers/ticketing`.
+- [x] Prove PostgreSQL rejects incomplete/mixed generations and all three deferred registration/package FKs.
+- [x] Prove duplicate issuance, replacement, claim acceptance, transfer, and suspension races with separate DB connections.
+- [x] Prove old QR/PNR values never reactivate after cancellation, transfer, or reassignment.
+- [x] Prove outbox delivery cannot observe uncommitted credentials and contains no sensitive payload.
+- [x] Run `PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test` with `N_PLUS_ONE=1`.
 
 Accept only with all tests passing, the native contract fixture mirrored, and no lifecycle transaction logic in controllers.

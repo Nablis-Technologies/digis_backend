@@ -61,6 +61,9 @@ Rails.application.routes.draw do
   get "public/events/:event_slug/ticket_types/:ticket_type_id/consent_requirements",
       to: "ticketing/public_consent_requirements#index"
 
+  get "events/:event_id/add_on_reports", to: "catalog/event_add_on_reports#index",
+      as: :event_add_on_reports
+
   scope path: :catalog, module: :catalog do
     resources :product_prices, only: %i[index show create]
     resources :product_quotes, only: %i[create]
@@ -179,6 +182,7 @@ Rails.application.routes.draw do
   post "checkin_logs/:id/admission_use_reversal", to: "ticketing/admission_use_reversals#create"
 
   resources :tickets, only: [] do
+    resources :stream_sessions, only: :create, controller: "ticketing/stream_sessions"
     post :resale, on: :member, controller: "marketplace/resale_listings", action: :create
     resource :suspension, only: :create, controller: "ticketing/suspensions" do
       post :restore
@@ -190,6 +194,11 @@ Rails.application.routes.draw do
     end
     resources :credential_claims, only: :create, controller: "ticketing/credential_claims"
     resources :transfers, only: :create, controller: "ticketing/transfers"
+  end
+
+  resources :stream_sessions, only: [] do
+    post :refresh, on: :member, controller: "ticketing/stream_sessions"
+    post :revoke, on: :member, controller: "ticketing/stream_sessions"
   end
 
   post "tickets/:ticket_id/cancel", to: "ticketing/cancellations#create"
@@ -349,5 +358,9 @@ Rails.application.routes.draw do
   scope module: :core do
     get "users/:user_id/following", to: "follows#following"
     get "feed", to: "feed#index"
+  end
+
+  constraints(lambda { |request| request.host == Rails.application.config.x.short_links.host }) do
+    get "/:slug", to: "links/redirects#show", as: :branded_redirect
   end
 end
