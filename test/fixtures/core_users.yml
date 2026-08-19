@@ -1,7 +1,7 @@
 super_admin:
   id: 019e5f69-db1c-77b6-be88-3afbf8b65410
   email: superadmin@digis.et
-  phone: "251911000001"
+  phone: "+251911000001"
   verified_at: <%= Time.current %>
   password_digest: <%= BCrypt::Password.create("password123") %>
   created_at: <%= Time.current %>
@@ -10,7 +10,7 @@ super_admin:
 core_admin:
   id: 019e5f69-da01-72fb-bef2-17eddb579932
   email: admin@digis.et
-  phone: "251911000002"
+  phone: "+251911000002"
   verified_at: <%= Time.current %>
   password_digest: <%= BCrypt::Password.create("password123") %>
   created_at: <%= Time.current %>
@@ -19,7 +19,7 @@ core_admin:
 attendee:
   id: 019e5f69-dbb6-7e14-b126-c01c0c580984
   email: attendee@example.com
-  phone: "251911000003"
+  phone: "+251911000003"
   verified_at: <%= Time.current %>
   password_digest: <%= BCrypt::Password.create("password123") %>
   created_at: <%= Time.current %>
@@ -28,7 +28,7 @@ attendee:
 support:
   id: 019e5f6b-0003-7aaa-bbbb-ccccccccccc1
   email: support@digis.et
-  phone: "251911000004"
+  phone: "+251911000004"
   verified_at: <%= Time.current %>
   password_digest: <%= BCrypt::Password.create("password123") %>
   created_at: <%= Time.current %>
