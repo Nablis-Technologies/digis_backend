@@ -611,14 +611,15 @@ with `N_PLUS_ONE=1`, covering webhook processing, outbox recovery, refunds,
 cancellation batches, scanner token/key/revocation recovery, and reconciliation
 domain jobs. This is not staging evidence and does not complete this step.
 
-Staging preflight: `GET /up` returned HTTP 200, the seeded fixture
-administrator authenticated successfully with `SUPER_ADMIN`, and
-`GET /admin/organizations` returned HTTP 200. The deployed Render service is
-currently tracking `main` at commit `493781d`; `/admin/system/readiness` returns
-404 there, so the launch-hardening branch is not yet deployed to this staging
-service. Payment/refund drills also require a configured provider sandbox or a
-staging-only fake adapter; neither is currently registered by the deployed
-service.
+Staging preflight after branch deployment: `GET /up` returned HTTP 200, the
+seeded fixture administrator authenticated successfully with `SUPER_ADMIN`,
+`GET /admin/organizations` returned HTTP 200, and public/admin organization
+responses omitted `business_license_url` and `tin_certificate_url`. The live
+Render deploy is `ed615d6`. `GET /admin/system/readiness` now returns HTTP 200
+but reports `degraded` for database, encryption, outbox, queue, and storage;
+Render logs do show Solid Queue reconciliation jobs running. Payment/refund
+drills still require a configured provider sandbox or a staging-only fake
+adapter; neither is currently registered by the deployed service.
 
 Run and record:
 
