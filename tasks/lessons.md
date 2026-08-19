@@ -1,5 +1,11 @@
 # Lessons
 
+- When validating a deployed seeded environment, use the actual fixture
+  identifier returned by the live login response (the seeded admin phone may
+  differ from the local fixture email), verify the deployed commit, and treat
+  readiness component output as a real production signal. Do not infer seed or
+  configuration state from the Render Blueprint alone.
+
 - When a user asks to finish a plan, reconcile the canonical plan checkboxes with the actual committed code before advancing; distinguish completed implementation from remaining gated tasks and update the plan as each tranche is verified.
 
 - For pre-launch invitation delivery, use the hybrid boundary: persist the
