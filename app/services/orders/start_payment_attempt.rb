@@ -193,6 +193,8 @@ module Orders
         currency: payment.currency,
         commercial_signature: payment.commercial_signature,
         idempotency_key: payment.idempotency_key,
+        email: buyer.email,
+        phone_number: buyer.phone,
         expires_at: payment.order.expires_at,
         settlement_grace_minutes: payment.settlement_grace_minutes
       )
@@ -210,6 +212,7 @@ module Orders
         failure_code: result.failure_code,
         provider_fee_minor: result.provider_fee_minor,
         provider_fee_currency: result.provider_fee_currency,
+        checkout_url: result.checkout_url || payment.checkout_url,
         raw_status: result.raw_status.presence || result.status
       )
       success(payment.reload)
@@ -220,6 +223,7 @@ module Orders
         failure_code: nil,
         provider_fee_minor: nil,
         provider_fee_currency: nil,
+        checkout_url: payment.checkout_url,
         raw_status: "provider_result_invalid",
         updated_at: Time.current
       )
