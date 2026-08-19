@@ -3,7 +3,7 @@ services:
     name: digis-backend-preview
     runtime: docker
     plan: free
-    branch: main
+    branch: feat/launch-hardening-telemetry
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /up
