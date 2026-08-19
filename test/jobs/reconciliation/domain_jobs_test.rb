@@ -13,7 +13,7 @@ module Reconciliation
 
     test "outbox reconciliation dispatches only one bounded overdue batch" do
       first = core_outbox_events(:exhausted)
-      first.update!(available_at: @now - 3.hours)
+      first.update!(occurred_at: @now - 4.hours, available_at: @now - 3.hours)
       second = create_outbox_event(available_at: @now - 1.hour, attempts: 10)
       Core::OutboxEvent.where(published_at: nil).where.not(id: [ first.id, second.id ])
         .update_all(available_at: @now)
