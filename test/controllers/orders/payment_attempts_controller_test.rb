@@ -7,15 +7,17 @@ module Orders
     include Core::AuthTestHelpers
 
     class FakeAdapter < Payments::Providers::Adapter
+      attr_accessor :result
       attr_reader :create_calls
 
       def initialize
         @create_calls = []
+        @result = Payments::Providers::Result.unknown(raw_status: "pending")
       end
 
       def create(**arguments)
         @create_calls << arguments
-        Payments::Providers::Result.unknown(raw_status: "pending")
+        result
       end
 
       def cancel(**) = Payments::Providers::Result.cancelled(raw_status: "cancelled")
@@ -52,6 +54,10 @@ module Orders
     end
 
     test "starts a payment attempt and returns buyer-safe attempt data" do
+      @adapter.result = Payments::Providers::Result.unknown(
+        checkout_url: "https://checkout.chapa.test/controller-attempt",
+        raw_status: "pending"
+      )
       post payment_attempts_path,
            params: { payment_attempt: { provider: "chapa", payment_method: "telebirr" } },
            headers: user_headers.merge("Idempotency-Key" => "controller-attempt"), as: :json
@@ -61,6 +67,7 @@ module Orders
       assert_equal "processing", data.fetch("status")
       assert_equal @order.id, data.fetch("order_id")
       assert_equal "ETB", data.fetch("currency")
+      assert_equal "https://checkout.chapa.test/controller-attempt", data.fetch("checkout_url")
       assert_not data.key?("commercial_signature")
       assert_not data.key?("idempotency_key")
     end

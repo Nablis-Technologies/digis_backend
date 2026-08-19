@@ -21,6 +21,12 @@ class RenderPreviewConfigurationTest < ActiveSupport::TestCase
     assert_equal "0", env_vars.fetch("WEB_CONCURRENCY")
     assert_equal "3", env_vars.fetch("RAILS_MAX_THREADS")
     assert_equal "1", env_vars.fetch("JOB_THREADS")
+    assert_equal "false", env_vars.fetch("CHAPA_ENABLED")
+    assert_equal "test", env_vars.fetch("CHAPA_MODE")
+    assert_equal "https://api.chapa.co/v1", env_vars.fetch("CHAPA_API_BASE_URL")
+    %w[CHAPA_SECRET_KEY CHAPA_WEBHOOK_SECRET CHAPA_CALLBACK_URL CHAPA_RETURN_URL].each do |key|
+      assert service.fetch("envVars").any? { |entry| entry.fetch("key") == key && entry.fetch("sync") == false }
+    end
     keys = env_vars.keys
     assert_includes keys, "RENDER_PREVIEW"
     assert_includes keys, "RENDER_PREVIEW_DATABASE_URL"

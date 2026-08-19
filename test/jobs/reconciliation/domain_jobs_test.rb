@@ -14,9 +14,9 @@ module Reconciliation
     test "outbox reconciliation dispatches only one bounded overdue batch" do
       first = core_outbox_events(:exhausted)
       first.update!(occurred_at: @now - 4.hours, available_at: @now - 3.hours)
-      second = create_outbox_event(available_at: @now - 1.hour, attempts: 10)
+      second = create_outbox_event(occurred_at: @now - 2.hours, available_at: @now - 1.hour, attempts: 10)
       Core::OutboxEvent.where(published_at: nil).where.not(id: [ first.id, second.id ])
-        .update_all(available_at: @now)
+        .update_all(occurred_at: @now - 1.minute, available_at: @now)
       dispatched = Core::BaseService::Result.success(first)
 
       Core::Outbox::Dispatch.expects(:call).with(event_id: first.id).returns(dispatched)
@@ -121,7 +121,7 @@ module Reconciliation
 
     private
 
-    def create_outbox_event(available_at:, attempts:)
+    def create_outbox_event(available_at:, attempts:, occurred_at: available_at)
       Core::OutboxEvent.create!(
         topic: "orders",
         event_type: "orders.payment_event.received",
@@ -129,7 +129,7 @@ module Reconciliation
         aggregate_id: SecureRandom.uuid,
         payload: { payment_event_id: SecureRandom.uuid },
         idempotency_key: "reconciliation-outbox-#{SecureRandom.uuid}",
-        occurred_at: available_at,
+        occurred_at:,
         available_at:,
         attempts:
       )

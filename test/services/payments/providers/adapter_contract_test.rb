@@ -83,6 +83,7 @@ module Payments
         assert_equal "success", result.status
         assert_equal 75, result.provider_fee_minor
         assert_equal "ETB", result.provider_fee_currency
+        assert_nil result.checkout_url
         assert_equal 5, adapter.settlement_grace_minutes
         assert_equal 10_000, adapter.available_balance(currency: "ETB").fetch(:amount_minor)
       end

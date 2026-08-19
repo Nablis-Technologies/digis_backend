@@ -91,6 +91,19 @@ module Orders
       assert_equal 1, Orders::Payment.current.where(order: @order).count
     end
 
+    test "persists the buyer-safe hosted checkout URL returned by the provider" do
+      @chapa.result = Payments::Providers::Result.unknown(
+        provider_reference: "checkout-ref",
+        checkout_url: "https://checkout.chapa.test/checkout-ref",
+        raw_status: "pending"
+      )
+
+      result = start(provider: "chapa", payment_method: "telebirr", key: "checkout-url")
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "https://checkout.chapa.test/checkout-ref", result.value.checkout_url
+    end
+
     test "records a provider failure and permits the next sequential attempt" do
       @chapa.result = Payments::Providers::Result.failure(
         failure_code: "declined", raw_status: "declined"
