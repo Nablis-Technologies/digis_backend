@@ -17,6 +17,7 @@ class CreatePayments < ActiveRecord::Migration[8.1]
       t.string :provider_fee_currency, limit: 3
       t.string :idempotency_key, null: false
       t.string :provider_reference
+      t.string :checkout_url
       t.string :failure_code
       t.string :raw_status
       t.integer :settlement_grace_minutes, null: false, default: 5

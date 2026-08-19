@@ -52,6 +52,7 @@ module Orders
               allow_nil: true
     validates :provider_fee_currency,
               format: { with: /\A[A-Z]{3}\z/ }, allow_nil: true
+    validates :checkout_url, format: { with: %r{\Ahttps://[^[:space:]]+\z} }, allow_nil: true
     validates :idempotency_key, presence: true
     validates :settlement_grace_minutes, numericality: { only_integer: true, in: 3..15 }
     validates :settlement_grace_expires_at, presence: true
@@ -92,6 +93,7 @@ module Orders
       self.currency = currency.to_s.strip.upcase.presence
       self.provider_fee_currency = provider_fee_currency.to_s.strip.upcase.presence
       self.provider_reference = provider_reference.to_s.strip.presence
+      self.checkout_url = checkout_url.to_s.strip.presence
       self.failure_code = failure_code.to_s.strip.presence
       self.raw_status = raw_status.to_s.strip.presence
     end

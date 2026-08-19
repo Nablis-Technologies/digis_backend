@@ -3,14 +3,15 @@
 module Orders
   # Limits payment-attempt serialization to fields needed to continue or
   # display the buyer's own gateway attempt. Commercial evidence, idempotency
-  # keys, organizer fees, and raw provider status never belong on this surface.
+  # keys, organizer fees, and raw provider status never belong on this surface;
+  # the hosted checkout URL is the only provider navigation value exposed.
   class PaymentPolicy < Core::ApplicationPolicy
     VISIBILITY = {
       create: {
         default: {
           fields: %i[
             id order_id attempt_number provider payment_method status amount_minor currency
-            provider_reference settlement_grace_minutes settlement_grace_expires_at
+            provider_reference checkout_url settlement_grace_minutes settlement_grace_expires_at
             created_at updated_at
           ],
           include: []

@@ -5698,6 +5698,7 @@ CREATE TABLE public.orders_payments (
     provider_fee_currency character varying(3),
     idempotency_key character varying NOT NULL,
     provider_reference character varying,
+    checkout_url character varying,
     failure_code character varying,
     raw_status character varying,
     settlement_grace_minutes integer DEFAULT 5 NOT NULL,
