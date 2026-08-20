@@ -50,7 +50,10 @@ module Orders
       reference = locked_event.payload.values_at("provider_reference", "tx_ref", "reference").compact.find(&:present?)
       return unless reference
 
-      Orders::Payment.find_by(provider: locked_event.provider, provider_reference: reference)
+      # Chapa initializes with tx_ref as the payment idempotency key and may
+      # omit a provider reference until its webhook arrives.
+      Orders::Payment.find_by(provider: locked_event.provider, provider_reference: reference) ||
+        Orders::Payment.find_by(provider: locked_event.provider, idempotency_key: reference)
     end
 
     def success_event?(locked_event)
