@@ -35,6 +35,7 @@ class SeedsTest < ActiveSupport::TestCase
     assert ticket_product.ticket_type
     assert ticket_product.product_accesses.where(type: "venue").exists?
     assert ticket_product.product_date_allocations.exists?
+    assert Ticketing::RegistrationForm.exists?(event: event, name: "Chapa Attendee Details")
 
     quote = Orders::BuildQuote.call(
       event: event,

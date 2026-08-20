@@ -986,6 +986,23 @@ unless chapa_ticket_product.status == "active"
   raise result.error.message unless result.success?
 end
 
+chapa_form = Ticketing::RegistrationForm.find_or_create_by!(
+  event: chapa_event, ticket_type: nil, name: "Chapa Attendee Details"
+) do |form|
+  form.active = true
+end
+seed_registration_form_version(
+  chapa_form,
+  [
+    {
+      key: "full_name", type: "short_text", response_scope: "registration",
+      sensitivity: "standard", label: "Full name", required: true, position: 0,
+      options: [], validation_rules: { "min_length" => 2 }
+    }
+  ],
+  admin
+)
+
 puts "✓ #{chapa_event.title} published with #{chapa_product.name} and " \
      "#{chapa_ticket_product.name} active"
 
