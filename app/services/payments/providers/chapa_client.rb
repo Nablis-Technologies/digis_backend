@@ -74,7 +74,7 @@ module Payments
 
       def verify_webhook(payload:, headers:, **_request)
         received = headers.to_h.each_with_object({}) do |(key, value), normalized|
-          normalized[key.to_s.downcase] = value.to_s
+          normalized[normalize_header_key(key)] = value.to_s
         end
         expected = OpenSSL::HMAC.hexdigest("SHA256", @webhook_secret, payload.to_s)
         %w[chapa-signature x-chapa-signature].any? do |header|
@@ -174,6 +174,12 @@ module Payments
 
       def secure_equal?(left, right)
         left.present? && left.bytesize == right.bytesize && ActiveSupport::SecurityUtils.secure_compare(left, right)
+      end
+
+      # Rack exposes inbound headers as HTTP_-prefixed CGI keys. Normalize
+      # those keys before matching Chapa's documented signature names.
+      def normalize_header_key(key)
+        key.to_s.sub(/\AHTTP_/i, "").downcase.tr("_", "-")
       end
 
       def validate_configuration!
