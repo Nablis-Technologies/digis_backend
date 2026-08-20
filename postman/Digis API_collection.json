@@ -71,11 +71,6 @@
       "type": "string"
     },
     {
-      "key": "providerEventId",
-      "value": "",
-      "type": "string"
-    },
-    {
       "key": "paymentWebhookSignature",
       "value": "",
       "type": "string"
@@ -12180,14 +12175,14 @@
                     "type": "text"
                   },
                   {
-                    "key": "X-Provider-Signature",
+                    "key": "X-Chapa-Signature",
                     "value": "{{paymentWebhookSignature}}",
                     "type": "text"
                   }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"event_id\": \"{{providerEventId}}\",\n  \"type\": \"payment.succeeded\",\n  \"status\": \"paid\",\n  \"provider_reference\": \"{{providerReference}}\"\n}",
+                  "raw": "{\n  \"event\": \"charge.success\",\n  \"type\": \"API\",\n  \"status\": \"success\",\n  \"reference\": \"{{providerReference}}\",\n  \"tx_ref\": \"{{transactionReference}}\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -12205,7 +12200,7 @@
                     "webhook"
                   ]
                 },
-                "description": "Receives a provider-signed payment event. The endpoint is unauthenticated, verifies the provider signature, durably deduplicates the event, and acknowledges it before asynchronous processing.",
+                "description": "Receives Chapa's provider-signed transaction event. Chapa uses event, type, reference, tx_ref, and status fields; the endpoint verifies the signature, durably deduplicates the event, and acknowledges it before asynchronous processing.",
                 "auth": {
                   "type": "noauth"
                 }
