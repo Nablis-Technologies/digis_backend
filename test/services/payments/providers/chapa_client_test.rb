@@ -146,6 +146,15 @@ module Payments
         assert_not client.verify_webhook(payload: raw_body, headers: {})
       end
 
+      test "accepts Chapa signatures over parsed JSON serialization" do
+        raw_body = '{ "event": "charge.success", "tx_ref": "attempt-1" }'
+        serialized_payload = JSON.generate(JSON.parse(raw_body))
+        signature = OpenSSL::HMAC.hexdigest("SHA256", "webhook-secret", serialized_payload)
+        client = build_client(webhook_secret: "webhook-secret")
+
+        assert client.verify_webhook(payload: raw_body, headers: { "chapa-signature" => signature })
+      end
+
       test "requires a mode-matching Chapa secret key" do
         assert_raises(ArgumentError) do
           ChapaClient.new(secret_key: "CHASECK-live", webhook_secret: "secret", mode: "test")

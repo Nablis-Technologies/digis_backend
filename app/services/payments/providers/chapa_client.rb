@@ -76,9 +76,9 @@ module Payments
         received = headers.to_h.each_with_object({}) do |(key, value), normalized|
           normalized[key.to_s.downcase] = value.to_s
         end
-        expected = OpenSSL::HMAC.hexdigest("SHA256", @webhook_secret, payload.to_s)
+        expected = webhook_signatures(payload)
         %w[chapa-signature x-chapa-signature].any? do |header|
-          secure_equal?(received[header], expected)
+          expected.any? { |signature| secure_equal?(received[header], signature) }
         end
       end
 
@@ -174,6 +174,18 @@ module Payments
 
       def secure_equal?(left, right)
         left.present? && left.bytesize == right.bytesize && ActiveSupport::SecurityUtils.secure_compare(left, right)
+      end
+
+      # Chapa's documentation signs JSON.stringify(req.body), while some
+      # deliveries preserve the exact raw-body bytes. Accept both forms before
+      # the constant-time comparison without logging either signature.
+      def webhook_signatures(payload)
+        serialized = JSON.generate(JSON.parse(payload.to_s))
+        [ payload.to_s, serialized ].uniq.map do |candidate|
+          OpenSSL::HMAC.hexdigest("SHA256", @webhook_secret, candidate)
+        end
+      rescue JSON::ParserError
+        [ OpenSSL::HMAC.hexdigest("SHA256", @webhook_secret, payload.to_s) ]
       end
 
       def validate_configuration!
