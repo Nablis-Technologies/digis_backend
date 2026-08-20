@@ -67,5 +67,24 @@ module Orders
       assert_not Orders::PaymentEvent.exists?(provider_event_id: "evt-rejected")
       assert_not Core::OutboxEvent.exists?(event_type: "orders.payment_event.received")
     end
+
+    test "accepts Chapa's transaction webhook field names" do
+      payload = {
+        event: "charge.success",
+        type: "API",
+        reference: "AP-chapa-reference",
+        tx_ref: "chapa-transaction-reference",
+        status: "success"
+      }
+
+      post "/payments/chapa/webhook",
+           params: payload,
+           headers: { "X-Chapa-Signature" => "valid-signature" },
+           as: :json
+
+      assert_response :accepted
+      assert_equal "AP-chapa-reference", response.parsed_body.dig("data", "provider_event_id")
+      assert Orders::PaymentEvent.exists?(provider_event_id: "AP-chapa-reference")
+    end
   end
 end

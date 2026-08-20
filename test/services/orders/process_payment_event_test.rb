@@ -93,6 +93,20 @@ module Orders
       assert_equal 1, Orders::PaymentEvent.where(provider: "chapa", provider_event_id: "evt-duplicate").count
     end
 
+    test "locates a Chapa webhook payment by its transaction reference" do
+      event = record_event(
+        event_id: "chapa-reference-event",
+        event_type: "payment.succeeded",
+        payload: { "status" => "success", "tx_ref" => @payment.idempotency_key }
+      )
+
+      result = Orders::ProcessPaymentEvent.call(event:)
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "fulfilled", @order.reload.status
+      assert_equal "succeeded", @payment.reload.status
+    end
+
     test "rolls back inbox receipt when publishing its outbox event fails" do
       outbox_error = Core::Error.new("outbox unavailable")
       publish_failure = Core::BaseService::Result.failure(outbox_error)
