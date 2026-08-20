@@ -7,12 +7,13 @@ class SeedsTest < ActiveSupport::TestCase
   parallelize(workers: 1)
 
   setup do
-    # Seed verification needs a clean user namespace, while the surrounding
-    # suite loads fixture users with intentionally different email mappings.
-    ActiveRecord::Base.connection.execute("TRUNCATE TABLE core_users CASCADE")
+    # The preview profile seeds legal, audit, catalog, and event graphs in
+    # addition to users. Reset every test table so repeated seed runs do not
+    # collide with audit identities left by an earlier case.
+    ActiveRecord::Tasks::DatabaseTasks.truncate_all
   end
 
-  test "canonical seed provides an idempotent Chapa checkout fixture" do
+  test "preview seed provides an idempotent Chapa checkout fixture" do
     load_seed
 
     organization = Organizations::Organization.find_by!(name: "Addis Music Fest")
@@ -62,7 +63,7 @@ class SeedsTest < ActiveSupport::TestCase
     ]
   end
 
-  test "canonical seed repairs a partial Chapa cover fixture" do
+  test "preview seed repairs a partial Chapa cover fixture" do
     load_seed
 
     event = Events::Event.find_by!(title: "Chapa Test Event")
@@ -80,6 +81,10 @@ class SeedsTest < ActiveSupport::TestCase
   # design; this test verifies data convergence, while domain query tests own
   # N+1 coverage for the application paths exercised by the fixture.
   def load_seed
+    previous_profile = ENV["DIGIS_SEED_PROFILE"]
+    ENV["DIGIS_SEED_PROFILE"] = "preview"
     Prosopite.pause { load Rails.root.join("db/seeds.rb") }
+  ensure
+    ENV["DIGIS_SEED_PROFILE"] = previous_profile
   end
 end

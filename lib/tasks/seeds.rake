@@ -2,7 +2,7 @@
 
 namespace :db do
   namespace :seed do
-    desc "Load the dev / API-test seed (db/seeds/dev.rb)"
+    desc "Load the comprehensive local development seed profile"
     task dev: :environment do
       load Rails.root.join("db/seeds/dev.rb")
     end
