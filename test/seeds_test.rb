@@ -37,6 +37,11 @@ class SeedsTest < ActiveSupport::TestCase
     assert ticket_product.product_date_allocations.exists?
     assert Ticketing::RegistrationForm.exists?(event: event, name: "Chapa Attendee Details")
 
+    scanner = Ticketing::ScannerDevice.find_by!(device_identifier: "preview-chapa-scanner-001")
+    assert_equal organization.id, scanner.organization_id
+    assert scanner.token_matches?("preview-scanner-token-v1")
+    assert scanner.assignments.exists?(event: event, status: "active")
+
     quote = Orders::BuildQuote.call(
       event: event,
       buyer: Core::User.find_by!(email: "attendee@example.com"),

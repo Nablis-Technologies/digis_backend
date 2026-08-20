@@ -1003,6 +1003,48 @@ seed_registration_form_version(
   admin
 )
 
+# ─────────────────────────────────────────────
+# 12. Offline scanner compromise fixture
+# ─────────────────────────────────────────────
+# This is a deterministic preview credential only. Production devices are
+# registered through Ticketing::Scanners::RegisterDevice and receive a random
+# token that is delivered once through the secure operator channel.
+puts "\n📡 Seeding offline scanner fixture..."
+
+preview_scanner_token = ENV.fetch("DIGIS_PREVIEW_SCANNER_TOKEN", "preview-scanner-token-v1")
+preview_scanner = Ticketing::ScannerDevice.find_or_create_by!(
+  device_identifier: "preview-chapa-scanner-001"
+) do |device|
+  device.organization = fest_org
+  device.name = "Preview Chapa Gate Scanner"
+  device.token_digest = Ticketing::ScannerDevice.token_digest_for(token: preview_scanner_token)
+  device.status = "active"
+end
+
+preview_scanner.assign_attributes(
+  organization: fest_org,
+  name: "Preview Chapa Gate Scanner",
+  token_digest: Ticketing::ScannerDevice.token_digest_for(token: preview_scanner_token),
+  status: "active",
+  revoked_at: nil
+)
+preview_scanner.save! if preview_scanner.changed?
+
+preview_assignment = Ticketing::ScannerDeviceAssignment.find_by(
+  scanner_device: preview_scanner, event: chapa_event
+)
+unless preview_assignment
+  result = Ticketing::Scanners::AssignToEvent.call(
+    scanner_device: preview_scanner,
+    event: chapa_event,
+    actor: organizer,
+    zone_ids: [ chapa_main_zone.id ]
+  )
+  raise result.error.message unless result.success?
+end
+
+puts "✓ Scanner #{preview_scanner.device_identifier} assigned to #{chapa_event.title}"
+
 puts "✓ #{chapa_event.title} published with #{chapa_product.name} and " \
      "#{chapa_ticket_product.name} active"
 
