@@ -678,7 +678,77 @@ unless chapa_product.status == "active"
   raise result.error.message unless result.success?
 end
 
-puts "✓ #{chapa_event.title} published with #{chapa_product.name} active at 1 ETB"
+chapa_ticket_product = Catalog::EventProduct.find_by(
+  event: chapa_event, name: "Chapa Test General Admission", type: "ticket"
+)
+unless chapa_ticket_product
+  result = Catalog::Products::CreateDraft.call(
+    event: chapa_event,
+    actor: organizer_user,
+    product_attributes: {
+      name: "Chapa Test General Admission",
+      description: "Ticket fixture for refund, credential, and scanner testing.",
+      type: "ticket",
+      min_per_order: 1,
+      max_per_order: 4,
+      sales_start_at: Time.zone.parse("2026-01-01 00:00")
+    },
+    ticket_type_attributes: {
+      approval_mode: "automatic",
+      audience: "public",
+      date_selection: "fixed",
+      admissions_per_unit: 1,
+      transferable: true,
+      delegation_enabled: true,
+      resale_enabled: true,
+      resale_price_cap_type: "percentage",
+      resale_percentage_cap_bps: 10_000,
+      max_completed_resales: 1
+    },
+    inventory_configuration: { mode: "event_wide", capacity: 200 },
+    price_attributes: {
+      type: "override",
+      currency: "ETB",
+      amount_minor: 500,
+      active_from: Time.zone.parse("2026-01-01 00:00")
+    }
+  )
+  raise result.error.message unless result.success?
+
+  chapa_ticket_product = result.value
+end
+
+chapa_event_date = chapa_event.event_dates.find_by!(source_key: "chapa-test-date-v1")
+chapa_main_zone = Events::AccessZone.find_or_create_by!(event: chapa_event, code: "MAIN") do |zone|
+  zone.name = "Main Gate"
+  zone.type = "venue"
+  zone.active = true
+  zone.sort_order = 0
+end
+
+unless chapa_ticket_product.product_accesses.exists?(event_date: chapa_event_date, type: "venue")
+  access = chapa_ticket_product.product_accesses.create!(
+    event_date: chapa_event_date,
+    type: "venue",
+    usage_limit: 1
+  )
+  access.product_access_zones.create!(access_zone: chapa_main_zone)
+end
+
+unless chapa_ticket_product.product_date_allocations.exists?(event_date: chapa_event_date)
+  chapa_ticket_product.product_date_allocations.create!(
+    event_date: chapa_event_date,
+    allocation_basis_points: 10_000
+  )
+end
+
+unless chapa_ticket_product.status == "active"
+  result = Catalog::Products::Activate.call(product: chapa_ticket_product, actor: organizer_user)
+  raise result.error.message unless result.success?
+end
+
+puts "✓ #{chapa_event.title} published with #{chapa_product.name} and " \
+     "#{chapa_ticket_product.name} active"
 
 # ─────────────────────────────────────────────
 # 12. Events::Artists

@@ -28,6 +28,13 @@ class SeedsTest < ActiveSupport::TestCase
     assert_equal "active", product.status
     assert product.prices.active_at(Time.current).where(currency: "ETB").exists?
 
+    ticket_product = Catalog::EventProduct.find_by!(name: "Chapa Test General Admission", event: event)
+    assert ticket_product.ticket?
+    assert_equal "active", ticket_product.status
+    assert ticket_product.ticket_type
+    assert ticket_product.product_accesses.where(type: "venue").exists?
+    assert ticket_product.product_date_allocations.exists?
+
     quote = Orders::BuildQuote.call(
       event: event,
       buyer: Core::User.find_by!(email: "attendee@example.com"),
