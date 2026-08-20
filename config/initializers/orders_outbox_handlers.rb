@@ -24,3 +24,15 @@ Rails.application.config.x.outbox_handlers["orders.refund.created"] = lambda do 
   end
   Orders::SubmitRefundJob.perform_later(outbox_event.payload.fetch("refund_id"))
 end
+
+# Checkout creation and expiry are durable lifecycle evidence today; their
+# inventory and order transitions are completed by the owning commands before
+# publication, so no downstream consumer is required for these events.
+%w[orders.checkout.created orders.checkout.expired].each do |event_type|
+  Rails.application.config.x.outbox_handlers[event_type] = lambda do |outbox_event|
+    Rails.logger.info(
+      "Orders checkout evidence acknowledged without downstream consumer: " \
+      "event_id=#{outbox_event.id} event_type=#{outbox_event.event_type}"
+    )
+  end
+end

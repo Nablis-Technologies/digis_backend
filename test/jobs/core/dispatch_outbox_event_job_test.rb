@@ -66,6 +66,20 @@ class Core::DispatchOutboxEventJobTest < ActiveJob::TestCase
     assert Rails.application.config.x.outbox_handlers.key?("commercial.security.break_glass")
   end
 
+  test "registers evidence handlers for checkout lifecycle events" do
+    assert Rails.application.config.x.outbox_handlers.key?("orders.checkout.created")
+    assert Rails.application.config.x.outbox_handlers.key?("orders.checkout.expired")
+  end
+
+  test "publishes checkout lifecycle evidence without a downstream consumer" do
+    event = core_outbox_events(:pending)
+    event.update!(topic: "orders", event_type: "orders.checkout.created")
+
+    Core::Outbox::Dispatch.call(event_id: event.id)
+
+    assert event.reload.published_at?
+  end
+
   test "dispatches break-glass events through the explicit handler" do
     event = core_outbox_events(:pending)
     event.update!(
