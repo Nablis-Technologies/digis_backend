@@ -12200,7 +12200,7 @@
                     "webhook"
                   ]
                 },
-                "description": "Receives Chapa's provider-signed transaction event. Chapa uses event, type, reference, tx_ref, and status fields; the endpoint verifies the signature, durably deduplicates the event, and acknowledges it before asynchronous processing.",
+                "description": "Receives Chapa's provider-signed transaction event. Chapa uses event, type, reference, tx_ref, and status fields; the endpoint verifies the HMAC over Chapa's JSON serialization or preserved raw body, durably deduplicates the event, and acknowledges it before asynchronous processing.",
                 "auth": {
                   "type": "noauth"
                 }
