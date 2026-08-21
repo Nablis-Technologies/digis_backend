@@ -1041,6 +1041,10 @@ unless preview_assignment
     zone_ids: [ chapa_main_zone.id ]
   )
   raise result.error.message unless result.success?
+else
+  # Preview reseeds restore this disposable fixture after destructive drills;
+  # production assignment history is never reset by this seed profile.
+  preview_assignment.update!(status: "active", starts_at: nil, ends_at: nil) unless preview_assignment.active?
 end
 
 puts "✓ Scanner #{preview_scanner.device_identifier} assigned to #{chapa_event.title}"

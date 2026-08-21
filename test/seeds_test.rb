@@ -42,6 +42,10 @@ class SeedsTest < ActiveSupport::TestCase
     assert scanner.token_matches?("preview-scanner-token-v1")
     assert scanner.assignments.exists?(event: event, status: "active")
 
+    scanner.assignments.find_by!(event: event).update!(status: "revoked")
+    load_seed
+    assert scanner.assignments.find_by!(event: event).active?
+
     quote = Orders::BuildQuote.call(
       event: event,
       buyer: Core::User.find_by!(email: "attendee@example.com"),
