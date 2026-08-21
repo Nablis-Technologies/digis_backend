@@ -117,7 +117,9 @@ module Ticketing
         old_token = SecureRandom.hex(32)
         device = create_device(raw_token: old_token)
 
-        result = Ticketing::Scanners::RotateToken.call(device:, actor: @manager)
+        result = Ticketing::Scanners::RotateToken.call(
+          device:, actor: @manager, idempotency_key: "rotate-token-test"
+        )
 
         assert result.success?
         refute_equal old_token, result.value.token
@@ -125,6 +127,122 @@ module Ticketing
         refute device.token_matches?(old_token)
         assert device.token_matches?(result.value.token)
         assert Core::AuditLog.exists?(auditable: device, action: "ticketing.scanner_device.token_rotated")
+      end
+
+      test "replays a token rotation without rotating again or returning plaintext" do
+        device = create_device(raw_token: SecureRandom.hex(32))
+        key = "rotate-token-replay"
+        first = nil
+        second = nil
+
+        operation = lambda do
+          result = Ticketing::Scanners::RotateToken.call(device:, actor: @manager, idempotency_key: key)
+          first ||= result
+          second = result if first != result
+          result
+        end
+        assert_audit_idempotent(
+          operation,
+          action: "ticketing.scanner_device.token_rotated",
+          auditable_type: "Ticketing::ScannerDevice",
+          auditable_id: device.id
+        )
+
+        assert first.success?
+        assert second.success?
+        assert_equal Ticketing::ScannerDevice.token_digest_for(token: first.value.token), device.reload.token_digest
+        assert_nil second.value.token
+        assert second.value.replayed?
+        assert_equal 1, Core::AuditLog.for_auditable(device)
+          .for_action("ticketing.scanner_device.token_rotated").count
+      end
+
+      test "rejects reuse of a rotation key for another device" do
+        first_device = create_device(raw_token: SecureRandom.hex(32))
+        second_device = create_device(raw_token: SecureRandom.hex(32))
+        key = "rotate-token-cross-device"
+
+        first = Ticketing::Scanners::RotateToken.call(device: first_device, actor: @manager, idempotency_key: key)
+        second = Ticketing::Scanners::RotateToken.call(device: second_device, actor: @manager, idempotency_key: key)
+
+        assert first.success?
+        refute second.success?
+        assert_equal "idempotency_conflict", second.error.code
+      end
+
+      test "revokes a device and all active event assignments" do
+        device = create_device(raw_token: SecureRandom.hex(32))
+        assignment = create_assignment(device:)
+
+        result = Ticketing::Scanners::RevokeDevice.call(
+          device:, actor: @manager, reason: "suspected device compromise", idempotency_key: "revoke-device-test"
+        )
+
+        assert result.success?
+        assert_equal "revoked", device.reload.status
+        assert device.revoked_at.present?
+        assert_equal "revoked", assignment.reload.status
+        assert Core::AuditLog.exists?(auditable: device, action: "ticketing.scanner_device.revoked")
+        assert Core::AuditLog.exists?(auditable: assignment, action: "ticketing.scanner_device_assignment.revoked")
+      end
+
+      test "device revocation requires an authorized actor and reason" do
+        device = create_device(raw_token: SecureRandom.hex(32))
+
+        forbidden = Ticketing::Scanners::RevokeDevice.call(
+          device:, actor: @owner, reason: "suspected device compromise", idempotency_key: "revoke-forbidden"
+        )
+        missing_reason = Ticketing::Scanners::RevokeDevice.call(
+          device:, actor: @manager, reason: " ", idempotency_key: "revoke-missing-reason"
+        )
+
+        refute forbidden.success?
+        assert_equal "device_revoke_forbidden", forbidden.error.code
+        refute missing_reason.success?
+        assert_equal "revoke_reason_required", missing_reason.error.code
+      end
+
+      test "replays device revocation without creating another audit" do
+        device = create_device(raw_token: SecureRandom.hex(32))
+        create_assignment(device:)
+        key = "revoke-device-replay"
+        first = nil
+        second = nil
+
+        operation = lambda do
+          result = Ticketing::Scanners::RevokeDevice.call(
+            device:, actor: @manager, reason: "lost device", idempotency_key: key
+          )
+          first ||= result
+          second = result if first != result
+          result
+        end
+        assert_audit_idempotent(
+          operation,
+          action: "ticketing.scanner_device.revoked",
+          auditable_type: "Ticketing::ScannerDevice",
+          auditable_id: device.id
+        )
+
+        assert first.success?
+        assert second.success?
+        assert_equal "revoked", second.value.status
+      end
+
+      test "rejects a revocation key reused with a different reason" do
+        device = create_device(raw_token: SecureRandom.hex(32))
+        key = "revoke-device-reason-conflict"
+
+        first = Ticketing::Scanners::RevokeDevice.call(
+          device:, actor: @manager, reason: "lost device", idempotency_key: key
+        )
+        second = Ticketing::Scanners::RevokeDevice.call(
+          device:, actor: @manager, reason: "suspected compromise", idempotency_key: key
+        )
+
+        assert first.success?
+        refute second.success?
+        assert_equal "idempotency_conflict", second.error.code
       end
 
       test "authenticates an active device and scanner operator for an active assignment" do
