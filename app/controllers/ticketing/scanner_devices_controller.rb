@@ -7,8 +7,19 @@ module Ticketing
     include Core::CommandResponse
     include Core::IdempotencyKeyResolver
 
-    before_action :set_device
-    before_action :ensure_idempotency_key_present
+    before_action :set_organization, only: :index
+    before_action :set_device, except: :index
+    before_action :ensure_idempotency_key_present, only: %i[rotate_token revoke]
+
+    def index
+      scope = policy_scope(@organization.scanner_devices).order(:created_at, :id)
+      authorize @organization.scanner_devices.new, :index?, policy_class: Ticketing::ScannerDevicePolicy
+
+      render_success(
+        data: scope,
+        serializer_options: { serializer: Ticketing::ScannerDeviceSerializer }
+      )
+    end
 
     def rotate_token
       result = Ticketing::Scanners::RotateToken.call(
@@ -46,6 +57,10 @@ module Ticketing
     end
 
     private
+
+    def set_organization
+      @organization = Organizations::Organization.find(params[:organization_id])
+    end
 
     def set_device
       @device = Ticketing::ScannerDevice.find(params[:id])

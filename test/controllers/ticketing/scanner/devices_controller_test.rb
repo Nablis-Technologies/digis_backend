@@ -37,6 +37,23 @@ module Ticketing
         assert @device.token_matches?(token)
       end
 
+      test "organization administrator can discover safe scanner device fields" do
+        get "/organizations/#{@event.organization_id}/scanner_devices", headers: owner_headers, as: :json
+
+        assert_response :success
+        device = response.parsed_body.fetch("data").find { |entry| entry["id"] == @device.id }
+        assert device
+        assert_equal @device.device_identifier, device["device_identifier"]
+        refute device.key?("token_digest")
+        refute device.key?("idempotency_key_digest")
+      end
+
+      test "attendee cannot discover organization scanner devices" do
+        get "/organizations/#{@event.organization_id}/scanner_devices", headers: user_headers, as: :json
+
+        assert_response :forbidden
+      end
+
       test "organization administrator can revoke a scanner device" do
         post "/scanner_devices/#{@device.id}/revoke",
              params: { reason: "lost device" },

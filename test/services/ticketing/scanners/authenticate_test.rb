@@ -129,12 +129,14 @@ module Ticketing
         assert Core::AuditLog.exists?(auditable: device, action: "ticketing.scanner_device.token_rotated")
       end
 
-      test "replays a token rotation without rotating again or returning plaintext" do
+      test "crash recovery replays a committed rotation after response loss" do
         device = create_device(raw_token: SecureRandom.hex(32))
         key = "rotate-token-replay"
         first = nil
         second = nil
 
+        # The first result represents a committed rotation whose HTTP response
+        # was lost. The replay must use the receipt rather than rotate again.
         operation = lambda do
           result = Ticketing::Scanners::RotateToken.call(device:, actor: @manager, idempotency_key: key)
           first ||= result

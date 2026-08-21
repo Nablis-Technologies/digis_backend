@@ -960,6 +960,26 @@
           "response": []
         },
         {
+          "name": "List Organization Scanner Devices",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/organizations/{{organizationId}}/scanner_devices",
+              "host": ["{{baseUrl}}"],
+              "path": ["organizations", "{{organizationId}}", "scanner_devices"]
+            },
+            "description": "List organization scanner devices for an organization owner/admin or platform administrator. The response excludes token digests and idempotency data."
+          },
+          "response": []
+        },
+        {
           "name": "Rotate Scanner Token",
           "request": {
             "method": "POST",

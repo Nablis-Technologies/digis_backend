@@ -12,12 +12,25 @@ module Ticketing
       Events::AuthorizationResolver.organization_admin?(user, record.organization)
     end
 
+    alias index? show?
     alias rotate_token? show?
     alias revoke? show?
 
     VISIBILITY = {
+      index: { default: { fields: SAFE_FIELDS, include: [] }, admin: { fields: SAFE_FIELDS, include: [] } },
       rotate_token: { default: { fields: SAFE_FIELDS, include: [] }, admin: { fields: SAFE_FIELDS, include: [] } },
       revoke: { default: { fields: SAFE_FIELDS, include: [] }, admin: { fields: SAFE_FIELDS, include: [] } }
     }.freeze
+
+    class Scope < Core::ApplicationPolicy::Scope
+      def resolve
+        return scope.all if user&.has_role?("SUPER_ADMIN") || user&.has_role?("ADMIN") || user&.has_role?("CORE_ADMIN")
+
+        organization_ids = Organizations::Membership.where(
+          user:, status: "active", role: %w[owner admin]
+        ).select(:organization_id)
+        scope.where(organization_id: organization_ids)
+      end
+    end
   end
 end
