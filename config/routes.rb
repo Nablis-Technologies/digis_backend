@@ -175,6 +175,10 @@ Rails.application.routes.draw do
 
   post "ticketing/audience_authorizations", to: "ticketing/audience_authorizations#create"
   post "scanner/auth", to: "ticketing/scanner/auth#create"
+  resources :scanner_devices, only: [] do
+    post :rotate_token, on: :member, controller: "ticketing/scanner_devices"
+    post :revoke, on: :member, controller: "ticketing/scanner_devices"
+  end
   get "scanner/events/:event_id/sync", to: "ticketing/scanner/event_sync#show"
   post "scanner/events/:event_id/scan_uploads", to: "ticketing/scanner/scan_uploads#create"
   post "scanner/events/:event_id/lookups", to: "ticketing/scanner/lookups#create"
