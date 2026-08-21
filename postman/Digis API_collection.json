@@ -236,6 +236,11 @@
       "type": "string"
     },
     {
+      "key": "scannerDeviceId",
+      "value": "",
+      "type": "string"
+    },
+    {
       "key": "scannerToken",
       "value": "",
       "type": "string"
@@ -951,6 +956,61 @@
               ]
             },
             "description": "Append-only manager reversal for every admission use created by a successful check-in. The operation creates one complete reversal group, never edits historical check-in or use rows, and publishes the reversal version for scanner synchronization."
+          },
+          "response": []
+        },
+        {
+          "name": "Rotate Scanner Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/scanner_devices/{{scannerDeviceId}}/rotate_token",
+              "host": ["{{baseUrl}}"],
+              "path": ["scanner_devices", "{{scannerDeviceId}}", "rotate_token"]
+            },
+            "description": "Rotate a scanner credential as an authorized organization administrator. Requires Idempotency-Key. The plaintext token is returned once; an exact replay does not rotate again or recover plaintext, so use a new key for a new rotation."
+          },
+          "response": []
+        },
+        {
+          "name": "Revoke Scanner Device",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"suspected_device_compromise\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {
+              "raw": "{{baseUrl}}/scanner_devices/{{scannerDeviceId}}/revoke",
+              "host": ["{{baseUrl}}"],
+              "path": ["scanner_devices", "{{scannerDeviceId}}", "revoke"]
+            },
+            "description": "Revoke a compromised or lost scanner device and its active event assignments. Requires Idempotency-Key. Offline scanners may continue using their last synchronized state until they reconnect."
           },
           "response": []
         }
