@@ -5321,7 +5321,7 @@ CREATE TABLE public.links_short_links (
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT links_short_links_click_bounds_check CHECK ((((max_clicks IS NULL) OR (max_clicks > 0)) AND (click_count >= 0) AND ((max_clicks IS NULL) OR (click_count <= max_clicks)))),
     CONSTRAINT links_short_links_https_url_check CHECK (((custom_url IS NULL) OR (custom_url ~~ 'https://%'::text))),
-    CONSTRAINT links_short_links_target_type_check CHECK (((target_type IS NULL) OR ((target_type)::text = ANY ((ARRAY['event'::character varying, 'ticket'::character varying, 'organization'::character varying])::text[])))),
+    CONSTRAINT links_short_links_target_type_check CHECK (((target_type IS NULL) OR ((target_type)::text = ANY (ARRAY[('event'::character varying)::text, ('ticket'::character varying)::text, ('organization'::character varying)::text])))),
     CONSTRAINT links_short_links_target_xor_check CHECK ((((target_type IS NOT NULL) AND (target_id IS NOT NULL) AND (custom_url IS NULL)) OR ((target_type IS NULL) AND (target_id IS NULL) AND (custom_url IS NOT NULL))))
 );
 
@@ -5359,16 +5359,16 @@ CREATE TABLE public.marketplace_resale_listings (
     lock_version integer DEFAULT 0 NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT marketplace_resale_listings_activation_state_check CHECK (((((status)::text = ANY ((ARRAY['active'::character varying, 'reserved'::character varying, 'sold'::character varying])::text[])) AND (activated_at IS NOT NULL)) OR (((status)::text <> ALL ((ARRAY['active'::character varying, 'reserved'::character varying, 'sold'::character varying])::text[])) AND (activated_at IS NULL)))),
+    CONSTRAINT marketplace_resale_listings_activation_state_check CHECK (((((status)::text = ANY (ARRAY[('active'::character varying)::text, ('reserved'::character varying)::text, ('sold'::character varying)::text])) AND (activated_at IS NOT NULL)) OR (((status)::text <> ALL (ARRAY[('active'::character varying)::text, ('reserved'::character varying)::text, ('sold'::character varying)::text])) AND (activated_at IS NULL)))),
     CONSTRAINT marketplace_resale_listings_asking_cap_check CHECK ((asking_amount_minor <= calculated_cap_minor)),
     CONSTRAINT marketplace_resale_listings_cap_shape_check CHECK (((((cap_type_snapshot)::text = 'fixed'::text) AND (fixed_cap_minor_snapshot IS NOT NULL) AND (percentage_cap_bps_snapshot IS NULL)) OR (((cap_type_snapshot)::text = 'percentage'::text) AND (fixed_cap_minor_snapshot IS NULL) AND ((percentage_cap_bps_snapshot >= 1) AND (percentage_cap_bps_snapshot <= 10000))))),
-    CONSTRAINT marketplace_resale_listings_cap_type_check CHECK (((cap_type_snapshot)::text = ANY ((ARRAY['fixed'::character varying, 'percentage'::character varying])::text[]))),
-    CONSTRAINT marketplace_resale_listings_closure_state_check CHECK (((((status)::text = 'sold'::text) = (sold_at IS NOT NULL)) AND (((status)::text = ANY ((ARRAY['sold'::character varying, 'cancelled'::character varying, 'expired'::character varying])::text[])) = (closed_at IS NOT NULL)))),
+    CONSTRAINT marketplace_resale_listings_cap_type_check CHECK (((cap_type_snapshot)::text = ANY (ARRAY[('fixed'::character varying)::text, ('percentage'::character varying)::text]))),
+    CONSTRAINT marketplace_resale_listings_closure_state_check CHECK (((((status)::text = 'sold'::text) = (sold_at IS NOT NULL)) AND (((status)::text = ANY (ARRAY[('sold'::character varying)::text, ('cancelled'::character varying)::text, ('expired'::character varying)::text])) = (closed_at IS NOT NULL)))),
     CONSTRAINT marketplace_resale_listings_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
     CONSTRAINT marketplace_resale_listings_positive_amounts_check CHECK (((asking_amount_minor > 0) AND (seller_acquisition_product_value_minor > 0) AND (calculated_cap_minor > 0))),
     CONSTRAINT marketplace_resale_listings_resale_count_check CHECK (((resale_count_before >= 0) AND (max_completed_resales_snapshot > 0) AND (resale_count_before < max_completed_resales_snapshot) AND (lock_version >= 0))),
-    CONSTRAINT marketplace_resale_listings_reservation_state_check CHECK (((((status)::text = ANY ((ARRAY['reserved'::character varying, 'sold'::character varying])::text[])) AND (reserved_order_id IS NOT NULL) AND (reserved_at IS NOT NULL) AND (reservation_expires_at IS NOT NULL)) OR (((status)::text <> ALL ((ARRAY['reserved'::character varying, 'sold'::character varying])::text[])) AND (reserved_order_id IS NULL) AND (reserved_at IS NULL) AND (reservation_expires_at IS NULL)))),
-    CONSTRAINT marketplace_resale_listings_status_check CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'active'::character varying, 'reserved'::character varying, 'sold'::character varying, 'cancelled'::character varying, 'expired'::character varying])::text[])))
+    CONSTRAINT marketplace_resale_listings_reservation_state_check CHECK (((((status)::text = ANY (ARRAY[('reserved'::character varying)::text, ('sold'::character varying)::text])) AND (reserved_order_id IS NOT NULL) AND (reserved_at IS NOT NULL) AND (reservation_expires_at IS NOT NULL)) OR (((status)::text <> ALL (ARRAY[('reserved'::character varying)::text, ('sold'::character varying)::text])) AND (reserved_order_id IS NULL) AND (reserved_at IS NULL) AND (reservation_expires_at IS NULL)))),
+    CONSTRAINT marketplace_resale_listings_status_check CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('active'::character varying)::text, ('reserved'::character varying)::text, ('sold'::character varying)::text, ('cancelled'::character varying)::text, ('expired'::character varying)::text])))
 );
 
 
@@ -5410,7 +5410,7 @@ CREATE TABLE public.marketplace_resale_sales (
     CONSTRAINT marketplace_resale_sales_currency_rate_check CHECK ((((currency)::text ~ '^[A-Z]{3}$'::text) AND ((fee_rate_bps IS NULL) OR ((fee_rate_bps >= 0) AND (fee_rate_bps <= 10000))))),
     CONSTRAINT marketplace_resale_sales_gross_reconciles_check CHECK (((gross_amount_minor = (marketplace_fee_minor + seller_proceeds_minor)) AND (marketplace_fee_minor <= gross_amount_minor))),
     CONSTRAINT marketplace_resale_sales_resale_number_check CHECK ((resale_number > 0)),
-    CONSTRAINT marketplace_resale_sales_status_check CHECK (((status)::text = ANY ((ARRAY['completed'::character varying, 'partially_cancelled'::character varying, 'cancelled'::character varying])::text[])))
+    CONSTRAINT marketplace_resale_sales_status_check CHECK (((status)::text = ANY (ARRAY[('completed'::character varying)::text, ('partially_cancelled'::character varying)::text, ('cancelled'::character varying)::text])))
 );
 
 
@@ -5434,9 +5434,9 @@ CREATE TABLE public.marketplace_seller_ledger_entries (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT marketplace_seller_ledger_entries_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
     CONSTRAINT marketplace_seller_ledger_entries_nonzero_amount_check CHECK ((amount_minor <> 0)),
-    CONSTRAINT marketplace_seller_ledger_entries_reference_shape_check CHECK (((((type)::text = ANY ((ARRAY['resale_proceeds'::character varying, 'marketplace_fee'::character varying, 'cancellation_reversal'::character varying, 'chargeback'::character varying])::text[])) AND (resale_sale_id IS NOT NULL) AND (seller_payout_id IS NULL)) OR (((type)::text = 'payout'::text) AND (seller_payout_id IS NOT NULL) AND (resale_sale_id IS NULL)) OR (((type)::text = 'adjustment'::text) AND (resale_sale_id IS NULL) AND (seller_payout_id IS NULL)))),
-    CONSTRAINT marketplace_seller_ledger_entries_sign_check CHECK (((((type)::text = 'resale_proceeds'::text) AND (amount_minor > 0)) OR (((type)::text = ANY ((ARRAY['marketplace_fee'::character varying, 'chargeback'::character varying, 'payout'::character varying])::text[])) AND (amount_minor < 0)) OR ((type)::text = ANY ((ARRAY['cancellation_reversal'::character varying, 'adjustment'::character varying])::text[])))),
-    CONSTRAINT marketplace_seller_ledger_entries_type_check CHECK (((type)::text = ANY ((ARRAY['resale_proceeds'::character varying, 'marketplace_fee'::character varying, 'cancellation_reversal'::character varying, 'chargeback'::character varying, 'adjustment'::character varying, 'payout'::character varying])::text[])))
+    CONSTRAINT marketplace_seller_ledger_entries_reference_shape_check CHECK (((((type)::text = ANY (ARRAY[('resale_proceeds'::character varying)::text, ('marketplace_fee'::character varying)::text, ('cancellation_reversal'::character varying)::text, ('chargeback'::character varying)::text])) AND (resale_sale_id IS NOT NULL) AND (seller_payout_id IS NULL)) OR (((type)::text = 'payout'::text) AND (seller_payout_id IS NOT NULL) AND (resale_sale_id IS NULL)) OR (((type)::text = 'adjustment'::text) AND (resale_sale_id IS NULL) AND (seller_payout_id IS NULL)))),
+    CONSTRAINT marketplace_seller_ledger_entries_sign_check CHECK (((((type)::text = 'resale_proceeds'::text) AND (amount_minor > 0)) OR (((type)::text = ANY (ARRAY[('marketplace_fee'::character varying)::text, ('chargeback'::character varying)::text, ('payout'::character varying)::text])) AND (amount_minor < 0)) OR ((type)::text = ANY (ARRAY[('cancellation_reversal'::character varying)::text, ('adjustment'::character varying)::text])))),
+    CONSTRAINT marketplace_seller_ledger_entries_type_check CHECK (((type)::text = ANY (ARRAY[('resale_proceeds'::character varying)::text, ('marketplace_fee'::character varying)::text, ('cancellation_reversal'::character varying)::text, ('chargeback'::character varying)::text, ('adjustment'::character varying)::text, ('payout'::character varying)::text])))
 );
 
 
@@ -5457,9 +5457,9 @@ CREATE TABLE public.marketplace_seller_payout_accounts (
     last_used_at timestamp with time zone,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT marketplace_payout_accounts_provider_check CHECK (((provider)::text = ANY ((ARRAY['telebirr'::character varying, 'chapa'::character varying, 'bank'::character varying])::text[]))),
-    CONSTRAINT marketplace_payout_accounts_status_check CHECK (((status)::text = ANY ((ARRAY['pending_verification'::character varying, 'verified'::character varying, 'suspended'::character varying, 'closed'::character varying])::text[]))),
-    CONSTRAINT marketplace_payout_accounts_type_check CHECK (((type)::text = ANY ((ARRAY['mobile_money'::character varying, 'bank'::character varying])::text[]))),
+    CONSTRAINT marketplace_payout_accounts_provider_check CHECK (((provider)::text = ANY (ARRAY[('telebirr'::character varying)::text, ('chapa'::character varying)::text, ('bank'::character varying)::text]))),
+    CONSTRAINT marketplace_payout_accounts_status_check CHECK (((status)::text = ANY (ARRAY[('pending_verification'::character varying)::text, ('verified'::character varying)::text, ('suspended'::character varying)::text, ('closed'::character varying)::text]))),
+    CONSTRAINT marketplace_payout_accounts_type_check CHECK (((type)::text = ANY (ARRAY[('mobile_money'::character varying)::text, ('bank'::character varying)::text]))),
     CONSTRAINT marketplace_payout_accounts_verification_metadata_check CHECK (((((status)::text = 'verified'::text) AND (verified_at IS NOT NULL)) OR (((status)::text <> 'verified'::text) AND (verified_at IS NULL))))
 );
 
@@ -5481,7 +5481,7 @@ CREATE TABLE public.marketplace_seller_payout_allocations (
     CONSTRAINT marketplace_seller_payout_allocations_consumed_metadata_check CHECK ((((status)::text = 'consumed'::text) = (consumed_at IS NOT NULL))),
     CONSTRAINT marketplace_seller_payout_allocations_positive_amount_check CHECK ((amount_minor > 0)),
     CONSTRAINT marketplace_seller_payout_allocations_released_metadata_check CHECK ((((status)::text = 'released'::text) = (released_at IS NOT NULL))),
-    CONSTRAINT marketplace_seller_payout_allocations_status_check CHECK (((status)::text = ANY ((ARRAY['reserved'::character varying, 'consumed'::character varying, 'released'::character varying])::text[])))
+    CONSTRAINT marketplace_seller_payout_allocations_status_check CHECK (((status)::text = ANY (ARRAY[('reserved'::character varying)::text, ('consumed'::character varying)::text, ('released'::character varying)::text])))
 );
 
 
@@ -5508,9 +5508,9 @@ CREATE TABLE public.marketplace_seller_payouts (
     CONSTRAINT marketplace_seller_payouts_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
     CONSTRAINT marketplace_seller_payouts_failure_metadata_check CHECK ((((status)::text = 'failed'::text) = (failure_code IS NOT NULL))),
     CONSTRAINT marketplace_seller_payouts_positive_amount_check CHECK (((amount_minor > 0) AND (lock_version >= 0))),
-    CONSTRAINT marketplace_seller_payouts_processed_metadata_check CHECK ((((status)::text = ANY ((ARRAY['succeeded'::character varying, 'failed'::character varying, 'cancelled'::character varying])::text[])) = (processed_at IS NOT NULL))),
-    CONSTRAINT marketplace_seller_payouts_provider_check CHECK (((provider)::text = ANY ((ARRAY['telebirr'::character varying, 'chapa'::character varying, 'bank'::character varying])::text[]))),
-    CONSTRAINT marketplace_seller_payouts_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'processing'::character varying, 'succeeded'::character varying, 'failed'::character varying, 'cancelled'::character varying])::text[])))
+    CONSTRAINT marketplace_seller_payouts_processed_metadata_check CHECK ((((status)::text = ANY (ARRAY[('succeeded'::character varying)::text, ('failed'::character varying)::text, ('cancelled'::character varying)::text])) = (processed_at IS NOT NULL))),
+    CONSTRAINT marketplace_seller_payouts_provider_check CHECK (((provider)::text = ANY (ARRAY[('telebirr'::character varying)::text, ('chapa'::character varying)::text, ('bank'::character varying)::text]))),
+    CONSTRAINT marketplace_seller_payouts_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('processing'::character varying)::text, ('succeeded'::character varying)::text, ('failed'::character varying)::text, ('cancelled'::character varying)::text])))
 );
 
 
@@ -6596,6 +6596,23 @@ CREATE TABLE public.ticketing_scanner_device_assignments (
 
 
 --
+-- Name: ticketing_scanner_device_idempotencies; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ticketing_scanner_device_idempotencies (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    scanner_device_id uuid CONSTRAINT ticketing_scanner_device_idempotenci_scanner_device_id_not_null NOT NULL,
+    operation character varying NOT NULL,
+    idempotency_key_digest character varying(64) CONSTRAINT ticketing_scanner_device_idempo_idempotency_key_digest_not_null NOT NULL,
+    request_digest character varying(64) NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT ticketing_scanner_device_idempotencies_digest_check CHECK ((((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((request_digest)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT ticketing_scanner_device_idempotencies_operation_check CHECK (((operation)::text = ANY ((ARRAY['rotate_token'::character varying, 'revoke'::character varying])::text[])))
+);
+
+
+--
 -- Name: ticketing_scanner_devices; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6637,7 +6654,7 @@ CREATE TABLE public.ticketing_stream_sessions (
     CONSTRAINT ticketing_stream_sessions_digest_check CHECK (((session_token_digest)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT ticketing_stream_sessions_expiry_check CHECK ((expires_at > created_at)),
     CONSTRAINT ticketing_stream_sessions_revocation_check CHECK (((((status)::text = 'revoked'::text) AND (revoked_at IS NOT NULL)) OR (((status)::text <> 'revoked'::text) AND (revoked_at IS NULL)))),
-    CONSTRAINT ticketing_stream_sessions_status_check CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'expired'::character varying, 'revoked'::character varying])::text[])))
+    CONSTRAINT ticketing_stream_sessions_status_check CHECK (((status)::text = ANY (ARRAY[('active'::character varying)::text, ('expired'::character varying)::text, ('revoked'::character varying)::text])))
 );
 
 
@@ -7760,6 +7777,14 @@ ALTER TABLE ONLY public.ticketing_scanner_device_assignments
 
 
 --
+-- Name: ticketing_scanner_device_idempotencies ticketing_scanner_device_idempotencies_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_scanner_device_idempotencies
+    ADD CONSTRAINT ticketing_scanner_device_idempotencies_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: ticketing_scanner_devices ticketing_scanner_devices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8508,6 +8533,13 @@ CREATE INDEX idx_on_scanner_device_assignment_id_received_at_e3b2e0ce81 ON publi
 
 
 --
+-- Name: idx_on_scanner_device_id_da4fcfc529; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_scanner_device_id_da4fcfc529 ON public.ticketing_scanner_device_idempotencies USING btree (scanner_device_id);
+
+
+--
 -- Name: idx_on_status_effective_from_effective_until_ed4ab9d52f; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9030,6 +9062,13 @@ CREATE UNIQUE INDEX idx_registration_submissions_registration_version ON public.
 --
 
 CREATE UNIQUE INDEX idx_scanner_assignment_zones_unique ON public.ticketing_scanner_assignment_zones USING btree (scanner_device_assignment_id, access_zone_id);
+
+
+--
+-- Name: idx_scanner_device_idempotencies_operation_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_scanner_device_idempotencies_operation_key ON public.ticketing_scanner_device_idempotencies USING btree (operation, idempotency_key_digest);
 
 
 --
@@ -11511,6 +11550,14 @@ ALTER TABLE ONLY public.commercial_assignments
 
 
 --
+-- Name: ticketing_scanner_device_idempotencies fk_rails_14ababaeee; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ticketing_scanner_device_idempotencies
+    ADD CONSTRAINT fk_rails_14ababaeee FOREIGN KEY (scanner_device_id) REFERENCES public.ticketing_scanner_devices(id);
+
+
+--
 -- Name: ticketing_purchase_limit_allocations fk_rails_150f196df3; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13701,6 +13748,7 @@ ALTER TABLE ONLY public.ticketing_ticket_suspensions
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260821113000'),
 ('20260818090001'),
 ('20260814090006'),
 ('20260814090005'),
