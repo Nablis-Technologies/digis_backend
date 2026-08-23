@@ -27,15 +27,30 @@ if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
     fi
   }
 
+  preview_seed_required() {
+    local users_exist
+
+    return 0 if [ "${DIGIS_FORCE_SEED}" == "true" ]
+
+    users_exist="$(psql "$RENDER_PREVIEW_DATABASE_URL" --tuples-only --no-align --quiet \
+      --command "SELECT EXISTS (SELECT 1 FROM public.core_users)")"
+    [ "$users_exist" != "t" ]
+  }
+
   if [ "${RENDER_PREVIEW}" == "true" ]; then
     prepare_preview_schema "cache" "solid_cache_entries"
     prepare_preview_schema "queue" "solid_queue_recurring_tasks"
     prepare_preview_schema "cable" "solid_cable_messages"
 
-    # Free Render services do not support one-off shell jobs. The canonical
-    # seed is idempotent, so run it on preview boot to repopulate a recreated
-    # database without requiring paid Shell access.
-    ./bin/rails db:seed
+    # Free Render services do not support one-off shell jobs. Seed a new
+    # preview database automatically, then skip the memory-heavy fixture graph
+    # on ordinary restarts. Set DIGIS_FORCE_SEED=true for an intentional
+    # fixture refresh or destructive-drill reset.
+    if preview_seed_required; then
+      ./bin/rails db:seed
+    else
+      echo "Preview database already initialized; skipping preview seed"
+    fi
   fi
 fi
 
