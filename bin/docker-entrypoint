@@ -30,7 +30,9 @@ if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
   preview_seed_required() {
     local users_exist
 
-    return 0 if [ "${DIGIS_FORCE_SEED}" == "true" ]
+    if [ "${DIGIS_FORCE_SEED}" == "true" ]; then
+      return 0
+    fi
 
     users_exist="$(psql "$RENDER_PREVIEW_DATABASE_URL" --tuples-only --no-align --quiet \
       --command "SELECT EXISTS (SELECT 1 FROM public.core_users)")"

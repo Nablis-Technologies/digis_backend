@@ -134,6 +134,8 @@ class RenderPreviewConfigurationTest < ActiveSupport::TestCase
     assert_includes entrypoint, 'if [ "${RENDER_PREVIEW}" == "true" ]; then'
     assert_includes entrypoint, "./bin/rails db:migrate"
     assert_includes entrypoint, "./bin/rails db:seed"
+    assert_includes entrypoint, 'if [ "${DIGIS_FORCE_SEED}" == "true" ]; then'
+    refute_includes entrypoint, 'return 0 if [ "${DIGIS_FORCE_SEED}" == "true" ]'
     assert_operator entrypoint.index("./bin/rails db:migrate"), :<,
                     entrypoint.index('prepare_preview_schema "queue"')
     assert_operator entrypoint.index('prepare_preview_schema "cable"'), :<,
