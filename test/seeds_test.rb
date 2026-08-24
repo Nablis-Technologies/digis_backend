@@ -47,6 +47,16 @@ class SeedsTest < ActiveSupport::TestCase
     assert cancellation_product.product_accesses.where(type: "venue").exists?
     assert cancellation_product.product_date_allocations.exists?
 
+    outcomes_event = Events::Event.find_by!(title: "Cancellation Outcomes Drill Event", organization: organization)
+    outcomes_product = Catalog::EventProduct.find_by!(
+      name: "Cancellation Outcomes General Admission", event: outcomes_event
+    )
+    assert_equal "published", outcomes_event.status
+    assert_equal "active", outcomes_product.status
+    assert outcomes_product.ticket?
+    assert outcomes_product.product_accesses.where(type: "venue").exists?
+    assert outcomes_product.product_date_allocations.exists?
+
     scanner = Ticketing::ScannerDevice.find_by!(device_identifier: "preview-chapa-scanner-001")
     assert_equal organization.id, scanner.organization_id
     assert scanner.token_matches?("preview-scanner-token-v1")

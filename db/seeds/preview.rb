@@ -1170,6 +1170,129 @@ end
 
 puts "✓ #{cancellation_drill_event.title} published with #{cancellation_drill_product.name} active"
 
+# This second disposable event remains available after the zero-payment
+# cancellation drill is irreversibly cancelled. It supplies a clean event and
+# ticket product for the accepted/pending/failed payment-outcome drill.
+puts "\n🧪 Seeding cancellation payment-outcomes fixture..."
+
+cancellation_outcomes_event = Events::Event.find_by(
+  title: "Cancellation Outcomes Drill Event", organization: fest_org
+)
+unless cancellation_outcomes_event
+  result = Events::Create.call(
+    organization: fest_org,
+    actor: organizer,
+    attributes: {
+      title: "Cancellation Outcomes Drill Event",
+      description: "Disposable event for resumable cancellation payment outcomes.",
+      visibility: "public",
+      timezone: "Africa/Addis_Ababa",
+      currency: "ETB"
+    },
+    category_ids: [ chapa_category.id ]
+  )
+  raise result.error.message unless result.success?
+
+  cancellation_outcomes_event = result.value
+end
+
+cancellation_outcomes_date = cancellation_outcomes_event.event_dates.find_or_create_by!(
+  source_key: "cancellation-outcomes-date-v1"
+) do |date|
+  date.name = "Cancellation outcomes performance"
+  date.venue = chapa_venue
+  date.doors_at = Time.zone.parse("2030-03-15 18:00")
+  date.starts_at = Time.zone.parse("2030-03-15 19:00")
+  date.ends_at = Time.zone.parse("2030-03-15 22:00")
+  date.status = "scheduled"
+  date.venue_capacity = chapa_venue.capacity
+end
+
+seed_event_cover(
+  event: cancellation_outcomes_event,
+  organizer: organizer,
+  fixture_marker: "cancellation-outcomes-event-cover-v1:#{ENV.fetch("FIL_BUCKET", "local")}"
+)
+
+unless cancellation_outcomes_event.published?
+  result = Events::Publish.call(
+    event: cancellation_outcomes_event,
+    actor: organizer,
+    idempotency_key: "seed-cancellation-outcomes-event-publish-v1"
+  )
+  raise result.error.message unless result.success?
+end
+
+cancellation_outcomes_product = Catalog::EventProduct.find_by(
+  event: cancellation_outcomes_event,
+  name: "Cancellation Outcomes General Admission",
+  type: "ticket"
+)
+unless cancellation_outcomes_product
+  result = Catalog::Products::CreateDraft.call(
+    event: cancellation_outcomes_event,
+    actor: organizer,
+    product_attributes: {
+      name: "Cancellation Outcomes General Admission",
+      description: "Disposable ticket product for three payment-outcome cancellation drills.",
+      type: "ticket",
+      min_per_order: 1,
+      max_per_order: 1,
+      sales_start_at: Time.zone.parse("2026-01-01 00:00")
+    },
+    ticket_type_attributes: {
+      approval_mode: "automatic",
+      audience: "public",
+      date_selection: "fixed",
+      admissions_per_unit: 1,
+      transferable: false,
+      delegation_enabled: false,
+      resale_enabled: false
+    },
+    inventory_configuration: { mode: "event_wide", capacity: 100 },
+    price_attributes: {
+      type: "override",
+      currency: "ETB",
+      amount_minor: 500,
+      active_from: Time.zone.parse("2026-01-01 00:00")
+    }
+  )
+  raise result.error.message unless result.success?
+
+  cancellation_outcomes_product = result.value
+end
+
+cancellation_outcomes_zone = Events::AccessZone.find_or_create_by!(
+  event: cancellation_outcomes_event, code: "OUTCOMES_MAIN"
+) do |zone|
+  zone.name = "Cancellation Outcomes Gate"
+  zone.type = "venue"
+  zone.active = true
+  zone.sort_order = 0
+end
+
+unless cancellation_outcomes_product.product_accesses.exists?(
+  event_date: cancellation_outcomes_date, type: "venue"
+)
+  access = cancellation_outcomes_product.product_accesses.create!(
+    event_date: cancellation_outcomes_date, type: "venue", usage_limit: 1
+  )
+  access.product_access_zones.create!(access_zone: cancellation_outcomes_zone)
+end
+
+unless cancellation_outcomes_product.product_date_allocations.exists?(event_date: cancellation_outcomes_date)
+  cancellation_outcomes_product.product_date_allocations.create!(
+    event_date: cancellation_outcomes_date, allocation_basis_points: 10_000
+  )
+end
+
+unless cancellation_outcomes_product.status == "active"
+  result = Catalog::Products::Activate.call(product: cancellation_outcomes_product, actor: organizer)
+  raise result.error.message unless result.success?
+end
+
+puts "✓ #{cancellation_outcomes_event.title} published with #{cancellation_outcomes_product.name} active"
+
 puts "✓ #{chapa_event.title} published with #{chapa_product.name} and " \
      "#{chapa_ticket_product.name} active"
 
