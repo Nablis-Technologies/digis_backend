@@ -59,6 +59,22 @@ module Payments
         assert_equal "0911000000", payload.fetch("phone_number")
       end
 
+      test "omits optional customer fields when they are absent" do
+        transport = FakeTransport.new(Response.new(status: 200, body: { status: "success", data: {} }))
+
+        build_client(transport:).create(
+          amount_minor: 1_000,
+          currency: "ETB",
+          idempotency_key: "attempt-optional-fields",
+          phone_number: "+251911000000"
+        )
+
+        payload = JSON.parse(transport.requests.sole.fetch(:body))
+        refute payload.key?("email")
+        refute payload.key?("first_name")
+        refute payload.key?("last_name")
+      end
+
       test "keeps hosted checkout initialization pending until payment confirmation" do
         transport = FakeTransport.new(
           Response.new(

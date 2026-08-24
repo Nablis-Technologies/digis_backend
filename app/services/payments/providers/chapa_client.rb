@@ -30,7 +30,9 @@ module Payments
           amount: major_amount(request.fetch(:amount_minor)),
           currency: request.fetch(:currency).to_s.upcase,
           tx_ref: request.fetch(:idempotency_key),
-          email: request[:email].to_s.presence,
+          email: request[:email].to_s.strip.presence,
+          first_name: request[:first_name].to_s.strip.presence,
+          last_name: request[:last_name].to_s.strip.presence,
           phone_number: chapa_phone(request[:phone_number]),
           callback_url: @callback_url,
           return_url: @return_url
