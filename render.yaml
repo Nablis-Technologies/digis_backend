@@ -14,8 +14,6 @@ services:
         value: "true"
       - key: DIGIS_SEED_PROFILE
         value: preview
-      - key: DIGIS_FORCE_SEED
-        value: "false"
       - key: RENDER_PREVIEW_DATABASE_URL
         fromDatabase:
           name: digis-backend-preview-db
