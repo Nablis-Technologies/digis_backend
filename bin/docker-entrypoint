@@ -37,16 +37,32 @@ if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
     [ "$users_exist" != "t" ]
   }
 
+  reset_preview_database() {
+    if [ "${DIGIS_RESET_DATABASE}" != "true" ]; then
+      return 1
+    fi
+
+    if [ -z "${RENDER_PREVIEW_DATABASE_URL}" ]; then
+      echo "DIGIS_RESET_DATABASE=true requires RENDER_PREVIEW_DATABASE_URL" >&2
+      exit 1
+    fi
+
+    echo "Resetting the disposable Render preview database and rebuilding its seed"
+    DISABLE_DATABASE_ENVIRONMENT_CHECK=1 ./bin/rails db:seed:replant
+    return 0
+  }
+
   if [ "${RENDER_PREVIEW}" == "true" ]; then
     prepare_preview_schema "cache" "solid_cache_entries"
     prepare_preview_schema "queue" "solid_queue_recurring_tasks"
     prepare_preview_schema "cable" "solid_cable_messages"
 
-    # Free Render services do not support one-off shell jobs. Seed a new
-    # preview database automatically, then skip the memory-heavy fixture graph
-    # on ordinary restarts. Set DIGIS_FORCE_SEED=true for an intentional
-    # fixture refresh or destructive-drill reset.
-    if preview_seed_required; then
+    # Free Render services do not support one-off shell jobs. A reset is
+    # explicitly opt-in and guarded to the disposable preview database.
+    # Ordinary restarts skip the memory-heavy fixture graph.
+    if reset_preview_database; then
+      :
+    elif preview_seed_required; then
       ./bin/rails db:seed
     else
       echo "Preview database already initialized; skipping preview seed"

@@ -140,6 +140,16 @@ class RenderPreviewConfigurationTest < ActiveSupport::TestCase
                     entrypoint.index("./bin/rails db:seed")
   end
 
+  test "preview reset is explicit and guarded by the preview database URL" do
+    entrypoint = Rails.root.join("bin/docker-entrypoint").read
+
+    assert_includes entrypoint, 'if [ "${DIGIS_RESET_DATABASE}" != "true" ]'
+    assert_includes entrypoint, "DIGIS_RESET_DATABASE=true requires RENDER_PREVIEW_DATABASE_URL"
+    assert_includes entrypoint, "DISABLE_DATABASE_ENVIRONMENT_CHECK=1 ./bin/rails db:seed:replant"
+    assert_operator entrypoint.index("if reset_preview_database;"), :<,
+                    entrypoint.index("elif preview_seed_required;")
+  end
+
   test "production URL defaults are environment-backed" do
     production = Rails.root.join("config/environments/production.rb").read
 
