@@ -1049,6 +1049,127 @@ end
 
 puts "✓ Scanner #{preview_scanner.device_identifier} assigned to #{chapa_event.title}"
 
+# ─────────────────────────────────────────────
+# 13. Event cancellation drill fixture
+# ─────────────────────────────────────────────
+# This event is intentionally separate from the primary Chapa checkout event.
+# The cancellation drill may irreversibly cancel it without damaging the
+# normal preview checkout, scanner, and webhook fixtures.
+puts "\n🧪 Seeding event cancellation drill fixture..."
+
+cancellation_drill_event = Events::Event.find_by(
+  title: "Cancellation Drill Event", organization: fest_org
+)
+unless cancellation_drill_event
+  result = Events::Create.call(
+    organization: fest_org,
+    actor: organizer,
+    attributes: {
+      title: "Cancellation Drill Event",
+      description: "Disposable event for accepted, pending, and failed cancellation drills.",
+      visibility: "public",
+      timezone: "Africa/Addis_Ababa",
+      currency: "ETB"
+    },
+    category_ids: [ chapa_category.id ]
+  )
+  raise result.error.message unless result.success?
+
+  cancellation_drill_event = result.value
+end
+
+cancellation_drill_event.event_dates.find_or_create_by!(source_key: "cancellation-drill-date-v1") do |date|
+  date.name = "Cancellation drill performance"
+  date.venue = chapa_venue
+  date.doors_at = Time.zone.parse("2030-02-15 18:00")
+  date.starts_at = Time.zone.parse("2030-02-15 19:00")
+  date.ends_at = Time.zone.parse("2030-02-15 22:00")
+  date.status = "scheduled"
+  date.venue_capacity = chapa_venue.capacity
+end
+
+seed_event_cover(
+  event: cancellation_drill_event,
+  organizer: organizer,
+  fixture_marker: "cancellation-drill-event-cover-v1:#{ENV.fetch("FIL_BUCKET", "local")}"
+)
+
+unless cancellation_drill_event.published?
+  result = Events::Publish.call(
+    event: cancellation_drill_event,
+    actor: organizer,
+    idempotency_key: "seed-cancellation-drill-event-publish-v1"
+  )
+  raise result.error.message unless result.success?
+end
+
+cancellation_drill_product = Catalog::EventProduct.find_by(
+  event: cancellation_drill_event, name: "Cancellation Drill General Admission", type: "ticket"
+)
+unless cancellation_drill_product
+  result = Catalog::Products::CreateDraft.call(
+    event: cancellation_drill_event,
+    actor: organizer,
+    product_attributes: {
+      name: "Cancellation Drill General Admission",
+      description: "Disposable ticket product for event cancellation scenarios.",
+      type: "ticket",
+      min_per_order: 1,
+      max_per_order: 1,
+      sales_start_at: Time.zone.parse("2026-01-01 00:00")
+    },
+    ticket_type_attributes: {
+      approval_mode: "automatic",
+      audience: "public",
+      date_selection: "fixed",
+      admissions_per_unit: 1,
+      transferable: false,
+      delegation_enabled: false,
+      resale_enabled: false
+    },
+    inventory_configuration: { mode: "event_wide", capacity: 100 },
+    price_attributes: {
+      type: "override",
+      currency: "ETB",
+      amount_minor: 500,
+      active_from: Time.zone.parse("2026-01-01 00:00")
+    }
+  )
+  raise result.error.message unless result.success?
+
+  cancellation_drill_product = result.value
+end
+
+cancellation_drill_date = cancellation_drill_event.event_dates.find_by!(source_key: "cancellation-drill-date-v1")
+cancellation_drill_zone = Events::AccessZone.find_or_create_by!(
+  event: cancellation_drill_event, code: "CANCEL_MAIN"
+) do |zone|
+  zone.name = "Cancellation Drill Gate"
+  zone.type = "venue"
+  zone.active = true
+  zone.sort_order = 0
+end
+
+unless cancellation_drill_product.product_accesses.exists?(event_date: cancellation_drill_date, type: "venue")
+  access = cancellation_drill_product.product_accesses.create!(
+    event_date: cancellation_drill_date, type: "venue", usage_limit: 1
+  )
+  access.product_access_zones.create!(access_zone: cancellation_drill_zone)
+end
+
+unless cancellation_drill_product.product_date_allocations.exists?(event_date: cancellation_drill_date)
+  cancellation_drill_product.product_date_allocations.create!(
+    event_date: cancellation_drill_date, allocation_basis_points: 10_000
+  )
+end
+
+unless cancellation_drill_product.status == "active"
+  result = Catalog::Products::Activate.call(product: cancellation_drill_product, actor: organizer)
+  raise result.error.message unless result.success?
+end
+
+puts "✓ #{cancellation_drill_event.title} published with #{cancellation_drill_product.name} active"
+
 puts "✓ #{chapa_event.title} published with #{chapa_product.name} and " \
      "#{chapa_ticket_product.name} active"
 
