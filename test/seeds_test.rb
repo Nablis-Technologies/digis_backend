@@ -57,6 +57,13 @@ class SeedsTest < ActiveSupport::TestCase
     assert outcomes_product.product_accesses.where(type: "venue").exists?
     assert outcomes_product.product_date_allocations.exists?
 
+    payment_product = Catalog::EventProduct.find_by!(
+      name: "Cancellation Outcomes Payment Unit", event: outcomes_event
+    )
+    assert_equal "merchandise", payment_product.type
+    assert_equal "active", payment_product.status
+    assert payment_product.prices.active_at(Time.current).where(currency: "ETB").exists?
+
     scanner = Ticketing::ScannerDevice.find_by!(device_identifier: "preview-chapa-scanner-001")
     assert_equal organization.id, scanner.organization_id
     assert scanner.token_matches?("preview-scanner-token-v1")

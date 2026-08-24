@@ -22,8 +22,9 @@ The profile files are:
 
 The preview profile includes separate disposable `Cancellation Drill Event` and
 `Cancellation Outcomes Drill Event` fixtures. The first is safe for the
-zero-payment cancellation drill; the second remains available for the
-accepted/pending/failed payment-outcome workflow. Seeds create the event,
+ zero-payment cancellation drill; the second remains available for the
+ accepted/pending/failed payment-outcome workflow and includes a non-ticket
+ payment unit that does not require registration. Seeds create the event,
 product, access, and allocation inputs only; real checkout, webhook, refund,
 and cancellation commands produce terminal states.
 

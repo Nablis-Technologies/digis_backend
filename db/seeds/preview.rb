@@ -1293,6 +1293,43 @@ end
 
 puts "✓ #{cancellation_outcomes_event.title} published with #{cancellation_outcomes_product.name} active"
 
+cancellation_outcomes_payment_product = Catalog::EventProduct.find_by(
+  event: cancellation_outcomes_event,
+  name: "Cancellation Outcomes Payment Unit",
+  type: "merchandise"
+)
+unless cancellation_outcomes_payment_product
+  result = Catalog::Products::CreateDraft.call(
+    event: cancellation_outcomes_event,
+    actor: organizer,
+    product_attributes: {
+      name: "Cancellation Outcomes Payment Unit",
+      description: "Non-ticket payment input for cancellation outcome drills.",
+      type: "merchandise",
+      min_per_order: 1,
+      max_per_order: 1,
+      sales_start_at: Time.zone.parse("2026-01-01 00:00")
+    },
+    inventory_configuration: { mode: "unlimited" },
+    price_attributes: {
+      type: "override",
+      currency: "ETB",
+      amount_minor: 500,
+      active_from: Time.zone.parse("2026-01-01 00:00")
+    }
+  )
+  raise result.error.message unless result.success?
+
+  cancellation_outcomes_payment_product = result.value
+end
+
+unless cancellation_outcomes_payment_product.status == "active"
+  result = Catalog::Products::Activate.call(product: cancellation_outcomes_payment_product, actor: organizer)
+  raise result.error.message unless result.success?
+end
+
+puts "✓ #{cancellation_outcomes_payment_product.name} active for payment outcomes"
+
 puts "✓ #{chapa_event.title} published with #{chapa_product.name} and " \
      "#{chapa_ticket_product.name} active"
 
