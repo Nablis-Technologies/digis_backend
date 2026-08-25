@@ -60,6 +60,8 @@ services:
         sync: false
       - key: CHAPA_ENABLED
         value: "true"
+      - key: CHAPA_PAYOUT_ENABLED
+        value: "false"
       - key: CHAPA_MODE
         value: test
       - key: CHAPA_SECRET_KEY
