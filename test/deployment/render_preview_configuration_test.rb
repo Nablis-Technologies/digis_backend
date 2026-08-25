@@ -21,7 +21,8 @@ class RenderPreviewConfigurationTest < ActiveSupport::TestCase
     assert_equal "0", env_vars.fetch("WEB_CONCURRENCY")
     assert_equal "3", env_vars.fetch("RAILS_MAX_THREADS")
     assert_equal "1", env_vars.fetch("JOB_THREADS")
-    assert_equal "false", env_vars.fetch("CHAPA_ENABLED")
+    assert_equal "true", env_vars.fetch("CHAPA_ENABLED")
+    assert_equal "false", env_vars.fetch("CHAPA_PAYOUT_ENABLED")
     assert_equal "test", env_vars.fetch("CHAPA_MODE")
     assert_equal "https://api.chapa.co/v1", env_vars.fetch("CHAPA_API_BASE_URL")
     %w[CHAPA_SECRET_KEY CHAPA_WEBHOOK_SECRET CHAPA_CALLBACK_URL CHAPA_RETURN_URL].each do |key|
@@ -139,7 +140,7 @@ class RenderPreviewConfigurationTest < ActiveSupport::TestCase
     assert_operator entrypoint.index("./bin/rails db:migrate"), :<,
                     entrypoint.index('prepare_preview_schema "queue"')
     assert_operator entrypoint.index('prepare_preview_schema "cable"'), :<,
-                    entrypoint.index("./bin/rails db:seed")
+                    entrypoint.index("\n      ./bin/rails db:seed\n")
   end
 
   test "preview reset is explicit and guarded by the preview database URL" do
