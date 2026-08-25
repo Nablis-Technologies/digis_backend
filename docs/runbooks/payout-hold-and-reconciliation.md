@@ -68,6 +68,11 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails runner \
   'Reconciliation::SupervisorJob.perform_now("slow")'
 ```
 
+Chapa organizer transfers use the separate Finance transfer client. A
+transport timeout or ambiguous Chapa response remains processing; reconcile
+with GET /v1/transfers/verify/<tx_ref> before taking any further action. Do
+not retry the transfer merely because the HTTP request timed out.
+
 ## Communication and verification
 
 Finance owns organizer/seller messaging and Support owns attendee impact when a
@@ -80,4 +85,7 @@ reconciliation audit observation.
 Make the fake payout provider return unknown, run reconciliation, then return a
 verified result and run it again. Confirm no second transfer request, one final
 payout transition, preserved ledger facts, and correct organizer/seller
-communication status.
+communication status. Chapa transport tests use injected responses for the same
+success, failure, pending, and timeout cases. Live organizer dispatch remains
+blocked until the destination is verified; the provider adapter alone must not
+be treated as beneficiary verification.
