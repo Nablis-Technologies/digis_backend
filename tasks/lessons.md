@@ -1,5 +1,20 @@
 # Lessons
 
+- Render MCP can update preview environment variables and run read-only database
+  queries, but it cannot inspect effective runtime environment values or execute
+  a writable shell command on the free service. When a preview reset is needed,
+  provide an explicit, preview-URL-guarded reset path in the checked-in entrypoint
+  and verify it through the deployment logs and database state.
+
+- Shell entrypoints must be syntax-checked after every conditional change; do not
+  carry Ruby-style postfix conditionals such as `return 0 if ...` into Bash.
+
+- For external API contracts, distinguish documented examples and prose from
+  the provider's explicit required/optional parameter table. Chapa lists
+  `first_name`, `last_name`, and `email` as optional for transaction
+  initialization; include optional values when present and omit them when
+  absent. Do not add environment gates or synthetic values for this rule.
+
 - When validating a deployed seeded environment, use the actual fixture
   identifier returned by the live login response (the seeded admin phone may
   differ from the local fixture email), verify the deployed commit, and treat
