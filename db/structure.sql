@@ -5154,6 +5154,39 @@ CREATE TABLE public.finance_ledger_entries (
 
 
 --
+-- Name: finance_payout_accounts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_payout_accounts (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    type character varying NOT NULL,
+    provider character varying NOT NULL,
+    bank_code integer NOT NULL,
+    account_number_ciphertext text NOT NULL,
+    account_number_digest character varying(64) NOT NULL,
+    account_name_ciphertext text,
+    account_label_ciphertext text,
+    status character varying DEFAULT 'pending_verification'::character varying NOT NULL,
+    verification_source character varying,
+    verified_by_id uuid,
+    is_default boolean DEFAULT false NOT NULL,
+    verified_at timestamp with time zone,
+    last_used_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT finance_payout_accounts_default_status_check CHECK (((NOT is_default) OR ((status)::text = 'verified'::text))),
+    CONSTRAINT finance_payout_accounts_digest_check CHECK (((account_number_digest)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT finance_payout_accounts_positive_bank_code_check CHECK ((bank_code > 0)),
+    CONSTRAINT finance_payout_accounts_provider_check CHECK (((provider)::text = 'chapa'::text)),
+    CONSTRAINT finance_payout_accounts_status_check CHECK (((status)::text = ANY (ARRAY[('pending_verification'::character varying)::text, ('verified'::character varying)::text, ('suspended'::character varying)::text, ('closed'::character varying)::text]))),
+    CONSTRAINT finance_payout_accounts_type_check CHECK (((type)::text = ANY (ARRAY[('bank'::character varying)::text, ('mobile_money'::character varying)::text]))),
+    CONSTRAINT finance_payout_accounts_verification_metadata_check CHECK (((((status)::text = 'verified'::text) AND (verified_at IS NOT NULL) AND (verification_source IS NOT NULL) AND (((verification_source)::text <> 'manual'::text) OR (verified_by_id IS NOT NULL))) OR (((status)::text <> 'verified'::text) AND (verified_at IS NULL) AND (verification_source IS NULL) AND (verified_by_id IS NULL)))),
+    CONSTRAINT finance_payout_accounts_verification_source_check CHECK (((verification_source IS NULL) OR ((verification_source)::text = ANY (ARRAY[('provider'::character varying)::text, ('test_fixture'::character varying)::text, ('manual'::character varying)::text]))))
+);
+
+
+--
 -- Name: finance_payout_allocations; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5181,6 +5214,7 @@ CREATE TABLE public.finance_payout_allocations (
 CREATE TABLE public.finance_payouts (
     id uuid DEFAULT uuidv7() NOT NULL,
     organization_id uuid NOT NULL,
+    payout_account_id uuid NOT NULL,
     currency character varying(3) NOT NULL,
     status character varying DEFAULT 'pending'::character varying NOT NULL,
     amount_minor bigint NOT NULL,
@@ -7345,6 +7379,14 @@ ALTER TABLE ONLY public.finance_ledger_entries
 
 
 --
+-- Name: finance_payout_accounts finance_payout_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_payout_accounts
+    ADD CONSTRAINT finance_payout_accounts_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: finance_payout_allocations finance_payout_allocations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8103,6 +8145,27 @@ CREATE UNIQUE INDEX idx_finance_ledger_entries_on_idempotency_key ON public.fina
 --
 
 CREATE INDEX idx_finance_ledger_entries_on_org_currency_availability ON public.finance_ledger_entries USING btree (organization_id, currency, available_at, created_at);
+
+
+--
+-- Name: idx_finance_payout_accounts_on_default_organization; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_finance_payout_accounts_on_default_organization ON public.finance_payout_accounts USING btree (organization_id) WHERE is_default;
+
+
+--
+-- Name: idx_finance_payout_accounts_on_scope_and_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_finance_payout_accounts_on_scope_and_digest ON public.finance_payout_accounts USING btree (organization_id, provider, account_number_digest);
+
+
+--
+-- Name: idx_finance_payout_accounts_on_scope_status_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_finance_payout_accounts_on_scope_status_created ON public.finance_payout_accounts USING btree (organization_id, status, created_at);
 
 
 --
@@ -10248,6 +10311,13 @@ CREATE INDEX index_finance_ledger_entries_on_reverses_entry_id ON public.finance
 
 
 --
+-- Name: index_finance_payouts_on_payout_account_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_finance_payouts_on_payout_account_id ON public.finance_payouts USING btree (payout_account_id);
+
+
+--
 -- Name: index_follows_followable; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -12310,6 +12380,14 @@ ALTER TABLE ONLY public.ticketing_checkin_logs
 
 
 --
+-- Name: finance_payout_accounts fk_rails_6507c29b97; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_payout_accounts
+    ADD CONSTRAINT fk_rails_6507c29b97 FOREIGN KEY (verified_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: ticketing_tickets fk_rails_65628bf63c; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12603,6 +12681,14 @@ ALTER TABLE ONLY public.marketplace_resale_listings
 
 ALTER TABLE ONLY public.ticketing_registration_form_versions
     ADD CONSTRAINT fk_rails_815a640636 FOREIGN KEY (registration_form_id) REFERENCES public.ticketing_registration_forms(id);
+
+
+--
+-- Name: finance_payout_accounts fk_rails_81b1b01315; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_payout_accounts
+    ADD CONSTRAINT fk_rails_81b1b01315 FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE RESTRICT;
 
 
 --
@@ -13566,6 +13652,14 @@ ALTER TABLE ONLY public.ticketing_admission_use_reversals
 
 
 --
+-- Name: finance_payouts fk_rails_eea646ec4b; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_payouts
+    ADD CONSTRAINT fk_rails_eea646ec4b FOREIGN KEY (payout_account_id) REFERENCES public.finance_payout_accounts(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: events_event_categories fk_rails_f01a03d541; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13763,6 +13857,7 @@ INSERT INTO "schema_migrations" (version) VALUES
 ('20260813090003'),
 ('20260813090002'),
 ('20260813090001'),
+('20260812090099'),
 ('20260812090019'),
 ('20260812090018'),
 ('20260812090017'),
