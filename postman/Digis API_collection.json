@@ -8045,6 +8045,124 @@
       "name": "Refunds & Finance",
       "item": [
         {
+          "name": "List Organizer Payout Accounts",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/payout_accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "organizations", "{{organizationId}}", "payout_accounts"]
+            },
+            "description": "Lists safe payout-destination metadata for an authorized organization. Account numbers and encrypted fields are never returned."
+          },
+          "response": []
+        },
+        {
+          "name": "Add Organizer Payout Account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json", "type": "text"},
+              {"key": "Idempotency-Key", "value": "{{financeIdempotencyKey}}", "type": "text"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payout_account\": {\n    \"type\": \"bank\",\n    \"provider\": \"chapa\",\n    \"bank_code\": 128,\n    \"account_number\": \"1000000000001\",\n    \"account_name\": \"Preview Organizer\",\n    \"account_label\": \"Preview account\"\n  }\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {
+              "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/payout_accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "organizations", "{{organizationId}}", "payout_accounts"]
+            },
+            "description": "Creates an encrypted pending destination. Provider-first verification may mark it verified; unsupported verification remains pending."
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Organizer Payout Account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json", "type": "text"},
+              {"key": "Idempotency-Key", "value": "{{financeIdempotencyKey}}", "type": "text"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Confirmed through approved provider evidence\",\n  \"evidence_reference\": \"provider-case-reference\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {
+              "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/payout_accounts/{{payoutAccountId}}/verify",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "organizations", "{{organizationId}}", "payout_accounts", "{{payoutAccountId}}", "verify"]
+            },
+            "description": "Finance-only audited fallback verification. It never exposes beneficiary data."
+          },
+          "response": []
+        },
+        {
+          "name": "Set Default Organizer Payout Account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json", "type": "text"},
+              {"key": "Idempotency-Key", "value": "{{financeIdempotencyKey}}", "type": "text"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/payout_accounts/{{payoutAccountId}}/set_default",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "organizations", "{{organizationId}}", "payout_accounts", "{{payoutAccountId}}", "set_default"]
+            },
+            "description": "Selects one verified destination as the organization's default payout account."
+          },
+          "response": []
+        },
+        {
+          "name": "Suspend Organizer Payout Account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json", "type": "text"},
+              {"key": "Idempotency-Key", "value": "{{financeIdempotencyKey}}", "type": "text"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Destination review required\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {
+              "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/payout_accounts/{{payoutAccountId}}/suspend",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "organizations", "{{organizationId}}", "payout_accounts", "{{payoutAccountId}}", "suspend"]
+            },
+            "description": "Finance-only action that prevents new dispatches without deleting destination history."
+          },
+          "response": []
+        },
+        {
+          "name": "Close Organizer Payout Account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json", "type": "text"},
+              {"key": "Idempotency-Key", "value": "{{financeIdempotencyKey}}", "type": "text"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Destination replaced\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {
+              "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/payout_accounts/{{payoutAccountId}}/close",
+              "host": ["{{baseUrl}}"],
+              "path": ["finance", "organizations", "{{organizationId}}", "payout_accounts", "{{payoutAccountId}}", "close"]
+            },
+            "description": "Finance-only terminal destination closure. A default account must be replaced first."
+          },
+          "response": []
+        },
+        {
           "name": "List My Refunds",
           "request": {
             "method": "GET",
@@ -11820,6 +11938,11 @@
         },
         {
           "key": "roleId",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "payoutAccountId",
           "value": "",
           "type": "string"
         }
