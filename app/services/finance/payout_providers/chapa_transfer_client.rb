@@ -51,6 +51,16 @@ module Finance
         { amount_minor: minor_amount(balance[:available_balance]), currency: balance[:currency].to_s.upcase }.freeze
       end
 
+      def available_banks
+        response = get("/banks")
+        return unless response.is_a?(Response) && response.status.between?(200, 299)
+
+        Array(response.body[:data]).filter_map do |bank|
+          identifier = bank.to_h.deep_symbolize_keys[:id] || bank.to_h.deep_symbolize_keys[:bank_code]
+          Integer(identifier, exception: false)
+        end.uniq.freeze
+      end
+
       private
 
       Response = Data.define(:status, :body)
