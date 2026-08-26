@@ -189,6 +189,31 @@ fest_org.reviews.find_or_initialize_by(context: "verification").update!(
 
 puts "✓ #{Organizations::Organization.count} organizations"
 
+# Synthetic preview destination: the fixture is automatically verified through
+# the explicit test source and never represents a real beneficiary account.
+payout_account_result = Finance::PayoutAccounts::Register.call(
+  organization: fest_org,
+  type: "bank",
+  provider: "chapa",
+  bank_code: 128,
+  account_number: "1000000000001",
+  account_name: "Preview Organizer",
+  account_label: "Preview Chapa destination",
+  actor: organizer,
+  adapter: Finance::PayoutProviders::Adapter.new,
+  verification_source: "test_fixture",
+  idempotency_key: "preview-payout-account-#{fest_org.id}"
+)
+raise payout_account_result.error.message unless payout_account_result.success?
+
+default_result = Finance::PayoutAccounts::SetDefault.call(
+  account: payout_account_result.value,
+  actor: organizer,
+  idempotency_key: "preview-payout-account-default-#{fest_org.id}"
+)
+raise default_result.error.message unless default_result.success?
+puts "✓ Synthetic Chapa payout destination verified for #{fest_org.name}"
+
 # ─────────────────────────────────────────────
 # 4. Events + all nested resources (Plan 1, Tasks 1–6)
 # ─────────────────────────────────────────────

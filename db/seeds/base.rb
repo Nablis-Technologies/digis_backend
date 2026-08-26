@@ -193,7 +193,9 @@ permissions.concat([
   { resource: "finance.payout", action: "reconcile", namespace: "finance",
     description: I18n.t("finance.permissions.payout_reconcile") },
   { resource: "finance.payout", action: "approve_no_balance_api", namespace: "finance",
-    description: I18n.t("finance.permissions.payout_approve_no_balance_api") }
+    description: I18n.t("finance.permissions.payout_approve_no_balance_api") },
+  { resource: "finance.payout_account", action: "verify", namespace: "finance",
+    description: I18n.t("finance.permissions.payout_account_verify") }
 ])
 
 permissions.each do |perm|

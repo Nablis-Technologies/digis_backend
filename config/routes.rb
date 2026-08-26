@@ -238,6 +238,12 @@ Rails.application.routes.draw do
 
   scope path: :finance, module: :finance do
     resources :organizations, only: [] do
+      resources :payout_accounts, only: %i[index create], controller: "payout_accounts" do
+        post :verify, on: :member
+        post :set_default, on: :member
+        post :suspend, on: :member
+        post :close, on: :member
+      end
       resources :payouts, only: %i[index show create], controller: "payouts" do
         post :dispatch, on: :member, action: :dispatch_payout
         post :reconcile, on: :member
