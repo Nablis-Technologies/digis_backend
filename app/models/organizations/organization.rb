@@ -26,6 +26,10 @@ module Organizations
              class_name: "Finance::Payout",
              dependent: :restrict_with_exception,
              inverse_of: :organization
+    has_many :finance_payout_accounts,
+             class_name: "Finance::PayoutAccount",
+             dependent: :restrict_with_exception,
+             inverse_of: :organization
     has_many :scanner_devices,
              class_name: "Ticketing::ScannerDevice",
              dependent: :restrict_with_exception
