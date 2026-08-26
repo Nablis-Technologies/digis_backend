@@ -2981,7 +2981,37 @@ Launch payout maturity rules:
 
 The payment/order already snapshots charge currency, settlement currency, and exchange rate. Ledger entries post the resulting organizer amount only in settlement currency and retain the order reference for the complete FX audit trail.
 
-### 10.2 `finance_payouts`
+### 10.2 `finance_payout_accounts`
+
+Organization-owned payout destinations for direct provider transfers.
+
+| Column | Type | Rules |
+|---|---|---|
+| `organization_id` | UUID | Required FK to the owning organization |
+| `type` | string | `bank` or `mobile_money` |
+| `provider` | string | `chapa` at launch |
+| `bank_code` | integer | Required positive provider bank identifier |
+| `account_number_ciphertext` | text | Required Active Record Encryption ciphertext |
+| `account_number_digest` | string | Required keyed digest for deduplication |
+| `account_name_ciphertext` | text | Optional encrypted holder name |
+| `account_label_ciphertext` | text | Optional encrypted display label |
+| `status` | string | `pending_verification`, `verified`, `suspended`, or `closed` |
+| `verification_source` | string | `provider`, `test_fixture`, or `manual` while verified |
+| `verified_by_id` | UUID | Optional Finance actor FK for manual verification |
+| `is_default` | boolean | At most one default per organization; only verified rows may be default |
+| `verified_at` | timestamptz | Required exactly when status is verified |
+| `last_used_at` | timestamptz | Provider submission observation |
+| timestamps | timestamptz | Required |
+
+Unique `(organization_id, provider, account_number_digest)` prevents duplicate
+destinations without reversible account-number lookup. Active Record Encryption
+protects beneficiary fields at rest; serializers, audit metadata, logs, seeds,
+and Postman never expose them. Provider verification is preferred when
+supported. Unsupported provider verification leaves the row pending; preview
+fixtures may use an explicit test source. A payout snapshots the selected
+destination ID so default replacement cannot rewrite payout history.
+
+### 10.3 `finance_payouts`
 
 One payout batch for one organization and currency.
 
@@ -3006,7 +3036,7 @@ Unique `(provider, provider_reference)` where the reference is present. A payout
 
 Before dispatching a provider-funded payout, treasury rechecks the provider/currency soft reserve target. A reliable balance API must show that the payout leaves at least that target; otherwise dispatch waits. Providers without a balance API require reconciled treasury approval. This cash-safety gate does not change the organizer's ledger entitlement or payout allocations.
 
-### 10.3 `finance_payout_allocations`
+### 10.4 `finance_payout_allocations`
 
 Connects all or part of an available ledger entry to a payout.
 
@@ -3865,6 +3895,8 @@ The current model already preserves the upgrade seam: new orders can snapshot bu
 ### Phase 3.6: Organizer settlement
 
 - append-only finance ledger entries;
+- encrypted organization-owned payout destinations with provider-first
+  verification and an explicit pending fallback;
 - payout batches and allocations;
 - idempotent sale, fee, refund, chargeback, and payout posting;
 - post-event payout maturity with the launch refund/chargeback buffer;

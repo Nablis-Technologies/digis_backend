@@ -250,10 +250,28 @@ timeout responses; this keeps the test suite independent of provider timing.
 Chapa's test mode may also expose provider-controlled transfer outcomes, but
 the application never treats a requested status as proof of settlement.
 
-The current Finance payout schema does not yet contain a verified organizer
-destination. Therefore enabling the adapter proves configuration, balance
-reads, request mapping, and reconciliation contracts; it does not authorize a
-real organizer transfer until a verified destination contract is added.
+Organizer payout destinations are organization-scoped and encrypted at rest.
+Registration performs provider-first verification when available; unsupported
+provider verification leaves the destination pending. Preview fixtures may use
+an explicit synthetic test destination. Every mutating destination request
+requires an `Idempotency-Key`; replaying the same key with different request
+data returns `idempotency_conflict`.
+
+The payout-account endpoints are:
+
+```text
+GET  /finance/organizations/:organization_id/payout_accounts
+POST /finance/organizations/:organization_id/payout_accounts
+POST /finance/organizations/:organization_id/payout_accounts/:id/verify
+POST /finance/organizations/:organization_id/payout_accounts/:id/set_default
+POST /finance/organizations/:organization_id/payout_accounts/:id/suspend
+POST /finance/organizations/:organization_id/payout_accounts/:id/close
+```
+
+Account numbers and holder names are never returned by the API. A payout
+snapshots the verified destination ID, then passes decrypted details only to
+the Chapa transfer adapter. A timeout remains processing and is reconciled;
+the transfer is never blindly submitted a second time.
 
 ## 9. Render preview end-to-end test
 

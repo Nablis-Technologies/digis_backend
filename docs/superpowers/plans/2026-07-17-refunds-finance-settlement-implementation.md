@@ -747,3 +747,13 @@ negative-first same-currency allocation, soft reserve semantics, authorized
 private APIs, and idempotent failure recovery end to end. The complete suite,
 migration status, and required cross-module race suite now provide that
 evidence. The reviewed implementation is merged into `main`.
+
+## Post-task Chapa organizer destination extension
+
+The original Finance tranche established payout allocations, reserve gates,
+provider adapters, and reconciliation. The follow-up plan at
+docs/superpowers/plans/2026-08-26-organizer-payout-destination-implementation.md
+adds encrypted organization-owned destinations, provider-first verification,
+and payout-level destination snapshots. It is intentionally separate from the
+completed Finance task and must be completed before enabling real organizer
+dispatch in Render.

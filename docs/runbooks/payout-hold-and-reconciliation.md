@@ -73,6 +73,11 @@ transport timeout or ambiguous Chapa response remains processing; reconcile
 with GET /v1/transfers/verify/<tx_ref> before taking any further action. Do
 not retry the transfer merely because the HTTP request timed out.
 
+Organizer payout destinations are encrypted and verified provider-first. If
+the provider has no beneficiary-verification operation, the destination stays
+pending and cannot become the payout default unless an authorized Finance
+fallback records evidence.
+
 ## Communication and verification
 
 Finance owns organizer/seller messaging and Support owns attendee impact when a
