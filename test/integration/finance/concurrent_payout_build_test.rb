@@ -29,6 +29,7 @@ module Finance
           Finance::Payout.where(id: payout_ids).update_all(status: "failed", failure_code: "test_cleanup")
           Finance::PayoutAllocation.where(payout_id: payout_ids).delete_all
           Finance::Payout.where(organization_id: @organization.id).delete_all
+          Finance::PayoutAccount.where(organization_id: @organization.id).delete_all
           Finance::LedgerEntry.where(organization_id: @organization.id).delete_all
           Events::Event.where(id: @event.id).delete_all
           Organizations::Organization.where(id: @organization.id).delete_all

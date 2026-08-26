@@ -41,6 +41,17 @@ module Finance
         assert_equal "unknown", adapter.verify_payout(idempotency_key: "payout-1").status
         assert_equal 10_000, adapter.available_balance(currency: "ETB").fetch(:amount_minor)
       end
+
+      test "leaves account verification pending when the provider has no verifier" do
+        adapter = ChapaAdapter.new(client: FakeClient.new)
+
+        result = adapter.verify_payout_account(
+          account_number: "1000000000001", bank_code: 128, currency: "ETB"
+        )
+
+        assert_predicate result, :unknown?
+        assert_equal "unsupported", result.raw_status
+      end
     end
   end
 end

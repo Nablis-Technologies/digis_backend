@@ -29,6 +29,15 @@ module Finance
       assert_equal 10_000, result.value.amount_minor
     end
 
+    test "requires a verified default payout destination" do
+      @payout_account.update!(is_default: false)
+
+      result = build_payout(idempotency_key: "payout-without-destination")
+
+      assert_predicate result, :failure?
+      assert_equal "payout_account_required", result.error.code
+    end
+
     test "postponed, cancelled, and other non-completed events cannot release sales" do
       entry = create_payout_entry(type: "sale", amount_minor: 10_000)
 

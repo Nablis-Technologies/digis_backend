@@ -83,8 +83,24 @@ module Commercial
             description: "Task 12 test sale",
             created_at: Time.current
           )
+          payout_account = Finance::PayoutAccount.create!(
+            organization: event.organization,
+            type: "bank",
+            provider: "chapa",
+            bank_code: 128,
+            account_number: "1000000000001",
+            account_name: "Task 12 Organizer",
+            account_number_digest: Core::KeyedDigest.digest(
+              namespace: event.organization.id, value: "1000000000001"
+            ),
+            status: "verified",
+            verification_source: "test_fixture",
+            verified_at: Time.current,
+            is_default: true
+          )
           payout = Finance::Payout.create!(
             organization_id: event.organization_id,
+            payout_account: payout_account,
             currency: "ETB",
             status: "pending",
             amount_minor: 10_000,

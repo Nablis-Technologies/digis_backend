@@ -190,6 +190,29 @@ module Finance
         assert_equal "/balances/etb", transport.requests.sole.fetch(:path)
       end
 
+      test "retrieves the provider bank list for destination validation" do
+        transport = FakeTransport.new(
+          Response.new(status: 200, body: {
+            status: "success", data: [ { id: 128, name: "Preview Bank" } ]
+          })
+        )
+
+        banks = build_client(transport:).available_banks
+
+        assert_equal [ 128 ], banks
+        assert_equal "/banks", transport.requests.sole.fetch(:path)
+      end
+
+      test "normalizes alternate provider bank identifiers to numeric ids" do
+        transport = FakeTransport.new(
+          Response.new(status: 200, body: {
+            status: "success", data: [ { bank_code: "129" }, { id: "130" }, { id: "invalid" } ]
+          })
+        )
+
+        assert_equal [ 129, 130 ], build_client(transport:).available_banks
+      end
+
       test "requires a mode-matching Chapa secret key" do
         assert_raises(ArgumentError) do
           ChapaTransferClient.new(secret_key: "CHASECK-live", mode: "test")

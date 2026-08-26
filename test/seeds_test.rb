@@ -21,6 +21,10 @@ class SeedsTest < ActiveSupport::TestCase
     product = Catalog::EventProduct.find_by!(name: "Chapa Test Product", event: event)
 
     assert organization.verified?
+    payout_account = Finance::PayoutAccount.find_by!(organization: organization, provider: "chapa")
+    assert_predicate payout_account, :verified?
+    assert_predicate payout_account, :is_default?
+    assert_equal "test_fixture", payout_account.verification_source
     assert_equal "+251911000001", Core::User.find_by!(email: "admin@digis.et").phone
     assert_equal "+251900123456", Core::User.find_by!(email: "chapa.test@gmail.com").phone
     assert_equal "published", event.status

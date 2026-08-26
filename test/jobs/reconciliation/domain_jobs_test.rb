@@ -210,6 +210,7 @@ module Reconciliation
     def create_processing_payout(suffix)
       Finance::Payout.create!(
         organization: @organization,
+        payout_account: @payout_account,
         currency: "ETB",
         status: "processing",
         amount_minor: 1_000,
