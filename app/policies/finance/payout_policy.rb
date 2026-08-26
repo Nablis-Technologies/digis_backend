@@ -7,7 +7,7 @@ module Finance
   # permissions and therefore cannot be granted by organization membership.
   class PayoutPolicy < Core::ApplicationPolicy
     SAFE_FIELDS = %i[
-      id organization_id currency status amount_minor period_start period_end
+      id organization_id payout_account_id currency status amount_minor period_start period_end
       requested_at paid_at created_at updated_at
     ].freeze
 
