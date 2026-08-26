@@ -27,12 +27,15 @@ module Finance
         next existing if existing
 
         organization_lock(organization_id)
+        payout_account = locked_default_payout_account
+        return failure(finance_error(:payout_account_required, code: "payout_account_required")) unless payout_account
+
         entries = locked_entries
         allocation_totals = locked_allocation_totals(entries)
         candidate = calculate_candidate(entries, allocation_totals)
         return failure(candidate) if candidate.is_a?(Core::BusinessError)
 
-        create_payout!(candidate)
+        create_payout!(candidate, payout_account)
       end
 
       success(payout)
@@ -75,6 +78,13 @@ module Finance
       allocations.group_by(&:ledger_entry_id).transform_values do |rows|
         rows.sum { |row| row.amount_minor.abs }
       end
+    end
+
+    def locked_default_payout_account
+      Finance::PayoutAccount
+        .where(organization_id:, status: "verified", is_default: true)
+        .lock
+        .first
     end
 
     def calculate_candidate(entries, allocation_totals)
@@ -126,9 +136,10 @@ module Finance
       rows
     end
 
-    def create_payout!(candidate)
+    def create_payout!(candidate, payout_account)
       payout = Finance::Payout.create!(
         organization_id: organization_id,
+        payout_account: payout_account,
         currency: currency,
         status: "pending",
         amount_minor: candidate.fetch(:amount_minor),
