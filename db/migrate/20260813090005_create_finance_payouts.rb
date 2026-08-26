@@ -4,6 +4,7 @@ class CreateFinancePayouts < ActiveRecord::Migration[8.1]
   def change
     create_table :finance_payouts, id: :uuid, default: -> { "uuidv7()" } do |t|
       t.uuid :organization_id, null: false
+      t.uuid :payout_account_id, null: false
       t.string :currency, limit: 3, null: false
       t.string :status, null: false, default: "pending"
       t.bigint :amount_minor, null: false
@@ -26,6 +27,7 @@ class CreateFinancePayouts < ActiveRecord::Migration[8.1]
               name: "idx_finance_payouts_on_provider_and_reference"
     add_index :finance_payouts, %i[organization_id currency status requested_at],
               name: "idx_finance_payouts_on_scope_and_status"
+    add_index :finance_payouts, :payout_account_id
 
     add_check_constraint :finance_payouts,
       "currency ~ '^[A-Z]{3}$'",
@@ -42,5 +44,7 @@ class CreateFinancePayouts < ActiveRecord::Migration[8.1]
 
     add_foreign_key :finance_payouts, :organizations_organizations,
                     column: :organization_id, on_delete: :restrict
+    add_foreign_key :finance_payouts, :finance_payout_accounts,
+                    column: :payout_account_id, on_delete: :restrict
   end
 end
