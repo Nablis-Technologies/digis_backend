@@ -37,8 +37,31 @@ module Finance
       ).count
     end
 
-    test "rejects an event with an unfinished scheduled date" do
+    test "completes ended scheduled dates before completing the event" do
       @event.event_dates.update_all(status: "scheduled")
+      schedule_version = @event.schedule_version
+
+      assert_enqueued_with(job: Finance::MatureEventFundsJob, args: [ @event.id ]) do
+        result = Finance::CompleteEvent.call(
+          event: @event,
+          actor: core_users(:super_admin),
+          idempotency_key: "complete-ended-scheduled-event",
+          at: @now
+        )
+
+        assert_predicate result, :success?, result.error&.message
+      end
+
+      assert_equal "completed", @event.reload.status
+      assert_equal "completed", @event.event_dates.first.reload.status
+      assert_equal schedule_version + 1, @event.schedule_version
+      assert_equal 1, Core::AuditLog.where(
+        action: "event.date.completed", auditable_id: @event.id
+      ).count
+    end
+
+    test "rejects an event with an unfinished scheduled date" do
+      @event.event_dates.update_all(status: "scheduled", starts_at: @now, ends_at: @now + 1.day)
 
       result = Finance::CompleteEvent.call(
         event: @event,
@@ -51,6 +74,22 @@ module Finance
       assert_equal "event_dates_incomplete", result.error.code
       assert_equal "published", @event.reload.status
       assert_nil @event.completed_at
+    end
+
+    test "leaves postponed dates untouched when completion is attempted" do
+      @event.event_dates.update_all(status: "postponed")
+
+      result = Finance::CompleteEvent.call(
+        event: @event,
+        actor: core_users(:super_admin),
+        idempotency_key: "complete-postponed-event",
+        at: @now
+      )
+
+      assert_predicate result, :failure?
+      assert_equal "event_dates_incomplete", result.error.code
+      assert_equal "postponed", @event.event_dates.first.reload.status
+      assert_equal "published", @event.reload.status
     end
 
     test "allows cancelled dates and rejects an unauthorized actor" do
@@ -100,6 +139,42 @@ module Finance
       assert_predicate second, :success?, second.error&.message
       assert_equal first.value.id, second.value.id
       assert_equal 1, Core::AuditLog.where(action: "event.completed", auditable_id: @event.id).count
+    end
+
+    test "allows only the fixed scheduler source for automatic completion" do
+      @event.event_dates.update_all(status: "scheduled")
+      key = "scheduled-completion-#{@event.id}"
+
+      assert_enqueued_with(job: Finance::MatureEventFundsJob, args: [ @event.id ]) do
+        result = Finance::CompleteEvent.call(
+          event: @event, actor: nil, source: "scheduler", idempotency_key: key, at: @now
+        )
+
+        assert_predicate result, :success?, result.error&.message
+      end
+
+      assert_equal "scheduler", Core::AuditLog.find_by(
+        audit_key: "finance-event-completed-#{Core::IdempotencyKey.new(key).digest}"
+      ).metadata.fetch("source")
+
+      assert_no_enqueued_jobs do
+        replay = Finance::CompleteEvent.call(
+          event: @event, actor: nil, source: "scheduler", idempotency_key: key, at: @now
+        )
+
+        assert_predicate replay, :success?, replay.error&.message
+      end
+
+      unauthorized = Finance::CompleteEvent.call(
+        event: @event,
+        actor: nil,
+        source: "manual",
+        idempotency_key: "scheduler-source-invalid",
+        at: @now
+      )
+
+      assert_predicate unauthorized, :failure?
+      assert_equal "unauthorized", unauthorized.error.code
     end
   end
 end
