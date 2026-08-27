@@ -8045,6 +8045,22 @@
       "name": "Refunds & Finance",
       "item": [
         {
+          "name": "Complete Event",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Idempotency-Key", "value": "{{financeIdempotencyKey}}", "type": "text"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/events/{{eventId}}/complete",
+              "host": ["{{baseUrl}}"],
+              "path": ["events", "{{eventId}}", "complete"]
+            },
+            "description": "Manually retries guarded event completion for an authorized organizer or platform administrator. It does not bypass terminal dates or payout maturity."
+          },
+          "response": []
+        },
+        {
           "name": "List Organizer Payout Accounts",
           "request": {
             "method": "GET",
