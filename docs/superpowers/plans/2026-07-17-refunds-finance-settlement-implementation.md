@@ -757,3 +757,9 @@ adds encrypted organization-owned destinations, provider-first verification,
 and payout-level destination snapshots. It is intentionally separate from the
 completed Finance task and must be completed before enabling real organizer
 dispatch in Render.
+
+The event-completion lifecycle extension is documented in
+docs/superpowers/plans/2026-08-27-event-completion-lifecycle-implementation.md.
+It adds automatic due-event completion plus the guarded manual retry route
+(`POST /events/:event_id/complete`) without changing payout maturity or ledger
+rules.

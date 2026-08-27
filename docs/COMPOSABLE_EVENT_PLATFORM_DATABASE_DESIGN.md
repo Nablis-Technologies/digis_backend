@@ -187,6 +187,12 @@ At launch, ticket-sale proceeds are pending organizer funds until the event is c
 
 This is both simpler and safer than advances or rolling payouts. Postponed, suspended, or cancelled events cannot release positive sale proceeds. Refunds, chargebacks, platform fees, and processing fees reduce pending balances before any payout is built. A future risk system may add per-organizer reserves or approved advances, but it must extend this ledger/allocation model rather than rewriting historical sales.
 
+Event completion is automatic: a bounded recurring command completes ended
+scheduled dates, then completes the event only when every materialized date is
+completed or cancelled. An authorized `POST /events/:event_id/complete` route
+is available as an auditable retry surface; it uses the same command and never
+shortens the seven-day buffer or bypasses refund/chargeback safeguards.
+
 ### 2.14 Event cancellation automatically returns unused refundable value
 
 Cancelling an event immediately stops sales, registration, admission, and streaming. The system automatically initiates refunds to the original payment method through resumable batches; free credentials are revoked without creating payment records. Automatic initiation is not a promise of instant settlement: a provider may keep the refund pending or reject it when the platform/provider balance lacks funds.

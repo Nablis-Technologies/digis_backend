@@ -30,12 +30,18 @@ If a plan and a specification disagree, stop implementation and reconcile the pl
 | 4 | `2026-07-17-orders-payments-implementation.md` | 2, 3, 3.5, with the inter-plan handoff below | Immutable quotes/orders/commercial adjustments, payment attempts, webhooks, grace, accepted fulfillment boundary |
 | 5 | `2026-07-17-ticket-packages-credentials-implementation.md` | 3, 4 | Commercial packages, slots, credential generations, QR/PNR, delegation, transfer, suspension |
 | 6 | `2026-07-17-scanner-offline-admission-implementation.md` | 5 | Shared credential validator, admission use, devices, zones, offline sync/upload, manual lookup |
-| 7 | `2026-07-17-refunds-finance-settlement-implementation.md` | 4, 5 | Cancellation/refunds, date-value allocation, liquidity, organizer ledger and payouts |
+| 7 | `2026-07-17-refunds-finance-settlement-implementation.md` | 4, 5 | Cancellation/refunds, date-value allocation, liquidity, organizer ledger, event completion, and payouts |
 | 8 | `2026-07-17-controlled-resale-marketplace-implementation.md` | 4, 5, 7 | Whole-package marketplace, credential suspension/transfer, seller ledger and payouts |
 | 9 | `2026-07-17-streaming-addons-links-implementation.md` | 2, 4, 5, 6 | Streaming sessions, parking and other add-ons, optional short links |
 | 10 | `2026-07-17-launch-hardening-observability-implementation.md` | 0–9 | Security, reconciliation, performance, operations, contract tests, launch gates |
 
 Resale is implemented after the package/credential core even though the schema document calls it Phase 3.75. Its reservation invariant cannot exist safely before generation revocation, package suspension, and replacement generation services.
+
+The event-completion lifecycle extension is tracked in
+`2026-08-27-event-completion-lifecycle-implementation.md`. It completes ended
+dates/events automatically and adds a guarded manual retry surface before the
+Finance payout live-drill gate; it does not change the phase ordering or payout
+maturity rules.
 
 ### Commercial/Orders execution handoff
 

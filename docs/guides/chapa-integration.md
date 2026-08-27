@@ -273,6 +273,11 @@ snapshots the verified destination ID, then passes decrypted details only to
 the Chapa transfer adapter. A timeout remains processing and is reconciled;
 the transfer is never blindly submitted a second time.
 
+Event completion is automatic after ended dates become terminal. Authorized
+organizers and platform administrators may retry the same guarded transition
+with `POST /events/:event_id/complete` and an `Idempotency-Key`; this does not
+make funds payout-eligible before the seven-day maturity buffer.
+
 ## 9. Render preview end-to-end test
 
 Always use a fresh checkout. Old hosted checkouts can expire before testing
