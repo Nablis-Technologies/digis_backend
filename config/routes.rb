@@ -102,6 +102,10 @@ Rails.application.routes.draw do
     resources :orders, only: :create, controller: "orders/orders"
   end
 
+  # Finance owns completion because it triggers the payout-maturity boundary;
+  # the URL remains event-scoped for organizer operations.
+  post "events/:event_id/complete", to: "finance/event_completions#complete"
+
   resources :orders, only: [] do
     resources :payment_attempts, only: :create, controller: "orders/payment_attempts"
     post :restart, on: :member, controller: "orders/orders"

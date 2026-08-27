@@ -39,6 +39,12 @@ module Events
       owner_or_collaborator?(record) || manager_of?(record)
     end
 
+    def complete?
+      return true if user&.has_role?("SUPER_ADMIN") || user&.has_role?("ADMIN") || user&.has_role?("CORE_ADMIN")
+
+      Events::AuthorizationResolver.organization_admin_or_owner?(user, record)
+    end
+
     VISIBILITY = {
       index: {
         default: { fields: %i[id title slug status visibility created_at], include: [] },
@@ -47,6 +53,10 @@ module Events
       show: {
         default: { fields: %i[id title slug description status visibility timezone currency version published_at created_at], include: [] },
         admin: { fields: :all, include: [ :event_setting ] }
+      },
+      complete: {
+        default: { fields: %i[id title slug description status visibility timezone currency version published_at completed_at created_at updated_at], include: [] },
+        admin: { fields: :all, include: [] }
       }
     }
 

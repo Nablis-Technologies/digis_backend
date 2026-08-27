@@ -1,5 +1,7 @@
 en:
   finance:
+    success:
+      event_complete: "Event completed successfully"
     permissions:
       reserve_policy_update: "Update provider reserve policies"
       payout_dispatch: "Dispatch organizer payouts"
@@ -48,6 +50,7 @@ en:
       event_not_completable: "The event cannot be completed from its current state"
       event_dates_incomplete: "Every event date must be completed or cancelled first"
       event_completion_invalid: "The event completion is invalid"
+      complete_due_events_failed: "Automatic completion failed for %{count} event(s)"
     payout_providers:
       errors:
         adapter_operation_not_implemented: "%{adapter} does not implement %{operation}"

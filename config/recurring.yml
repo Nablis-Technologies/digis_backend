@@ -33,6 +33,10 @@ production:
     class: Finance::ProviderReserveMonitorJob
     queue: default
     schedule: "*/5 * * * *"
+  complete_due_events:
+    class: Finance::CompleteDueEventsJob
+    queue: default
+    schedule: every minute
   expire_commercial_scheduled_state:
     class: Commercial::ExpireScheduledStateJob
     queue: default
