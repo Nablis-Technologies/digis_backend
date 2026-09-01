@@ -21,7 +21,7 @@ services:
       - key: SECRET_KEY_BASE
         generateValue: true
       - key: APP_HOST
-        sync: false
+        value: digis-backend-preview.onrender.com
       - key: APP_PROTOCOL
         value: https
       - key: SOLID_QUEUE_IN_PUMA
