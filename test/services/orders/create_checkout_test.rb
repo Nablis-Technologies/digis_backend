@@ -165,6 +165,52 @@ module Orders
       assert_equal 1, @product.inventories.reload.first.sold_count
     end
 
+    test "fulfills a zero-total ticket checkout and publishes issuance" do
+      @product.update!(name: "Free parking")
+      @product.prices.update_all(amount_minor: 0)
+      date = @event.event_dates.create!(
+        starts_at: @quoted_at + 1.hour, ends_at: @quoted_at + 3.hours, status: "scheduled"
+      )
+      @product.product_accesses.create!(event_date: date, type: "parking", usage_limit: 1)
+
+      free_quote_result = Orders::BuildQuote.call(
+        event: @event,
+        buyer: @buyer,
+        items: [ { product: @product, quantity: 1 } ],
+        charge_currency: "ETB",
+        quoted_at: @quoted_at
+      )
+      assert_predicate free_quote_result, :success?, free_quote_result.error&.message
+      free_quote = free_quote_result.value
+
+      result = Orders::CreateCheckout.call(
+        quote: free_quote,
+        event: @event,
+        buyer: @buyer,
+        idempotency_key: "free-ticket-#{SecureRandom.hex(6)}"
+      )
+
+      assert_predicate result, :success?, result.error&.message
+      order = result.value
+      assert_equal "fulfilled", order.reload.status
+      outbox = Core::OutboxEvent.find_by!(
+        aggregate_id: order.id, event_type: "orders.payment.fulfilled"
+      )
+
+      assert_difference -> { Ticketing::Ticket.count }, 1 do
+        dispatch = Core::Outbox::Dispatch.call(event_id: outbox.id)
+        assert_predicate dispatch, :success?, dispatch.error&.message
+      end
+
+      ticket = Ticketing::Ticket.find_by!(order_item_id: order.order_items.first.id)
+      assert_equal "active", ticket.current_credential_generation.status
+      credential = ticket.current_credential_generation.credentials.active.sole
+      assert credential.qr_token.present?
+      assert credential.lookup_code.present?
+      assert_equal 0, Orders::Payment.where(order:).count
+      assert_equal 0, Finance::LedgerEntry.where(order:).count
+    end
+
     private
 
     def create_checkout_terms

@@ -441,9 +441,10 @@ module Orders
       commit_purchase_limits!
       apply_promotion!(order)
       commit_subsidies!(order)
-      # A free confirmation fulfills the buyer's order, but it is not the
-      # first accepted paid order for Commercial volume or entitlement rules.
-      # The later verified-payment acceptance path records those transitions.
+      result = Orders::FulfillOrder.call(
+        order:, payment: nil, idempotency_key: "orders-free-fulfilled-#{order.id}"
+      )
+      abort_with(result.error) if result.failure?
     end
 
     def commit_inventory!(item_records)
