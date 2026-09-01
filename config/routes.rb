@@ -54,7 +54,8 @@ Rails.application.routes.draw do
         post :deactivate, on: :member
       end
     end
-    resources :public_events, only: %i[index show], param: :slug, path: "public/events"
+    resources :public_events, only: :index, path: "public/events"
+    get "public/events/:slug", to: "public_events#public_show", as: :public_event
   end
 
   get "public/events/:event_slug/products", to: "catalog/public_products#index"
@@ -191,7 +192,7 @@ Rails.application.routes.draw do
   post "checkin_logs/:id/identity_override", to: "ticketing/checkin_identity_overrides#create"
   post "checkin_logs/:id/admission_use_reversal", to: "ticketing/admission_use_reversals#create"
 
-  resources :tickets, only: [] do
+  resources :tickets, only: :index, controller: "ticketing/tickets" do
     resources :stream_sessions, only: :create, controller: "ticketing/stream_sessions"
     post :resale, on: :member, controller: "marketplace/resale_listings", action: :create
     resource :suspension, only: :create, controller: "ticketing/suspensions" do
