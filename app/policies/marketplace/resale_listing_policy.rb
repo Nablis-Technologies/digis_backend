@@ -7,7 +7,7 @@ module Marketplace
   class ResaleListingPolicy < Core::ApplicationPolicy
     BUYER_FIELDS = %i[
       id event_id ticket_type_id status asking_amount_minor currency resale_cutoff_at fee_terms
-      created_at updated_at
+      event product ticket_type event_dates created_at updated_at
     ].freeze
     SELLER_FIELDS = (BUYER_FIELDS + %i[
       seller_user_id seller_acquisition_product_value_minor cap_type_snapshot fixed_cap_minor_snapshot

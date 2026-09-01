@@ -32,9 +32,37 @@ module Marketplace
       data = response.parsed_body.fetch("data")
       assert_equal @listing.asking_amount_minor, data.fetch("asking_amount_minor")
       assert data.key?("fee_terms")
+      assert_equal @event.title, data.dig("event", "title")
+      assert_equal @product.name, data.dig("ticket_type", "name")
       %w[seller_acquisition_product_value_minor calculated_cap_minor commercial_fee_component_id
          commercial_fee_schedule_version_id].each do |field|
         assert_not data.key?(field), "buyer response leaked #{field}"
+      end
+    end
+
+    test "a buyer can browse active listings with event and ticket display context" do
+      @product.product_accesses.each do |access|
+        access.event_date.update!(venue: events_venues(:grand_palace))
+      end
+
+      get "/resale_listings", headers: headers_for(@second_buyer), as: :json
+
+      assert_response :success
+      data = response.parsed_body.fetch("data").sole
+      assert_equal @event.slug, data.dig("event", "slug")
+      assert_equal @event.title, data.dig("event", "title")
+      assert_equal @product.name, data.dig("product", "name")
+      assert_equal @product.name, data.dig("ticket_type", "name")
+      assert_equal @product.ticket_type.id, data.dig("ticket_type", "id")
+      assert_equal @listing.asking_amount_minor, data.fetch("asking_amount_minor")
+      assert_equal @listing.currency, data.fetch("currency")
+      assert_equal @listing.resale_cutoff_at.iso8601(3), data.fetch("resale_cutoff_at")
+      event_date = data.fetch("event_dates").sole
+      assert_equal "Grand Palace", event_date.dig("venue", "name")
+      assert_equal "Addis Ababa", event_date.dig("venue", "city")
+      %w[seller_user_id seller_acquisition_product_value_minor calculated_cap_minor
+         commercial_fee_component_id commercial_fee_schedule_version_id payout_account payment scanner].each do |field|
+        refute data.key?(field), "buyer response leaked #{field}"
       end
     end
 

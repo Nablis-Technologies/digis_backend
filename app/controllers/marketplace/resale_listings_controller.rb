@@ -17,14 +17,18 @@ module Marketplace
       authorize @clazz.new, :index?
       listings = policy_scope(@clazz)
         .where(status: "active")
-        .includes(commercial_fee_component: :fee_schedule_version)
+        .includes(display_includes)
         .order(created_at: :desc)
-      render_success(data: listings, serializer_options: { serializer: ResaleListingSerializer })
+      render_success(
+        data: listings,
+        serializer_options: { serializer: Marketplace::Public::ResaleListingSerializer }
+      )
     end
 
     def show
       authorize @listing, :show?
-      render_success(data: @listing, serializer_options: { serializer: ResaleListingSerializer })
+      serializer = seller_or_platform_view? ? ResaleListingSerializer : Marketplace::Public::ResaleListingSerializer
+      render_success(data: @listing, serializer_options: { serializer: })
     end
 
     def create
@@ -55,7 +59,7 @@ module Marketplace
     private
 
     def load_listing
-      @listing = ResaleListing.includes(commercial_fee_component: :fee_schedule_version).find(params[:id])
+      @listing = ResaleListing.includes(display_includes).find(params[:id])
     end
 
     def load_ticket
@@ -64,6 +68,26 @@ module Marketplace
 
     def resale_listing_params
       params.fetch(:resale_listing, ActionController::Parameters.new).permit(:asking_amount_minor, :reason)
+    end
+
+    def display_includes
+      [
+        :event,
+        :commercial_fee_component,
+        {
+          ticket: {
+            event_product: [ :ticket_type, { product_accesses: { event_date: :venue } } ]
+          }
+        }
+      ]
+    end
+
+    def seller_or_platform_view?
+      @listing.seller_user_id == current_user.id || platform_admin?
+    end
+
+    def platform_admin?
+      current_user.super_admin? || current_user.has_role?("ADMIN") || current_user.has_role?("CORE_ADMIN")
     end
   end
 end
