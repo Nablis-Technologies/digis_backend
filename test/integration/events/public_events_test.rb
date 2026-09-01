@@ -13,6 +13,8 @@ class EventsPublicEventsTest < ActionDispatch::IntegrationTest
       status: "approved"
     )
     make_publishable(@event)
+    @event.event_dates.first.update!(venue: events_venues(:grand_palace), name: "Main show")
+    @event.event_setting.update!(config: { allow_waitlist: true, public_guest_limit: 10, internal_flag: true })
     Events::Publish.call(event: @event, actor: core_users(:super_admin),
                          idempotency_key: SecureRandom.uuid)
   end
@@ -21,7 +23,14 @@ class EventsPublicEventsTest < ActionDispatch::IntegrationTest
     get "/public/events", as: :json
     assert_response :success
     bodies = JSON.parse(response.body).dig("data")
-    assert bodies.any? { |e| e["id"] == @event.id }
+    event = bodies.find { |item| item["id"] == @event.id }
+    assert event
+    assert_equal "10", event.dig("event_setting", "config", "public_guest_limit").to_s
+    assert_equal "Main show", event.dig("event_dates", 0, "name")
+    assert_equal "Grand Palace", event.dig("event_dates", 0, "venue", "name")
+    assert_equal "Addis Ababa", event.dig("event_dates", 0, "venue", "city")
+    assert event.dig("event_media", 0, "file", "medium").present?
+    refute event.dig("event_setting", "config").key?("internal_flag")
   end
 
   test "private draft events are excluded from public discovery" do
@@ -36,6 +45,13 @@ class EventsPublicEventsTest < ActionDispatch::IntegrationTest
     body = JSON.parse(response.body).dig("data")
     assert_equal @event.id, body["id"]
     assert_includes body.keys, "title"
+    assert_equal "Music", body.dig("categories", 0, "name")
+    assert_equal "Grand Palace", body.dig("event_dates", 0, "venue", "name")
+    assert_equal "Addis Ababa", body.dig("event_dates", 0, "venue", "city")
+    assert body.dig("event_media", 0, "file", "medium").present?
+    assert_equal @event.organization.name, body.dig("organization", "name")
+    assert_equal true, body.dig("event_setting", "config", "allow_waitlist")
+    refute body.dig("event_setting", "config").key?("internal_flag")
     refute_includes body.keys, "cancelled_at"
     refute_includes body.keys, "internal_notes"
   end

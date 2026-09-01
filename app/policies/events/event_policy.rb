@@ -54,6 +54,27 @@ module Events
         default: { fields: %i[id title slug description status visibility timezone currency version published_at created_at], include: [] },
         admin: { fields: :all, include: [ :event_setting ] }
       },
+      public_show: {
+        default: {
+          fields: %i[id title slug description visibility timezone currency published_at created_at],
+          include: [],
+          association_fields: {
+            categories: { fields: %i[id name description slug metadata active created_at updated_at] },
+            event_dates: {
+              fields: %i[id name doors_at starts_at ends_at status venue],
+              association_fields: { venue: { fields: %i[id name city] } }
+            },
+            event_media: { fields: %i[id type position alt_text caption file] },
+            event_organizations: {
+              fields: %i[id type role status organization],
+              association_fields: { organization: { fields: %i[id name slug] } }
+            },
+            event_setting: { fields: %i[id config] },
+            organization: { fields: %i[id name slug] }
+          }
+        },
+        admin: { fields: :all, include: [] }
+      },
       complete: {
         default: { fields: %i[id title slug description status visibility timezone currency version published_at completed_at created_at updated_at], include: [] },
         admin: { fields: :all, include: [] }

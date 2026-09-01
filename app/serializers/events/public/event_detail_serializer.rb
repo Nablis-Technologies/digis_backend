@@ -8,11 +8,12 @@ module Events
       attributes :id, :slug, :title, :description, :visibility,
                  :timezone, :currency, :published_at, :created_at
 
-      has_many :categories, serializer: Events::CategorySerializer
-      has_many :event_dates, serializer: Events::EventDateSerializer
-      has_many :event_media, serializer: Events::EventMediaSerializer
-      has_many :event_organizations, serializer: Events::EventOrganizationSerializer
-      has_many :event_streams, serializer: Events::EventStreamSerializer
+      has_many :categories, serializer: Events::Public::CategorySerializer
+      has_many :event_dates, serializer: Events::Public::EventDateSerializer
+      has_many :event_media, serializer: Events::Public::EventMediaSerializer
+      has_many :event_organizations, serializer: Events::Public::EventOrganizationSerializer
+      has_one :event_setting, serializer: Events::Public::EventSettingSerializer
+      has_one :organization, serializer: Events::Public::OrganizationSummarySerializer
     end
   end
 end
