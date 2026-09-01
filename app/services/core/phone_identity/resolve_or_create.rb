@@ -49,11 +49,15 @@ module Core
       attr_reader :phone, :actor, :allow_actor_mismatch
 
       def resolve_manager_recipient(normalized_phone)
-        user = Core::User.find_or_initialize_by(phone: normalized_phone)
+        user = find_existing_user(normalized_phone) || Core::User.find_or_initialize_by(phone: normalized_phone)
         user.save! if user.new_record?
         success(Identity.new(user:, digest: digest_for(normalized_phone)))
       rescue ActiveRecord::RecordInvalid
         failure(error("phone_identity_invalid"))
+      end
+
+      def find_existing_user(normalized_phone)
+        Core::User.where(phone: [ "+#{normalized_phone}", normalized_phone ]).order(:phone).first
       end
 
       def digest_for(value)
