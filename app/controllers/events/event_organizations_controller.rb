@@ -17,20 +17,21 @@ module Events
     def index
       authorize @parent.event_organizations.new, :index? unless skip_authorization_for_action?
 
-      data, serializer_options = resolve_block_result(default: policy_scope(@parent.event_organizations))
-      data = apply_index_scope(data)
-      data = data.includes(eager_loaded_associations) if data.respond_to?(:includes)
-      data = filter_records(data)
-      data = apply_ordering(data)
-      total_count = data.count if paginated_request?
-      data = apply_pagination(data) if paginated_request?
-
-      data = Array(data)
-      data << primary_owner_entry if primary_owner_entry
-
-      serializer_options[:include] ||= renderable_associations
-      pagination = paginated_request? ? pagination_metadata(total_count) : nil
-      render_success(data: data, serializer_options: serializer_options, pagination: pagination)
+      collaborators = policy_scope(@parent.event_organizations)
+        .includes(:organization)
+      collaborators = filter_records(collaborators)
+      collaborators = collaborator_order(collaborators)
+      total_count = collaborators.count if paginated_request?
+      collaborators = paginated_request? ? apply_pagination(collaborators) : collaborators.limit(default_per_page)
+      render_success(
+        data: {
+          primary_organization: organization_summary(@parent.organization),
+          collaborators: collaborators.map do |collaborator|
+            Events::EventOrganizationSerializer.new(collaborator).attributes
+          end
+        },
+        pagination: paginated_request? ? pagination_metadata(total_count) : nil
+      )
     end
 
     def revoke
@@ -49,20 +50,28 @@ module Events
       @organization = Events::Event.find(params[:event_id]).event_organizations.find(params[:id])
     end
 
-    def primary_owner_entry
-      return nil unless @parent.organization_id
+    def organization_summary(organization)
+      return unless organization
 
-      Events::EventOrganization.new(
-        event_id: @parent.id,
-        organization_id: @parent.organization_id,
-        type: "owner",
-        role: "primary_owner",
-        status: "active"
-      )
+      Events::Public::OrganizationSummarySerializer.new(organization).attributes
     end
 
     def model_params
       params.require(:event_organization).permit(:organization_id, :type, :role)
+    end
+
+    def eager_load_config
+      { default: [ :organization ] }
+    end
+
+    def collaborator_order(collaborators)
+      return apply_ordering(collaborators.reorder(nil)) if params[:order_by].present?
+
+      collaborators.order(created_at: :desc, id: :desc)
+    end
+
+    def allowed_order_columns
+      %w[id type role status created_at updated_at]
     end
   end
 end

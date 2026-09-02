@@ -179,6 +179,32 @@ class OrganizationsOwnerOrganizationsTest < ActionDispatch::IntegrationTest
     assert data.any? { |o| o["id"] == org.id }
   end
 
+  test "organization event count tracks authoritative event creation" do
+    user = core_users(:attendee)
+    org = Organizations::Organization.create!(
+      name: "Counted Org #{SecureRandom.hex(4)}",
+      organizer_type: "individual",
+      category: "conference"
+    )
+    org.memberships.create!(user: user, role: :owner)
+    Events::Event.create!(
+      organization: org,
+      created_by: user,
+      title: "Counted event",
+      slug: "counted-event-#{SecureRandom.hex(4)}",
+      status: "draft",
+      visibility: "private",
+      timezone: "Africa/Addis_Ababa",
+      currency: "ETB"
+    )
+
+    get "/organizations/owner", headers: user_headers, as: :json
+
+    assert_response :success
+    payload = response.parsed_body.fetch("data").find { |item| item.fetch("id") == org.id }
+    assert_equal 1, payload.fetch("events_count")
+  end
+
   test "show requires authentication" do
     org = organizations_organizations(:one)
     get "/organizations/owner/#{org.id}", as: :json
