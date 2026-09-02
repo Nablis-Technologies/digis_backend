@@ -32,7 +32,7 @@ module Core
       data = apply_ordering(data)
 
       total_count = data.count if paginated_request?
-      data = apply_pagination(data) if paginated_request?
+      data = paginated_request? ? apply_pagination(data) : data.limit(default_per_page)
 
       serializer_options[:include] ||= renderable_associations
 
