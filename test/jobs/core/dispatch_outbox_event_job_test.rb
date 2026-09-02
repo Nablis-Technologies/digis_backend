@@ -71,6 +71,21 @@ class Core::DispatchOutboxEventJobTest < ActiveJob::TestCase
     assert Rails.application.config.x.outbox_handlers.key?("orders.checkout.expired")
   end
 
+  test "acknowledges event completion evidence without enqueueing maturity" do
+    event = core_outbox_events(:pending)
+    event.update!(
+      topic: "events",
+      event_type: "event.completed",
+      payload: { event_id: SecureRandom.uuid, completed_at: Time.current.iso8601 }
+    )
+
+    assert_no_enqueued_jobs do
+      Core::Outbox::Dispatch.call(event_id: event.id)
+    end
+
+    assert event.reload.published_at?
+  end
+
   test "publishes checkout lifecycle evidence without a downstream consumer" do
     event = core_outbox_events(:pending)
     event.update!(topic: "orders", event_type: "orders.checkout.created")
