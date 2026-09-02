@@ -16,7 +16,7 @@ module Marketplace
     def history
       @clazz = SellerLedgerEntry
       authorize SellerLedgerEntry.new(seller_user: current_user), :index?
-      entries = policy_scope(@clazz).order(created_at: :desc)
+      entries = policy_scope(@clazz).includes(:event).order(created_at: :desc)
       entries = apply_ordering(entries.reorder(nil)) if params[:order_by].present?
       total_count = entries.count if paginated_request?
       entries = paginated_request? ? apply_pagination(entries) : entries.limit(default_per_page)
