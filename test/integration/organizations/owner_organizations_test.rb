@@ -205,6 +205,33 @@ class OrganizationsOwnerOrganizationsTest < ActionDispatch::IntegrationTest
     assert_equal 1, payload.fetch("events_count")
   end
 
+  test "organization event count is corrected when the counter cache is stale" do
+    user = core_users(:attendee)
+    org = Organizations::Organization.create!(
+      name: "Stale Count Org #{SecureRandom.hex(4)}",
+      organizer_type: "individual",
+      category: "conference"
+    )
+    org.memberships.create!(user: user, role: :owner)
+    Events::Event.create!(
+      organization: org,
+      created_by: user,
+      title: "Stale count event",
+      slug: "stale-count-event-#{SecureRandom.hex(4)}",
+      status: "draft",
+      visibility: "private",
+      timezone: "Africa/Addis_Ababa",
+      currency: "ETB"
+    )
+    org.update_columns(events_count: 0)
+
+    get "/organizations/owner", headers: user_headers, as: :json
+
+    assert_response :success
+    payload = response.parsed_body.fetch("data").find { |item| item.fetch("id") == org.id }
+    assert_equal 1, payload.fetch("events_count")
+  end
+
   test "show requires authentication" do
     org = organizations_organizations(:one)
     get "/organizations/owner/#{org.id}", as: :json

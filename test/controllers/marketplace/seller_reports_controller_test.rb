@@ -31,6 +31,7 @@ module Marketplace
       response.parsed_body.fetch("data").each do |entry|
         assert_not entry.key?("idempotency_key")
       end
+      assert_equal @event.title, response.parsed_body.fetch("data").first.dig("event", "title")
     end
 
     test "seller history is bounded and includes pagination metadata" do
