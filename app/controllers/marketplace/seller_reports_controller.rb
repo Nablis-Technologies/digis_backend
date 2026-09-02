@@ -17,7 +17,20 @@ module Marketplace
       @clazz = SellerLedgerEntry
       authorize SellerLedgerEntry.new(seller_user: current_user), :index?
       entries = policy_scope(@clazz).order(created_at: :desc)
-      render_success(data: entries, serializer_options: { serializer: SellerLedgerEntrySerializer })
+      entries = apply_ordering(entries.reorder(nil)) if params[:order_by].present?
+      total_count = entries.count if paginated_request?
+      entries = paginated_request? ? apply_pagination(entries) : entries.limit(default_per_page)
+      render_success(
+        data: entries,
+        serializer_options: { serializer: SellerLedgerEntrySerializer },
+        pagination: paginated_request? ? pagination_metadata(total_count) : nil
+      )
+    end
+
+    private
+
+    def allowed_order_columns
+      %w[id amount_minor currency type available_at created_at]
     end
   end
 end

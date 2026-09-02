@@ -33,6 +33,25 @@ module Marketplace
       end
     end
 
+    test "seller history is bounded and includes pagination metadata" do
+      get "/marketplace/seller/history?page=2&per_page=1", headers: headers_for(@seller), as: :json
+
+      assert_response :success
+      assert_equal 1, response.parsed_body.fetch("data").length
+      pagination = response.parsed_body.fetch("pagination")
+      assert_equal 2, pagination.fetch("total_count")
+      assert_equal 2, pagination.fetch("current_page")
+      assert_equal 2, pagination.fetch("total_pages")
+    end
+
+    test "seller history honors requested ordering" do
+      get "/marketplace/seller/history?order_by=amount_minor&order_direction=desc",
+          headers: headers_for(@seller), as: :json
+
+      assert_response :success
+      assert_equal [ 10_000, -1_500 ], response.parsed_body.fetch("data").pluck("amount_minor")
+    end
+
     private
 
     def headers_for(user)
