@@ -13,7 +13,8 @@ module Events
     MAX_CATEGORIES = 3
 
 
-    belongs_to :organization, class_name: "Organizations::Organization"
+    belongs_to :organization, class_name: "Organizations::Organization",
+               inverse_of: :events, counter_cache: :events_count
     belongs_to :created_by, class_name: "Core::User"
 
     has_one :event_setting, class_name: "Events::EventSetting",
