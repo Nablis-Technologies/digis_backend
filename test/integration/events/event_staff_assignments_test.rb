@@ -20,6 +20,21 @@ module Events
       assert JSON.parse(response.body)["data"].is_a?(Array)
     end
 
+    test "staff assignment responses include safe user and organization summaries" do
+      assignment = Events::EventStaffAssignment.create!(
+        event: @event, user: @attendee, organization: @event.organization, role: "staff", status: "active"
+      )
+
+      get "/events/#{@event.id}/event_staff_assignments", headers: owner_headers, as: :json
+
+      assert_response :ok
+      payload = response.parsed_body.fetch("data").find { |item| item.fetch("id") == assignment.id }
+      assert_equal @attendee.email, payload.dig("user", "email")
+      assert_equal @attendee.phone, payload.dig("user", "phone")
+      assert_equal @event.organization.name, payload.dig("organization", "name")
+      refute payload.key?("password_digest")
+    end
+
     test "owner can assign staff" do
       assert_difference -> { Events::EventStaffAssignment.count }, 1 do
         post "/events/#{@event.id}/event_staff_assignments",

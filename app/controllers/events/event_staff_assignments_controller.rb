@@ -60,5 +60,9 @@ module Events
     def model_params
       params.require(:event_staff_assignment).permit(:user_id, :organization_id)
     end
+
+    def eager_load_config
+      { default: [ :user, :organization ] }
+    end
   end
 end
