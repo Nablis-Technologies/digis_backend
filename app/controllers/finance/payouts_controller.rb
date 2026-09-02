@@ -18,13 +18,17 @@ module Finance
       @clazz = Finance::Payout
       payouts = policy_scope(Finance::Payout)
         .where(organization: @organization)
-        .order(requested_at: :desc)
+        .includes(:payout_account)
+      payouts = apply_report_ordering(payouts, requested_at: :desc)
+      total_count = payouts.count if paginated_request?
+      payouts = paginated_request? ? apply_pagination(payouts) : payouts.limit(default_per_page)
       render_success(
         data: payouts,
         serializer_options: {
           serializer: Finance::PayoutSerializer,
           visible_attributes: Finance::PayoutPolicy::SAFE_FIELDS
-        }
+        },
+        pagination: paginated_request? ? pagination_metadata(total_count) : nil
       )
     end
 
@@ -53,14 +57,18 @@ module Finance
       @clazz = Finance::LedgerEntry
       entries = policy_scope(Finance::LedgerEntry)
         .where(organization: @organization)
+        .includes(:event)
         .then { |scope| payout_currency.present? ? scope.where(currency: payout_currency) : scope }
-        .order(created_at: :desc)
+      entries = apply_report_ordering(entries, created_at: :desc)
+      total_count = entries.count if paginated_request?
+      entries = paginated_request? ? apply_pagination(entries) : entries.limit(default_per_page)
       render_success(
         data: entries,
         serializer_options: {
           serializer: Finance::LedgerEntrySerializer,
           visible_attributes: Finance::LedgerEntryPolicy::SAFE_FIELDS
-        }
+        },
+        pagination: paginated_request? ? pagination_metadata(total_count) : nil
       )
     end
 
@@ -126,7 +134,7 @@ module Finance
 
     def load_payout
       scope = @organization ? @organization.finance_payouts : Finance::Payout
-      @payout = scope.includes(:organization).find(params[:id])
+      @payout = scope.includes(:organization, :payout_account).find(params[:id])
     end
 
     def payout_scope_sample
@@ -159,6 +167,18 @@ module Finance
       return nil unless params[:treasury_approval_id].present?
 
       Core::AuditLog.find(params[:treasury_approval_id])
+    end
+
+    def apply_report_ordering(records, default_order)
+      return apply_ordering(records.reorder(nil)) if params[:order_by].present?
+
+      records.order(default_order)
+    end
+
+    def allowed_order_columns
+      return %w[id amount_minor currency type available_at created_at] if action_name == "ledger_entries"
+
+      %w[id amount_minor currency status requested_at paid_at created_at]
     end
   end
 end
