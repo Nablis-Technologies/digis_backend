@@ -2,6 +2,11 @@
 
 module Events
   class EventPolicy < Core::ApplicationPolicy
+    ORGANIZER_FIELDS = %i[
+      id title slug description status visibility timezone currency version
+      published_at cancelled_at created_at organization categories event_dates event_media
+    ].freeze
+
     def index?
       user.present?
     end
@@ -47,11 +52,11 @@ module Events
 
     VISIBILITY = {
       index: {
-        default: { fields: %i[id title slug status visibility created_at], include: [] },
+        default: { fields: ORGANIZER_FIELDS, include: [] },
         admin: { fields: :all, include: [] }
       },
       show: {
-        default: { fields: %i[id title slug description status visibility timezone currency version published_at created_at], include: [] },
+        default: { fields: ORGANIZER_FIELDS, include: [] },
         admin: { fields: :all, include: [ :event_setting ] }
       },
       public_show: {

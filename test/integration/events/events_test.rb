@@ -93,6 +93,68 @@ class EventsEventsTest < ActionDispatch::IntegrationTest
     assert assert_anybody
   end
 
+  test "organizer event responses include bounded display context and media" do
+    event = events_events(:ready_listing)
+    event.categories.load
+    event.event_dates.create!(
+      name: "Opening night",
+      starts_at: 2.days.from_now,
+      ends_at: 2.days.from_now + 3.hours,
+      status: "scheduled",
+      venue: events_venues(:grand_palace),
+      venue_capacity: 5000,
+      held_venue_count: 12,
+      issued_venue_count: 300
+    )
+    create_media(event:, type: "cover", position: 0)
+    create_media(event:, type: "gallery", position: 1)
+
+    get "/events", headers: admin_headers, as: :json
+
+    assert_response :success
+    list_event = response.parsed_body.fetch("data").find { |item| item.fetch("id") == event.id }
+    assert_equal event.organization.name, list_event.dig("organization", "name")
+    assert_equal "Music", list_event.dig("categories", 0, "name")
+    assert_equal "Grand Palace", list_event.dig("event_dates", 0, "venue", "name")
+    assert_equal 5000, list_event.dig("event_dates", 0, "capacity", "limit")
+    assert_equal 1, list_event.fetch("event_media").length
+    assert_equal "cover", list_event.dig("event_media", 0, "type")
+
+    get "/events/#{event.id}", headers: admin_headers, as: :json
+
+    assert_response :success
+    detail = response.parsed_body.fetch("data")
+    assert_equal 2, detail.fetch("event_media").length
+    assert_equal "gallery", detail.dig("event_media", 1, "type")
+  end
+
+  test "event list responses are bounded and expose pagination metadata" do
+    26.times do |index|
+      Events::Event.create!(
+        organization: @organization,
+        created_by: core_users(:super_admin),
+        title: "Paged event #{index}",
+        slug: "paged-event-#{index}-#{SecureRandom.hex(4)}",
+        status: "draft",
+        visibility: "private",
+        timezone: "Africa/Addis_Ababa",
+        currency: "ETB"
+      )
+    end
+
+    get "/events", headers: admin_headers, as: :json
+    assert_response :success
+    assert_equal 25, response.parsed_body.fetch("data").length
+
+    get "/events?page=2&per_page=10", headers: admin_headers, as: :json
+    assert_response :success
+    pagination = response.parsed_body.fetch("pagination")
+    assert_equal 10, response.parsed_body.fetch("data").length
+    assert_equal 28, pagination.fetch("total_count")
+    assert_equal 2, pagination.fetch("current_page")
+    assert_equal 3, pagination.fetch("total_pages")
+  end
+
   test "publishing a ready event flips status and exposes public data" do
     event = events_events(:ready_listing)
     make_verified(event.organization)
@@ -141,5 +203,20 @@ class EventsEventsTest < ActionDispatch::IntegrationTest
     post "/events/#{event.id}/publish", headers: admin_headers, as: :json
     assert_response :bad_request
     assert_equal "missing_idempotency_key", JSON.parse(response.body)["code"]
+  end
+
+  private
+
+  def create_media(event:, type:, position:)
+    media = event.event_media.build(
+      type:, position:, created_by: core_users(:super_admin), alt_text: "Event media"
+    )
+    media.file.attach(
+      io: File.open(Rails.root.join("test/fixtures/files/pixel.png")),
+      filename: "pixel.png",
+      content_type: "image/png"
+    )
+    media.save!
+    media
   end
 end

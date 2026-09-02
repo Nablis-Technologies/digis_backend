@@ -12,6 +12,36 @@ module Events
     # Draft CRUD index/show/update are plain nested CRUD handled by Core::Common.
     # Creation and publication go through explicit commands.
 
+    def index
+      @clazz = Events::Event
+      authorize @clazz.new, :index?
+      events = policy_scope(@clazz).includes(organizer_eager_load)
+      events = filter_records(events)
+      events = organizer_event_order(events)
+      total_count = events.count if paginated_request?
+      events = paginated_request? ? apply_pagination(events) : events.limit(default_per_page)
+      render_success(
+        data: events,
+        serializer_options: {
+          serializer: Events::Organizer::EventSerializer,
+          projection: :index
+        },
+        pagination: paginated_request? ? pagination_metadata(total_count) : nil
+      )
+    end
+
+    def show
+      @obj = @clazz.includes(organizer_eager_load).find(params[:id])
+      authorize @obj
+      render_success(
+        data: @obj,
+        serializer_options: {
+          serializer: Events::Organizer::EventSerializer,
+          projection: :show
+        }
+      )
+    end
+
     def create
       organization = Organizations::Organization.find_by(id: event_params[:organization_id])
       return render_error(I18n.t("errors.not_found", model: "organization"),
@@ -88,6 +118,21 @@ module Events
 
     def model_params
       event_params.except(:organization_id)
+    end
+
+    def organizer_eager_load
+      [
+        :organization,
+        :categories,
+        { event_dates: :venue },
+        { event_media: { file_attachment: :blob } }
+      ]
+    end
+
+    def organizer_event_order(events)
+      return apply_ordering(events) if params[:order_by].present?
+
+      events.order(published_at: :desc, id: :desc)
     end
   end
 end
