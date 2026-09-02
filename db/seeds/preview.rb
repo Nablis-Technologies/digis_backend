@@ -1358,6 +1358,14 @@ puts "✓ #{cancellation_outcomes_payment_product.name} active for payment outco
 puts "✓ #{chapa_event.title} published with #{chapa_product.name} and " \
      "#{chapa_ticket_product.name} active"
 
+# Counter caches are maintained for new ORM-created events, but preview data
+# may already exist from an older seed version. Reconcile the denormalized
+# organizer count so response fixtures remain truthful across reruns.
+puts "🔢 Reconciling organization event counters..."
+Organizations::Organization.find_each do |organization|
+  Organizations::Organization.reset_counters(organization.id, :events)
+end
+
 # ─────────────────────────────────────────────
 
 puts "\n" + "=" * 60
