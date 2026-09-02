@@ -2497,9 +2497,24 @@
                     }
                   ]
                 },
-                "description": "List events owned by the authenticated organization (paginated, ordered)."
+                "description": "List events owned by the authenticated organization (paginated, ordered). Each item includes safe organization/category summaries, event dates with venue and event-scoped capacity, and only the cover media. Use page/per_page for pagination; an unpaginated request is bounded to the server default."
               },
-              "response": [],
+              "response": [
+                {
+                  "name": "Organizer event list",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [],
+                    "url": { "raw": "{{baseUrl}}/events?page=1&per_page=10", "host": ["{{baseUrl}}"], "path": ["events"] }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": [\n    {\n      \"id\": \"evt_01HXExample\",\n      \"slug\": \"summer-music-festival\",\n      \"title\": \"Summer Music Festival\",\n      \"status\": \"published\",\n      \"visibility\": \"public\",\n      \"timezone\": \"Africa/Addis_Ababa\",\n      \"currency\": \"ETB\",\n      \"organization\": { \"id\": \"org_01HXExample\", \"name\": \"Example Promoter\", \"slug\": \"example-promoter\" },\n      \"categories\": [{ \"id\": \"cat_01HXMusic\", \"name\": \"Music\", \"description\": \"Live music\", \"slug\": \"music\" }],\n      \"event_dates\": [{ \"id\": \"date_01HXExample\", \"name\": \"Opening night\", \"starts_at\": \"2026-08-01T16:00:00.000Z\", \"ends_at\": \"2026-08-01T23:00:00.000Z\", \"status\": \"scheduled\", \"venue\": { \"id\": \"venue_01HXExample\", \"name\": \"Main Hall\", \"city\": \"Addis Ababa\" }, \"capacity\": { \"limit\": 5000, \"held\": 12, \"issued\": 300, \"available\": 4688 } }],\n      \"event_media\": [{ \"id\": \"media_01HXCover\", \"type\": \"cover\", \"position\": 0, \"file\": { \"thumbnail\": \"https://example.test/thumbnail.jpg\", \"medium\": \"https://example.test/medium.jpg\" } }]\n    }\n  ],\n  \"pagination\": { \"current_page\": 1, \"per_page\": 10, \"total_count\": 1, \"total_pages\": 1, \"links\": {} }\n}"
+                }
+              ],
               "event": [
                 {
                   "listen": "test",
@@ -2553,9 +2568,24 @@
                     "{{eventId}}"
                   ]
                 },
-                "description": "Get a single event by ID."
+                "description": "Get a single event by ID. The detail projection includes safe organization/category summaries, all ordered event media variants, and event dates with venue and event-scoped capacity."
               },
-              "response": [],
+              "response": [
+                {
+                  "name": "Organizer event detail",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [],
+                    "url": { "raw": "{{baseUrl}}/events/{{eventId}}", "host": ["{{baseUrl}}"], "path": ["events", "{{eventId}}"] }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"evt_01HXExample\",\n    \"slug\": \"summer-music-festival\",\n    \"title\": \"Summer Music Festival\",\n    \"description\": \"A three-day open-air music festival.\",\n    \"status\": \"published\",\n    \"visibility\": \"public\",\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"currency\": \"ETB\",\n    \"organization\": { \"id\": \"org_01HXExample\", \"name\": \"Example Promoter\", \"slug\": \"example-promoter\" },\n    \"categories\": [{ \"id\": \"cat_01HXMusic\", \"name\": \"Music\", \"description\": \"Live music\", \"slug\": \"music\" }],\n    \"event_dates\": [{ \"id\": \"date_01HXExample\", \"name\": \"Opening night\", \"doors_at\": \"2026-08-01T14:00:00.000Z\", \"starts_at\": \"2026-08-01T16:00:00.000Z\", \"ends_at\": \"2026-08-01T23:00:00.000Z\", \"status\": \"scheduled\", \"venue\": { \"id\": \"venue_01HXExample\", \"name\": \"Main Hall\", \"city\": \"Addis Ababa\" }, \"capacity\": { \"limit\": 5000, \"held\": 12, \"issued\": 300, \"available\": 4688 } }],\n    \"event_media\": [{ \"id\": \"media_01HXCover\", \"type\": \"cover\", \"position\": 0, \"file\": { \"thumbnail\": \"https://example.test/thumbnail.jpg\", \"medium\": \"https://example.test/medium.jpg\" } }, { \"id\": \"media_01HXGallery\", \"type\": \"gallery\", \"position\": 1, \"file\": { \"thumbnail\": \"https://example.test/gallery-thumb.jpg\", \"medium\": \"https://example.test/gallery.jpg\" } }]\n  }\n}"
+                }
+              ],
               "event": [
                 {
                   "listen": "test",
@@ -2789,7 +2819,7 @@
                 {
                   "name": "List Event Products",
                   "request": {
-                    "description": "List event products for an event.",
+                    "description": "List event products for an event. Organizer responses include ticket configuration, product-owned pricing.options, access/date/venue context, and authorized inventory pool counters. Public product responses use a separate, smaller projection.",
                     "header": [],
                     "method": "GET",
                     "url": {
@@ -2825,7 +2855,22 @@
                         }
                       ]
                     },
-                    "response": []
+                    "response": [
+                      {
+                        "name": "Organizer event product list",
+                        "originalRequest": {
+                          "method": "GET",
+                          "header": [],
+                          "url": { "raw": "{{baseUrl}}/events/{{eventId}}/event_products", "host": ["{{baseUrl}}"], "path": ["events", "{{eventId}}", "event_products"] }
+                        },
+                        "status": "OK",
+                        "code": 200,
+                        "_postman_previewlanguage": "json",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "cookie": [],
+                        "body": "{\n  \"success\": true,\n  \"data\": [{\n    \"id\": \"product_01HXExample\",\n    \"event_id\": \"evt_01HXExample\",\n    \"name\": \"General Admission\",\n    \"type\": \"ticket\",\n    \"status\": \"active\",\n    \"inventory_mode\": \"per_date\",\n    \"ticket_type\": { \"id\": \"type_01HXExample\", \"approval_mode\": \"automatic\", \"audience\": \"public\", \"date_selection\": \"fixed\", \"entry_validation_mode\": \"qr\", \"admissions_per_unit\": 1 },\n    \"pricing\": { \"options\": [{ \"id\": \"price_01HXExample\", \"type\": \"base\", \"currency\": \"ETB\", \"amount_minor\": 50000, \"active_from\": \"2026-08-01T00:00:00.000Z\", \"active_to\": null }] },\n    \"product_accesses\": [{ \"id\": \"access_01HXExample\", \"type\": \"venue\", \"required_access_protection\": null, \"usage_limit\": 1, \"event_date\": { \"id\": \"date_01HXExample\", \"name\": \"Opening night\", \"starts_at\": \"2026-08-01T16:00:00.000Z\", \"ends_at\": \"2026-08-01T23:00:00.000Z\", \"status\": \"scheduled\", \"venue\": { \"id\": \"venue_01HXExample\", \"name\": \"Main Hall\", \"city\": \"Addis Ababa\" }, \"capacity\": { \"limit\": 5000, \"held\": 12, \"issued\": 300, \"available\": 4688 } } }],\n    \"inventory\": { \"mode\": \"per_date\", \"pools\": [{ \"id\": \"inventory_01HXExample\", \"event_date_id\": \"date_01HXExample\", \"capacity\": 5000, \"held_count\": 12, \"sold_count\": 300, \"available_count\": 4688, \"lock_version\": 4 }] }\n  }]\n}"
+                      }
+                    ]
                   },
                   "event": [
                     {
@@ -2851,7 +2896,7 @@
                 {
                   "name": "Get Event Product",
                   "request": {
-                    "description": "Get a single event product.",
+                    "description": "Get a single event product with ticket_type, product-owned pricing.options, access/date/venue context, and authorized inventory pools. Pricing is intentionally nested under the product because non-ticket products can also have prices.",
                     "header": [],
                     "method": "GET",
                     "url": {
@@ -2866,7 +2911,22 @@
                       ],
                       "raw": "{{baseUrl}}/events/{{eventId}}/event_products/{{productId}}"
                     },
-                    "response": []
+                    "response": [
+                      {
+                        "name": "Organizer event product detail",
+                        "originalRequest": {
+                          "method": "GET",
+                          "header": [],
+                          "url": { "raw": "{{baseUrl}}/events/{{eventId}}/event_products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["events", "{{eventId}}", "event_products", "{{productId}}"] }
+                        },
+                        "status": "OK",
+                        "code": 200,
+                        "_postman_previewlanguage": "json",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "cookie": [],
+                        "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"product_01HXExample\",\n    \"name\": \"General Admission\",\n    \"type\": \"ticket\",\n    \"status\": \"active\",\n    \"ticket_type\": { \"id\": \"type_01HXExample\", \"approval_mode\": \"automatic\", \"audience\": \"public\", \"entry_validation_mode\": \"qr\", \"admissions_per_unit\": 1 },\n    \"pricing\": { \"options\": [{ \"id\": \"price_01HXExample\", \"type\": \"base\", \"currency\": \"ETB\", \"amount_minor\": 50000, \"active_from\": \"2026-08-01T00:00:00.000Z\", \"active_to\": null }] },\n    \"product_accesses\": [],\n    \"inventory\": { \"mode\": \"per_date\", \"pools\": [] }\n  }\n}"
+                      }
+                    ]
                   }
                 },
                 {
@@ -6107,7 +6167,7 @@
                 {
                   "name": "List Event Dates",
                   "request": {
-                    "description": "List event dates.",
+                    "description": "List event dates with safe venue summaries and event-scoped capacity counters. Capacity is { limit, held, issued, available }; it is not a venue-global total.",
                     "header": [],
                     "method": "GET",
                     "url": {
@@ -6119,15 +6179,31 @@
                         "{{eventId}}",
                         "event_dates"
                       ],
-                      "raw": "{{baseUrl}}/events/{{eventId}}/event_dates"
+                      "raw": "{{baseUrl}}/events/{{eventId}}/event_dates?page=1&per_page=25",
+                      "query": [{"key": "page", "value": "1"}, {"key": "per_page", "value": "25"}]
                     },
-                    "response": []
+                    "response": [
+                      {
+                        "name": "Organizer event-date list",
+                        "originalRequest": {
+                          "method": "GET",
+                          "header": [],
+                          "url": { "raw": "{{baseUrl}}/events/{{eventId}}/event_dates", "host": ["{{baseUrl}}"], "path": ["events", "{{eventId}}", "event_dates"] }
+                        },
+                        "status": "OK",
+                        "code": 200,
+                        "_postman_previewlanguage": "json",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "cookie": [],
+                        "body": "{\n  \"success\": true,\n  \"data\": [{\n    \"id\": \"date_01HXExample\",\n    \"name\": \"Opening night\",\n    \"doors_at\": \"2026-08-01T14:00:00.000Z\",\n    \"starts_at\": \"2026-08-01T16:00:00.000Z\",\n    \"ends_at\": \"2026-08-01T23:00:00.000Z\",\n    \"status\": \"scheduled\",\n    \"venue\": { \"id\": \"venue_01HXExample\", \"name\": \"Main Hall\", \"city\": \"Addis Ababa\" },\n    \"capacity\": { \"limit\": 5000, \"held\": 12, \"issued\": 300, \"available\": 4688 }\n  }],\n  \"pagination\": { \"current_page\": 1, \"per_page\": 25, \"total_count\": 1, \"total_pages\": 1, \"links\": {} }\n}"
+                      }
+                    ]
                   }
                 },
                 {
                   "name": "Get Event Date",
                   "request": {
-                    "description": "Get a single event date.",
+                    "description": "Get one event date with a safe venue summary and event-scoped capacity counters.",
                     "header": [],
                     "method": "GET",
                     "url": {
@@ -6142,7 +6218,22 @@
                       ],
                       "raw": "{{baseUrl}}/events/{{eventId}}/event_dates/{{eventDateId}}"
                     },
-                    "response": []
+                    "response": [
+                      {
+                        "name": "Organizer event-date detail",
+                        "originalRequest": {
+                          "method": "GET",
+                          "header": [],
+                          "url": { "raw": "{{baseUrl}}/events/{{eventId}}/event_dates/{{eventDateId}}", "host": ["{{baseUrl}}"], "path": ["events", "{{eventId}}", "event_dates", "{{eventDateId}}"] }
+                        },
+                        "status": "OK",
+                        "code": 200,
+                        "_postman_previewlanguage": "json",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "cookie": [],
+                        "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"date_01HXExample\",\n    \"name\": \"Opening night\",\n    \"doors_at\": \"2026-08-01T14:00:00.000Z\",\n    \"starts_at\": \"2026-08-01T16:00:00.000Z\",\n    \"ends_at\": \"2026-08-01T23:00:00.000Z\",\n    \"status\": \"scheduled\",\n    \"venue\": { \"id\": \"venue_01HXExample\", \"name\": \"Main Hall\", \"city\": \"Addis Ababa\" },\n    \"capacity\": { \"limit\": 5000, \"held\": 12, \"issued\": 300, \"available\": 4688 }\n  }\n}"
+                      }
+                    ]
                   }
                 },
                 {
@@ -6461,7 +6552,7 @@
                 {
                   "name": "List Event Organizations",
                   "request": {
-                    "description": "List all organizations collaborating on an event.",
+                    "description": "List event collaborators. The response separates the event owner as primary_organization and returns persisted collaborator rows under collaborators; no synthetic null-ID owner row is emitted. Collaborators are bounded and support optional page/per_page pagination.",
                     "header": [],
                     "method": "GET",
                     "url": {
@@ -6473,9 +6564,25 @@
                         "{{eventId}}",
                         "event_organizations"
                       ],
-                      "raw": "{{baseUrl}}/events/{{eventId}}/event_organizations"
+                      "raw": "{{baseUrl}}/events/{{eventId}}/event_organizations?page=1&per_page=25",
+                      "query": [{"key": "page", "value": "1"}, {"key": "per_page", "value": "25"}]
                     },
-                    "response": []
+                    "response": [
+                      {
+                        "name": "Event organizations summary",
+                        "originalRequest": {
+                          "method": "GET",
+                          "header": [],
+                          "url": { "raw": "{{baseUrl}}/events/{{eventId}}/event_organizations", "host": ["{{baseUrl}}"], "path": ["events", "{{eventId}}", "event_organizations"] }
+                        },
+                        "status": "OK",
+                        "code": 200,
+                        "_postman_previewlanguage": "json",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "cookie": [],
+                        "body": "{\n  \"success\": true,\n  \"data\": {\n    \"primary_organization\": { \"id\": \"org_01HXOwner\", \"name\": \"Example Promoter\", \"slug\": \"example-promoter\" },\n    \"collaborators\": [{\n      \"id\": \"link_01HXPartner\",\n      \"type\": \"co_organizer\",\n      \"role\": \"collaborator\",\n      \"status\": \"active\",\n      \"organization_id\": \"org_01HXPartner\",\n      \"organization\": { \"id\": \"org_01HXPartner\", \"name\": \"Partner Collective\", \"slug\": \"partner-collective\" }\n    }]\n  },\n  \"pagination\": { \"current_page\": 1, \"per_page\": 25, \"total_count\": 1, \"total_pages\": 1, \"links\": {} }\n}"
+                      }
+                    ]
                   }
                 },
                 {
@@ -6845,7 +6952,7 @@
                 {
                   "name": "List Event Staff Assignments",
                   "request": {
-                    "description": "List all staff assigned to an event.",
+                    "description": "List staff assigned to an event. Each row includes only the staff user's id/email/phone and the safe organization summary; credentials, permissions, and audit data are omitted.",
                     "header": [],
                     "method": "GET",
                     "url": {
@@ -6857,9 +6964,25 @@
                         "{{eventId}}",
                         "event_staff_assignments"
                       ],
-                      "raw": "{{baseUrl}}/events/{{eventId}}/event_staff_assignments"
+                      "raw": "{{baseUrl}}/events/{{eventId}}/event_staff_assignments?page=1&per_page=25",
+                      "query": [{"key": "page", "value": "1"}, {"key": "per_page", "value": "25"}]
                     },
-                    "response": []
+                    "response": [
+                      {
+                        "name": "Event staff summary",
+                        "originalRequest": {
+                          "method": "GET",
+                          "header": [],
+                          "url": { "raw": "{{baseUrl}}/events/{{eventId}}/event_staff_assignments", "host": ["{{baseUrl}}"], "path": ["events", "{{eventId}}", "event_staff_assignments"] }
+                        },
+                        "status": "OK",
+                        "code": 200,
+                        "_postman_previewlanguage": "json",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "cookie": [],
+                        "body": "{\n  \"success\": true,\n  \"data\": [{\n    \"id\": \"assignment_01HXExample\",\n    \"role\": \"scanner\",\n    \"status\": \"active\",\n    \"user_id\": \"user_01HXExample\",\n    \"organization_id\": \"org_01HXExample\",\n    \"user\": { \"id\": \"user_01HXExample\", \"email\": \"staff@example.test\", \"phone\": \"+251900000000\" },\n    \"organization\": { \"id\": \"org_01HXExample\", \"name\": \"Example Promoter\", \"slug\": \"example-promoter\" }\n  }],\n  \"pagination\": { \"current_page\": 1, \"per_page\": 25, \"total_count\": 1, \"total_pages\": 1, \"links\": {} }\n}"
+                      }
+                    ]
                   }
                 },
                 {
@@ -8283,13 +8406,29 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/payouts",
+              "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/payouts?page=1&per_page=25",
               "host": ["{{baseUrl}}"],
-              "path": ["finance", "organizations", "{{organizationId}}", "payouts"]
+              "path": ["finance", "organizations", "{{organizationId}}", "payouts"],
+              "query": [{"key": "page", "value": "1"}, {"key": "per_page", "value": "25"}]
             },
-            "description": "Lists payouts for an authorized organization. Provider references, failure codes, and idempotency keys are hidden from organizers."
+            "description": "Lists bounded, optionally paginated payouts for an authorized organization. Each row includes a safe payout-account summary and provider-neutral status_reason_code; provider references, raw failure codes, and idempotency keys are hidden from organizers."
           },
-          "response": []
+          "response": [
+            {
+              "name": "Organizer payout list",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/payouts?page=1&per_page=25", "host": ["{{baseUrl}}"], "path": ["finance", "organizations", "{{organizationId}}", "payouts"] }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"data\": [{\n    \"id\": \"payout_01HXExample\",\n    \"organization_id\": \"org_01HXExample\",\n    \"payout_account_id\": \"account_01HXExample\",\n    \"currency\": \"ETB\",\n    \"status\": \"pending\",\n    \"amount_minor\": 10000,\n    \"period_start\": \"2026-08-01T00:00:00.000Z\",\n    \"period_end\": \"2026-08-31T23:59:59.000Z\",\n    \"requested_at\": \"2026-09-01T08:00:00.000Z\",\n    \"paid_at\": null,\n    \"payout_account\": { \"id\": \"account_01HXExample\", \"type\": \"bank\", \"provider\": \"chapa\", \"bank_code\": 128, \"account_label\": \"Preview account\", \"status\": \"verified\", \"is_default\": true, \"verified_at\": \"2026-08-30T12:00:00.000Z\" },\n    \"status_reason_code\": null\n  }],\n  \"pagination\": { \"current_page\": 1, \"per_page\": 25, \"total_count\": 1, \"total_pages\": 1, \"links\": {} }\n}"
+            }
+          ]
         },
         {
           "name": "Request Organizer Payout",
@@ -8323,23 +8462,53 @@
               "path": ["finance", "organizations", "{{organizationId}}", "balance"],
               "query": [{"key": "currency", "value": "{{financeCurrency}}"}]
             },
-            "description": "Derives the organizer balance from immutable ledger facts and reserved payout allocations; it never reads provider treasury."
+            "description": "Derives the organizer balance from immutable ledger facts and reserved payout allocations; it never reads provider treasury. Rows include pending_maturity_minor and next_available_at from ledger availability timestamps so the UI can explain readiness without provider data."
           },
-          "response": []
+          "response": [
+            {
+              "name": "Organizer balance",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/balance?currency={{financeCurrency}}", "host": ["{{baseUrl}}"], "path": ["finance", "organizations", "{{organizationId}}", "balance"] }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"data\": [{\n    \"currency\": \"ETB\",\n    \"ledger_total_minor\": 100000,\n    \"reserved_minor\": 25000,\n    \"available_minor\": 75000,\n    \"pending_maturity_minor\": 10000,\n    \"next_available_at\": \"2026-09-03T09:00:00.000Z\"\n  }]\n}"
+            }
+          ]
         },
         {
           "name": "List Organizer Ledger Entries",
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/ledger_entries?currency={{financeCurrency}}",
+              "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/ledger_entries?currency={{financeCurrency}}&page=1&per_page=25",
               "host": ["{{baseUrl}}"],
               "path": ["finance", "organizations", "{{organizationId}}", "ledger_entries"],
-              "query": [{"key": "currency", "value": "{{financeCurrency}}"}]
+              "query": [{"key": "currency", "value": "{{financeCurrency}}"}, {"key": "page", "value": "1"}, {"key": "per_page", "value": "25"}]
             },
-            "description": "Lists authorized append-only organizer ledger evidence with organizer-safe fields."
+            "description": "Lists bounded, optionally paginated append-only organizer ledger evidence with a safe event summary. Idempotency keys, payment/provider references, and treasury diagnostics remain hidden."
           },
-          "response": []
+          "response": [
+            {
+              "name": "Organizer ledger list",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{baseUrl}}/finance/organizations/{{organizationId}}/ledger_entries?currency={{financeCurrency}}&page=1&per_page=25", "host": ["{{baseUrl}}"], "path": ["finance", "organizations", "{{organizationId}}", "ledger_entries"] }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"data\": [{\n    \"id\": \"entry_01HXExample\",\n    \"organization_id\": \"org_01HXExample\",\n    \"event_id\": \"evt_01HXExample\",\n    \"order_id\": \"order_01HXExample\",\n    \"refund_id\": null,\n    \"type\": \"sale\",\n    \"amount_minor\": 50000,\n    \"currency\": \"ETB\",\n    \"available_at\": \"2026-09-03T09:00:00.000Z\",\n    \"description\": \"Ticket sale\",\n    \"event\": { \"id\": \"evt_01HXExample\", \"slug\": \"summer-music-festival\", \"title\": \"Summer Music Festival\" },\n    \"created_at\": \"2026-09-01T08:00:00.000Z\"\n  }],\n  \"pagination\": { \"current_page\": 1, \"per_page\": 25, \"total_count\": 1, \"total_pages\": 1, \"links\": {} }\n}"
+            }
+          ]
         },
         {
           "name": "Dispatch Payout",
