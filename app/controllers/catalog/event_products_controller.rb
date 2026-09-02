@@ -10,14 +10,14 @@ module Catalog
       id event_id name description type status inventory_mode allow_custom_price
       sales_start_at sales_end_at min_per_order max_per_order
       schedule_change_refund_policy sort_order metadata lock_version
-      created_at updated_at
+      created_at updated_at ticket_type pricing product_accesses inventory
     ].freeze
 
     self.model_class = Catalog::EventProduct
     self.parent_class = Events::Event
     self.parent_param = :event_id
     self.parent_association = :event_products
-    self.default_serializer = Catalog::EventProductSerializer
+    self.default_serializer = Catalog::Organizer::EventProductSerializer
 
     before_action :find_product, only: %i[activate deactivate update_inventory_configuration]
     before_action :ensure_idempotency_key_present, only: [ :create ]
@@ -194,7 +194,8 @@ module Catalog
     end
 
     def eager_load_config
-      { default: %i[event ticket_type] }
+      { default: [ :event, :ticket_type, :prices, :inventories,
+                   { product_accesses: { event_date: :venue } } ] }
     end
 
     def allowed_order_columns
