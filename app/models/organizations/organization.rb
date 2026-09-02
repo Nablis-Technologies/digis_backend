@@ -18,6 +18,9 @@ module Organizations
     has_many :memberships,
              class_name: "Organizations::Membership",
              dependent: :destroy
+    has_many :events,
+             class_name: "Events::Event",
+             inverse_of: :organization
     has_many :finance_ledger_entries,
              class_name: "Finance::LedgerEntry",
              dependent: :restrict_with_exception,
