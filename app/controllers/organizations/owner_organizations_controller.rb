@@ -22,10 +22,10 @@ module Organizations
     end
 
     def set_object
-      @obj = @clazz.joins(:memberships)
-                   .where(organizations_memberships: { user_id: current_user.id, status: :active })
-                   .includes(eager_loaded_associations)
-                   .find(params[:id])
+      scope = @clazz.joins(:memberships)
+                    .where(organizations_memberships: { user_id: current_user.id, status: :active })
+                    .includes(eager_loaded_associations)
+      @obj = with_authoritative_event_count(scope).find(params[:id])
     end
 
     def documents
@@ -60,8 +60,9 @@ module Organizations
     end
 
     def apply_index_scope(scope)
-      scope.joins(:memberships)
-           .where(organizations_memberships: { user_id: current_user.id })
+      managed = scope.joins(:memberships)
+                    .where(organizations_memberships: { user_id: current_user.id })
+      with_authoritative_event_count(managed)
     end
 
     def model_params
@@ -113,6 +114,16 @@ module Organizations
                      banner_attachment: :blob,
                      business_license_attachment: :blob,
                      tin_certificate_attachment: :blob } ] }
+    end
+
+    def with_authoritative_event_count(scope)
+      # Counter caches handle normal writes; this correlated count also keeps
+      # read responses correct when a preview database skipped reconciliation.
+      scope.select(
+        "organizations_organizations.*",
+        "(SELECT COUNT(*) FROM events_events " \
+        "WHERE events_events.organization_id = organizations_organizations.id) AS events_count"
+      )
     end
   end
 end
