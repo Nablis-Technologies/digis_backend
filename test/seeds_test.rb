@@ -20,6 +20,7 @@ class SeedsTest < ActiveSupport::TestCase
     event = Events::Event.find_by!(title: "Chapa Test Event", organization: organization)
     product = Catalog::EventProduct.find_by!(name: "Chapa Test Product", event: event)
 
+    assert_equal organization.events.count, organization.reload.events_count
     assert organization.verified?
     payout_account = Finance::PayoutAccount.find_by!(organization: organization, provider: "chapa")
     assert_predicate payout_account, :verified?

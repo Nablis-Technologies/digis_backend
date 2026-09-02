@@ -71,6 +71,46 @@ module Catalog
       assert_equal "automatic", response.parsed_body.dig("data", "ticket_type", "approval_mode")
     end
 
+    test "organizer product responses include ticket type pricing accesses and inventory" do
+      date = @event.event_dates.create!(
+        name: "Opening night",
+        starts_at: 2.days.from_now,
+        ends_at: 2.days.from_now + 3.hours,
+        status: "scheduled",
+        venue: events_venues(:grand_palace),
+        venue_capacity: 5000
+      )
+      product = Catalog::Products::CreateDraft.call(
+        event: @event,
+        actor: core_users(:super_admin),
+        product_attributes: { name: "Organizer general admission", type: "ticket" },
+        ticket_type_attributes: {
+          approval_mode: "automatic",
+          audience: "public",
+          date_selection: "fixed",
+          admissions_per_unit: 1,
+          entry_validation_mode: "qr"
+        },
+        price_attributes: { type: "base", currency: "ETB", amount_minor: 500, active_from: 1.hour.ago },
+        inventory_configuration: { mode: "event_wide", capacity: 100 },
+        idempotency_key: SecureRandom.uuid
+      ).value
+      product.product_accesses.create!(event_date: date, type: "venue")
+
+      get "/events/#{@event.id}/event_products/#{product.id}", headers: owner_headers, as: :json
+
+      assert_response :ok
+      payload = response.parsed_body.fetch("data")
+      assert_equal product.ticket_type.id, payload.dig("ticket_type", "id")
+      assert_equal 1, payload.dig("ticket_type", "admissions_per_unit")
+      assert_equal 500, payload.dig("pricing", "options", 0, "amount_minor")
+      assert_equal "ETB", payload.dig("pricing", "options", 0, "currency")
+      assert_equal date.id, payload.dig("product_accesses", 0, "event_date", "id")
+      assert_equal "Grand Palace", payload.dig("product_accesses", 0, "event_date", "venue", "name")
+      assert_equal 100, payload.dig("inventory", "pools", 0, "capacity")
+      assert_equal 100, payload.dig("inventory", "pools", 0, "available_count")
+    end
+
     test "active co-organizer owner can create an event product" do
       Events::EventOrganization.create!(
         event: @event,

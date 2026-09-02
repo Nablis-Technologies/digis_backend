@@ -25,6 +25,9 @@ module Finance
       assert_equal @payout.id, payout.fetch("id")
       assert_equal 10_000, payout.fetch("amount_minor")
       assert_equal "ETB", payout.fetch("currency")
+      assert_equal @payout.payout_account.id, payout.dig("payout_account", "id")
+      assert_equal "verified", payout.dig("payout_account", "status")
+      assert_nil payout.fetch("status_reason_code")
       %w[provider provider_reference idempotency_key failure_code].each do |key|
         assert_not payout.key?(key), "organizer response leaked #{key}"
       end
@@ -35,13 +38,42 @@ module Finance
       entry = response.parsed_body.fetch("data").sole
       assert_equal 10_000, entry.fetch("amount_minor")
       assert_equal "ETB", entry.fetch("currency")
+      assert_equal @event.title, entry.dig("event", "title")
       assert_not entry.key?("idempotency_key")
+    end
+
+    test "organizer payout and ledger lists include bounded pagination" do
+      create_payout_entry(type: "platform_fee", amount_minor: -100)
+
+      get "/finance/organizations/#{@organization.id}/payouts?page=1&per_page=1",
+          headers: owner_headers, as: :json
+      assert_response :success
+      assert_equal 1, response.parsed_body.fetch("data").length
+      assert_equal 1, response.parsed_body.dig("pagination", "per_page")
+      assert_equal 1, response.parsed_body.dig("pagination", "total_count")
+
+      get "/finance/organizations/#{@organization.id}/ledger_entries?page=1&per_page=1",
+          headers: owner_headers, as: :json
+      assert_response :success
+      assert_equal 1, response.parsed_body.fetch("data").length
+      assert_equal 2, response.parsed_body.dig("pagination", "total_count")
+    end
+
+    test "organizer ledger reports honor requested ordering" do
+      create_payout_entry(type: "platform_fee", amount_minor: -100, available_at: @now - 29.days)
+
+      get "/finance/organizations/#{@organization.id}/ledger_entries?order_by=amount_minor&order_direction=asc",
+          headers: owner_headers, as: :json
+
+      assert_response :success
+      assert_equal [ -100, 10_000 ], response.parsed_body.fetch("data").pluck("amount_minor")
     end
 
     test "organizer can request a payout through exactly one command" do
       payout = Finance::Payout.new(
         organization: @organization, currency: "ETB", status: "pending", amount_minor: 5_000,
-        idempotency_key: "requested-payout", requested_at: Time.current
+        provider: "chapa", provider_reference: "provider-reference",
+        failure_code: "insufficient_balance", idempotency_key: "requested-payout", requested_at: Time.current
       )
       Finance::BuildPayout.expects(:call).with(
         organization: @organization, currency: "ETB", amount_minor: 5_000,
@@ -54,7 +86,11 @@ module Finance
 
       assert_response :created
       assert_equal 5_000, response.parsed_body.dig("data", "amount_minor")
-      assert_not response.parsed_body.fetch("data").key?("idempotency_key")
+      data = response.parsed_body.fetch("data")
+      %w[provider provider_reference idempotency_key failure_code].each do |key|
+        assert_not data.key?(key), "request response leaked #{key}"
+      end
+      assert_equal "provider_liquidity", data.fetch("status_reason_code")
     end
 
     test "attendee cannot access organizer finance reports" do
@@ -69,7 +105,8 @@ module Finance
       assert_response :success
       assert_equal [ {
         "currency" => "ETB", "ledger_total_minor" => 10_000,
-        "reserved_minor" => 10_000, "available_minor" => 0
+        "reserved_minor" => 10_000, "available_minor" => 0,
+        "pending_maturity_minor" => 0, "next_available_at" => nil
       } ], response.parsed_body.fetch("data")
     end
 

@@ -29,6 +29,30 @@ module Events
       assert_equal initial_schedule_version + 1, @event.reload.schedule_version
     end
 
+    test "owner date responses include the venue summary and event-scoped capacity" do
+      date = @event.event_dates.create!(
+        name: "Opening night",
+        starts_at: 2.days.from_now,
+        ends_at: 2.days.from_now + 3.hours,
+        status: "scheduled",
+        venue: events_venues(:grand_palace),
+        venue_capacity: 5000,
+        held_venue_count: 12,
+        issued_venue_count: 300
+      )
+
+      get "/events/#{@event.id}/event_dates", headers: owner_headers, as: :json
+
+      assert_response :ok
+      payload = response.parsed_body.fetch("data").find { |item| item.fetch("id") == date.id }
+      assert_equal "Grand Palace", payload.dig("venue", "name")
+      assert_equal "Addis Ababa", payload.dig("venue", "city")
+      assert_equal(
+        { "limit" => 5000, "held" => 12, "issued" => 300, "available" => 4688 },
+        payload.fetch("capacity")
+      )
+    end
+
     test "outsider cannot create an event date" do
       post "/events/#{@event.id}/event_dates",
            params: { event_date: { starts_at: "2026-08-01T20:00:00Z", ends_at: "2026-08-01T22:00:00Z", status: "scheduled" } },
