@@ -83,6 +83,14 @@ production:
     class: Core::RetentionPurgeJob
     queue: default
     schedule: every hour at minute 5
+  process_messaging_notifications:
+    class: Messaging::ProcessNotificationsJob
+    queue: notifications
+    schedule: every minute
+  purge_messaging_notification_payloads:
+    class: Messaging::PurgeNotificationPayloadsJob
+    queue: notifications
+    schedule: every hour at minute 10
   expire_attendee_exports:
     class: Ticketing::ExpireAttendeeExportsJob
     queue: default

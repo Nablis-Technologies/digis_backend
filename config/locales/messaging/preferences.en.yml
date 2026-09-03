@@ -1,0 +1,11 @@
+en:
+  messaging:
+    preferences:
+      success:
+        update: "Notification preferences updated"
+        show: "Notification preferences loaded"
+    notifications:
+      success:
+        index: "Notifications loaded"
+        show: "Notification loaded"
+        read: "Notification marked as read"

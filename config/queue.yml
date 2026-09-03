@@ -4,6 +4,9 @@ default: &default
       batch_size: 500
   workers:
     - queues: "*"
+      # The wildcard intentionally includes the notifications queue; keep
+      # messaging delivery on the shared worker until it has its own capacity
+      # budget rather than adding a competing duplicate worker.
       # Keep queue worker memory independent from the web thread pool. Preview
       # deployments set JOB_THREADS=1 because Solid Queue shares the free web
       # instance's 512 MB memory budget.

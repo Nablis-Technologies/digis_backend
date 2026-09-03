@@ -1,0 +1,64 @@
+en:
+  messaging:
+    errors:
+      adapter_not_implemented: "The notification adapter is not implemented"
+      adapter_required: "A notification adapter is required"
+      channel_required: "A notification channel is required"
+      dedupe_key_missing: "The notification deduplication key is missing"
+      delivery_failed: "Notification delivery failed"
+      delivery_claim_lost: "Notification delivery ownership was lost; it will be retried"
+      invalid_delivery_result: "The notification provider returned an invalid result"
+      invalid_idempotency_key: "The notification idempotency key is invalid"
+      invalid_notification: "The notification is invalid"
+      notification_data_object_required: "Notification data must be an object"
+      notification_preference_invalid: "The notification preference is invalid"
+      notification_preference_mandatory: "This notification channel cannot be disabled"
+      notification_idempotency_conflict: "The notification idempotency key was reused for different content"
+      notification_not_found: "The notification was not found"
+      recipient_unavailable: "The notification recipient is unavailable"
+      recipient_required: "A notification recipient is required"
+      retention_policy_missing: "Notification retention is not configured"
+      unsupported_event: "The notification event is not supported"
+      unsafe_notification_data: "Notification data contains forbidden fields: %{keys}"
+      unknown_notification_type: "The notification type '%{type}' is not supported"
+    notifications:
+      success:
+        index: "Notifications loaded"
+        show: "Notification loaded"
+        read: "Notification marked as read"
+      payment_succeeded:
+        title: "Payment received"
+        body: "Your payment was received successfully."
+      payment_failed:
+        title: "Payment failed"
+        body: "Your payment could not be completed."
+      ticket_issued:
+        title: "Ticket issued"
+        body: "Your ticket is ready in your wallet."
+      credential_replaced:
+        title: "Ticket credential updated"
+        body: "Your ticket credential was replaced securely."
+      refund_succeeded:
+        title: "Refund completed"
+        body: "Your refund was completed."
+      refund_failed:
+        title: "Refund needs attention"
+        body: "Your refund could not be completed yet."
+      transfer_received:
+        title: "Ticket transfer received"
+        body: "A ticket was transferred to you."
+      waitlist_offer_created:
+        title: "Waitlist offer available"
+        body: "A ticket offer is available from the waitlist."
+      waitlist_offer_expired:
+        title: "Waitlist offer expired"
+        body: "Your waitlist offer has expired."
+      registration_rejected:
+        title: "Registration update"
+        body: "Your event registration was not approved."
+      consent_reminder:
+        title: "Consent required"
+        body: "A required consent action is waiting for you."
+      schedule_changed:
+        title: "Event schedule changed"
+        body: "A date for an event you follow has changed."
