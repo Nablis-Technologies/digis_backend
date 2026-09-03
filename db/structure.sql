@@ -4462,7 +4462,7 @@ CREATE TABLE public.core_data_retention_holds (
     idempotency_key character varying NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT core_retention_holds_category_check CHECK (((category IS NULL) OR ((category)::text = ANY (ARRAY[('registration_free_text'::character varying)::text, ('registration_structured'::character varying)::text, ('consent_evidence'::character varying)::text, ('security_audit'::character varying)::text, ('financial_record'::character varying)::text])))),
+    CONSTRAINT core_retention_holds_category_check CHECK (((category IS NULL) OR ((category)::text = ANY (ARRAY[('registration_free_text'::character varying)::text, ('registration_structured'::character varying)::text, ('consent_evidence'::character varying)::text, ('security_audit'::character varying)::text, ('financial_record'::character varying)::text, ('messaging_notification'::character varying)::text])))),
     CONSTRAINT core_retention_holds_one_scope_check CHECK ((num_nonnulls(event_id, registration_id, user_id) = 1)),
     CONSTRAINT core_retention_holds_reason_check CHECK (((reason_code)::text = ANY (ARRAY[('legal_hold'::character varying)::text, ('litigation'::character varying)::text, ('regulatory_investigation'::character varying)::text, ('security_incident'::character varying)::text, ('security_hold'::character varying)::text, ('fraud_investigation'::character varying)::text, ('law_enforcement_request'::character varying)::text]))),
     CONSTRAINT core_retention_holds_release_pair_check CHECK ((((released_at IS NULL) AND (released_by_id IS NULL)) OR ((released_at IS NOT NULL) AND (released_by_id IS NOT NULL)))),
@@ -4488,7 +4488,7 @@ CREATE TABLE public.core_data_retention_policies (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT core_retention_policies_action_check CHECK (((action)::text = ANY (ARRAY[('erase_payload'::character varying)::text, ('retain'::character varying)::text]))),
-    CONSTRAINT core_retention_policies_category_check CHECK (((category)::text = ANY (ARRAY[('registration_free_text'::character varying)::text, ('registration_structured'::character varying)::text, ('consent_evidence'::character varying)::text, ('security_audit'::character varying)::text, ('financial_record'::character varying)::text]))),
+    CONSTRAINT core_retention_policies_category_check CHECK (((category)::text = ANY (ARRAY[('registration_free_text'::character varying)::text, ('registration_structured'::character varying)::text, ('consent_evidence'::character varying)::text, ('security_audit'::character varying)::text, ('financial_record'::character varying)::text, ('messaging_notification'::character varying)::text]))),
     CONSTRAINT core_retention_policies_configuration_check CHECK (((((action)::text = 'retain'::text) OR (retention_days IS NOT NULL)) AND (((status)::text <> 'active'::text) OR (effective_at IS NOT NULL)))),
     CONSTRAINT core_retention_policies_days_check CHECK (((retention_days IS NULL) OR (retention_days > 0))),
     CONSTRAINT core_retention_policies_status_check CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('active'::character varying)::text, ('retired'::character varying)::text]))),
@@ -5545,6 +5545,85 @@ CREATE TABLE public.marketplace_seller_payouts (
     CONSTRAINT marketplace_seller_payouts_processed_metadata_check CHECK ((((status)::text = ANY (ARRAY[('succeeded'::character varying)::text, ('failed'::character varying)::text, ('cancelled'::character varying)::text])) = (processed_at IS NOT NULL))),
     CONSTRAINT marketplace_seller_payouts_provider_check CHECK (((provider)::text = ANY (ARRAY[('telebirr'::character varying)::text, ('chapa'::character varying)::text, ('bank'::character varying)::text]))),
     CONSTRAINT marketplace_seller_payouts_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('processing'::character varying)::text, ('succeeded'::character varying)::text, ('failed'::character varying)::text, ('cancelled'::character varying)::text])))
+);
+
+
+--
+-- Name: messaging_notification_deliveries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.messaging_notification_deliveries (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    notification_id uuid NOT NULL,
+    channel character varying NOT NULL,
+    status character varying DEFAULT 'pending'::character varying NOT NULL,
+    provider character varying,
+    provider_message_id character varying,
+    attempts integer DEFAULT 0 NOT NULL,
+    idempotency_key_digest character varying(64) CONSTRAINT messaging_notification_deliveri_idempotency_key_digest_not_null NOT NULL,
+    next_attempt_at timestamp with time zone,
+    claimed_at timestamp with time zone,
+    enqueue_claimed_at timestamp with time zone,
+    scheduled_at timestamp with time zone,
+    sent_at timestamp with time zone,
+    delivered_at timestamp with time zone,
+    failed_at timestamp with time zone,
+    failure_code character varying,
+    failure_detail text,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT messaging_notification_deliveries_attempts_check CHECK ((attempts >= 0)),
+    CONSTRAINT messaging_notification_deliveries_channel_check CHECK (((channel)::text = ANY (ARRAY[('in_app'::character varying)::text, ('email'::character varying)::text, ('sms'::character varying)::text]))),
+    CONSTRAINT messaging_notification_deliveries_digest_check CHECK (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT messaging_notification_deliveries_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('processing'::character varying)::text, ('sent'::character varying)::text, ('delivered'::character varying)::text, ('failed'::character varying)::text, ('suppressed'::character varying)::text, ('unavailable'::character varying)::text])))
+);
+
+
+--
+-- Name: messaging_notification_preferences; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.messaging_notification_preferences (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    user_id uuid NOT NULL,
+    category character varying NOT NULL,
+    channel character varying NOT NULL,
+    enabled boolean DEFAULT true NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT messaging_notification_preferences_category_check CHECK (((category)::text = ANY (ARRAY[('transactional'::character varying)::text, ('security'::character varying)::text, ('credential'::character varying)::text, ('legal'::character varying)::text]))),
+    CONSTRAINT messaging_notification_preferences_channel_check CHECK (((channel)::text = ANY (ARRAY[('in_app'::character varying)::text, ('email'::character varying)::text, ('sms'::character varying)::text])))
+);
+
+
+--
+-- Name: messaging_notifications; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.messaging_notifications (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    user_id uuid NOT NULL,
+    notification_type character varying NOT NULL,
+    category character varying NOT NULL,
+    source_type character varying,
+    source_id uuid,
+    data jsonb DEFAULT '{}'::jsonb NOT NULL,
+    projection_digest character varying(64) CONSTRAINT messaging_notifications_projection_digest_not_null NOT NULL,
+    dedupe_key character varying NOT NULL,
+    retention_policy_id uuid NOT NULL,
+    retain_until timestamp with time zone,
+    available_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    read_at timestamp with time zone,
+    erased_at timestamp with time zone,
+    erasure_reason character varying,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT messaging_notifications_category_check CHECK (((category)::text = ANY (ARRAY[('transactional'::character varying)::text, ('security'::character varying)::text, ('credential'::character varying)::text, ('legal'::character varying)::text]))),
+    CONSTRAINT messaging_notifications_data_object_check CHECK ((jsonb_typeof(data) = 'object'::text)),
+    CONSTRAINT messaging_notifications_erasure_check CHECK ((((erased_at IS NULL) AND (erasure_reason IS NULL)) OR ((erased_at IS NOT NULL) AND (erasure_reason IS NOT NULL)))),
+    CONSTRAINT messaging_notifications_projection_digest_check CHECK (((projection_digest)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT messaging_notifications_retention_window_check CHECK (((retain_until IS NULL) OR (retain_until > created_at))),
+    CONSTRAINT messaging_notifications_source_type_check CHECK (((source_type IS NULL) OR ((source_type)::text = ANY (ARRAY[('Orders::Order'::character varying)::text, ('Orders::Payment'::character varying)::text, ('Orders::Refund'::character varying)::text, ('Ticketing::Ticket'::character varying)::text, ('Ticketing::TicketTransfer'::character varying)::text, ('Ticketing::Registration'::character varying)::text, ('Ticketing::RegistrationConsentRequirement'::character varying)::text, ('Events::Event'::character varying)::text]))))
 );
 
 
@@ -7499,6 +7578,30 @@ ALTER TABLE ONLY public.marketplace_seller_payouts
 
 
 --
+-- Name: messaging_notification_deliveries messaging_notification_deliveries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_notification_deliveries
+    ADD CONSTRAINT messaging_notification_deliveries_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: messaging_notification_preferences messaging_notification_preferences_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_notification_preferences
+    ADD CONSTRAINT messaging_notification_preferences_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: messaging_notifications messaging_notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_notifications
+    ADD CONSTRAINT messaging_notifications_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: orders_order_adjustments orders_order_adjustments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8369,6 +8472,62 @@ CREATE UNIQUE INDEX idx_marketplace_seller_payouts_on_provider_reference ON publ
 --
 
 CREATE INDEX idx_marketplace_seller_payouts_on_seller_status_requested ON public.marketplace_seller_payouts USING btree (seller_user_id, status, requested_at);
+
+
+--
+-- Name: idx_messaging_notification_deliveries_claimable; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_messaging_notification_deliveries_claimable ON public.messaging_notification_deliveries USING btree (status, next_attempt_at, enqueue_claimed_at, scheduled_at, id) WHERE ((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('processing'::character varying)::text]));
+
+
+--
+-- Name: idx_messaging_notification_deliveries_notification_channel; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_messaging_notification_deliveries_notification_channel ON public.messaging_notification_deliveries USING btree (notification_id, channel);
+
+
+--
+-- Name: idx_messaging_notification_deliveries_provider_message; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_messaging_notification_deliveries_provider_message ON public.messaging_notification_deliveries USING btree (provider_message_id) WHERE (provider_message_id IS NOT NULL);
+
+
+--
+-- Name: idx_messaging_notification_preferences_scope; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_messaging_notification_preferences_scope ON public.messaging_notification_preferences USING btree (user_id, category, channel);
+
+
+--
+-- Name: idx_messaging_notifications_inbox; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_messaging_notifications_inbox ON public.messaging_notifications USING btree (user_id, read_at, available_at, id) WHERE (erased_at IS NULL);
+
+
+--
+-- Name: idx_messaging_notifications_retention; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_messaging_notifications_retention ON public.messaging_notifications USING btree (retention_policy_id, retain_until);
+
+
+--
+-- Name: idx_messaging_notifications_source; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_messaging_notifications_source ON public.messaging_notifications USING btree (source_type, source_id);
+
+
+--
+-- Name: idx_messaging_notifications_user_dedupe; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_messaging_notifications_user_dedupe ON public.messaging_notifications USING btree (user_id, dedupe_key);
 
 
 --
@@ -11364,6 +11523,14 @@ ALTER TABLE ONLY public.ticketing_registration_answers
 
 
 --
+-- Name: messaging_notification_deliveries fk_rails_01abbf7b8d; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_notification_deliveries
+    ADD CONSTRAINT fk_rails_01abbf7b8d FOREIGN KEY (notification_id) REFERENCES public.messaging_notifications(id) ON DELETE CASCADE;
+
+
+--
 -- Name: commercial_assignments fk_rails_024692f7fd; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11561,6 +11728,14 @@ ALTER TABLE ONLY public.ticketing_registrations
 
 ALTER TABLE ONLY public.legal_document_versions
     ADD CONSTRAINT fk_rails_10caebc056 FOREIGN KEY (published_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: messaging_notification_preferences fk_rails_115c46c784; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_notification_preferences
+    ADD CONSTRAINT fk_rails_115c46c784 FOREIGN KEY (user_id) REFERENCES public.core_users(id) ON DELETE CASCADE;
 
 
 --
@@ -13220,6 +13395,22 @@ ALTER TABLE ONLY public.commercial_programs
 
 
 --
+-- Name: messaging_notifications fk_rails_c2cdd3ee87; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_notifications
+    ADD CONSTRAINT fk_rails_c2cdd3ee87 FOREIGN KEY (retention_policy_id) REFERENCES public.core_data_retention_policies(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: messaging_notifications fk_rails_c338e742ed; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_notifications
+    ADD CONSTRAINT fk_rails_c338e742ed FOREIGN KEY (user_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: active_storage_attachments fk_rails_c3b3935057; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13842,6 +14033,9 @@ ALTER TABLE ONLY public.ticketing_ticket_suspensions
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260903090003'),
+('20260903090002'),
+('20260903090001'),
 ('20260821113000'),
 ('20260818090001'),
 ('20260814090006'),

@@ -21,6 +21,29 @@ admin_user = seed_user(phone: "+251911000001", email: "admin@digis.et", password
 
 puts "✓ #{Core::User.count} users seeded"
 
+# Notification payloads are derived user-facing data, not business audit rows.
+# Keep the retention policy in the production-safe reference seed so every
+# environment calculates the same erase deadline before a notification is
+# created.
+notification_policy_scope = Core::DataRetentionPolicy.where(
+  category: "messaging_notification", jurisdiction_code: nil
+)
+notification_policy = notification_policy_scope.active.first
+unless notification_policy
+  version = notification_policy_scope.maximum(:version).to_i
+  notification_policy = notification_policy_scope.find_by(version: version) if version.positive?
+  notification_policy = notification_policy_scope.new(version: version + 1) if notification_policy&.status == "retired"
+  notification_policy ||= notification_policy_scope.new(version: [ version, 1 ].max)
+  notification_policy.assign_attributes(
+    retention_days: 365,
+    action: "erase_payload",
+    status: "active",
+    effective_at: 1.day.ago,
+    created_by: admin_user
+  )
+  notification_policy.save!
+end
+
 # ─────────────────────────────────────────────
 # 2. Roles
 # ─────────────────────────────────────────────

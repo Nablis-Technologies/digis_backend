@@ -83,6 +83,14 @@ module Core
              class_name: "Ticketing::StreamSession",
              inverse_of: :user,
              dependent: :restrict_with_exception
+    has_many :notifications,
+             class_name: "Messaging::Notification",
+             dependent: :restrict_with_exception,
+             inverse_of: :user
+    has_many :notification_preferences,
+             class_name: "Messaging::NotificationPreference",
+             dependent: :destroy,
+             inverse_of: :user
 
     has_many :legal_documents,
              class_name: "Legal::LegalDocument",
