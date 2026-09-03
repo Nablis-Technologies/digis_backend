@@ -23,6 +23,7 @@
             .find(registration.id)
           halt(waitlist_error("registration_not_offered")) unless locked.status == "offered"
           halt(waitlist_error("offer_not_expired")) if locked.offer_expires_at > Time.current
+          expired_at = locked.offer_expires_at
 
           unwrap(release_capacity!(locked, idempotency_key: "#{idempotency_key}:release"))
           locked.update!(
@@ -39,6 +40,17 @@
             actor: nil,
             audited_changes: { status: [ "offered", "waitlisted" ] }
           )
+          unwrap(Core::Outbox::Publish.call(
+            topic: "ticketing",
+            event_type: "ticketing.registration.waitlist_offer_expired",
+            aggregate: locked,
+            payload: {
+              registration_id: locked.id,
+              event_id: locked.event_id,
+              offer_expires_at: expired_at.iso8601
+            },
+            idempotency_key: "#{audit_key}-notification"
+          ))
           locked
         end
 

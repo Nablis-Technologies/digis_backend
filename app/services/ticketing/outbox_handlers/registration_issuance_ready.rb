@@ -5,8 +5,8 @@ require "set"
 module Ticketing
   module OutboxHandlers
     # Completes free, complimentary, and walk-up registration fulfillment
-    # through the same package command used by paid orders, then preserves the
-    # existing post-issuance registration notification handoff.
+    # through the same package command used by paid orders. Package issuance
+    # publishes its own durable event for downstream notification projection.
     class RegistrationIssuanceReady < Core::BaseService
       def initialize(event:)
         @event = event
@@ -38,7 +38,6 @@ module Ticketing
             outcome = failure(issuance.error)
             raise ActiveRecord::Rollback
           end
-          Ticketing::RegistrationNotificationJob.perform_later(registration.id, @event.event_type)
           outcome = success(registration)
         end
         outcome
