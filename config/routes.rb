@@ -10,6 +10,12 @@ Rails.application.routes.draw do
     get "auth/me", to: "auth#me"
   end
 
+  resources :notifications, only: %i[index show], controller: "messaging/notifications" do
+    post :read, on: :member
+  end
+  resource :notification_preferences, only: %i[show update],
+    controller: "messaging/notification_preferences"
+
   scope ":followable_type", constraints: { followable_type: %r{venues|artists|organizations} } do
     scope ":followable_id" do
       post   "follow",    to: "core/follows#create",    as: :follow
