@@ -4,9 +4,8 @@ require "test_helper"
 
 class Core::DispatchOutboxEventJobTest < ActiveJob::TestCase
   setup do
-    # Preserve the real handlers registered by initializers; this test mutates
-    # the global outbox_handlers hash and must restore it so later tests in
-    # the same worker are not polluted.
+    # Preserve the real registry registered by initializers; these tests mutate
+    # the global handler configuration and must restore it between examples.
     @original_outbox_handlers = Rails.application.config.x.outbox_handlers
     @original_outbox_namespace_handlers = Rails.application.config.x.outbox_namespace_handlers
   end
@@ -19,8 +18,10 @@ class Core::DispatchOutboxEventJobTest < ActiveJob::TestCase
   test "marks the event published only after the handler succeeds" do
     event = core_outbox_events(:pending)
     handler = ->(outbox_event) { assert_equal event.id, outbox_event.id }
+    registry = Core::Outbox::HandlerRegistry.new
+    registry.register(event.event_type, &handler)
 
-    Rails.application.config.x.outbox_handlers = { event.event_type => handler }
+    Rails.application.config.x.outbox_handlers = registry
     perform_enqueued_jobs { Core::DispatchOutboxEventJob.perform_later(event.id) }
 
     assert_not_nil event.reload.published_at
@@ -30,12 +31,11 @@ class Core::DispatchOutboxEventJobTest < ActiveJob::TestCase
     event = core_outbox_events(:pending)
     event.update!(topic: "commercial", event_type: "commercial.example")
     calls = []
-    Rails.application.config.x.outbox_handlers = {
-      event.event_type => ->(_outbox_event) { calls << :exact }
-    }
-    Rails.application.config.x.outbox_namespace_handlers = {
-      "commercial" => ->(_outbox_event) { calls << :namespace }
-    }
+    registry = Core::Outbox::HandlerRegistry.new
+    registry.register(event.event_type) { calls << :exact }
+    registry.register_namespace("commercial") { calls << :namespace }
+    Rails.application.config.x.outbox_handlers = registry
+    Rails.application.config.x.outbox_namespace_handlers = registry
 
     Core::Outbox::Dispatch.call(event_id: event.id)
 
@@ -47,10 +47,10 @@ class Core::DispatchOutboxEventJobTest < ActiveJob::TestCase
     event = core_outbox_events(:pending)
     event.update!(topic: "commercial", event_type: "commercial.example")
     calls = []
-    Rails.application.config.x.outbox_handlers = {}
-    Rails.application.config.x.outbox_namespace_handlers = {
-      "commercial" => ->(_outbox_event) { calls << :namespace }
-    }
+    registry = Core::Outbox::HandlerRegistry.new
+    registry.register_namespace("commercial") { calls << :namespace }
+    Rails.application.config.x.outbox_handlers = registry
+    Rails.application.config.x.outbox_namespace_handlers = registry
 
     Core::Outbox::Dispatch.call(event_id: event.id)
 
@@ -114,10 +114,10 @@ class Core::DispatchOutboxEventJobTest < ActiveJob::TestCase
     event = core_outbox_events(:pending)
     event.update!(topic: "security", event_type: "commercial.security.break_glass")
     calls = []
-    Rails.application.config.x.outbox_handlers = {}
-    Rails.application.config.x.outbox_namespace_handlers = {
-      "commercial" => ->(_outbox_event) { calls << :namespace }
-    }
+    registry = Core::Outbox::HandlerRegistry.new
+    registry.register_namespace("commercial") { calls << :namespace }
+    Rails.application.config.x.outbox_handlers = registry
+    Rails.application.config.x.outbox_namespace_handlers = registry
 
     assert_raises(Core::Outbox::Dispatch::MissingHandler) do
       Core::Outbox::Dispatch.call(event_id: event.id)

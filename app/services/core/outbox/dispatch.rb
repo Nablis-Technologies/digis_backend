@@ -60,7 +60,7 @@ module Core
       # opted-in namespace handlers acknowledge evidence-only events when no
       # downstream consumer exists. Security events must remain explicit.
       def handler_for(event)
-        exact_handler = Rails.application.config.x.outbox_handlers[event.event_type]
+        exact_handler = fetch_exact_handler(event.event_type)
         return exact_handler if exact_handler
 
         namespace_handler = namespace_handler_for(event)
@@ -73,7 +73,13 @@ module Core
         return if event.topic.to_s == "security"
 
         namespace = event.event_type.to_s.split(".", 2).first
-        Rails.application.config.x.outbox_namespace_handlers[namespace]
+        registry = Rails.application.config.x.outbox_namespace_handlers
+        registry.fetch_namespace(namespace)
+      end
+
+      def fetch_exact_handler(event_type)
+        registry = Rails.application.config.x.outbox_handlers
+        registry.fetch(event_type)
       end
 
       # Conditional update: only flips rows still unpublished, so a duplicate

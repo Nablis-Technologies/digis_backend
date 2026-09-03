@@ -1,6 +1,7 @@
 require_relative "boot"
 
 require "rails/all"
+require_relative "../lib/core/outbox/handler_registry"
 
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
@@ -40,8 +41,11 @@ module DigisBackend
     # Load domain-specific locale files kept below config/locales/*.
     config.i18n.load_path |= Dir[Rails.root.join("config/locales/**/*.yml")]
 
-    config.x.outbox_handlers = {}
-    config.x.outbox_namespace_handlers = {}
+    # One owner keeps exact and namespace stores isolated while preventing a
+    # caller from accidentally registering on a disconnected registry.
+    outbox_registry = Core::Outbox::HandlerRegistry.new
+    config.x.outbox_handlers = outbox_registry
+    config.x.outbox_namespace_handlers = outbox_registry
 
     # Application-level encryption (Active Record Encryption). Keys are sourced
     # from the environment and never committed. In test we fall back to stable
