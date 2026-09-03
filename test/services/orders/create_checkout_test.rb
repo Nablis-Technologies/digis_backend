@@ -7,6 +7,7 @@ module Orders
     include Commercial::GovernanceTestHelpers
 
     setup do
+      create_messaging_policy
       @event = events_events(:draft_concert)
       @buyer = core_users(:attendee)
       @quoted_at = Time.current.change(usec: 0)

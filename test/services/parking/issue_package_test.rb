@@ -6,6 +6,7 @@ require "test_helper"
 module Parking
   class IssuePackageTest < ActiveSupport::TestCase
     setup do
+      create_messaging_policy
       @event = events_events(:ready_listing)
       @buyer = core_users(:attendee)
       @product, @product_access = create_parking_product

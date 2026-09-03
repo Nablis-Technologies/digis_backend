@@ -6,7 +6,10 @@ module Ticketing
   class ConsentReminderJobTest < ActiveJob::TestCase
     include Ticketing::ConsentTestHelpers
 
-    setup { setup_consent_context }
+    setup do
+      create_messaging_policy
+      setup_consent_context
+    end
 
     test "records one bounded payload-free outbox signal per due requirement" do
       requirement = travel_to(2.days.ago) do

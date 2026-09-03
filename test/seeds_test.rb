@@ -69,6 +69,14 @@ class SeedsTest < ActiveSupport::TestCase
     assert_equal "active", payment_product.status
     assert payment_product.prices.active_at(Time.current).where(currency: "ETB").exists?
 
+    attendee = Core::User.find_by!(email: "attendee@example.com")
+    organizer_user = Core::User.find_by!(email: "organizer@digis.et")
+    ticket_notification = Messaging::Notification.find_by!(
+      user: attendee, notification_type: "ticket_issued"
+    )
+    assert_equal "delivered", ticket_notification.deliveries.find_by!(channel: "in_app").status
+    assert Messaging::Notification.exists?(user: organizer_user, notification_type: "schedule_changed")
+
     scanner = Ticketing::ScannerDevice.find_by!(device_identifier: "preview-chapa-scanner-001")
     assert_equal organization.id, scanner.organization_id
     assert scanner.token_matches?("preview-scanner-token-v1")

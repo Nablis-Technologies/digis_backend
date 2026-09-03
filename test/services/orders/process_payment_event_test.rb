@@ -107,6 +107,28 @@ module Orders
       assert_equal "succeeded", @payment.reload.status
     end
 
+    test "publishes one terminal failure event when payment processing fails" do
+      event = record_event(
+        event_id: "evt-failure",
+        event_type: "payment.failed",
+        payload: {
+          "status" => "failed",
+          "failure_code" => "declined",
+          "provider_reference" => @payment.provider_reference
+        }
+      )
+
+      result = Orders::ProcessPaymentEvent.call(event:)
+
+      assert_predicate result, :success?, result.error&.message
+      outbox = Core::OutboxEvent.find_by!(
+        aggregate_type: "Orders::Payment", aggregate_id: @payment.id,
+        event_type: "orders.payment.failed"
+      )
+      assert_equal @payment.id, outbox.payload.fetch("payment_id")
+      assert_equal event.id, outbox.payload.fetch("payment_event_id")
+    end
+
     test "rolls back inbox receipt when publishing its outbox event fails" do
       outbox_error = Core::Error.new("outbox unavailable")
       publish_failure = Core::BaseService::Result.failure(outbox_error)

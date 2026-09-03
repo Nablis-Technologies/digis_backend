@@ -8,6 +8,7 @@ module Ticketing
       include ActiveJob::TestHelper
 
       setup do
+        create_messaging_policy
         @event = events_events(:ready_listing)
         @buyer = core_users(:attendee)
         @manager = core_users(:super_admin)
@@ -103,9 +104,11 @@ module Ticketing
           { ticket_id: ticket.id, version: 1, idempotency_key: event.idempotency_key },
           delivered
         )
+        notification = Messaging::Notification.find_by!(source: ticket, notification_type: "ticket_issued")
+        assert_equal ticket.owner_user_id, notification.user_id
       end
 
-      test "issues every ticket unit from the order fulfillment event" do
+      test "replaying the order fulfillment handler does not issue duplicate tickets" do
         item = create_fulfilled_order_item(quantity: 2)
         event = Core::Outbox::Publish.call(
           topic: "orders",
@@ -115,13 +118,13 @@ module Ticketing
           idempotency_key: "orders-fulfilled-for-ticketing-#{item.order_id}"
         ).value
 
-        result = Rails.application.config.x.outbox_handlers.fetch(event.event_type).call(event)
+        subject = -> { Rails.application.config.x.outbox_handlers.fetch(event.event_type).call(event) }
+        assert_idempotent(subject, counter: -> { Ticketing::Ticket.where(order_item_id: item.id).count })
 
-        assert_predicate result, :success?, result.error&.message
         assert_equal [ 1, 2 ], Ticketing::Ticket.where(order_item_id: item.id).order(:unit_number).pluck(:unit_number)
       end
 
-      test "issues confirmed registration units and retains the notification handoff" do
+      test "replaying registration issuance does not issue duplicate tickets" do
         event = Core::Outbox::Publish.call(
           topic: "ticketing",
           event_type: "ticketing.registration.issuance_ready",
@@ -130,13 +133,9 @@ module Ticketing
           idempotency_key: "registration-issuance-ready-#{@registration.id}"
         ).value
 
-        assert_enqueued_with(
-          job: Ticketing::RegistrationNotificationJob,
-          args: [ @registration.id, event.event_type ]
-        ) do
-          result = Rails.application.config.x.outbox_handlers.fetch(event.event_type).call(event)
-          assert_predicate result, :success?, result.error&.message
-        end
+        subject = -> { Rails.application.config.x.outbox_handlers.fetch(event.event_type).call(event) }
+        assert_idempotent(subject, counter: -> { Ticketing::Ticket.where(registration_id: @registration.id).count })
+
         assert_equal 1, Ticketing::Ticket.where(registration_id: @registration.id).count
       end
 

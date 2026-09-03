@@ -7,6 +7,7 @@ module Streaming
     include StreamingTestHelpers
 
     setup do
+      create_messaging_policy
       @now = Time.current
       build_streaming_ticket(now: @now)
       @session_result = Streaming::Sessions::Create.call(

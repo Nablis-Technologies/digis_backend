@@ -35,6 +35,7 @@ module Ticketing
         assert_predicate OfferNext.call(ticket_type:, idempotency_key: "offer-expiry"), :success?
         registration.reload
         registration.update_columns(offered_at: 2.minutes.ago, offer_expires_at: 1.second.ago)
+        expired_at = registration.offer_expires_at
 
         result = ExpireOffer.call(registration:, idempotency_key: "expire-offer")
 
@@ -43,6 +44,12 @@ module Ticketing
         assert_equal "waitlisted", registration.status
         assert_operator registration.waitlisted_at, :>, original_waitlisted_at
         assert_equal 0, Catalog::InventoryReservation.where(registration_id: registration.id, status: "held").count
+        event = Core::OutboxEvent.find_by!(
+          aggregate_id: registration.id,
+          event_type: "ticketing.registration.waitlist_offer_expired"
+        )
+        assert_equal registration.id, event.payload.fetch("registration_id")
+        assert_equal expired_at.iso8601, event.payload.fetch("offer_expires_at")
       end
 
       test "free offer acceptance confirms while paid offer acceptance returns to payment" do
