@@ -1355,6 +1355,84 @@ end
 
 puts "✓ #{cancellation_outcomes_payment_product.name} active for payment outcomes"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 14. Notification inbox fixtures
+# ─────────────────────────────────────────────────────────────────────────────
+# These rows exercise the same publish and in-app delivery commands used by
+# production. The source records are deterministic so preview reseeds converge
+# without fabricating terminal delivery state or storing provider secrets.
+puts "\n🔔 Seeding notification inbox fixtures..."
+
+def seed_preview_notification(type:, recipient:, source:, data:, dedupe_key:)
+  result = Messaging::PublishNotification.call(
+    type:, recipient:, source:, data:, dedupe_key:
+  )
+  raise result.error.message unless result.success?
+
+  delivery = result.value.deliveries.find_by!(channel: "in_app")
+  delivered = Messaging::DeliverNotification.call(delivery:)
+  raise delivered.error.message if delivered.failure?
+
+  result.value
+end
+
+notification_registration = Ticketing::Registration.find_or_initialize_by(
+  ticket_type: chapa_ticket_product.ticket_type,
+  identity_digest: Digest::SHA256.hexdigest("preview-notification-registration-v1")
+)
+unless notification_registration.persisted?
+  notification_registration.assign_attributes(
+    event: chapa_event,
+    user: attendee,
+    created_by: attendee,
+    source: "self_service",
+    package_quantity: 1,
+    admissions_per_unit_snapshot: chapa_ticket_product.ticket_type.admissions_per_unit,
+    party_size: chapa_ticket_product.ticket_type.admissions_per_unit,
+    status: "confirmed",
+    submitted_at: Time.current,
+    confirmed_at: Time.current
+  )
+  notification_registration.save!
+end
+
+notification_ticket = Ticketing::Ticket.find_by(registration: notification_registration)
+unless notification_ticket
+  issued = Ticketing::Packages::Issue.call(registration: notification_registration, unit_number: 1)
+  raise issued.error.message unless issued.success?
+
+  notification_ticket = issued.value
+end
+
+seed_preview_notification(
+  type: "ticket_issued",
+  recipient: attendee,
+  source: notification_ticket,
+  data: {
+    ticket_id: notification_ticket.id,
+    event_id: chapa_event.id,
+    product_id: chapa_ticket_product.id,
+    version: notification_ticket.credential_version,
+    event_title: chapa_event.title,
+    ticket_label: chapa_ticket_product.name
+  },
+  dedupe_key: "ticket-issued:#{notification_ticket.id}:v#{notification_ticket.credential_version}"
+)
+
+seed_preview_notification(
+  type: "schedule_changed",
+  recipient: organizer,
+  source: chapa_event,
+  data: {
+    event_id: chapa_event.id,
+    schedule_version: chapa_event.schedule_version,
+    event_date_ids: [ chapa_event_date.id ]
+  },
+  dedupe_key: "schedule-changed:#{chapa_event.id}:v#{chapa_event.schedule_version}"
+)
+
+puts "✓ Seeded notification inbox fixtures for #{attendee.email} and #{organizer.email}"
+
 puts "✓ #{chapa_event.title} published with #{chapa_product.name} and " \
      "#{chapa_ticket_product.name} active"
 
