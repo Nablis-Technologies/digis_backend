@@ -128,6 +128,14 @@ module Ticketing
           :admission_slots,
           event_product: [ :ticket_type, { product_accesses: :event_date } ]
         ).lock.find(item.ticket_id)
+        # A downstream outbox handler may be replayed after the package was
+        # finalized. Treat the already-dead ticket as the durable idempotent
+        # result instead of looking for a generation that was intentionally
+        # revoked by the first attempt.
+        if finalized_package?(ticket)
+          outcome = success(refund)
+          next
+        end
         generation = ticket.credential_generations.includes(:credentials).lock.find_by!(status: "active")
         ticket.admission_slots.order(:position).lock.to_a
         Ticketing::AdmissionUse.where(admission_slot_id: ticket.admission_slots.select(:id)).lock.load
@@ -211,6 +219,11 @@ module Ticketing
         metadata: { ticket_id: ticket.id, reason_code: REFUND_REASON }
       )
       raise result.error if result.failure?
+    end
+
+    def finalized_package?(ticket)
+      ticket.status == "refunded" && ticket.package_dead? &&
+        ticket.ticket_suspensions.none? { |suspension| suspension.status == "active" }
     end
 
     def paid_ticket?(ticket)

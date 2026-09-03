@@ -71,6 +71,27 @@ module Orders
       return unless target && payment.accepted_at.nil? && payment.status.in?(%w[created processing])
 
       payment.update!(status: target, failure_code: locked_event.payload["failure_code"].to_s.presence)
+      publish_failure!(payment, locked_event) if target == "failed"
+    end
+
+    # The payment failure event is emitted in the same transaction as the
+    # authoritative status transition, so notification projection cannot race
+    # a still-processing payment or publish twice for one provider event.
+    def publish_failure!(payment, locked_event)
+      result = Core::Outbox::Publish.call(
+        topic: "orders",
+        event_type: "orders.payment.failed",
+        aggregate: payment,
+        payload: {
+          payment_id: payment.id,
+          payment_event_id: locked_event.id,
+          order_id: payment.order_id,
+          event_id: payment.order.event_id,
+          failure_code: payment.failure_code
+        }.compact,
+        idempotency_key: "orders-payment-failed-#{locked_event.id}"
+      )
+      raise result.error if result.failure?
     end
 
     def finish_ignored!(locked_event)
