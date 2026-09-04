@@ -95,7 +95,8 @@ module Orders
 
     def payment_reversal_payment_state
       return unless type == "payment_reversal" && payment.present?
-      return if payment.status == "succeeded" && payment.accepted_at.nil? && amount_minor == payment.amount_minor
+      return if payment.status == "succeeded" && amount_minor == payment.amount_minor &&
+        (payment.accepted_at.nil? || payment.billing_payment?)
 
       errors.add(:payment, :invalid)
     end
