@@ -91,6 +91,14 @@ production:
     class: Messaging::PurgeNotificationPayloadsJob
     queue: notifications
     schedule: every hour at minute 10
+  reconcile_messaging_credit_top_ups:
+    class: Messaging::ReconcileCreditTopUpsJob
+    queue: maintenance
+    schedule: every 10 minutes
+  reconcile_messaging_credit_reservations:
+    class: Messaging::ReconcileCreditReservationsJob
+    queue: maintenance
+    schedule: every 10 minutes
   expire_attendee_exports:
     class: Ticketing::ExpireAttendeeExportsJob
     queue: default
