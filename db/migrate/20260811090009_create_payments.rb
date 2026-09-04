@@ -3,14 +3,16 @@
 class CreatePayments < ActiveRecord::Migration[8.1]
   def change
     create_table :orders_payments, id: :uuid, default: -> { "uuidv7()" } do |t|
-      t.uuid :order_id, null: false
+      t.uuid :order_id
+      t.uuid :billing_purchase_id
       t.integer :attempt_number, null: false
       t.string :provider, null: false
       t.string :payment_method, null: false
       t.string :status, null: false, default: "created"
       t.bigint :amount_minor, null: false
       t.string :currency, limit: 3, null: false
-      t.string :commercial_signature, limit: 64, null: false
+      t.string :commercial_signature, limit: 64
+      t.string :billing_purchase_price_digest, limit: 64
       t.bigint :buyer_fee_minor, null: false, default: 0
       t.bigint :organizer_fee_minor, null: false, default: 0
       t.bigint :provider_fee_minor
@@ -32,6 +34,9 @@ class CreatePayments < ActiveRecord::Migration[8.1]
     add_index :orders_payments, %i[order_id attempt_number],
               unique: true,
               name: "idx_payments_on_order_and_attempt"
+    add_index :orders_payments, %i[billing_purchase_id attempt_number],
+              unique: true,
+              name: "idx_payments_on_billing_purchase_and_attempt"
     add_index :orders_payments, %i[provider idempotency_key],
               unique: true,
               name: "idx_payments_on_provider_and_idempotency"
@@ -47,12 +52,23 @@ class CreatePayments < ActiveRecord::Migration[8.1]
               unique: true,
               where: "superseded_at IS NULL AND status IN ('created', 'processing')",
               name: "idx_one_current_payment_attempt"
+    add_index :orders_payments, :billing_purchase_id,
+              unique: true,
+              where: "accepted_at IS NOT NULL",
+              name: "idx_one_accepted_billing_payment"
+    add_index :orders_payments, :billing_purchase_id,
+              unique: true,
+              where: "superseded_at IS NULL AND status IN ('created', 'processing')",
+              name: "idx_one_current_billing_payment_attempt"
     add_index :orders_payments, %i[status settlement_grace_expires_at],
               name: "idx_payments_on_status_and_grace_expiry"
 
     add_check_constraint :orders_payments,
       "attempt_number BETWEEN 1 AND 3",
       name: "orders_payments_attempt_number_check"
+    add_check_constraint :orders_payments,
+      "((order_id IS NOT NULL)::integer + (billing_purchase_id IS NOT NULL)::integer) = 1",
+      name: "orders_payments_exactly_one_subject_check"
     add_check_constraint :orders_payments,
       "status IN ('created','processing','succeeded','failed','cancelled','unknown','timeout','reversed')",
       name: "orders_payments_status_check"
@@ -65,8 +81,15 @@ class CreatePayments < ActiveRecord::Migration[8.1]
       "(provider_fee_currency IS NULL OR provider_fee_currency ~ '^[A-Z]{3}$')",
       name: "orders_payments_currency_check"
     add_check_constraint :orders_payments,
-      "commercial_signature ~ '^[0-9a-f]{64}$'",
+      "commercial_signature IS NULL OR commercial_signature ~ '^[0-9a-f]{64}$'",
       name: "orders_payments_commercial_signature_check"
+    add_check_constraint :orders_payments,
+      "billing_purchase_price_digest IS NULL OR billing_purchase_price_digest ~ '^[0-9a-f]{64}$'",
+      name: "orders_payments_billing_price_digest_check"
+    add_check_constraint :orders_payments,
+      "(order_id IS NOT NULL AND commercial_signature IS NOT NULL AND billing_purchase_price_digest IS NULL) OR " \
+      "(billing_purchase_id IS NOT NULL AND commercial_signature IS NULL AND billing_purchase_price_digest IS NOT NULL)",
+      name: "orders_payments_subject_digest_check"
     add_check_constraint :orders_payments,
       "settlement_grace_minutes BETWEEN 3 AND 15",
       name: "orders_payments_grace_minutes_check"
@@ -82,6 +105,8 @@ class CreatePayments < ActiveRecord::Migration[8.1]
       name: "orders_payments_succeeded_state_check"
     add_foreign_key :orders_payments, :orders_orders,
                     column: :order_id, on_delete: :restrict
+    add_foreign_key :orders_payments, :orders_billing_purchases,
+                    column: :billing_purchase_id, on_delete: :restrict
 
     reversible do |dir|
       dir.up do
@@ -94,26 +119,45 @@ class CreatePayments < ActiveRecord::Migration[8.1]
             expected_amount bigint;
             expected_currency text;
           BEGIN
-            SELECT total_minor, charge_currency
-              INTO expected_amount, expected_currency
-            FROM orders_orders
-            WHERE id = NEW.order_id;
+            IF NEW.order_id IS NOT NULL THEN
+              SELECT total_minor, charge_currency
+                INTO expected_amount, expected_currency
+              FROM orders_orders
+              WHERE id = NEW.order_id;
+            ELSE
+              SELECT amount_minor, currency
+                INTO expected_amount, expected_currency
+              FROM orders_billing_purchases
+              WHERE id = NEW.billing_purchase_id;
+            END IF;
 
             IF NOT FOUND OR NEW.amount_minor IS DISTINCT FROM expected_amount OR
                NEW.currency IS DISTINCT FROM expected_currency THEN
-              RAISE EXCEPTION 'orders_payment_order_amount_currency_mismatch'
+              RAISE EXCEPTION 'orders_payment_subject_amount_currency_mismatch'
                 USING ERRCODE = '23514';
             END IF;
 
-            IF EXISTS (
-              SELECT 1
-              FROM orders_payments
-              WHERE order_id = NEW.order_id
-                AND id IS DISTINCT FROM NEW.id
-                AND commercial_signature IS DISTINCT FROM NEW.commercial_signature
-            ) THEN
-              RAISE EXCEPTION 'orders_payment_commercial_signature_mismatch'
-                USING ERRCODE = '23514';
+            IF NEW.order_id IS NOT NULL THEN
+              IF EXISTS (
+                SELECT 1
+                FROM orders_payments
+                WHERE order_id = NEW.order_id
+                  AND id IS DISTINCT FROM NEW.id
+                  AND commercial_signature IS DISTINCT FROM NEW.commercial_signature
+              ) THEN
+                RAISE EXCEPTION 'orders_payment_commercial_signature_mismatch'
+                  USING ERRCODE = '23514';
+              END IF;
+            ELSE
+              IF NOT EXISTS (
+                SELECT 1
+                FROM orders_billing_purchases
+                WHERE id = NEW.billing_purchase_id
+                  AND price_digest = NEW.billing_purchase_price_digest
+              ) THEN
+                RAISE EXCEPTION 'orders_payment_billing_price_digest_mismatch'
+                  USING ERRCODE = '23514';
+              END IF;
             END IF;
 
             RETURN NEW;
