@@ -49,6 +49,7 @@ en:
       auditable_record_resolver: "auditable_record_for requires a block or lambda"
       common_model_class: "%{controller} must declare self.model_class"
       common_model_params: "%{controller} must implement #model_params"
+      admin_policy_not_found: "No admin policy is registered for %{model}"
     private_attendee_exports:
       errors:
         insecure_storage: "Private attendee exports require non-public provider storage"
