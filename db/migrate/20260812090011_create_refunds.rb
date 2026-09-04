@@ -68,11 +68,13 @@ class CreateRefunds < ActiveRecord::Migration[8.1]
       DECLARE
         payment_status text;
         accepted_at timestamptz;
+        billing_purchase_id uuid;
         payment_amount bigint;
         payment_currency text;
       BEGIN
-        SELECT payments.status, payments.accepted_at, payments.amount_minor, payments.currency
-          INTO payment_status, accepted_at, payment_amount, payment_currency
+        SELECT payments.status, payments.accepted_at, payments.billing_purchase_id,
+               payments.amount_minor, payments.currency
+          INTO payment_status, accepted_at, billing_purchase_id, payment_amount, payment_currency
         FROM orders_payments AS payments
         WHERE payments.id = NEW.payment_id;
 
@@ -81,7 +83,8 @@ class CreateRefunds < ActiveRecord::Migration[8.1]
         END IF;
 
         IF NEW.type = 'payment_reversal' AND
-           (payment_status IS DISTINCT FROM 'succeeded' OR accepted_at IS NOT NULL OR
+           (payment_status IS DISTINCT FROM 'succeeded' OR
+            (accepted_at IS NOT NULL AND billing_purchase_id IS NULL) OR
             NEW.amount_minor IS DISTINCT FROM payment_amount OR
             NEW.currency IS DISTINCT FROM payment_currency) THEN
           RAISE EXCEPTION 'orders_payment_reversal_integrity' USING ERRCODE = '23514';
