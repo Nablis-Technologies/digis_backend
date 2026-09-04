@@ -66,6 +66,28 @@ module Reconciliation
       assert_equal "processing", second.reload.status
     end
 
+    test "payment reconciliation ignores due billing payment attempts" do
+      event_payment = create_payment(user: core_users(:attendee), suffix: "event-only")
+      billing_purchase = Orders::BillingPurchase.create!(
+        organization: organizations_organizations(:one), requested_by: core_users(:attendee),
+        kind: "messaging_credit_top_up", source_type: "Messaging::CreditTopUp", source_id: SecureRandom.uuid,
+        currency: "ETB", amount_minor: 1_000, price_digest: "a" * 64, status: "pending_payment",
+        idempotency_key_digest: SecureRandom.hex(32), expires_at: @now + 30.minutes
+      )
+      billing_payment = Orders::Payment.create!(
+        billing_purchase:, attempt_number: 1, provider: "chapa", payment_method: "telebirr",
+        status: "processing", amount_minor: 1_000, currency: "ETB", billing_purchase_price_digest: "a" * 64,
+        buyer_fee_minor: 0, organizer_fee_minor: 0, idempotency_key: "billing-reconciliation-ignore",
+        settlement_grace_minutes: 5, settlement_grace_expires_at: @now - 30.minutes
+      )
+      result = Core::BaseService::Result.success(event_payment)
+      Orders::ExpireSettlementGrace.expects(:call).with(payment_id: event_payment.id, now: @now).returns(result)
+
+      Reconciliation::PaymentAttemptsJob.perform_now(2, now: @now)
+
+      assert_equal "processing", billing_payment.reload.status
+    end
+
     test "refund reconciliation delegates due processing obligations in a bounded batch" do
       first = create_refund(suffix: "first")
       second = create_refund(suffix: "second")

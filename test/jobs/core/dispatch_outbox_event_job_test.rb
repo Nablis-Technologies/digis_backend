@@ -27,6 +27,21 @@ class Core::DispatchOutboxEventJobTest < ActiveJob::TestCase
     assert_not_nil event.reload.published_at
   end
 
+  test "retries a messaging billing handler when it returns a failure result" do
+    event = core_outbox_events(:pending)
+    event.update!(
+      topic: "orders", event_type: "orders.billing_payment.accepted",
+      payload: { "source_type" => "Messaging::CreditTopUp" }
+    )
+    failure = Core::BaseService::Result.failure(Core::Error.new("grant failed"))
+    Messaging::OutboxHandlers::GrantTopUpCredits.expects(:call).returns(failure)
+
+    assert_raises(Core::Error) { Core::Outbox::Dispatch.call(event_id: event.id) }
+
+    assert_nil event.reload.published_at
+    assert_equal "Core::Error", event.last_error_code
+  end
+
   test "prefers an exact handler over a namespace handler" do
     event = core_outbox_events(:pending)
     event.update!(topic: "commercial", event_type: "commercial.example")

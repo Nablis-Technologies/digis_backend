@@ -107,6 +107,36 @@ module Messaging
 
         assert_equal [ [ event.id ] ], enqueued
       end
+
+      test "acknowledges billing refunds without projecting an event notification" do
+        purchase = Orders::BillingPurchase.create!(
+          organization: @event.organization, requested_by: @owner,
+          kind: "messaging_credit_top_up", source_type: "Messaging::CreditTopUp", source_id: SecureRandom.uuid,
+          currency: "ETB", amount_minor: 100, price_digest: "a" * 64, status: "paid",
+          idempotency_key_digest: SecureRandom.hex(32), expires_at: 30.minutes.from_now
+        )
+        payment = Orders::Payment.create!(
+          billing_purchase: purchase, attempt_number: 1, provider: "chapa", payment_method: "telebirr",
+          status: "succeeded", amount_minor: 100, currency: "ETB", accepted_at: Time.current,
+          succeeded_at: Time.current, billing_purchase_price_digest: purchase.price_digest,
+          buyer_fee_minor: 0, organizer_fee_minor: 0, idempotency_key: "notification-billing-refund",
+          settlement_grace_minutes: 5, settlement_grace_expires_at: purchase.expires_at + 5.minutes
+        )
+        refund = Orders::Refund.create!(
+          payment:, type: "payment_reversal", idempotency_key: "notification-billing-refund-row",
+          amount_minor: 100, currency: "ETB", status: "succeeded", reason_code: "duplicate_payment"
+        )
+        event = Core::Outbox::Publish.call(
+          topic: "orders", event_type: "orders.refund.succeeded", aggregate: refund,
+          payload: { refund_id: refund.id, payment_id: payment.id, status: "succeeded" },
+          idempotency_key: "notification-billing-refund-event"
+        ).value
+
+        result = PublishTransactionalNotification.call(event:)
+
+        assert_predicate result, :success?, result.error&.message
+        assert_empty Messaging::Notification.where(notification_type: "refund_succeeded")
+      end
     end
   end
 end

@@ -55,6 +55,32 @@ module Finance
       assert_empty Finance::LedgerEntry.where(refund_id: reversal.id)
     end
 
+    test "does not post a billing payment refund to the event ledger" do
+      purchase = Orders::BillingPurchase.create!(
+        organization: @order.event.organization, requested_by: @order.buyer_user,
+        kind: "messaging_credit_top_up", source_type: "Messaging::CreditTopUp", source_id: SecureRandom.uuid,
+        currency: "ETB", amount_minor: 2_000, price_digest: SecureRandom.hex(32), status: "paid",
+        idempotency_key_digest: SecureRandom.hex(32), expires_at: 30.minutes.from_now
+      )
+      billing_payment = Orders::Payment.create!(
+        billing_purchase: purchase, attempt_number: 1, provider: "chapa", payment_method: "telebirr",
+        status: "succeeded", amount_minor: 2_000, currency: "ETB", accepted_at: Time.current,
+        succeeded_at: Time.current, billing_purchase_price_digest: purchase.price_digest,
+        buyer_fee_minor: 0, organizer_fee_minor: 0, idempotency_key: "billing-refund-#{SecureRandom.hex(8)}",
+        settlement_grace_minutes: 5, settlement_grace_expires_at: purchase.expires_at + 5.minutes
+      )
+      refund = Orders::Refund.create!(
+        payment: billing_payment, type: "payment_reversal", idempotency_key: "billing-reversal-#{SecureRandom.hex(8)}",
+        amount_minor: billing_payment.amount_minor, currency: billing_payment.currency,
+        status: "succeeded", reason_code: "duplicate_payment"
+      )
+
+      result = Finance::PostRefund.call(refund:)
+
+      assert_predicate result, :success?, result.error&.message
+      assert_empty Finance::LedgerEntry.where(refund_id: refund.id)
+    end
+
     test "posts a chargeback as a negative entry for an accepted payment" do
       result = Finance::PostChargeback.call(payment: @payment, amount_minor: 2_000)
 
