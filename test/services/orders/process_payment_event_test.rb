@@ -70,6 +70,154 @@ module Orders
       ).count
     end
 
+    test "accepts a billing payment without fulfilling an event order" do
+      purchase = Orders::BillingPurchase.create!(
+        organization: organizations_organizations(:one), requested_by: @buyer,
+        kind: "messaging_credit_top_up", source_type: "Messaging::CreditTopUp", source_id: SecureRandom.uuid,
+        currency: "ETB", amount_minor: 100, price_digest: "b" * 64,
+        status: "pending_payment", idempotency_key_digest: SecureRandom.hex(32), expires_at: 30.minutes.from_now
+      )
+      payment = Orders::Payment.create!(
+        billing_purchase: purchase, attempt_number: 1, provider: "chapa", payment_method: "telebirr",
+        status: "processing", amount_minor: 100, currency: "ETB", billing_purchase_price_digest: "b" * 64,
+        buyer_fee_minor: 0, organizer_fee_minor: 0, idempotency_key: "billing-process-payment",
+        settlement_grace_minutes: 5, settlement_grace_expires_at: 30.minutes.from_now
+      )
+      event = Orders::PaymentEvent.create!(
+        payment:, provider: "chapa", provider_event_id: "billing-process-event",
+        event_type: "payment.succeeded", status: "received", payload: { "status" => "paid" },
+        payload_digest: "c" * 64, received_at: Time.current
+      )
+
+      result = Orders::ProcessPaymentEvent.call(event:)
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "paid", purchase.reload.status
+      assert payment.reload.accepted?
+      assert Core::OutboxEvent.exists?(event_type: "orders.billing_payment.accepted", aggregate_id: payment.id)
+      assert_equal "pending_payment", @order.reload.status
+    end
+
+    test "keeps an accepted billing reversal as succeeded provider evidence" do
+      purchase = Orders::BillingPurchase.create!(
+        organization: organizations_organizations(:one), requested_by: @buyer,
+        kind: "messaging_credit_top_up", source_type: "Messaging::CreditTopUp", source_id: SecureRandom.uuid,
+        currency: "ETB", amount_minor: 100, price_digest: "d" * 64,
+        status: "paid", idempotency_key_digest: SecureRandom.hex(32), expires_at: 30.minutes.from_now
+      )
+      payment = Orders::Payment.create!(
+        billing_purchase: purchase, attempt_number: 1, provider: "chapa", payment_method: "telebirr",
+        status: "succeeded", amount_minor: 100, currency: "ETB", accepted_at: Time.current,
+        succeeded_at: Time.current, billing_purchase_price_digest: "d" * 64,
+        buyer_fee_minor: 0, organizer_fee_minor: 0, idempotency_key: "billing-reversal-event",
+        settlement_grace_minutes: 5, settlement_grace_expires_at: 30.minutes.from_now
+      )
+      event = Orders::PaymentEvent.create!(
+        payment:, provider: "chapa", provider_event_id: "billing-reversal-event-id",
+        event_type: "payment.refunded", status: "received", payload: { "status" => "refunded" },
+        payload_digest: "e" * 64, received_at: Time.current
+      )
+
+      result = Orders::ProcessPaymentEvent.call(event:)
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "succeeded", payment.reload.status
+      assert_equal "reversed", purchase.reload.status
+      assert Core::OutboxEvent.exists?(event_type: "orders.billing_payment.reversed", aggregate_id: payment.id)
+    end
+
+    test "does not reverse a paid billing purchase when an unaccepted duplicate payment is reversed" do
+      purchase = Orders::BillingPurchase.create!(
+        organization: organizations_organizations(:one), requested_by: @buyer,
+        kind: "messaging_credit_top_up", source_type: "Messaging::CreditTopUp", source_id: SecureRandom.uuid,
+        currency: "ETB", amount_minor: 100, price_digest: "e" * 64,
+        status: "paid", idempotency_key_digest: SecureRandom.hex(32), expires_at: 30.minutes.from_now
+      )
+      accepted_payment = Orders::Payment.create!(
+        billing_purchase: purchase, attempt_number: 1, provider: "chapa", payment_method: "telebirr",
+        status: "succeeded", accepted_at: Time.current, succeeded_at: Time.current,
+        amount_minor: 100, currency: "ETB", billing_purchase_price_digest: "e" * 64,
+        buyer_fee_minor: 0, organizer_fee_minor: 0, idempotency_key: "billing-acc-payment",
+        settlement_grace_minutes: 5, settlement_grace_expires_at: 30.minutes.from_now
+      )
+      duplicate_payment = Orders::Payment.create!(
+        billing_purchase: purchase, attempt_number: 2, provider: "chapa", payment_method: "telebirr",
+        status: "succeeded", accepted_at: nil, succeeded_at: Time.current,
+        amount_minor: 100, currency: "ETB", billing_purchase_price_digest: "e" * 64,
+        buyer_fee_minor: 0, organizer_fee_minor: 0, idempotency_key: "billing-dup-reversal",
+        settlement_grace_minutes: 5, settlement_grace_expires_at: 30.minutes.from_now
+      )
+      event = Orders::PaymentEvent.create!(
+        payment: duplicate_payment, provider: "chapa", provider_event_id: "billing-dup-reversal-event",
+        event_type: "payment.refunded", status: "received", payload: { "status" => "refunded" },
+        payload_digest: "d" * 64, received_at: Time.current
+      )
+
+      result = Orders::ProcessPaymentEvent.call(event:)
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "succeeded", duplicate_payment.reload.status
+      assert_equal "paid", purchase.reload.status
+      assert_not Core::OutboxEvent.exists?(event_type: "orders.billing_payment.reversed", aggregate_id: duplicate_payment.id)
+    end
+
+    test "does not downgrade a paid billing purchase for a failed retry" do
+      purchase = Orders::BillingPurchase.create!(
+        organization: organizations_organizations(:one), requested_by: @buyer,
+        kind: "messaging_credit_top_up", source_type: "Messaging::CreditTopUp", source_id: SecureRandom.uuid,
+        currency: "ETB", amount_minor: 100, price_digest: "f" * 64,
+        status: "paid", idempotency_key_digest: SecureRandom.hex(32), expires_at: 30.minutes.from_now
+      )
+      payment = Orders::Payment.create!(
+        billing_purchase: purchase, attempt_number: 2, provider: "chapa", payment_method: "telebirr",
+        status: "processing", amount_minor: 100, currency: "ETB", billing_purchase_price_digest: "f" * 64,
+        buyer_fee_minor: 0, organizer_fee_minor: 0, idempotency_key: "billing-failed-retry",
+        settlement_grace_minutes: 5, settlement_grace_expires_at: 30.minutes.from_now
+      )
+      event = Orders::PaymentEvent.create!(
+        payment:, provider: "chapa", provider_event_id: "billing-failed-retry-event",
+        event_type: "payment.failed", status: "received", payload: { "status" => "failed" },
+        payload_digest: "a" * 64, received_at: Time.current
+      )
+
+      result = Orders::ProcessPaymentEvent.call(event:)
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "paid", purchase.reload.status
+      assert_equal "failed", payment.reload.status
+    end
+
+    test "does not close a billing purchase while another attempt is current" do
+      purchase = Orders::BillingPurchase.create!(
+        organization: organizations_organizations(:one), requested_by: @buyer,
+        kind: "messaging_credit_top_up", source_type: "Messaging::CreditTopUp", source_id: SecureRandom.uuid,
+        currency: "ETB", amount_minor: 100, price_digest: "b" * 64,
+        status: "pending_payment", idempotency_key_digest: SecureRandom.hex(32), expires_at: 30.minutes.from_now
+      )
+      failed_attempt = Orders::Payment.create!(
+        billing_purchase: purchase, attempt_number: 1, provider: "chapa", payment_method: "telebirr",
+        status: "processing", amount_minor: 100, currency: "ETB", billing_purchase_price_digest: "b" * 64,
+        buyer_fee_minor: 0, organizer_fee_minor: 0, idempotency_key: "billing-superseded-failure",
+        superseded_at: 1.minute.ago, settlement_grace_minutes: 5, settlement_grace_expires_at: 30.minutes.from_now
+      )
+      Orders::Payment.create!(
+        billing_purchase: purchase, attempt_number: 2, provider: "chapa", payment_method: "telebirr",
+        status: "processing", amount_minor: 100, currency: "ETB", billing_purchase_price_digest: "b" * 64,
+        buyer_fee_minor: 0, organizer_fee_minor: 0, idempotency_key: "billing-current-attempt",
+        settlement_grace_minutes: 5, settlement_grace_expires_at: 30.minutes.from_now
+      )
+      event = Orders::PaymentEvent.create!(
+        payment: failed_attempt, provider: "chapa", provider_event_id: "billing-superseded-failure-event",
+        event_type: "payment.failed", status: "received", payload: { "status" => "failed" },
+        payload_digest: "c" * 64, received_at: Time.current
+      )
+
+      result = Orders::ProcessPaymentEvent.call(event:)
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "pending_payment", purchase.reload.status
+    end
+
     test "replays fulfillment safely when inbox processing resumes after the commit" do
       event = record_event(event_id: "evt-fulfillment-replay", event_type: "payment.succeeded")
       assert_predicate Orders::ProcessPaymentEvent.call(event:), :success?
@@ -127,6 +275,34 @@ module Orders
       )
       assert_equal @payment.id, outbox.payload.fetch("payment_id")
       assert_equal event.id, outbox.payload.fetch("payment_event_id")
+    end
+
+    test "includes billing source identity in billing failure events" do
+      purchase = Orders::BillingPurchase.create!(
+        organization: organizations_organizations(:one), requested_by: @buyer,
+        kind: "messaging_credit_top_up", source_type: "Messaging::CreditTopUp", source_id: SecureRandom.uuid,
+        currency: "ETB", amount_minor: 100, price_digest: "b" * 64,
+        status: "pending_payment", idempotency_key_digest: SecureRandom.hex(32), expires_at: 30.minutes.from_now
+      )
+      payment = Orders::Payment.create!(
+        billing_purchase: purchase, attempt_number: 1, provider: "chapa", payment_method: "telebirr",
+        status: "processing", amount_minor: 100, currency: "ETB", billing_purchase_price_digest: "b" * 64,
+        buyer_fee_minor: 0, organizer_fee_minor: 0, idempotency_key: "billing-failure-payload",
+        settlement_grace_minutes: 5, settlement_grace_expires_at: 30.minutes.from_now
+      )
+      event = Orders::PaymentEvent.create!(
+        payment:, provider: "chapa", provider_event_id: "billing-failure-payload-event",
+        event_type: "payment.failed", status: "received", payload: { "status" => "failed" },
+        payload_digest: "d" * 64, received_at: Time.current
+      )
+
+      result = Orders::ProcessPaymentEvent.call(event:)
+
+      assert_predicate result, :success?, result.error&.message
+      outbox = Core::OutboxEvent.find_by!(event_type: "orders.billing_payment.failed", aggregate_id: payment.id)
+      assert_equal "Messaging::CreditTopUp", outbox.payload.fetch("source_type")
+      assert_equal purchase.source_id, outbox.payload.fetch("source_id")
+      assert_equal purchase.id, outbox.payload.fetch("billing_purchase_id")
     end
 
     test "rolls back inbox receipt when publishing its outbox event fails" do
