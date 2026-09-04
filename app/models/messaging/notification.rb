@@ -62,7 +62,28 @@ module Messaging
       %w[user deliveries retention_policy source]
     end
 
+    # Hash insertion order is not part of notification identity. Seed builders,
+    # outbox handlers, and API callers may construct the same projection in a
+    # different order, so both persistence and replay use this canonical digest.
+    def self.projection_digest_for(value)
+      Digest::SHA256.hexdigest(ActiveSupport::JSON.encode(canonical_projection(value)))
+    end
+
     private
+
+    def self.canonical_projection(value)
+      case value
+      when Hash
+        value.each_with_object({}) do |(key, child), normalized|
+          normalized[key.to_s] = canonical_projection(child)
+        end.sort.to_h
+      when Array
+        value.map { |child| canonical_projection(child) }
+      else
+        value
+      end
+    end
+    private_class_method :canonical_projection
 
     def normalize_fields
       self.notification_type = notification_type.to_s.strip.presence
@@ -74,7 +95,7 @@ module Messaging
     def set_projection_digest
       return unless new_record? || projection_digest.blank?
 
-      self.projection_digest = Digest::SHA256.hexdigest(ActiveSupport::JSON.encode(data || {}))
+      self.projection_digest = self.class.projection_digest_for(data || {})
     end
 
     def data_is_an_object

@@ -50,6 +50,25 @@ module Messaging
       assert_equal 3, Messaging::Notification.where(user: @user).first.deliveries.count
     end
 
+    test "treats equivalent projections with different key order as the same replay" do
+      first = Messaging::PublishNotification.call(
+        type: "schedule_changed", recipient: @user, source: @event,
+        data: { event_id: @event.id, schedule_version: 2, event_date_ids: [] },
+        dedupe_key: "schedule-changed:#{@event.id}:v2"
+      )
+      replay = Messaging::PublishNotification.call(
+        type: "schedule_changed", recipient: @user, source: @event,
+        data: { event_date_ids: [], schedule_version: 2, event_id: @event.id },
+        dedupe_key: "schedule-changed:#{@event.id}:v2"
+      )
+
+      # The shared idempotency assertion cannot express a replay with a
+      # reordered request, so assert the persisted identity explicitly here.
+      assert_predicate first, :success?, first.error&.message
+      assert_predicate replay, :success?, replay.error&.message
+      assert_equal first.value.id, replay.value.id
+    end
+
     test "a different payload under the same dedupe key fails closed" do
       first = Messaging::PublishNotification.call(
         type: "schedule_changed", recipient: @user, source: @event,

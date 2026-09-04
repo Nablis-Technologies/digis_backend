@@ -63,6 +63,36 @@ module Orders
       assert_equal @refund.idempotency_key, @adapter.refund_requests.sole.fetch(:idempotency_key)
     end
 
+    test "submits a billing payment reversal without posting an event ledger entry" do
+      purchase = Orders::BillingPurchase.create!(
+        organization: @event.organization, requested_by: @buyer,
+        kind: "messaging_credit_top_up", source_type: "Messaging::CreditTopUp", source_id: SecureRandom.uuid,
+        currency: "ETB", amount_minor: 1_000, price_digest: SecureRandom.hex(32), status: "paid",
+        idempotency_key_digest: SecureRandom.hex(32), expires_at: 30.minutes.from_now
+      )
+      billing_payment = Orders::Payment.create!(
+        billing_purchase: purchase, attempt_number: 1, provider: "chapa", payment_method: "telebirr",
+        status: "succeeded", amount_minor: 1_000, currency: "ETB", accepted_at: Time.current,
+        succeeded_at: Time.current, billing_purchase_price_digest: purchase.price_digest,
+        buyer_fee_minor: 0, organizer_fee_minor: 0, idempotency_key: "billing-submit-#{SecureRandom.hex(6)}",
+        provider_reference: "billing-provider-#{SecureRandom.hex(4)}",
+        settlement_grace_minutes: 5, settlement_grace_expires_at: purchase.expires_at + 5.minutes
+      )
+      refund = Orders::Refund.create!(
+        payment: billing_payment, type: "payment_reversal",
+        idempotency_key: "billing-submit-refund-#{SecureRandom.hex(6)}",
+        amount_minor: billing_payment.amount_minor, currency: billing_payment.currency,
+        status: "created", reason_code: "duplicate_payment"
+      )
+
+      result = Orders::SubmitRefund.call(refund:)
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "succeeded", refund.reload.status
+      assert_equal 1, @adapter.refund_requests.length
+      assert_empty Finance::LedgerEntry.where(refund_id: refund.id)
+    end
+
     test "records a provider failure as a terminal failed refund" do
       @adapter.refund_result = Payments::Providers::Result.failure(failure_code: "declined", raw_status: "declined")
 

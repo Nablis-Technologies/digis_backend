@@ -125,12 +125,8 @@ module Messaging
       notification.association(:deliveries).reset
     end
 
-    def canonical(value)
-      ActiveSupport::JSON.decode(ActiveSupport::JSON.encode(value))
-    end
-
     def projection_digest(value)
-      Digest::SHA256.hexdigest(ActiveSupport::JSON.encode(canonical(value)))
+      Messaging::Notification.projection_digest_for(value)
     end
 
     def error(key, status, errors: nil, message: nil)
