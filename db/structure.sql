@@ -1297,6 +1297,19 @@ $$;
 
 
 --
+-- Name: messaging_credit_ledger_entry_immutable(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.messaging_credit_ledger_entry_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  RAISE EXCEPTION 'messaging_credit_ledger_entry_immutable' USING ERRCODE = '40001';
+END;
+$$;
+
+
+--
 -- Name: orders_order_adjustment_evidence_valid(jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1515,32 +1528,25 @@ $$;
 CREATE FUNCTION public.orders_payment_snapshot_integrity() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
-DECLARE
-  expected_amount bigint;
-  expected_currency text;
+DECLARE expected_amount bigint; expected_currency text;
 BEGIN
-  SELECT total_minor, charge_currency
-    INTO expected_amount, expected_currency
-  FROM orders_orders
-  WHERE id = NEW.order_id;
-
-  IF NOT FOUND OR NEW.amount_minor IS DISTINCT FROM expected_amount OR
-     NEW.currency IS DISTINCT FROM expected_currency THEN
-    RAISE EXCEPTION 'orders_payment_order_amount_currency_mismatch'
-      USING ERRCODE = '23514';
+  IF NEW.order_id IS NOT NULL THEN
+    SELECT total_minor, charge_currency INTO expected_amount, expected_currency FROM orders_orders WHERE id = NEW.order_id;
+  ELSE
+    SELECT amount_minor, currency INTO expected_amount, expected_currency FROM orders_billing_purchases WHERE id = NEW.billing_purchase_id;
   END IF;
-
-  IF EXISTS (
-    SELECT 1
-    FROM orders_payments
-    WHERE order_id = NEW.order_id
-      AND id IS DISTINCT FROM NEW.id
-      AND commercial_signature IS DISTINCT FROM NEW.commercial_signature
-  ) THEN
-    RAISE EXCEPTION 'orders_payment_commercial_signature_mismatch'
-      USING ERRCODE = '23514';
+  IF NOT FOUND OR NEW.amount_minor IS DISTINCT FROM expected_amount OR NEW.currency IS DISTINCT FROM expected_currency THEN
+    RAISE EXCEPTION 'orders_payment_subject_amount_currency_mismatch' USING ERRCODE = '23514';
   END IF;
-
+  IF NEW.order_id IS NOT NULL THEN
+    IF EXISTS (SELECT 1 FROM orders_payments WHERE order_id = NEW.order_id AND id IS DISTINCT FROM NEW.id AND commercial_signature IS DISTINCT FROM NEW.commercial_signature) THEN
+      RAISE EXCEPTION 'orders_payment_commercial_signature_mismatch' USING ERRCODE = '23514';
+    END IF;
+  ELSE
+    IF NOT EXISTS (SELECT 1 FROM orders_billing_purchases WHERE id = NEW.billing_purchase_id AND price_digest = NEW.billing_purchase_price_digest) THEN
+      RAISE EXCEPTION 'orders_payment_billing_price_digest_mismatch' USING ERRCODE = '23514';
+    END IF;
+  END IF;
   RETURN NEW;
 END;
 $$;
@@ -1667,11 +1673,13 @@ CREATE FUNCTION public.orders_refund_integrity() RETURNS trigger
 DECLARE
   payment_status text;
   accepted_at timestamptz;
+  billing_purchase_id uuid;
   payment_amount bigint;
   payment_currency text;
 BEGIN
-  SELECT payments.status, payments.accepted_at, payments.amount_minor, payments.currency
-    INTO payment_status, accepted_at, payment_amount, payment_currency
+  SELECT payments.status, payments.accepted_at, payments.billing_purchase_id,
+         payments.amount_minor, payments.currency
+    INTO payment_status, accepted_at, billing_purchase_id, payment_amount, payment_currency
   FROM orders_payments AS payments
   WHERE payments.id = NEW.payment_id;
 
@@ -1680,7 +1688,8 @@ BEGIN
   END IF;
 
   IF NEW.type = 'payment_reversal' AND
-     (payment_status IS DISTINCT FROM 'succeeded' OR accepted_at IS NOT NULL OR
+     (payment_status IS DISTINCT FROM 'succeeded' OR
+      (accepted_at IS NOT NULL AND billing_purchase_id IS NULL) OR
       NEW.amount_minor IS DISTINCT FROM payment_amount OR
       NEW.currency IS DISTINCT FROM payment_currency) THEN
     RAISE EXCEPTION 'orders_payment_reversal_integrity' USING ERRCODE = '23514';
@@ -5549,6 +5558,144 @@ CREATE TABLE public.marketplace_seller_payouts (
 
 
 --
+-- Name: messaging_credit_accounts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.messaging_credit_accounts (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    channel character varying NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT messaging_credit_accounts_channel_check CHECK (((channel)::text = ANY (ARRAY[('sms'::character varying)::text, ('email'::character varying)::text])))
+);
+
+
+--
+-- Name: messaging_credit_ledger_entries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.messaging_credit_ledger_entries (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    credit_account_id uuid NOT NULL,
+    rate_version_id uuid,
+    entry_type character varying NOT NULL,
+    quantity bigint NOT NULL,
+    available_delta bigint NOT NULL,
+    reference_type character varying,
+    reference_id uuid,
+    idempotency_key_digest character varying(64) NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT messaging_credit_ledger_entries_idempotency_check CHECK (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT messaging_credit_ledger_entries_metadata_check CHECK ((jsonb_typeof(metadata) = 'object'::text)),
+    CONSTRAINT messaging_credit_ledger_entries_quantity_check CHECK ((quantity > 0)),
+    CONSTRAINT messaging_credit_ledger_entries_type_check CHECK (((entry_type)::text = ANY (ARRAY[('top_up'::character varying)::text, ('reserve'::character varying)::text, ('consume'::character varying)::text, ('release'::character varying)::text, ('refund'::character varying)::text, ('expire'::character varying)::text, ('adjustment'::character varying)::text])))
+);
+
+
+--
+-- Name: messaging_credit_rate_versions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.messaging_credit_rate_versions (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid,
+    channel character varying NOT NULL,
+    version integer NOT NULL,
+    currency character varying(3) NOT NULL,
+    unit_price_minor bigint NOT NULL,
+    provider_cost_minor bigint,
+    country_code character varying(2),
+    volume_tiers jsonb DEFAULT '[]'::jsonb NOT NULL,
+    effective_from timestamp with time zone NOT NULL,
+    effective_until timestamp with time zone,
+    status character varying DEFAULT 'draft'::character varying NOT NULL,
+    created_by_id uuid,
+    activated_by_id uuid,
+    retired_by_id uuid,
+    idempotency_key_digest character varying(64) NOT NULL,
+    request_digest character varying(64) NOT NULL,
+    activated_at timestamp with time zone,
+    retired_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT messaging_credit_rate_versions_amount_check CHECK (((unit_price_minor > 0) AND ((provider_cost_minor IS NULL) OR (provider_cost_minor >= 0)))),
+    CONSTRAINT messaging_credit_rate_versions_channel_check CHECK (((channel)::text = ANY (ARRAY[('sms'::character varying)::text, ('email'::character varying)::text]))),
+    CONSTRAINT messaging_credit_rate_versions_country_check CHECK (((country_code IS NULL) OR ((country_code)::text ~ '^[A-Z]{2}$'::text))),
+    CONSTRAINT messaging_credit_rate_versions_currency_check CHECK (((currency)::text ~ '^[A-Z]{3}$'::text)),
+    CONSTRAINT messaging_credit_rate_versions_effective_window_check CHECK (((effective_until IS NULL) OR (effective_until > effective_from))),
+    CONSTRAINT messaging_credit_rate_versions_request_check CHECK ((((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((request_digest)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT messaging_credit_rate_versions_state_check CHECK (((((status)::text = 'draft'::text) AND (activated_at IS NULL) AND (retired_at IS NULL)) OR (((status)::text = 'active'::text) AND (activated_at IS NOT NULL) AND (retired_at IS NULL)) OR (((status)::text = 'retired'::text) AND (activated_at IS NOT NULL) AND (retired_at IS NOT NULL)))),
+    CONSTRAINT messaging_credit_rate_versions_status_check CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('active'::character varying)::text, ('retired'::character varying)::text]))),
+    CONSTRAINT messaging_credit_rate_versions_version_check CHECK ((version > 0)),
+    CONSTRAINT messaging_credit_rate_versions_volume_tiers_check CHECK ((jsonb_typeof(volume_tiers) = 'array'::text))
+);
+
+
+--
+-- Name: messaging_credit_reservations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.messaging_credit_reservations (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    credit_account_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    rate_version_id uuid NOT NULL,
+    source_type character varying,
+    source_id uuid,
+    channel character varying NOT NULL,
+    quantity bigint NOT NULL,
+    status character varying DEFAULT 'reserved'::character varying NOT NULL,
+    idempotency_key_digest character varying(64) NOT NULL,
+    reserved_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    resolved_at timestamp with time zone,
+    resolution_code character varying,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT messaging_credit_reservations_channel_check CHECK (((channel)::text = ANY (ARRAY[('sms'::character varying)::text, ('email'::character varying)::text]))),
+    CONSTRAINT messaging_credit_reservations_idempotency_check CHECK (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT messaging_credit_reservations_quantity_check CHECK ((quantity > 0)),
+    CONSTRAINT messaging_credit_reservations_resolution_check CHECK (((((status)::text = 'reserved'::text) AND (resolved_at IS NULL)) OR (((status)::text <> 'reserved'::text) AND (resolved_at IS NOT NULL)))),
+    CONSTRAINT messaging_credit_reservations_source_pair_check CHECK (((source_type IS NULL) = (source_id IS NULL))),
+    CONSTRAINT messaging_credit_reservations_source_type_check CHECK (((source_type IS NULL) OR ((source_type)::text = 'Messaging::CampaignRecipient'::text))),
+    CONSTRAINT messaging_credit_reservations_status_check CHECK (((status)::text = ANY (ARRAY[('reserved'::character varying)::text, ('consumed'::character varying)::text, ('released'::character varying)::text, ('refunded'::character varying)::text, ('expired'::character varying)::text])))
+);
+
+
+--
+-- Name: messaging_credit_top_ups; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.messaging_credit_top_ups (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    credit_account_id uuid NOT NULL,
+    rate_version_id uuid NOT NULL,
+    orders_billing_purchase_id uuid,
+    accepted_payment_id uuid,
+    channel character varying NOT NULL,
+    quantity bigint NOT NULL,
+    currency character varying(3) NOT NULL,
+    amount_minor bigint NOT NULL,
+    price_digest character varying(64) NOT NULL,
+    status character varying DEFAULT 'created'::character varying NOT NULL,
+    provider_reference character varying,
+    idempotency_key_digest character varying(64) NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    request_digest character varying(64) NOT NULL,
+    CONSTRAINT messaging_credit_top_ups_amount_check CHECK (((quantity > 0) AND (amount_minor > 0))),
+    CONSTRAINT messaging_credit_top_ups_channel_check CHECK (((channel)::text = ANY (ARRAY[('sms'::character varying)::text, ('email'::character varying)::text]))),
+    CONSTRAINT messaging_credit_top_ups_idempotency_check CHECK (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT messaging_credit_top_ups_request_check CHECK (((request_digest)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT messaging_credit_top_ups_snapshot_check CHECK ((((currency)::text ~ '^[A-Z]{3}$'::text) AND ((price_digest)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT messaging_credit_top_ups_status_check CHECK (((status)::text = ANY (ARRAY[('created'::character varying)::text, ('pending_payment'::character varying)::text, ('paid'::character varying)::text, ('cancelled'::character varying)::text, ('failed'::character varying)::text, ('reversed'::character varying)::text])))
+);
+
+
+--
 -- Name: messaging_notification_deliveries; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5608,7 +5755,7 @@ CREATE TABLE public.messaging_notifications (
     source_type character varying,
     source_id uuid,
     data jsonb DEFAULT '{}'::jsonb NOT NULL,
-    projection_digest character varying(64) CONSTRAINT messaging_notifications_projection_digest_not_null NOT NULL,
+    projection_digest character varying(64) NOT NULL,
     dedupe_key character varying NOT NULL,
     retention_policy_id uuid NOT NULL,
     retain_until timestamp with time zone,
@@ -5624,6 +5771,35 @@ CREATE TABLE public.messaging_notifications (
     CONSTRAINT messaging_notifications_projection_digest_check CHECK (((projection_digest)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT messaging_notifications_retention_window_check CHECK (((retain_until IS NULL) OR (retain_until > created_at))),
     CONSTRAINT messaging_notifications_source_type_check CHECK (((source_type IS NULL) OR ((source_type)::text = ANY (ARRAY[('Orders::Order'::character varying)::text, ('Orders::Payment'::character varying)::text, ('Orders::Refund'::character varying)::text, ('Ticketing::Ticket'::character varying)::text, ('Ticketing::TicketTransfer'::character varying)::text, ('Ticketing::Registration'::character varying)::text, ('Ticketing::RegistrationConsentRequirement'::character varying)::text, ('Events::Event'::character varying)::text]))))
+);
+
+
+--
+-- Name: orders_billing_purchases; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.orders_billing_purchases (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    requested_by_id uuid NOT NULL,
+    kind character varying NOT NULL,
+    source_type character varying NOT NULL,
+    source_id uuid NOT NULL,
+    currency character varying(3) NOT NULL,
+    amount_minor bigint NOT NULL,
+    price_digest character varying(64) NOT NULL,
+    status character varying DEFAULT 'created'::character varying NOT NULL,
+    provider_reference character varying,
+    idempotency_key_digest character varying(64) NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT orders_billing_purchases_idempotency_check CHECK (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT orders_billing_purchases_kind_check CHECK (((kind)::text = 'messaging_credit_top_up'::text)),
+    CONSTRAINT orders_billing_purchases_snapshot_check CHECK ((((currency)::text ~ '^[A-Z]{3}$'::text) AND (amount_minor > 0) AND ((price_digest)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT orders_billing_purchases_source_check CHECK ((btrim((source_id)::text) <> ''::text)),
+    CONSTRAINT orders_billing_purchases_source_type_check CHECK (((source_type)::text = 'Messaging::CreditTopUp'::text)),
+    CONSTRAINT orders_billing_purchases_status_check CHECK (((status)::text = ANY (ARRAY[('created'::character varying)::text, ('pending_payment'::character varying)::text, ('paid'::character varying)::text, ('cancelled'::character varying)::text, ('failed'::character varying)::text, ('reversed'::character varying)::text])))
 );
 
 
@@ -5797,14 +5973,14 @@ CREATE TABLE public.orders_payment_events (
 
 CREATE TABLE public.orders_payments (
     id uuid DEFAULT uuidv7() NOT NULL,
-    order_id uuid NOT NULL,
+    order_id uuid,
     attempt_number integer NOT NULL,
     provider character varying NOT NULL,
     payment_method character varying NOT NULL,
     status character varying DEFAULT 'created'::character varying NOT NULL,
     amount_minor bigint NOT NULL,
     currency character varying(3) NOT NULL,
-    commercial_signature character varying(64) NOT NULL,
+    commercial_signature character varying(64),
     buyer_fee_minor bigint DEFAULT 0 NOT NULL,
     organizer_fee_minor bigint DEFAULT 0 NOT NULL,
     provider_fee_minor bigint,
@@ -5821,14 +5997,19 @@ CREATE TABLE public.orders_payments (
     superseded_at timestamp with time zone,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
+    billing_purchase_id uuid,
+    billing_purchase_price_digest character varying(64),
     CONSTRAINT orders_payments_accepted_state_check CHECK (((accepted_at IS NULL) OR ((status)::text = 'succeeded'::text))),
     CONSTRAINT orders_payments_amounts_check CHECK (((amount_minor > 0) AND (buyer_fee_minor >= 0) AND (organizer_fee_minor >= 0) AND ((provider_fee_minor IS NULL) OR (provider_fee_minor >= 0)))),
     CONSTRAINT orders_payments_attempt_number_check CHECK (((attempt_number >= 1) AND (attempt_number <= 3))),
-    CONSTRAINT orders_payments_commercial_signature_check CHECK (((commercial_signature)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT orders_payments_billing_price_digest_check CHECK (((billing_purchase_price_digest IS NULL) OR ((billing_purchase_price_digest)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT orders_payments_commercial_signature_check CHECK (((commercial_signature IS NULL) OR ((commercial_signature)::text ~ '^[0-9a-f]{64}$'::text))),
     CONSTRAINT orders_payments_currency_check CHECK ((((currency)::text ~ '^[A-Z]{3}$'::text) AND ((provider_fee_currency IS NULL) OR ((provider_fee_currency)::text ~ '^[A-Z]{3}$'::text)))),
+    CONSTRAINT orders_payments_exactly_one_subject_check CHECK (((((order_id IS NOT NULL))::integer + ((billing_purchase_id IS NOT NULL))::integer) = 1)),
     CONSTRAINT orders_payments_grace_minutes_check CHECK (((settlement_grace_minutes >= 3) AND (settlement_grace_minutes <= 15))),
     CONSTRAINT orders_payments_provider_fee_pair_check CHECK ((((provider_fee_minor IS NULL) = (provider_fee_currency IS NULL)) AND ((provider_fee_minor IS NULL) OR ((provider_fee_currency)::text = (currency)::text)))),
     CONSTRAINT orders_payments_status_check CHECK (((status)::text = ANY (ARRAY[('created'::character varying)::text, ('processing'::character varying)::text, ('succeeded'::character varying)::text, ('failed'::character varying)::text, ('cancelled'::character varying)::text, ('unknown'::character varying)::text, ('timeout'::character varying)::text, ('reversed'::character varying)::text]))),
+    CONSTRAINT orders_payments_subject_digest_check CHECK ((((order_id IS NOT NULL) AND (commercial_signature IS NOT NULL) AND (billing_purchase_price_digest IS NULL)) OR ((billing_purchase_id IS NOT NULL) AND (commercial_signature IS NULL) AND (billing_purchase_price_digest IS NOT NULL)))),
     CONSTRAINT orders_payments_succeeded_state_check CHECK (((succeeded_at IS NULL) OR ((status)::text = 'succeeded'::text)))
 );
 
@@ -6721,7 +6902,7 @@ CREATE TABLE public.ticketing_scanner_device_idempotencies (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_scanner_device_idempotencies_digest_check CHECK ((((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((request_digest)::text ~ '^[0-9a-f]{64}$'::text))),
-    CONSTRAINT ticketing_scanner_device_idempotencies_operation_check CHECK (((operation)::text = ANY ((ARRAY['rotate_token'::character varying, 'revoke'::character varying])::text[])))
+    CONSTRAINT ticketing_scanner_device_idempotencies_operation_check CHECK (((operation)::text = ANY (ARRAY[('rotate_token'::character varying)::text, ('revoke'::character varying)::text])))
 );
 
 
@@ -7578,6 +7759,46 @@ ALTER TABLE ONLY public.marketplace_seller_payouts
 
 
 --
+-- Name: messaging_credit_accounts messaging_credit_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_credit_accounts
+    ADD CONSTRAINT messaging_credit_accounts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: messaging_credit_ledger_entries messaging_credit_ledger_entries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_credit_ledger_entries
+    ADD CONSTRAINT messaging_credit_ledger_entries_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: messaging_credit_rate_versions messaging_credit_rate_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_credit_rate_versions
+    ADD CONSTRAINT messaging_credit_rate_versions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: messaging_credit_reservations messaging_credit_reservations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_credit_reservations
+    ADD CONSTRAINT messaging_credit_reservations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: messaging_credit_top_ups messaging_credit_top_ups_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_credit_top_ups
+    ADD CONSTRAINT messaging_credit_top_ups_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: messaging_notification_deliveries messaging_notification_deliveries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7599,6 +7820,14 @@ ALTER TABLE ONLY public.messaging_notification_preferences
 
 ALTER TABLE ONLY public.messaging_notifications
     ADD CONSTRAINT messaging_notifications_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: orders_billing_purchases orders_billing_purchases_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_billing_purchases
+    ADD CONSTRAINT orders_billing_purchases_pkey PRIMARY KEY (id);
 
 
 --
@@ -8475,6 +8704,90 @@ CREATE INDEX idx_marketplace_seller_payouts_on_seller_status_requested ON public
 
 
 --
+-- Name: idx_messaging_credit_accounts_organization_channel; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_messaging_credit_accounts_organization_channel ON public.messaging_credit_accounts USING btree (organization_id, channel);
+
+
+--
+-- Name: idx_messaging_credit_ledger_account_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_messaging_credit_ledger_account_created ON public.messaging_credit_ledger_entries USING btree (credit_account_id, created_at, id);
+
+
+--
+-- Name: idx_messaging_credit_ledger_account_operation; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_messaging_credit_ledger_account_operation ON public.messaging_credit_ledger_entries USING btree (credit_account_id, entry_type, idempotency_key_digest);
+
+
+--
+-- Name: idx_messaging_credit_ledger_reference; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_messaging_credit_ledger_reference ON public.messaging_credit_ledger_entries USING btree (reference_type, reference_id);
+
+
+--
+-- Name: idx_messaging_credit_rates_resolution; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_messaging_credit_rates_resolution ON public.messaging_credit_rate_versions USING btree (channel, country_code, status, effective_from);
+
+
+--
+-- Name: idx_messaging_credit_rates_scope_version; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_messaging_credit_rates_scope_version ON public.messaging_credit_rate_versions USING btree (organization_id, channel, currency, country_code, version) NULLS NOT DISTINCT;
+
+
+--
+-- Name: idx_messaging_credit_reservations_account_idempotency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_messaging_credit_reservations_account_idempotency ON public.messaging_credit_reservations USING btree (credit_account_id, idempotency_key_digest);
+
+
+--
+-- Name: idx_messaging_credit_reservations_active; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_messaging_credit_reservations_active ON public.messaging_credit_reservations USING btree (credit_account_id, status, reserved_at) WHERE ((status)::text = 'reserved'::text);
+
+
+--
+-- Name: idx_messaging_credit_reservations_source_channel; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_messaging_credit_reservations_source_channel ON public.messaging_credit_reservations USING btree (source_type, source_id, channel) WHERE ((source_type IS NOT NULL) AND (source_id IS NOT NULL));
+
+
+--
+-- Name: idx_messaging_credit_top_ups_account_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_messaging_credit_top_ups_account_status ON public.messaging_credit_top_ups USING btree (credit_account_id, status, created_at);
+
+
+--
+-- Name: idx_messaging_credit_top_ups_billing_purchase; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_messaging_credit_top_ups_billing_purchase ON public.messaging_credit_top_ups USING btree (orders_billing_purchase_id) WHERE (orders_billing_purchase_id IS NOT NULL);
+
+
+--
+-- Name: idx_messaging_credit_top_ups_organization_idempotency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_messaging_credit_top_ups_organization_idempotency ON public.messaging_credit_top_ups USING btree (organization_id, idempotency_key_digest);
+
+
+--
 -- Name: idx_messaging_notification_deliveries_claimable; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8818,6 +9131,13 @@ CREATE INDEX idx_on_user_id_category_released_at_516f0054eb ON public.core_data_
 
 
 --
+-- Name: idx_one_accepted_billing_payment; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_one_accepted_billing_payment ON public.orders_payments USING btree (billing_purchase_id) WHERE (accepted_at IS NOT NULL);
+
+
+--
 -- Name: idx_one_accepted_payment_per_order; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8860,6 +9180,13 @@ CREATE UNIQUE INDEX idx_one_consent_acceptance_per_requirement ON public.ticketi
 
 
 --
+-- Name: idx_one_current_billing_payment_attempt; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_one_current_billing_payment_attempt ON public.orders_payments USING btree (billing_purchase_id) WHERE ((superseded_at IS NULL) AND ((status)::text = ANY (ARRAY[('created'::character varying)::text, ('processing'::character varying)::text])));
+
+
+--
 -- Name: idx_one_current_payment_attempt; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8877,7 +9204,7 @@ CREATE UNIQUE INDEX idx_one_individual_credential_per_slot ON public.ticketing_c
 -- Name: idx_one_open_resale_listing_per_ticket; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_one_open_resale_listing_per_ticket ON public.marketplace_resale_listings USING btree (ticket_id) WHERE ((status)::text = ANY ((ARRAY['active'::character varying, 'reserved'::character varying])::text[]));
+CREATE UNIQUE INDEX idx_one_open_resale_listing_per_ticket ON public.marketplace_resale_listings USING btree (ticket_id) WHERE ((status)::text = ANY (ARRAY[('active'::character varying)::text, ('reserved'::character varying)::text]));
 
 
 --
@@ -9042,6 +9369,27 @@ CREATE INDEX idx_order_items_on_order_fulfillment ON public.orders_order_items U
 
 
 --
+-- Name: idx_orders_billing_purchases_organization_idempotency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_orders_billing_purchases_organization_idempotency ON public.orders_billing_purchases USING btree (organization_id, idempotency_key_digest);
+
+
+--
+-- Name: idx_orders_billing_purchases_source; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_orders_billing_purchases_source ON public.orders_billing_purchases USING btree (source_type, source_id);
+
+
+--
+-- Name: idx_orders_billing_purchases_status_expiry; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_orders_billing_purchases_status_expiry ON public.orders_billing_purchases USING btree (status, expires_at);
+
+
+--
 -- Name: idx_orders_on_creation_request_digest; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9095,6 +9443,13 @@ CREATE UNIQUE INDEX idx_payment_events_on_provider_event ON public.orders_paymen
 --
 
 CREATE INDEX idx_payment_events_on_status_and_received ON public.orders_payment_events USING btree (status, received_at);
+
+
+--
+-- Name: idx_payments_on_billing_purchase_and_attempt; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_payments_on_billing_purchase_and_attempt ON public.orders_payments USING btree (billing_purchase_id, attempt_number);
 
 
 --
@@ -11142,6 +11497,13 @@ CREATE TRIGGER trg_marketplace_seller_payout_allocation_integrity BEFORE INSERT 
 
 
 --
+-- Name: messaging_credit_ledger_entries trg_messaging_credit_ledger_entry_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_messaging_credit_ledger_entry_immutable BEFORE DELETE OR UPDATE ON public.messaging_credit_ledger_entries FOR EACH ROW EXECUTE FUNCTION public.messaging_credit_ledger_entry_immutable();
+
+
+--
 -- Name: orders_order_adjustments trg_orders_order_adjustment_immutable; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -11507,6 +11869,14 @@ ALTER TABLE ONLY public.orders_order_adjustments
 
 
 --
+-- Name: orders_payments fk_orders_payments_billing_purchase; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_payments
+    ADD CONSTRAINT fk_orders_payments_billing_purchase FOREIGN KEY (billing_purchase_id) REFERENCES public.orders_billing_purchases(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: ticketing_admission_uses fk_rails_00b9e125c9; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11723,6 +12093,14 @@ ALTER TABLE ONLY public.ticketing_registrations
 
 
 --
+-- Name: messaging_credit_reservations fk_rails_0eb2a12d0b; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_credit_reservations
+    ADD CONSTRAINT fk_rails_0eb2a12d0b FOREIGN KEY (rate_version_id) REFERENCES public.messaging_credit_rate_versions(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: legal_document_versions fk_rails_10caebc056; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11883,6 +12261,14 @@ ALTER TABLE ONLY public.orders_payment_events
 
 
 --
+-- Name: messaging_credit_accounts fk_rails_1e64551c0f; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_credit_accounts
+    ADD CONSTRAINT fk_rails_1e64551c0f FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: marketplace_resale_sales fk_rails_1e8b072bd6; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11904,6 +12290,14 @@ ALTER TABLE ONLY public.orders_refund_items
 
 ALTER TABLE ONLY public.ticketing_tickets
     ADD CONSTRAINT fk_rails_1ef2780902 FOREIGN KEY (event_product_id) REFERENCES public.catalog_event_products(id);
+
+
+--
+-- Name: messaging_credit_rate_versions fk_rails_1f799c3667; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_credit_rate_versions
+    ADD CONSTRAINT fk_rails_1f799c3667 FOREIGN KEY (created_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
 
 
 --
@@ -12104,6 +12498,14 @@ ALTER TABLE ONLY public.events_access_zones
 
 ALTER TABLE ONLY public.ticketing_registration_consents
     ADD CONSTRAINT fk_rails_2fd38622e7 FOREIGN KEY (accepted_by_user_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: messaging_credit_top_ups fk_rails_301820a54f; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_credit_top_ups
+    ADD CONSTRAINT fk_rails_301820a54f FOREIGN KEY (orders_billing_purchase_id) REFERENCES public.orders_billing_purchases(id) ON DELETE RESTRICT;
 
 
 --
@@ -12803,6 +13205,14 @@ ALTER TABLE ONLY public.orders_refund_items
 
 
 --
+-- Name: messaging_credit_top_ups fk_rails_7b90586e39; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_credit_top_ups
+    ADD CONSTRAINT fk_rails_7b90586e39 FOREIGN KEY (credit_account_id) REFERENCES public.messaging_credit_accounts(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: links_short_link_clicks fk_rails_7bc77e7f20; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13043,6 +13453,14 @@ ALTER TABLE ONLY public.ticketing_purchase_limit_overrides
 
 
 --
+-- Name: messaging_credit_top_ups fk_rails_98514995d3; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_credit_top_ups
+    ADD CONSTRAINT fk_rails_98514995d3 FOREIGN KEY (accepted_payment_id) REFERENCES public.orders_payments(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: ticketing_admission_uses fk_rails_987a35c78c; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13072,6 +13490,14 @@ ALTER TABLE ONLY public.ticketing_credential_revocations
 
 ALTER TABLE ONLY public.events_consent_document_versions
     ADD CONSTRAINT fk_rails_9b125d6d31 FOREIGN KEY (created_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: messaging_credit_top_ups fk_rails_9b6a4e7f01; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_credit_top_ups
+    ADD CONSTRAINT fk_rails_9b6a4e7f01 FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE RESTRICT;
 
 
 --
@@ -13275,6 +13701,14 @@ ALTER TABLE ONLY public.ticketing_scanner_devices
 
 
 --
+-- Name: messaging_credit_rate_versions fk_rails_b406205af8; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_credit_rate_versions
+    ADD CONSTRAINT fk_rails_b406205af8 FOREIGN KEY (retired_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: orders_refund_adjustment_allocations fk_rails_b47112cd4c; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13331,6 +13765,14 @@ ALTER TABLE ONLY public.orders_refund_items
 
 
 --
+-- Name: messaging_credit_reservations fk_rails_ba6f192da7; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_credit_reservations
+    ADD CONSTRAINT fk_rails_ba6f192da7 FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: ticketing_revocations fk_rails_bb0a8d8c5d; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13352,6 +13794,14 @@ ALTER TABLE ONLY public.orders_refunds
 
 ALTER TABLE ONLY public.legal_documents
     ADD CONSTRAINT fk_rails_bd145f2b2b FOREIGN KEY (created_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: messaging_credit_top_ups fk_rails_bdd66976f0; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_credit_top_ups
+    ADD CONSTRAINT fk_rails_bdd66976f0 FOREIGN KEY (rate_version_id) REFERENCES public.messaging_credit_rate_versions(id) ON DELETE RESTRICT;
 
 
 --
@@ -13472,6 +13922,14 @@ ALTER TABLE ONLY public.ticketing_invitations
 
 ALTER TABLE ONLY public.events_event_organizations
     ADD CONSTRAINT fk_rails_ca5c06224a FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE CASCADE;
+
+
+--
+-- Name: messaging_credit_ledger_entries fk_rails_ca5c2af09a; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_credit_ledger_entries
+    ADD CONSTRAINT fk_rails_ca5c2af09a FOREIGN KEY (rate_version_id) REFERENCES public.messaging_credit_rate_versions(id) ON DELETE RESTRICT;
 
 
 --
@@ -13603,6 +14061,14 @@ ALTER TABLE ONLY public.marketplace_resale_listings
 
 
 --
+-- Name: messaging_credit_rate_versions fk_rails_d794dd507c; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_credit_rate_versions
+    ADD CONSTRAINT fk_rails_d794dd507c FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: core_reauthentication_proofs fk_rails_d799f90d96; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13616,6 +14082,14 @@ ALTER TABLE ONLY public.core_reauthentication_proofs
 
 ALTER TABLE ONLY public.ticketing_registration_consent_requirements
     ADD CONSTRAINT fk_rails_d812807a6e FOREIGN KEY (supersedes_requirement_id) REFERENCES public.ticketing_registration_consent_requirements(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: orders_billing_purchases fk_rails_db427d4582; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_billing_purchases
+    ADD CONSTRAINT fk_rails_db427d4582 FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE RESTRICT;
 
 
 --
@@ -13664,6 +14138,14 @@ ALTER TABLE ONLY public.marketplace_seller_ledger_entries
 
 ALTER TABLE ONLY public.ticketing_registrations
     ADD CONSTRAINT fk_rails_de5c6ebe08 FOREIGN KEY (access_code_id) REFERENCES public.ticketing_access_codes(id);
+
+
+--
+-- Name: messaging_credit_rate_versions fk_rails_df3f5ff565; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_credit_rate_versions
+    ADD CONSTRAINT fk_rails_df3f5ff565 FOREIGN KEY (activated_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
 
 
 --
@@ -13851,6 +14333,14 @@ ALTER TABLE ONLY public.finance_payouts
 
 
 --
+-- Name: orders_billing_purchases fk_rails_ef01ec4cb7; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_billing_purchases
+    ADD CONSTRAINT fk_rails_ef01ec4cb7 FOREIGN KEY (requested_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: events_event_categories fk_rails_f01a03d541; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14011,6 +14501,22 @@ ALTER TABLE ONLY public.ticketing_ticket_transfers
 
 
 --
+-- Name: messaging_credit_reservations fk_rails_fd811d732e; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_credit_reservations
+    ADD CONSTRAINT fk_rails_fd811d732e FOREIGN KEY (credit_account_id) REFERENCES public.messaging_credit_accounts(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: messaging_credit_ledger_entries fk_rails_ff939d5ddb; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.messaging_credit_ledger_entries
+    ADD CONSTRAINT fk_rails_ff939d5ddb FOREIGN KEY (credit_account_id) REFERENCES public.messaging_credit_accounts(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: catalog_product_access_zones fk_rails_ffe7c83358; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14033,6 +14539,11 @@ ALTER TABLE ONLY public.ticketing_ticket_suspensions
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260904090005'),
+('20260904090004'),
+('20260904090003'),
+('20260904090002'),
+('20260904090001'),
 ('20260903090003'),
 ('20260903090002'),
 ('20260903090001'),
@@ -14081,6 +14592,7 @@ INSERT INTO "schema_migrations" (version) VALUES
 ('20260811090003'),
 ('20260811090002'),
 ('20260811090001'),
+('20260811085959'),
 ('20260808090012'),
 ('20260808090011'),
 ('20260808090010'),
