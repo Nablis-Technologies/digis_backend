@@ -221,6 +221,19 @@ permissions.concat([
     description: I18n.t("finance.permissions.payout_account_verify") }
 ])
 
+permissions.concat([
+  { resource: "messaging_credit_account", action: "index", namespace: "messaging", description: "View messaging credit balances" },
+  { resource: "messaging_credit_account", action: "show", namespace: "messaging", description: "View a messaging credit account" },
+  { resource: "messaging_credit_top_up", action: "create", namespace: "messaging", description: "Purchase messaging credits" },
+  { resource: "messaging_credit_top_up", action: "show", namespace: "messaging", description: "View a messaging credit top-up" },
+  { resource: "messaging_credit_rate", action: "index", namespace: "messaging", description: "View messaging credit rates" },
+  { resource: "messaging_credit_rate", action: "show", namespace: "messaging", description: "View a messaging credit rate" },
+  { resource: "messaging_credit_rate", action: "create", namespace: "messaging", description: "Create messaging credit rates" },
+  { resource: "messaging_credit_rate", action: "activate", namespace: "messaging", description: "Activate messaging credit rates" },
+  { resource: "messaging_credit_rate", action: "retire", namespace: "messaging", description: "Retire messaging credit rates" },
+  { resource: "messaging_credit_adjustment", action: "create", namespace: "messaging", description: "Adjust messaging credits" }
+])
+
 permissions.each do |perm|
   Core::Permission.find_or_create_by!(resource: perm[:resource], action: perm[:action], namespace: perm[:namespace]) do |p|
     p.description = perm[:description]
@@ -276,6 +289,16 @@ organizer_export_permissions = Core::Permission.where(
 )
 organizer_export_permissions.find_each do |perm|
   Core::RolePermission.find_or_create_by!(role: organizer_role, permission: perm)
+end
+
+[
+  [ "messaging_credit_account", %w[index show] ],
+  [ "messaging_credit_top_up", %w[create show] ],
+  [ "messaging_credit_rate", %w[index show] ]
+].each do |resource, actions|
+  Core::Permission.where(resource:, action: actions, namespace: "messaging").find_each do |perm|
+    Core::RolePermission.find_or_create_by!(role: organizer_role, permission: perm)
+  end
 end
 
 # USER gets basic event and ticket viewing permissions

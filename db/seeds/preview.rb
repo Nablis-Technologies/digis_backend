@@ -14,6 +14,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 require "base64"
+require "digest"
 require "stringio"
 require "vips"
 
@@ -98,6 +99,31 @@ def seed_registration_form_version(form, question_specs, actor)
   raise result.error.message unless result.success?
 
   version
+end
+
+def seed_credit_rate(organization:, channel:, version:, unit_price_minor:, volume_tiers: [])
+  rate = Messaging::CreditRateVersion.find_or_initialize_by(
+    organization_id: organization&.id, channel:, country_code: nil, version:
+  )
+  return rate if rate.persisted?
+
+  rate.assign_attributes(
+    currency: "ETB", unit_price_minor:, volume_tiers:, effective_from: 1.day.ago,
+    status: "active", activated_at: 1.day.ago,
+    idempotency_key_digest: Digest::SHA256.hexdigest("preview-credit-rate-#{organization&.id}-#{channel}-#{version}"),
+    request_digest: Digest::SHA256.hexdigest("preview-credit-rate-request-#{organization&.id}-#{channel}-#{version}")
+  )
+  rate.save!
+  rate
+end
+
+def seed_credit_balance(account:, quantity:, marker:)
+  return if account.ledger_entries.exists?(entry_type: "top_up", idempotency_key_digest: Digest::SHA256.hexdigest(marker))
+
+  account.ledger_entries.create!(
+    entry_type: "top_up", quantity:, available_delta: quantity,
+    idempotency_key_digest: Digest::SHA256.hexdigest(marker), metadata: { "seed" => true }
+  )
 end
 
 # Base creates the shared identities and roles; preview only resolves them.
@@ -1432,6 +1458,25 @@ seed_preview_notification(
 )
 
 puts "✓ Seeded notification inbox fixtures for #{attendee.email} and #{organizer.email}"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 12. Messaging credit fixtures (inputs only; delivery terminal states remain
+# commands/jobs owned by the Messaging plan).
+puts "\n💬 Seeding messaging credit rates and balances..."
+
+seed_credit_rate(
+  organization: nil, channel: "sms", version: 1, unit_price_minor: 25,
+  volume_tiers: [ { "from" => 1000, "to" => nil, "unit_price_minor" => 20 } ]
+)
+seed_credit_rate(organization: nil, channel: "email", version: 1, unit_price_minor: 5)
+seed_credit_rate(organization: fest_org, channel: "sms", version: 1, unit_price_minor: 18)
+
+[ [ digis_hq, "sms", 1000 ], [ digis_hq, "email", 500 ], [ fest_org, "sms", 1000 ], [ fest_org, "email", 500 ] ].each do |organization, channel, quantity|
+  account = Messaging::CreditAccount.find_or_create_by!(organization:, channel:)
+  seed_credit_balance(account:, quantity:, marker: "preview-credit-grant-#{organization.id}-#{channel}")
+end
+
+puts "✓ #{Messaging::CreditRateVersion.count} credit rates and #{Messaging::CreditAccount.count} credit accounts seeded"
 
 puts "✓ #{chapa_event.title} published with #{chapa_product.name} and " \
      "#{chapa_ticket_product.name} active"

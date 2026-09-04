@@ -13185,6 +13185,125 @@
           ]
         }
       ]
+    },
+    {
+      "name": "Messaging Credits",
+      "item": [
+        {
+          "name": "List Credit Balances",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/organizations/{{organizationId}}/messaging/credits", "host": [ "{{baseUrl}}" ], "path": [ "organizations", "{{organizationId}}", "messaging", "credits" ] }
+          },
+          "response": [
+            {
+              "name": "Credit balances",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [ { "key": "Content-Type", "value": "application/json" } ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"data\": [\n    { \"channel\": \"sms\", \"available\": 1000, \"reserved\": 0, \"consumed\": 0, \"released\": 0, \"refunded\": 0 },\n    { \"channel\": \"email\", \"available\": 500, \"reserved\": 0, \"consumed\": 0, \"released\": 0, \"refunded\": 0 }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Credit Ledger",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/organizations/{{organizationId}}/messaging/credit_ledger?page=1&per_page=25", "host": [ "{{baseUrl}}" ], "path": [ "organizations", "{{organizationId}}", "messaging", "credit_ledger" ], "query": [ { "key": "page", "value": "1" }, { "key": "per_page", "value": "25" } ] }
+          },
+          "response": []
+        },
+        {
+          "name": "List Applicable Credit Rates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/organizations/{{organizationId}}/messaging/credit_rates", "host": [ "{{baseUrl}}" ], "path": [ "organizations", "{{organizationId}}", "messaging", "credit_rates" ] }
+          },
+          "response": []
+        },
+        {
+          "name": "Estimate Credit Top-Up",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json", "type": "text" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"credit_estimate\": {\n    \"channel\": \"sms\",\n    \"quantity\": 1000,\n    \"currency\": \"ETB\",\n    \"country_code\": \"ET\"\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/organizations/{{organizationId}}/messaging/credit_estimates", "host": [ "{{baseUrl}}" ], "path": [ "organizations", "{{organizationId}}", "messaging", "credit_estimates" ] }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Credit Top-Up",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"credit_top_up\": {\n    \"channel\": \"sms\",\n    \"quantity\": 1000,\n    \"currency\": \"ETB\",\n    \"provider\": \"chapa\",\n    \"payment_method\": \"telebirr\"\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/organizations/{{organizationId}}/messaging/credit_top_ups", "host": [ "{{baseUrl}}" ], "path": [ "organizations", "{{organizationId}}", "messaging", "credit_top_ups" ] }
+          },
+          "response": [
+            {
+              "name": "Top-up payment response",
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [ { "key": "Content-Type", "value": "application/json" } ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"top_up\": { \"id\": \"topup_01HXExample\", \"channel\": \"sms\", \"quantity\": 1000, \"currency\": \"ETB\", \"amount_minor\": 20000, \"status\": \"pending_payment\" },\n    \"payment\": { \"id\": \"payment_01HXExample\", \"status\": \"processing\", \"checkout_url\": \"https://checkout.chapa.test/example\" }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Credit Top-Up",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/organizations/{{organizationId}}/messaging/credit_top_ups/{{creditTopUpId}}", "host": [ "{{baseUrl}}" ], "path": [ "organizations", "{{organizationId}}", "messaging", "credit_top_ups", "{{creditTopUpId}}" ] }
+          },
+          "response": []
+        },
+        {
+          "name": "Admin Create Credit Rate",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"credit_rate_version\": {\n    \"channel\": \"sms\",\n    \"currency\": \"ETB\",\n    \"unit_price_minor\": 25,\n    \"effective_from\": \"2026-09-04T00:00:00Z\"\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/admin/messaging/credit_rates", "host": [ "{{baseUrl}}" ], "path": [ "admin", "messaging", "credit_rates" ] }
+          },
+          "response": []
+        },
+        {
+          "name": "Admin Activate Credit Rate",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" } ],
+            "url": { "raw": "{{baseUrl}}/admin/messaging/credit_rates/{{creditRateId}}/activate", "host": [ "{{baseUrl}}" ], "path": [ "admin", "messaging", "credit_rates", "{{creditRateId}}", "activate" ] }
+          },
+          "response": []
+        },
+        {
+          "name": "Admin Retire Credit Rate",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" } ],
+            "url": { "raw": "{{baseUrl}}/admin/messaging/credit_rates/{{creditRateId}}/retire", "host": [ "{{baseUrl}}" ], "path": [ "admin", "messaging", "credit_rates", "{{creditRateId}}", "retire" ] }
+          },
+          "response": []
+        },
+        {
+          "name": "Admin Adjust Credit Balance",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"credit_adjustment\": {\n    \"channel\": \"sms\",\n    \"quantity\": 100,\n    \"reason\": \"Support correction\"\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/admin/organizations/{{organizationId}}/messaging/credit_adjustments", "host": [ "{{baseUrl}}" ], "path": [ "admin", "organizations", "{{organizationId}}", "messaging", "credit_adjustments" ] }
+          },
+          "response": []
+        }
+      ]
     }
   ]
 }
