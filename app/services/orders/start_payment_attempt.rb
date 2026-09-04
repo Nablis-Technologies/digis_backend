@@ -6,6 +6,8 @@ module Orders
   # local attempt before provider I/O so a timeout remains verifiable rather
   # than silently creating a duplicate charge.
   class StartPaymentAttempt < Core::BaseService
+    include PaymentAttemptSupport
+
     MAX_ATTEMPTS = 3
     FEE_TYPES = %w[service_fee platform_fee processing_fee resale_platform_fee].freeze
 
@@ -35,7 +37,7 @@ module Orders
       cancel_superseded_attempt!(state[:superseded_payment])
       provider_result = create_with_provider(adapter.value, state[:payment])
       persist_provider_result(state[:payment].id, provider_result)
-    rescue AttemptAbort => error
+    rescue PaymentAttemptSupport::AttemptAbort => error
       failure(error.business_error)
     rescue ArgumentError
       failure(payment_error(:invalid_idempotency_key, code: "invalid_idempotency_key"))
@@ -52,24 +54,8 @@ module Orders
     attr_reader :order, :buyer, :provider, :payment_method, :raw_idempotency_key, :now,
                 :idempotency_key
 
-    def prepare_idempotency!
-      key = Core::IdempotencyKey.new(raw_idempotency_key)
-      @idempotency_key = key.to_s
-    end
-
     def resolve_adapter
-      return failure_result(:invalid_provider, code: "invalid_payment_provider") unless Payment::PROVIDERS.include?(provider)
-      return failure_result(:invalid_payment_method, code: "invalid_payment_method") unless Payment::PAYMENT_METHODS.include?(payment_method)
-
-      adapter = Payments::Providers::Registry.fetch(provider)
-      return failure_result(:provider_method_unsupported, code: "payment_method_unsupported", status: :unprocessable_entity) unless supported?(adapter, :payment_methods, payment_method)
-      return failure_result(:provider_currency_unsupported, code: "payment_currency_unsupported", status: :unprocessable_entity) unless supported?(adapter, :currencies, order_currency)
-
-      success(adapter)
-    rescue KeyError
-      failure_result(:provider_unavailable, code: "payment_provider_unavailable", status: :service_unavailable)
-    rescue ArgumentError
-      failure_result(:provider_unavailable, code: "payment_provider_unavailable", status: :service_unavailable)
+      resolve_payment_adapter(currency: order_currency, invalid_provider_key: :invalid_provider)
     end
 
     def reserve_attempt!(adapter)
@@ -217,60 +203,11 @@ module Orders
       )
       success(payment.reload)
     rescue ActiveRecord::RecordInvalid
-      payment.update_columns(
-        status: "processing",
-        provider_reference: result.provider_reference,
-        failure_code: nil,
-        provider_fee_minor: nil,
-        provider_fee_currency: nil,
-        checkout_url: payment.checkout_url,
-        raw_status: "provider_result_invalid",
-        updated_at: Time.current
-      )
-      success(payment.reload)
-    end
-
-    def payment_status_for(result)
-      return "processing" if result.status.in?(%w[unknown timeout])
-
-      { "success" => "succeeded", "failure" => "failed", "cancelled" => "cancelled" }.fetch(result.status)
-    end
-
-    def supported?(adapter, key, expected)
-      values = capability(adapter, key)
-      return true if values.blank?
-
-      Array(values).map { |value| value.to_s.downcase }.include?(expected.to_s.downcase)
-    end
-
-    def capability(adapter, key)
-      capabilities = adapter.capabilities.to_h
-      capabilities[key] || capabilities[key.to_s]
+      recover_invalid_provider_result(payment:, result:)
     end
 
     def order_currency
       order.charge_currency.to_s.upcase
-    end
-
-    def failure_result(key, code:, status: :unprocessable_entity)
-      failure(payment_error(key, code:, status:))
-    end
-
-    def payment_error(key, code:, status: :unprocessable_entity)
-      Core::BusinessError.new(I18n.t("orders.payments.errors.#{key}"), code:, status:)
-    end
-
-    def abort_with(error)
-      raise AttemptAbort, error
-    end
-
-    class AttemptAbort < Core::Error
-      attr_reader :business_error
-
-      def initialize(error)
-        @business_error = error
-        super(error.message)
-      end
     end
   end
 end
