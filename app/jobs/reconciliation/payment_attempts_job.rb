@@ -25,6 +25,7 @@ module Reconciliation
     def candidate_scope(now)
       Orders::Payment
         .where(status: "processing")
+        .where.not(order_id: nil)
         .where("settlement_grace_expires_at <= ?", now)
     end
 
