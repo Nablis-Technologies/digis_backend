@@ -13,6 +13,8 @@ module Orders
     end
 
     def call
+      return failure(payment_error(:event_payment_required, status: :unprocessable_entity)) if @payment.billing_payment?
+
       ActiveRecord::Base.transaction do
         order_id = Orders::Payment.where(id: @payment.id).pick(:order_id)
         order = Orders::Order.includes(:event).lock.find(order_id)
@@ -60,6 +62,10 @@ module Orders
     end
 
     private
+
+    def payment_error(key, status: :unprocessable_entity)
+      Core::BusinessError.new(I18n.t("orders.payments.errors.#{key}"), code: key.to_s, status:)
+    end
 
     attr_reader :payment, :payment_event, :now
 

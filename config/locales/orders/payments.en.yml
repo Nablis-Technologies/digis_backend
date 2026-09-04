@@ -20,6 +20,9 @@ en:
         payment_succeeded_pending_acceptance: "This order has a payment awaiting acceptance"
         payment_attempt_limit_reached: "The maximum number of payment attempts has been reached"
         provider_result_invalid: "The payment provider returned an invalid result"
+        billing_purchase_closed: "This billing purchase is already closed"
+        billing_purchase_expired: "This billing purchase has expired"
+        event_payment_required: "This operation only supports event-order payments"
       webhooks:
         received: "Payment notification received"
         errors:
@@ -47,6 +50,7 @@ en:
         errors:
           invalid_reversal_reason: "The payment reversal reason is invalid"
           payment_not_reversible: "The payment cannot be reversed"
+          event_payment_required: "Payment reversals only support event-order payments"
           reversal_failed: "The payment reversal could not be recorded"
           reversal_conflict: "The payment reversal conflicts with an existing obligation"
         reasons:

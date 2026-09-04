@@ -13,6 +13,7 @@ module Orders
 
     def call
       candidate = Orders::Payment.find(@payment_id)
+      return failure(grace_error(:event_payment_required, code: "event_payment_required")) if candidate.billing_payment?
       return success(candidate) unless due?(candidate)
 
       verification = verify_provider(candidate)
