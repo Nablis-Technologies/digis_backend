@@ -25,7 +25,11 @@ module Orders
         event.update!(payment_id: payment.id) if event.payment_id.nil?
 
         if success_event?(event)
-          acceptance = Orders::AcceptPayment.call(payment:, payment_event: event)
+          acceptance = if payment.billing_payment?
+            Orders::AcceptBillingPayment.call(payment:, payment_event: event)
+          else
+            Orders::AcceptPayment.call(payment:, payment_event: event)
+          end
           return fail_event!(event, acceptance.error) if acceptance.failure?
         else
           apply_non_success_state!(payment, event)
@@ -63,30 +67,73 @@ module Orders
 
     def apply_non_success_state!(payment, locked_event)
       status = locked_event.payload["status"].to_s.downcase
-      target = if FAILURE_EVENT_STATUSES.include?(status)
+      target = if payment.billing_payment? && %w[reversed refunded].include?(status)
+        "reversed"
+      elsif FAILURE_EVENT_STATUSES.include?(status)
         "failed"
       elsif CANCELLED_EVENT_STATUSES.include?(status)
         "cancelled"
       end
-      return unless target && payment.accepted_at.nil? && payment.status.in?(%w[created processing])
+      return unless target
+      if target == "reversed" && payment.billing_payment?
+        if payment.accepted_at.present?
+          payment.update!(failure_code: locked_event.payload["failure_code"].to_s.presence)
+          payment.billing_purchase.update!(status: "reversed")
+          publish_failure!(payment, locked_event, event_type: "orders.billing_payment.reversed")
+        elsif payment.succeeded_at.present?
+          # An unaccepted duplicate is already provider evidence; do not
+          # downgrade the valid purchase or revoke credits for another attempt.
+          payment.update!(failure_code: locked_event.payload["failure_code"].to_s.presence)
+        else
+          payment.update!(status: "reversed")
+          if billing_purchase_should_close?(payment, payment.billing_purchase)
+            payment.billing_purchase.update!(status: "reversed")
+            publish_failure!(payment, locked_event, event_type: "orders.billing_payment.reversed")
+          end
+        end
+        return
+      end
+      return unless payment.accepted_at.nil? && payment.status.in?(%w[created processing])
 
       payment.update!(status: target, failure_code: locked_event.payload["failure_code"].to_s.presence)
-      publish_failure!(payment, locked_event) if target == "failed"
+      if target == "failed"
+        billing_purchase = payment.billing_purchase
+        billing_purchase.update!(status: "failed") if billing_purchase_should_close?(payment, billing_purchase)
+        publish_failure!(
+          payment, locked_event,
+          event_type: payment.billing_payment? ? "orders.billing_payment.failed" : "orders.payment.failed"
+        )
+      elsif target == "cancelled"
+        billing_purchase = payment.billing_purchase
+        billing_purchase.update!(status: "cancelled") if billing_purchase_should_close?(payment, billing_purchase)
+      end
+    end
+
+    def billing_purchase_should_close?(payment, purchase)
+      # Only the current, still-open attempt may close a billing purchase. A
+      # superseded or concurrently active attempt keeps the purchase retryable.
+      return false unless purchase && purchase.status.in?(%w[created pending_payment])
+      return false if payment.superseded_at.present?
+
+      !purchase.payments.where(status: %w[created processing succeeded]).where.not(id: payment.id).exists?
     end
 
     # The payment failure event is emitted in the same transaction as the
     # authoritative status transition, so notification projection cannot race
     # a still-processing payment or publish twice for one provider event.
-    def publish_failure!(payment, locked_event)
+    def publish_failure!(payment, locked_event, event_type: "orders.payment.failed")
       result = Core::Outbox::Publish.call(
         topic: "orders",
-        event_type: "orders.payment.failed",
+        event_type:,
         aggregate: payment,
         payload: {
           payment_id: payment.id,
           payment_event_id: locked_event.id,
           order_id: payment.order_id,
-          event_id: payment.order.event_id,
+          event_id: payment.order&.event_id,
+          billing_purchase_id: payment.billing_purchase_id,
+          source_type: payment.billing_purchase&.source_type,
+          source_id: payment.billing_purchase&.source_id,
           failure_code: payment.failure_code
         }.compact,
         idempotency_key: "orders-payment-failed-#{locked_event.id}"
