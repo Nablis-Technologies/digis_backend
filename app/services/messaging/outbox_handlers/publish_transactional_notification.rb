@@ -31,6 +31,8 @@ module Messaging
         return enqueue_schedule_fanout if type == "schedule_changed"
 
         source = source_for(@event.event_type)
+        return success(@event) if source.is_a?(Orders::Refund) && source.payment&.billing_payment?
+
         definition = NotificationTypes.fetch(type)
         recipient = definition.recipient_for(source:, payload: @event.payload)
         return failure(error(:recipient_unavailable, :unprocessable_entity)) unless recipient
