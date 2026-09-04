@@ -16,6 +16,25 @@ Rails.application.routes.draw do
   resource :notification_preferences, only: %i[show update],
     controller: "messaging/notification_preferences"
 
+  scope "organizations/:organization_id/messaging", module: :messaging do
+    resources :credits, only: :index, controller: "credit_accounts"
+    resources :credit_ledger, only: :index, controller: "credit_ledger"
+    resources :credit_rates, only: :index
+    resources :credit_estimates, only: :create
+    resources :credit_top_ups, only: %i[create show]
+  end
+
+  namespace :admin do
+    namespace :messaging do
+      resources :credit_rates, only: %i[index show create] do
+        post :activate, on: :member
+        post :retire, on: :member
+      end
+    end
+    post "organizations/:organization_id/messaging/credit_adjustments",
+      to: "messaging/credit_adjustments#create"
+  end
+
   scope ":followable_type", constraints: { followable_type: %r{venues|artists|organizations} } do
     scope ":followable_id" do
       post   "follow",    to: "core/follows#create",    as: :follow
