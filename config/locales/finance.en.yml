@@ -24,6 +24,7 @@ en:
       provider_balance_invalid: "The provider returned an invalid balance"
       payout_provider_unavailable: "The payout provider is unavailable"
       payout_provider_result_invalid: "The payout provider returned an invalid result"
+      billing_payment_not_supported: "Billing purchases do not post to the event finance ledger"
       payout_not_found: "The payout could not be found"
       payout_account_required: "A verified default payout account is required"
       payout_ledger_entry_invalid: "The payout ledger entry is invalid"

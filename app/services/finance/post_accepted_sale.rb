@@ -17,11 +17,14 @@ module Finance
     end
 
     def call
+      payment = Orders::Payment.find(@payment_id)
+      return failure(finance_error(:billing_payment_not_supported, code: "billing_payment_not_supported")) if payment.billing_payment?
+
       entries = ActiveRecord::Base.transaction do
-        order_id = Orders::Payment.where(id: @payment_id).pick(:order_id)
-        order = Orders::Order.lock.find(order_id)
-        event = Events::Event.lock.find(order.event_id)
         payment = Orders::Payment.lock.find(@payment_id)
+
+        order = Orders::Order.lock.find(payment.order_id)
+        event = Events::Event.lock.find(order.event_id)
         next [] unless payment.status == "succeeded" && payment.accepted_at.present?
 
         adjustments = Orders::OrderAdjustment.where(
