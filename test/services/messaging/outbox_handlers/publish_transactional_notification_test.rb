@@ -88,9 +88,8 @@ module Messaging
       end
 
       test "replays a seed-shaped ticket notification through package-issued outbox" do
-        item = create_fulfilled_order_item
-        ticket = Ticketing::Packages::Issue.call(order_item: item, unit_number: 1).value
-        ticket = Ticketing::Ticket.includes(:owner_user, :event, :event_product).find(ticket.id)
+        create_messaging_policy
+        ticket = Ticketing::Ticket.includes(:owner_user, :event, :event_product).find(@ticket.id)
         event = Core::OutboxEvent.find_by!(aggregate_id: ticket.id, event_type: "ticketing.package_issued")
         manual = Messaging::PublishNotification.call(
           type: "ticket_issued", recipient: ticket.owner_user, source: ticket,
