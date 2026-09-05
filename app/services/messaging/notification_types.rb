@@ -59,7 +59,8 @@ module Messaging
               "ticket_id" => source.id, "event_id" => source.event_id,
               "product_id" => source.event_product_id,
               "version" => payload["version"] || source.credential_version,
-              "event_title" => source.event.title
+              "event_title" => source.event.title,
+              "ticket_label" => source.event_product.name
             ).compact
           }
         ),

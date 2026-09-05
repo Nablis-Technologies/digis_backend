@@ -87,6 +87,28 @@ module Messaging
         assert_same calls.first.fetch(:data), definition.payloads.first
       end
 
+      test "replays a seed-shaped ticket notification through package-issued outbox" do
+        item = create_fulfilled_order_item
+        ticket = Ticketing::Packages::Issue.call(order_item: item, unit_number: 1).value
+        ticket = Ticketing::Ticket.includes(:owner_user, :event, :event_product).find(ticket.id)
+        event = Core::OutboxEvent.find_by!(aggregate_id: ticket.id, event_type: "ticketing.package_issued")
+        manual = Messaging::PublishNotification.call(
+          type: "ticket_issued", recipient: ticket.owner_user, source: ticket,
+          data: {
+            ticket_id: ticket.id, event_id: ticket.event_id, product_id: ticket.event_product_id,
+            version: ticket.credential_version, event_title: ticket.event.title,
+            ticket_label: ticket.event_product.name
+          },
+          dedupe_key: "ticket-issued:#{ticket.id}:v#{ticket.credential_version}"
+        )
+
+        assert_predicate manual, :success?, manual.error&.message
+        dispatch = Core::Outbox::Dispatch.call(event_id: event.id)
+
+        assert_predicate dispatch, :success?, dispatch.error&.message
+        assert_equal 1, Messaging::Notification.where(source: ticket, notification_type: "ticket_issued").count
+      end
+
       test "hands schedule changes to bounded fan-out without inline recipients" do
         event = Core::Outbox::Publish.call(
           topic: "events", event_type: "events.schedule_changed", aggregate: @event,

@@ -44,5 +44,25 @@ module Messaging
         )
       )
     end
+
+    test "ticket projections derive the label used by seed and outbox paths" do
+      event = Struct.new(:title).new("Chapa Test Event")
+      product = Struct.new(:name).new("General Admission")
+      source = Struct.new(:id, :event_id, :event_product_id, :credential_version, :event, :event_product)
+        .new("ticket-1", "event-1", "product-1", 1, event, product)
+      definition = Messaging::NotificationTypes.fetch("ticket_issued")
+
+      assert_equal(
+        {
+          "ticket_id" => "ticket-1",
+          "event_id" => "event-1",
+          "product_id" => "product-1",
+          "version" => 1,
+          "event_title" => "Chapa Test Event",
+          "ticket_label" => "General Admission"
+        },
+        definition.project(source:, payload: { "ticket_id" => "ignored", "version" => 1 })
+      )
+    end
   end
 end
