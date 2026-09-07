@@ -168,6 +168,7 @@ Rails.application.routes.draw do
 
   post "payments/:provider/webhook", to: "orders/payment_webhooks#create"
   get "payments/:provider/callback", to: "orders/payment_callbacks#show"
+  post "payments/:payment_id/refresh", to: "orders/payment_refresh#create"
 
   resources :events, only: [] do
     resources :registration_forms, controller: "ticketing/registration_forms", only: %i[index show create update destroy] do
