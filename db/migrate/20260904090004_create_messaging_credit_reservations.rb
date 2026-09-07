@@ -29,7 +29,7 @@ class CreateMessagingCreditReservations < ActiveRecord::Migration[8.1]
       "status IN ('reserved','consumed','released','refunded','expired')",
       name: "messaging_credit_reservations_status_check"
     add_check_constraint :messaging_credit_reservations,
-      "source_type IS NULL OR source_type IN ('Messaging::CampaignRecipient')",
+      "source_type IS NULL OR source_type IN ('Messaging::Campaign','Messaging::CampaignRecipient')",
       name: "messaging_credit_reservations_source_type_check"
     add_check_constraint :messaging_credit_reservations,
       "idempotency_key_digest ~ '^[0-9a-f]{64}$'",

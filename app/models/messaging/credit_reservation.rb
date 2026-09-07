@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
 module Messaging
-  # Holds channel credits for one future campaign recipient/source identity.
+  # Holds channel credits for one campaign aggregate or recipient/source identity.
   class CreditReservation < Messaging::ApplicationRecord
     self.table_name = "messaging_credit_reservations"
 
     CHANNELS = CreditAccount::CHANNELS
     STATUSES = %w[reserved consumed released refunded expired].freeze
-    SOURCE_TYPES = %w[Messaging::CampaignRecipient].freeze
+    SOURCE_TYPES = %w[Messaging::Campaign Messaging::CampaignRecipient].freeze
 
     belongs_to :credit_account,
                class_name: "Messaging::CreditAccount",
@@ -16,6 +16,11 @@ module Messaging
     belongs_to :rate_version,
                class_name: "Messaging::CreditRateVersion",
                inverse_of: :reservations
+    has_many :allocations,
+             class_name: "Messaging::CampaignCreditAllocation",
+             foreign_key: :credit_reservation_id,
+             inverse_of: :credit_reservation,
+             dependent: :restrict_with_exception
 
     before_validation :normalize_fields
     validate :immutable_snapshot, on: :update
@@ -39,7 +44,7 @@ module Messaging
     end
 
     def self.ransackable_associations(_auth_object = nil)
-      %w[credit_account organization rate_version]
+      %w[credit_account organization rate_version allocations]
     end
 
     private

@@ -11,6 +11,8 @@ module Messaging
       Messaging::CreditReservation
       Messaging::CreditTopUp
       Messaging::CreditAdjustment
+      Messaging::Campaign
+      Messaging::CampaignDelivery
     ].freeze
 
     belongs_to :credit_account,

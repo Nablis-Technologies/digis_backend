@@ -24,16 +24,17 @@ module Messaging
       end
 
       def append_entry!(account:, entry_type:, quantity:, available_delta:, rate_version: nil,
-        reference_type: nil, reference_id: nil, operation:, metadata: {})
+        rate_version_id: nil,
+        reference_type: nil, reference_id: nil, operation:, metadata: {}, ledger_idempotency_key: nil)
         CreditLedgerEntry.create!(
           credit_account: account,
-          rate_version:,
+          rate_version_id: rate_version_id || rate_version&.id,
           entry_type:,
           quantity:,
           available_delta:,
           reference_type:,
           reference_id:,
-          idempotency_key_digest: idempotency_digest(operation),
+          idempotency_key_digest: ledger_idempotency_key || idempotency_digest(operation),
           metadata:
         )
       end

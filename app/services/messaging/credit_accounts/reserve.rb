@@ -59,13 +59,13 @@ module Messaging
     private
 
     def valid_request?
-      # Reservations are intentionally limited to campaign recipients. Keeping
+      # Reservations are limited to campaign aggregates and recipients. Keeping
       # this source and rate/account scope check here prevents other callers
       # from spending an organization's credits through a generic polymorphic ID.
       @organization.is_a?(Organizations::Organization) &&
         @rate_version.is_a?(CreditRateVersion) &&
         @quantity.is_a?(Integer) && @quantity.positive? &&
-        @source_type == "Messaging::CampaignRecipient" && @source_id.present? &&
+        @source_type.in?(%w[Messaging::Campaign Messaging::CampaignRecipient]) && @source_id.present? &&
         @rate_version.channel == @account.channel &&
         (@rate_version.organization_id.nil? || @rate_version.organization_id == @organization.id)
       end
