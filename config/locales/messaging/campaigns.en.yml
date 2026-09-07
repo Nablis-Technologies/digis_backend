@@ -34,6 +34,7 @@ en:
       invalid_idempotency_key: "The idempotency key is invalid"
       inbound_provider_unavailable: "The inbound messaging provider is unavailable"
       invalid_provider_signature: "The provider signature is invalid"
+      preview_provider_outcome_invalid: "Unsupported preview provider outcome: %{outcome}"
       inbound_payload_invalid: "The inbound messaging payload is invalid"
       inbound_adapter_not_implemented: "The inbound provider adapter is not implemented"
       inbound_provider_required: "An inbound provider is required"

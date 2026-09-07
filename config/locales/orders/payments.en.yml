@@ -23,6 +23,12 @@ en:
         billing_purchase_closed: "This billing purchase is already closed"
         billing_purchase_expired: "This billing purchase has expired"
         event_payment_required: "This operation only supports event-order payments"
+      refresh:
+        errors:
+          invalid_idempotency_key: "The payment refresh idempotency key is invalid"
+          payment_not_found: "The payment attempt could not be found"
+          payment_order_not_owned: "Only the order buyer can refresh this payment"
+          event_payment_required: "Only event-order payments can be refreshed"
       webhooks:
         received: "Payment notification received"
         errors:

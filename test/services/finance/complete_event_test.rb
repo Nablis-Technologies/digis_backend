@@ -127,7 +127,7 @@ module Finance
       end
 
       first = nil
-      assert_enqueued_jobs 1 do
+      assert_enqueued_with(job: Finance::MatureEventFundsJob, args: [ @event.id ]) do
         first = command.call
       end
       second = nil

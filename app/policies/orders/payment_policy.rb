@@ -6,22 +6,22 @@ module Orders
   # keys, organizer fees, and raw provider status never belong on this surface;
   # the hosted checkout URL is the only provider navigation value exposed.
   class PaymentPolicy < Core::ApplicationPolicy
+    PAYMENT_FIELDS = %i[
+      id order_id attempt_number provider payment_method status amount_minor currency
+      provider_reference checkout_url settlement_grace_minutes settlement_grace_expires_at
+      created_at updated_at
+    ].freeze
+
     VISIBILITY = {
-      create: {
-        default: {
-          fields: %i[
-            id order_id attempt_number provider payment_method status amount_minor currency
-            provider_reference checkout_url settlement_grace_minutes settlement_grace_expires_at
-            created_at updated_at
-          ],
-          include: []
-        }
-      }
+      create: { default: { fields: PAYMENT_FIELDS, include: [] } },
+      refresh: { default: { fields: PAYMENT_FIELDS, include: [] } }
     }.freeze
 
     def create? = buyer?
 
     def show? = buyer?
+
+    def refresh? = buyer? && record.event_payment?
 
     private
 

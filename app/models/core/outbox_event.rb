@@ -23,5 +23,25 @@ module Core
     def published_at?
       published_at.present?
     end
+
+    after_create_commit :enqueue_immediate_dispatch
+
+    private
+
+    def enqueue_immediate_dispatch
+      return unless immediate_dispatch_enabled?
+
+      Core::DispatchOutboxEventJob.perform_later(id)
+    rescue StandardError => error
+      Rails.logger.warn(
+        "Outbox immediate dispatch enqueue failed " \
+        "event_id=#{id} error=#{error.class.name}"
+      )
+    end
+
+    def immediate_dispatch_enabled?
+      Rails.application.config.x.outbox_immediate_dispatch != false &&
+        published_at.nil? && available_at.present? && available_at <= Time.current
+    end
   end
 end

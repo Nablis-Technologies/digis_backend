@@ -10,7 +10,11 @@ module Messaging
       def initialize(outcome: "delivered", provider: "preview")
         @outcome = outcome.to_s.strip.downcase
         @provider = provider.to_s.strip.presence || "preview"
-        raise ArgumentError, "Unsupported preview provider outcome: #{@outcome.inspect}" unless OUTCOMES.include?(@outcome)
+        return if OUTCOMES.include?(@outcome)
+
+        raise ArgumentError, I18n.t(
+          "messaging.errors.preview_provider_outcome_invalid", outcome: @outcome.inspect
+        )
       end
 
       def deliver(**_arguments)
