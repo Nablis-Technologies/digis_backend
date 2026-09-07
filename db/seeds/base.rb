@@ -231,7 +231,16 @@ permissions.concat([
   { resource: "messaging_credit_rate", action: "create", namespace: "messaging", description: "Create messaging credit rates" },
   { resource: "messaging_credit_rate", action: "activate", namespace: "messaging", description: "Activate messaging credit rates" },
   { resource: "messaging_credit_rate", action: "retire", namespace: "messaging", description: "Retire messaging credit rates" },
-  { resource: "messaging_credit_adjustment", action: "create", namespace: "messaging", description: "Adjust messaging credits" }
+  { resource: "messaging_credit_adjustment", action: "create", namespace: "messaging", description: "Adjust messaging credits" },
+  { resource: "messaging_campaign", action: "index", namespace: "messaging", description: "Inspect messaging campaigns" },
+  { resource: "messaging_campaign", action: "show", namespace: "messaging", description: "Inspect a messaging campaign" },
+  { resource: "messaging_campaign_template", action: "index", namespace: "messaging", description: "List campaign templates" },
+  { resource: "messaging_campaign_template", action: "show", namespace: "messaging", description: "View a campaign template" },
+  { resource: "messaging_campaign_template", action: "create", namespace: "messaging", description: "Create a campaign template" },
+  { resource: "messaging_campaign_template", action: "update", namespace: "messaging", description: "Update a campaign template" },
+  { resource: "messaging_campaign_volume_policy", action: "index", namespace: "messaging", description: "List campaign volume policies" },
+  { resource: "messaging_campaign_volume_policy", action: "show", namespace: "messaging", description: "View a campaign volume policy" },
+  { resource: "messaging_campaign_volume_policy", action: "update", namespace: "messaging", description: "Update a campaign volume policy" }
 ])
 
 permissions.each do |perm|
