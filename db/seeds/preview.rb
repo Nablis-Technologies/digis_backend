@@ -1478,6 +1478,61 @@ end
 
 puts "✓ #{Messaging::CreditRateVersion.count} credit rates and #{Messaging::CreditAccount.count} credit accounts seeded"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 13. Campaign fixtures
+# Campaign seeds create only valid draft/snapshot inputs. Provider delivery and
+# terminal credit states remain owned by the campaign commands and jobs.
+puts "\n📣 Seeding campaign audience and template fixtures..."
+
+preview_template = Messaging::CampaignTemplate.find_or_create_by!(
+  organization: fest_org, name: "Preview event reminder", channel: "sms"
+) do |template|
+  template.created_by = organizer
+  template.status = "active"
+end
+preview_template.versions.find_or_create_by!(version: 1, locale: "en") do |version|
+  version.created_by = organizer
+  version.status = "active"
+  version.body = "{{event_name}} starts soon."
+  version.variables = [ "event_name" ]
+end
+
+campaign_list = Messaging::CampaignContactList.find_or_create_by!(
+  organization: fest_org, name: "Preview campaign contacts"
+) { |list| list.created_by = organizer }
+campaign_phone = Core::PhoneIdentity::ResolveOrCreate.normalize("+251911123456")
+campaign_digest = Core::KeyedDigest.digest(namespace: "messaging-campaign-contact-phone", value: campaign_phone)
+Messaging::Campaigns::ContactLists::Append.call(
+  list: campaign_list,
+  rows: [ { phone_number: "+251911123456", first_name: "Preview" } ],
+  actor: organizer,
+  idempotency_key: "preview-campaign-list-append-v1"
+)
+Messaging::CampaignSuppression.find_or_create_by!(
+  organization: fest_org, channel: "sms", channel_address_digest: campaign_digest
+) do |suppression|
+  suppression.source = "preview_fixture"
+  suppression.reason = "suppressed fixture"
+  suppression.suppressed_at = Time.current
+  suppression.idempotency_key_digest = Digest::SHA256.hexdigest("preview-campaign-suppression-v1")
+end
+
+preview_campaign = Messaging::Campaign.find_or_create_by!(
+  organization: fest_org, name: "Preview SMS campaign"
+) do |campaign|
+  campaign.created_by = organizer
+  campaign.channel = "sms"
+  campaign.timezone = "Africa/Addis_Ababa"
+  campaign.message_body = "{{event_name}} reminder"
+  campaign.metadata = { "audience_sources" => [ { "type" => "contact_list", "id" => campaign_list.id } ] }
+end
+preview_snapshot = Messaging::Campaigns::Audience::Snapshot.call(
+  campaign: preview_campaign, actor: organizer, idempotency_key: "preview-campaign-snapshot-v1"
+).value
+Messaging::PrepareCampaignAudienceJob.perform_now(preview_snapshot.id) unless preview_snapshot.status == "ready"
+
+puts "✓ Campaign fixture #{preview_campaign.id} prepared with #{preview_campaign.reload.recipients.count} recipient snapshot rows"
+
 puts "✓ #{chapa_event.title} published with #{chapa_product.name} and " \
      "#{chapa_ticket_product.name} active"
 
