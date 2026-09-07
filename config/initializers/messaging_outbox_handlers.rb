@@ -3,6 +3,13 @@
 # Messaging composes after domain handlers. Domain handlers remain responsible
 # for their own idempotency because a later notification failure replays them.
 Rails.application.config.after_initialize do
+  Rails.application.config.x.outbox_handlers.register("messaging.campaign.launched", priority: 200) do |outbox_event|
+    result = Messaging::OutboxHandlers::CampaignLaunched.call(event: outbox_event)
+    raise result.error if result.failure?
+
+    result
+  end
+
   {
     "orders.billing_payment.accepted" => Messaging::OutboxHandlers::GrantTopUpCredits,
     "orders.billing_payment.failed" => Messaging::OutboxHandlers::ResolveTopUpPayment,
