@@ -87,10 +87,22 @@ production:
     class: Messaging::ProcessNotificationsJob
     queue: notifications
     schedule: every minute
+  process_messaging_campaigns:
+    class: Messaging::ProcessScheduledCampaignsJob
+    queue: notifications
+    schedule: every minute
+  reconcile_messaging_campaigns:
+    class: Messaging::ReconcileCampaignsJob
+    queue: maintenance
+    schedule: every 10 minutes
   purge_messaging_notification_payloads:
     class: Messaging::PurgeNotificationPayloadsJob
     queue: notifications
     schedule: every hour at minute 10
+  purge_messaging_campaign_payloads:
+    class: Messaging::PurgeCampaignPayloadsJob
+    queue: notifications
+    schedule: every hour at minute 20
   reconcile_messaging_credit_top_ups:
     class: Messaging::ReconcileCreditTopUpsJob
     queue: maintenance

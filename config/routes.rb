@@ -24,12 +24,41 @@ Rails.application.routes.draw do
     resources :credit_top_ups, only: %i[create show]
   end
 
+  scope "organizations/:organization_id", module: :messaging do
+    resources :campaigns, only: %i[index show create update] do
+    post :estimate, on: :member
+    post :attest, on: :member
+    post :launch, on: :member
+    post :pause, on: :member
+    post :resume, on: :member
+    post :cancel, on: :member
+      post :abort, on: :member
+      get :analytics, on: :member
+    end
+    resources :campaign_contact_lists, only: %i[index show create update destroy] do
+      post :import, on: :member
+      post :append, on: :member
+      post :replace, on: :member
+      resources :entries, controller: "campaign_contact_list_entries", only: %i[create destroy]
+    end
+    resources :campaign_templates, only: %i[index show create update]
+    get "campaign_contact_lists/:id/imports/:import_id", to: "campaign_contact_list_imports#show"
+    get "campaign_contact_lists/:id/imports/:import_id/report", to: "campaign_contact_list_imports#report"
+  end
+
+  post "messaging/webhooks/:provider/inbound", to: "messaging/campaign_webhooks#create"
+  get "messaging/unsubscribe/:token", to: "messaging/campaign_unsubscribes#show"
+  post "messaging/unsubscribe/:token", to: "messaging/campaign_unsubscribes#create"
+
   namespace :admin do
     namespace :messaging do
       resources :credit_rates, only: %i[index show create] do
         post :activate, on: :member
         post :retire, on: :member
       end
+      resources :campaigns, only: %i[index show]
+      resources :campaign_templates, only: %i[index show create update]
+      resources :campaign_volume_policies, only: %i[index show update]
     end
     post "organizations/:organization_id/messaging/credit_adjustments",
       to: "messaging/credit_adjustments#create"
