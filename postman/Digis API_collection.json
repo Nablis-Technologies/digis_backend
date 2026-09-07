@@ -12727,6 +12727,98 @@
               ]
             },
             {
+              "name": "Refresh Payment and Wallet",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{paymentRefreshIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/payments/{{paymentAttemptId}}/refresh",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "payments",
+                    "{{paymentAttemptId}}",
+                    "refresh"
+                  ]
+                },
+                "description": "Buyer-scoped reconciliation for a pending event payment. The server verifies only the stored payment reference, returns payment/order/ticket-wallet data, and uses Cache-Control: no-store. A pending state means ticket issuance is still completing; retry with the same Idempotency-Key using bounded backoff.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "response": [
+                {
+                  "name": "Wallet ready",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Cache-Control",
+                      "value": "no-store"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"state\": \"ready\",\n    \"payment\": { \"id\": \"payment_01HX\", \"status\": \"succeeded\", \"amount_minor\": 10500, \"currency\": \"ETB\" },\n    \"order\": { \"id\": \"order_01HX\", \"status\": \"fulfilled\" },\n    \"tickets\": [{ \"id\": \"ticket_01HX\", \"status\": \"active\", \"credentials\": [] }]\n  }\n}"
+                },
+                {
+                  "name": "Still processing",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Cache-Control",
+                      "value": "no-store"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"state\": \"pending\",\n    \"payment\": { \"id\": \"payment_01HX\", \"status\": \"processing\" },\n    \"order\": { \"id\": \"order_01HX\", \"status\": \"pending_payment\" },\n    \"tickets\": []\n  }\n}"
+                },
+                {
+                  "name": "Missing idempotency key",
+                  "status": "Bad Request",
+                  "code": 400,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": false,\n  \"code\": \"missing_idempotency_key\",\n  \"message\": \"Idempotency-Key header is required\"\n}"
+                }
+              ],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Payment refresh returns a documented status\", function () {",
+                      "  pm.expect(pm.response.code).to.be.oneOf([200, 400, 403, 404, 409, 422, 503]);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
               "name": "Restart Checkout",
               "request": {
                 "method": "POST",
