@@ -13304,6 +13304,2262 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Messaging Campaigns",
+      "description": "Organizer campaign management, reusable contact lists, safe templates, asynchronous imports, and public opt-out/provider ingress. Collection-level bearer authentication applies unless a request explicitly uses noauth.",
+      "variable": [
+        {
+          "key": "organizationId",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "campaignId",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "eventId",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "contactListId",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "contactEntryId",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "importId",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "templateId",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "campaignVolumePolicyId",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "campaignQuoteDigest",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "campaignRateVersionId",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "campaignCreateIdempotencyKey",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "campaignUpdateIdempotencyKey",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "campaignEstimateIdempotencyKey",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "campaignAttestationIdempotencyKey",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "campaignLaunchIdempotencyKey",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "campaignPauseIdempotencyKey",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "campaignResumeIdempotencyKey",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "campaignCancelIdempotencyKey",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "campaignAbortIdempotencyKey",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "contactListCreateIdempotencyKey",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "contactListUpdateIdempotencyKey",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "contactListArchiveIdempotencyKey",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "contactListImportIdempotencyKey",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "contactListAppendIdempotencyKey",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "contactListReplaceIdempotencyKey",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "contactEntryCreateIdempotencyKey",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "contactEntryRemoveIdempotencyKey",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "templateCreateIdempotencyKey",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "templateUpdateIdempotencyKey",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "adminTemplateCreateIdempotencyKey",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "adminTemplateUpdateIdempotencyKey",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "campaignVolumePolicyUpdateIdempotencyKey",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "inboundProvider",
+          "value": "sms_gateway",
+          "type": "string"
+        },
+        {
+          "key": "inboundSignature",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "unsubscribeToken",
+          "value": "",
+          "type": "string"
+        }
+      ],
+      "item": [
+        {
+          "name": "Campaigns",
+          "item": [
+            {
+              "name": "List Campaigns",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaigns?page=1&per_page=25&order_by=created_at&order_direction=desc",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaigns"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "25"
+                    },
+                    {
+                      "key": "order_by",
+                      "value": "created_at"
+                    },
+                    {
+                      "key": "order_direction",
+                      "value": "desc"
+                    },
+                    {
+                      "key": "q[status_eq]",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "q[channel_eq]",
+                      "value": "",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "List campaigns visible to organization members. Response contains organizer-safe campaign state only."
+              },
+              "response": [
+                {
+                  "name": "Campaign list",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                "body": "{\n  \"success\": true,\n  \"data\": [\n    {\n      \"id\": \"campaign_01HXExample\",\n      \"organization_id\": \"org_01HXExample\",\n      \"created_by_id\": \"user_01HXOrganizer\",\n      \"event_id\": \"evt_01HXFestival\",\n      \"variables\": {\n        \"ticket_link\": \"https://digis.et/events/summer-festival\"\n      },\n      \"name\": \"Summer festival reminder\",\n      \"channel\": \"sms\",\n      \"status\": \"draft\",\n      \"timezone\": \"Africa/Addis_Ababa\",\n      \"send_at\": \"2026-09-15T09:00:00.000Z\",\n      \"launched_at\": null,\n      \"completed_at\": null,\n      \"canceled_at\": null,\n      \"quoted_quantity\": 1250,\n      \"quoted_unit_price_minor\": 25,\n      \"quoted_rate_version_id\": \"rate_01HXSms\",\n      \"quoted_at\": \"2026-09-14T17:45:00.000Z\",\n      \"quote_expires_at\": \"2026-09-14T18:00:00.000Z\"\n    }\n  ],\n  \"pagination\": {\n    \"current_page\": 1,\n    \"per_page\": 25,\n    \"total_count\": 1,\n    \"total_pages\": 1,\n    \"links\": {}\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Campaign",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaigns/{{campaignId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaigns",
+                    "{{campaignId}}"
+                  ]
+                },
+                "description": "Get one campaign. Message content, contact ciphertext/digests, provider IDs, and ledger entries are intentionally omitted."
+              },
+              "response": [
+                {
+                  "name": "Campaign detail",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"campaign_01HXExample\",\n    \"organization_id\": \"org_01HXExample\",\n    \"created_by_id\": \"user_01HXOrganizer\",\n    \"event_id\": \"evt_01HXFestival\",\n      \"variables\": {\n        \"ticket_link\": \"https://digis.et/events/summer-festival\"\n      },\n    \"name\": \"Summer festival reminder\",\n    \"channel\": \"sms\",\n    \"status\": \"draft\",\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"launch_version\": 1,\n    \"send_at\": \"2026-09-15T09:00:00.000Z\",\n    \"launched_at\": null,\n    \"completed_at\": null,\n    \"canceled_at\": null,\n    \"quoted_quantity\": 1250,\n    \"quoted_unit_price_minor\": 25,\n    \"quoted_rate_version_id\": \"rate_01HXSms\",\n    \"quoted_at\": \"2026-09-14T17:45:00.000Z\",\n    \"quote_expires_at\": \"2026-09-14T18:00:00.000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Create Campaign",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{campaignCreateIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaigns",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaigns"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"campaign\": {\n    \"name\": \"Summer festival reminder\",\n    \"channel\": \"sms\",\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"event_id\": \"{{eventId}}\",\n    \"message_body\": \"Hi {{first_name}}, Summer Festival starts tomorrow at 6:00 PM. Tickets: {{ticket_link}}\",\n    \"variables\": {\n      \"ticket_link\": \"https://digis.et/events/summer-festival\"\n    },\n    \"metadata\": {\n      \"currency\": \"ETB\",\n      \"country_code\": \"ET\",\n      \"audience_sources\": [\n        {\n          \"type\": \"event\",\n          \"event_id\": \"{{eventId}}\",\n          \"basis\": \"issued\"\n        },\n        {\n          \"type\": \"contact_list\",\n          \"id\": \"{{contactListId}}\"\n        }\n      ]\n    }\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Create a draft. Channel is fixed per campaign; use SMS or email, not both."
+              },
+              "response": [
+                {
+                  "name": "Draft created",
+                  "status": "Created",
+                  "code": 201,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"campaign_01HXExample\",\n    \"organization_id\": \"org_01HXExample\",\n    \"created_by_id\": \"user_01HXOrganizer\",\n    \"event_id\": \"evt_01HXFestival\",\n      \"variables\": {\n        \"ticket_link\": \"https://digis.et/events/summer-festival\"\n      },\n    \"name\": \"Summer festival reminder\",\n    \"channel\": \"sms\",\n    \"status\": \"draft\",\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"launch_version\": 1,\n    \"send_at\": \"2026-09-15T09:00:00.000Z\",\n    \"launched_at\": null,\n    \"completed_at\": null,\n    \"canceled_at\": null,\n    \"quoted_quantity\": 1250,\n    \"quoted_unit_price_minor\": 25,\n    \"quoted_rate_version_id\": \"rate_01HXSms\",\n    \"quoted_at\": \"2026-09-14T17:45:00.000Z\",\n    \"quote_expires_at\": \"2026-09-14T18:00:00.000Z\"\n  }\n}"
+                },
+                {
+                  "name": "Missing idempotency key",
+                  "status": "Bad Request",
+                  "code": 400,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": false,\n  \"code\": \"missing_idempotency_key\",\n  \"message\": \"Idempotency-Key header is required\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Campaign",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{campaignUpdateIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaigns/{{campaignId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaigns",
+                    "{{campaignId}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"campaign\": {\n    \"name\": \"Summer festival reminder\",\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"launch_version\": 1,\n    \"send_at\": \"2026-09-15T09:00:00.000Z\",\n    \"message_body\": \"Hi {{first_name}}, Summer Festival starts tomorrow at 6:00 PM. Tickets: {{ticket_link}}\",\n    \"variables\": {\n      \"ticket_link\": \"https://digis.et/events/summer-festival\"\n    },\n    \"metadata\": {\n      \"currency\": \"ETB\",\n      \"country_code\": \"ET\",\n      \"audience_sources\": [\n        {\n          \"type\": \"event\",\n          \"event_id\": \"{{eventId}}\",\n          \"basis\": \"issued\"\n        }\n      ]\n    }\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Update composition and audience inputs while the campaign is draft. Channel cannot be changed."
+              },
+              "response": [
+                {
+                  "name": "Campaign updated",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"campaign_01HXExample\",\n    \"organization_id\": \"org_01HXExample\",\n    \"created_by_id\": \"user_01HXOrganizer\",\n    \"event_id\": \"evt_01HXFestival\",\n      \"variables\": {\n        \"ticket_link\": \"https://digis.et/events/summer-festival\"\n      },\n    \"name\": \"Summer festival reminder\",\n    \"channel\": \"sms\",\n    \"status\": \"draft\",\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"launch_version\": 1,\n    \"send_at\": \"2026-09-15T09:00:00.000Z\",\n    \"launched_at\": null,\n    \"completed_at\": null,\n    \"canceled_at\": null,\n    \"quoted_quantity\": 1250,\n    \"quoted_unit_price_minor\": 25,\n    \"quoted_rate_version_id\": \"rate_01HXSms\",\n    \"quoted_at\": \"2026-09-14T17:45:00.000Z\",\n    \"quote_expires_at\": \"2026-09-14T18:00:00.000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Estimate Campaign",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{campaignEstimateIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaigns/{{campaignId}}/estimate",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaigns",
+                    "{{campaignId}}",
+                    "estimate"
+                  ]
+                },
+                "description": "Start or refresh the asynchronous audience snapshot and return the quoted SMS segment quantity when ready. Reuse the key for a safe retry."
+              },
+              "response": [
+                {
+                  "name": "Audience snapshot preparing",
+                  "status": "Accepted",
+                  "code": 202,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"status\": \"preparing\",\n    \"snapshot_id\": \"snapshot_01HXAudience\",\n    \"processed_count\": 500,\n    \"total_count\": 1250\n  }\n}"
+                },
+                {
+                  "name": "Ready SMS quote",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"status\": \"ready\",\n    \"quantity\": 1250,\n    \"rate_version_id\": \"rate_01HXSms\",\n    \"unit_price_minor\": 25,\n    \"quote_digest\": \"64-character-quote-digest\",\n    \"quoted_at\": \"2026-09-14T17:45:00.000Z\",\n    \"quote_expires_at\": \"2026-09-14T18:00:00.000Z\"\n  }\n}"
+                },
+                {
+                  "name": "Missing idempotency key",
+                  "status": "Bad Request",
+                  "code": 400,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": false,\n  \"code\": \"missing_idempotency_key\",\n  \"message\": \"Idempotency-Key header is required\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Attest Campaign",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{campaignAttestationIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaigns/{{campaignId}}/attest",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "organizations", "{{organizationId}}", "campaigns", "{{campaignId}}", "attest" ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"confirmation\": true,\n  \"historical_basis\": \"issued\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Record the organizer's explicit permission to contact the selected audience before launch."
+              },
+              "response": [
+                {
+                  "name": "Audience attested",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [ { "key": "Content-Type", "value": "application/json" } ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"attestation_01HX\",\n    \"campaign_id\": \"campaign_01HXExample\",\n    \"audience_snapshot_id\": \"snapshot_01HXAudience\",\n    \"channel\": \"sms\",\n    \"historical_basis\": \"issued\",\n    \"statement_version\": 1,\n    \"attested_at\": \"2026-09-14T17:50:00.000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Launch Campaign",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{campaignLaunchIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaigns/{{campaignId}}/launch",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaigns",
+                    "{{campaignId}}",
+                    "launch"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"quote_digest\": \"{{campaignQuoteDigest}}\",\n  \"quoted_rate_version_id\": \"{{campaignRateVersionId}}\",\n  \"quoted_quantity\": 1250\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Claim the quoted aggregate credit hold and enqueue bounded delivery. Send the quote identity returned by Estimate."
+              },
+              "response": [
+                {
+                  "name": "Campaign launched",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"campaign_01HXExample\",\n    \"organization_id\": \"org_01HXExample\",\n    \"created_by_id\": \"user_01HXOrganizer\",\n    \"event_id\": \"evt_01HXFestival\",\n      \"variables\": {\n        \"ticket_link\": \"https://digis.et/events/summer-festival\"\n      },\n    \"name\": \"Summer festival reminder\",\n    \"channel\": \"sms\",\n    \"status\": \"sending\",\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"launch_version\": 1,\n    \"send_at\": \"2026-09-15T09:00:00.000Z\",\n    \"launched_at\": \"2026-09-14T18:00:00.000Z\",\n    \"completed_at\": null,\n    \"canceled_at\": null,\n    \"quoted_quantity\": 1250,\n    \"quoted_unit_price_minor\": 25,\n    \"quoted_rate_version_id\": \"rate_01HXSms\",\n    \"quoted_at\": \"2026-09-14T17:45:00.000Z\",\n    \"quote_expires_at\": \"2026-09-14T18:00:00.000Z\"\n  }\n}"
+                },
+                {
+                  "name": "Launch replay",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"campaign_01HXExample\",\n    \"organization_id\": \"org_01HXExample\",\n    \"created_by_id\": \"user_01HXOrganizer\",\n    \"event_id\": \"evt_01HXFestival\",\n      \"variables\": {\n        \"ticket_link\": \"https://digis.et/events/summer-festival\"\n      },\n    \"name\": \"Summer festival reminder\",\n    \"channel\": \"sms\",\n    \"status\": \"sending\",\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"launch_version\": 1,\n    \"send_at\": \"2026-09-15T09:00:00.000Z\",\n    \"launched_at\": \"2026-09-14T18:00:00.000Z\",\n    \"completed_at\": null,\n    \"canceled_at\": null,\n    \"quoted_quantity\": 1250,\n    \"quoted_unit_price_minor\": 25,\n    \"quoted_rate_version_id\": \"rate_01HXSms\",\n    \"quoted_at\": \"2026-09-14T17:45:00.000Z\",\n    \"quote_expires_at\": \"2026-09-14T18:00:00.000Z\"\n  }\n}"
+                },
+                {
+                  "name": "Stale quote conflict",
+                  "status": "Conflict",
+                  "code": 409,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": false,\n  \"code\": \"campaign_quote_stale\",\n  \"message\": \"Campaign quote is stale or does not match the supplied quote\"\n}"
+                },
+                {
+                  "name": "Missing idempotency key",
+                  "status": "Bad Request",
+                  "code": 400,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": false,\n  \"code\": \"missing_idempotency_key\",\n  \"message\": \"Idempotency-Key header is required\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Pause Campaign",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{campaignPauseIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaigns/{{campaignId}}/pause",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaigns",
+                    "{{campaignId}}",
+                    "pause"
+                  ]
+                },
+                "description": "Stop new delivery claims while preserving unsettled work. Safe to retry with the same key."
+              },
+              "response": [
+                {
+                  "name": "Campaign paused",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"campaign_01HXExample\",\n    \"organization_id\": \"org_01HXExample\",\n    \"created_by_id\": \"user_01HXOrganizer\",\n    \"event_id\": \"evt_01HXFestival\",\n      \"variables\": {\n        \"ticket_link\": \"https://digis.et/events/summer-festival\"\n      },\n    \"name\": \"Summer festival reminder\",\n    \"channel\": \"sms\",\n    \"status\": \"paused\",\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"launch_version\": 1,\n    \"send_at\": \"2026-09-15T09:00:00.000Z\",\n    \"launched_at\": \"2026-09-14T18:00:00.000Z\",\n    \"completed_at\": null,\n    \"canceled_at\": null,\n    \"quoted_quantity\": 1250,\n    \"quoted_unit_price_minor\": 25,\n    \"quoted_rate_version_id\": \"rate_01HXSms\",\n    \"quoted_at\": \"2026-09-14T17:45:00.000Z\",\n    \"quote_expires_at\": \"2026-09-14T18:00:00.000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Resume Campaign",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{campaignResumeIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaigns/{{campaignId}}/resume",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "organizations", "{{organizationId}}", "campaigns", "{{campaignId}}", "resume" ]
+                },
+                "description": "Resume a paused campaign and enqueue bounded delivery. Repeating the same request does not enqueue another fan-out job."
+              },
+              "response": [
+                {
+                  "name": "Campaign resumed",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [ { "key": "Content-Type", "value": "application/json" } ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"campaign_01HXExample\",\n    \"status\": \"sending\",\n    \"launch_version\": 1\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Cancel Campaign",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{campaignCancelIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaigns/{{campaignId}}/cancel",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaigns",
+                    "{{campaignId}}",
+                    "cancel"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Organizer corrected the event date before dispatch\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Withdraw a draft or scheduled campaign and release its full aggregate hold. Requires a reason."
+              },
+              "response": [
+                {
+                  "name": "Campaign canceled",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"campaign_01HXExample\",\n    \"organization_id\": \"org_01HXExample\",\n    \"created_by_id\": \"user_01HXOrganizer\",\n    \"event_id\": \"evt_01HXFestival\",\n      \"variables\": {\n        \"ticket_link\": \"https://digis.et/events/summer-festival\"\n      },\n    \"name\": \"Summer festival reminder\",\n    \"channel\": \"sms\",\n    \"status\": \"canceled\",\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"launch_version\": 1,\n    \"send_at\": \"2026-09-15T09:00:00.000Z\",\n    \"launched_at\": \"2026-09-14T18:00:00.000Z\",\n    \"completed_at\": null,\n    \"canceled_at\": \"2026-09-14T18:30:00.000Z\",\n    \"quoted_quantity\": 1250,\n    \"quoted_unit_price_minor\": 25,\n    \"quoted_rate_version_id\": \"rate_01HXSms\",\n    \"quoted_at\": \"2026-09-14T17:45:00.000Z\",\n    \"quote_expires_at\": \"2026-09-14T18:00:00.000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Abort Campaign",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{campaignAbortIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaigns/{{campaignId}}/abort",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaigns",
+                    "{{campaignId}}",
+                    "abort"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Stop remaining messages after an incorrect venue link was discovered\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Stop a paused or sending campaign and release unsettled hold remainder. Requires a reason."
+              },
+              "response": [
+                {
+                  "name": "Campaign aborted",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"campaign_01HXExample\",\n    \"organization_id\": \"org_01HXExample\",\n    \"created_by_id\": \"user_01HXOrganizer\",\n    \"event_id\": \"evt_01HXFestival\",\n      \"variables\": {\n        \"ticket_link\": \"https://digis.et/events/summer-festival\"\n      },\n    \"name\": \"Summer festival reminder\",\n    \"channel\": \"sms\",\n    \"status\": \"canceled\",\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"launch_version\": 1,\n    \"send_at\": \"2026-09-15T09:00:00.000Z\",\n    \"launched_at\": \"2026-09-14T18:00:00.000Z\",\n    \"completed_at\": null,\n    \"canceled_at\": \"2026-09-14T18:30:00.000Z\",\n    \"quoted_quantity\": 1250,\n    \"quoted_unit_price_minor\": 25,\n    \"quoted_rate_version_id\": \"rate_01HXSms\",\n    \"quoted_at\": \"2026-09-14T17:45:00.000Z\",\n    \"quote_expires_at\": \"2026-09-14T18:00:00.000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Campaign Analytics",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaigns/{{campaignId}}/analytics",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaigns",
+                    "{{campaignId}}",
+                    "analytics"
+                  ]
+                },
+                "description": "Read aggregate campaign metrics. Individual recipient activity and provider identifiers are never returned."
+              },
+              "response": [
+                {
+                  "name": "Aggregate campaign analytics",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"sent\": 1100,\n    \"delivered\": 1068,\n    \"failed\": 12,\n    \"suppressed\": 48,\n    \"unavailable\": 22,\n    \"consumed\": 1168,\n    \"released\": 82,\n    \"refunded\": 0,\n    \"clicks\": 214\n  }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Contact Lists",
+          "item": [
+            {
+              "name": "List Contact Lists",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaign_contact_lists?page=1&per_page=25",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaign_contact_lists"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "25"
+                    }
+                  ]
+                },
+                "description": "List reusable organizer contact lists. Contact addresses are never returned."
+              },
+              "response": [
+                {
+                  "name": "Contact list collection",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": [\n    {\n      \"success\": true,\n      \"data\": {\n        \"id\": \"list_01HXAttendees\",\n        \"organization_id\": \"org_01HXExample\",\n        \"created_by_id\": \"user_01HXOrganizer\",\n        \"name\": \"Festival attendees\",\n        \"status\": \"active\",\n        \"version\": 1,\n        \"created_at\": \"2026-09-10T12:00:00.000Z\",\n        \"updated_at\": \"2026-09-10T12:00:00.000Z\"\n      }\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Contact List",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaign_contact_lists/{{contactListId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaign_contact_lists",
+                    "{{contactListId}}"
+                  ]
+                }
+              },
+              "response": [
+                {
+                  "name": "Contact list detail",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"list_01HXAttendees\",\n    \"organization_id\": \"org_01HXExample\",\n    \"created_by_id\": \"user_01HXOrganizer\",\n    \"name\": \"Festival attendees\",\n    \"status\": \"active\",\n    \"version\": 1,\n    \"created_at\": \"2026-09-10T12:00:00.000Z\",\n    \"updated_at\": \"2026-09-10T12:00:00.000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Create Contact List",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{contactListCreateIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaign_contact_lists",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaign_contact_lists"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"campaign_contact_list\": {\n    \"name\": \"Festival attendees\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [
+                {
+                  "name": "Contact list created",
+                  "status": "Created",
+                  "code": 201,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"list_01HXAttendees\",\n    \"organization_id\": \"org_01HXExample\",\n    \"created_by_id\": \"user_01HXOrganizer\",\n    \"name\": \"Festival attendees\",\n    \"status\": \"active\",\n    \"version\": 1,\n    \"created_at\": \"2026-09-10T12:00:00.000Z\",\n    \"updated_at\": \"2026-09-10T12:00:00.000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Contact List",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{contactListUpdateIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaign_contact_lists/{{contactListId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaign_contact_lists",
+                    "{{contactListId}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"campaign_contact_list\": {\n    \"name\": \"Festival attendees 2026\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [
+                {
+                  "name": "Contact list updated",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"list_01HXAttendees\",\n    \"organization_id\": \"org_01HXExample\",\n    \"created_by_id\": \"user_01HXOrganizer\",\n    \"name\": \"Festival attendees\",\n    \"status\": \"active\",\n    \"version\": 1,\n    \"created_at\": \"2026-09-10T12:00:00.000Z\",\n    \"updated_at\": \"2026-09-10T12:00:00.000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Archive Contact List",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{contactListArchiveIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaign_contact_lists/{{contactListId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaign_contact_lists",
+                    "{{contactListId}}"
+                  ]
+                },
+                "description": "Archive a list without exposing or deleting its contact values."
+              },
+              "response": [
+                {
+                  "name": "Contact list archived",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"list_01HXAttendees\",\n    \"organization_id\": \"org_01HXExample\",\n    \"created_by_id\": \"user_01HXOrganizer\",\n    \"name\": \"Festival attendees\",\n    \"status\": \"archived\",\n    \"version\": 1,\n    \"created_at\": \"2026-09-10T12:00:00.000Z\",\n    \"updated_at\": \"2026-09-10T12:00:00.000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Import Contact List CSV",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{contactListImportIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaign_contact_lists/{{contactListId}}/import",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaign_contact_lists",
+                    "{{contactListId}}",
+                    "import"
+                  ]
+                },
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "file",
+                      "type": "file",
+                      "src": "/tmp/festival-attendees.csv"
+                    }
+                  ]
+                },
+                "description": "Upload a CSV (maximum 5 MB/10,000 rows). Import is asynchronous; set file to a local CSV containing phone_number,email,first_name,last_name columns."
+              },
+              "response": [
+                {
+                  "name": "Import accepted",
+                  "status": "Accepted",
+                  "code": 202,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"import_01HXContacts\",\n    \"campaign_contact_list_id\": \"list_01HXAttendees\",\n    \"created_by_id\": \"user_01HXOrganizer\",\n    \"status\": \"pending\",\n    \"filename\": \"festival-attendees.csv\",\n    \"total_rows\": 0,\n    \"accepted_rows\": 0,\n    \"duplicate_rows\": 0,\n    \"invalid_rows\": 0,\n    \"suppressed_rows\": 0,\n    \"missing_channel_rows\": 0,\n    \"error_detail\": null,\n    \"started_at\": null,\n    \"completed_at\": null,\n    \"created_at\": \"2026-09-10T12:00:00.000Z\",\n    \"updated_at\": \"2026-09-10T12:01:08.000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Append Contact Rows",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{contactListAppendIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaign_contact_lists/{{contactListId}}/append",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaign_contact_lists",
+                    "{{contactListId}}",
+                    "append"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rows\": [\n    {\n      \"phone_number\": \"+251911000002\",\n      \"first_name\": \"Marta\",\n      \"last_name\": \"Bekele\",\n      \"source\": \"manual\"\n    },\n    {\n      \"email\": \"attendee@example.com\",\n      \"first_name\": \"Dawit\",\n      \"source\": \"manual\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Normalize and append new contacts. Existing normalized addresses are deduplicated."
+              },
+              "response": [
+                {
+                  "name": "Rows appended",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"list_01HXAttendees\",\n    \"organization_id\": \"org_01HXExample\",\n    \"created_by_id\": \"user_01HXOrganizer\",\n    \"name\": \"Festival attendees\",\n    \"status\": \"active\",\n    \"version\": 1,\n    \"created_at\": \"2026-09-10T12:00:00.000Z\",\n    \"updated_at\": \"2026-09-10T12:00:00.000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Replace Contact List",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{contactListReplaceIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaign_contact_lists/{{contactListId}}/replace",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaign_contact_lists",
+                    "{{contactListId}}",
+                    "replace"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"confirm\": true,\n  \"rows\": [\n    {\n      \"phone_number\": \"+251911000002\",\n      \"first_name\": \"Marta\",\n      \"last_name\": \"Bekele\",\n      \"source\": \"csv\"\n    },\n    {\n      \"phone_number\": \"+251911000003\",\n      \"first_name\": \"Kebede\",\n      \"source\": \"csv\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Replace all active rows after explicit confirmation. Bumps list version; use sparingly for large lists."
+              },
+              "response": [
+                {
+                  "name": "Contact list replaced",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"list_01HXAttendees\",\n    \"organization_id\": \"org_01HXExample\",\n    \"created_by_id\": \"user_01HXOrganizer\",\n    \"name\": \"Festival attendees\",\n    \"status\": \"active\",\n    \"version\": 2,\n    \"created_at\": \"2026-09-10T12:00:00.000Z\",\n    \"updated_at\": \"2026-09-10T12:00:00.000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Add Contact List Entry",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{contactEntryCreateIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaign_contact_lists/{{contactListId}}/entries",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaign_contact_lists",
+                    "{{contactListId}}",
+                    "entries"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"entry\": {\n    \"phone_number\": \"+251911000004\",\n    \"first_name\": \"Selam\",\n    \"last_name\": \"Tesfaye\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Add one normalized contact. The response is the safe list projection."
+              },
+              "response": [
+                {
+                  "name": "Entry added",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"list_01HXAttendees\",\n    \"organization_id\": \"org_01HXExample\",\n    \"created_by_id\": \"user_01HXOrganizer\",\n    \"name\": \"Festival attendees\",\n    \"status\": \"active\",\n    \"version\": 1,\n    \"created_at\": \"2026-09-10T12:00:00.000Z\",\n    \"updated_at\": \"2026-09-10T12:00:00.000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Remove Contact List Entry",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{contactEntryRemoveIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaign_contact_lists/{{contactListId}}/entries/{{contactEntryId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaign_contact_lists",
+                    "{{contactListId}}",
+                    "entries",
+                    "{{contactEntryId}}"
+                  ]
+                }
+              },
+              "response": [
+                {
+                  "name": "Entry removed",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"entry_01HXContact\",\n    \"status\": \"removed\",\n    \"source\": \"manual\",\n    \"phone_present\": true,\n    \"email_present\": false,\n    \"created_at\": \"2026-09-10T12:00:00.000Z\",\n    \"updated_at\": \"2026-09-10T12:02:00.000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Contact Import",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaign_contact_lists/{{contactListId}}/imports/{{importId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaign_contact_lists",
+                    "{{contactListId}}",
+                    "imports",
+                    "{{importId}}"
+                  ]
+                },
+                "description": "Poll asynchronous CSV import state."
+              },
+              "response": [
+                {
+                  "name": "Import completed",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"import_01HXContacts\",\n    \"campaign_contact_list_id\": \"list_01HXAttendees\",\n    \"created_by_id\": \"user_01HXOrganizer\",\n    \"status\": \"completed\",\n    \"filename\": \"festival-attendees.csv\",\n    \"total_rows\": 1250,\n    \"accepted_rows\": 1242,\n    \"duplicate_rows\": 5,\n    \"invalid_rows\": 2,\n    \"suppressed_rows\": 1,\n    \"missing_channel_rows\": 0,\n    \"error_detail\": null,\n    \"started_at\": \"2026-09-10T12:01:00.000Z\",\n    \"completed_at\": \"2026-09-10T12:01:08.000Z\",\n    \"created_at\": \"2026-09-10T12:00:00.000Z\",\n    \"updated_at\": \"2026-09-10T12:01:08.000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Download Contact Import Rejected Report",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaign_contact_lists/{{contactListId}}/imports/{{importId}}/report",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaign_contact_lists",
+                    "{{contactListId}}",
+                    "imports",
+                    "{{importId}}",
+                    "report"
+                  ]
+                },
+                "description": "Download the sanitized CSV report for rejected rows. Requires organization membership; response content type is text/csv."
+              },
+              "response": [
+                {
+                  "name": "Rejected rows CSV",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "csv",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "text/csv"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "row_number,phone_number,email,first_name,last_name,errors\\n4,'+251911000009,bad-email,Noah,,email_invalid\\n"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Templates",
+          "item": [
+            {
+              "name": "List Campaign Templates",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaign_templates?page=1&per_page=25",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaign_templates"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "25"
+                    }
+                  ]
+                },
+                "description": "List organization and platform templates for the selected channel. Template content is not returned by this shell endpoint."
+              },
+              "response": [
+                {
+                  "name": "Template collection",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": [\n    {\n      \"success\": true,\n      \"data\": {\n        \"id\": \"template_01HXReminder\",\n        \"organization_id\": \"org_01HXExample\",\n        \"created_by_id\": \"user_01HXOrganizer\",\n        \"name\": \"Event reminder\",\n        \"channel\": \"sms\",\n        \"status\": \"active\",\n        \"created_at\": \"2026-09-10T12:00:00.000Z\",\n        \"updated_at\": \"2026-09-10T12:00:00.000Z\"\n      }\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Campaign Template",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaign_templates/{{templateId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaign_templates",
+                    "{{templateId}}"
+                  ]
+                }
+              },
+              "response": [
+                {
+                  "name": "Template detail",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"template_01HXReminder\",\n    \"organization_id\": \"org_01HXExample\",\n    \"created_by_id\": \"user_01HXOrganizer\",\n    \"name\": \"Event reminder\",\n    \"channel\": \"sms\",\n    \"status\": \"active\",\n    \"created_at\": \"2026-09-10T12:00:00.000Z\",\n    \"updated_at\": \"2026-09-10T12:00:00.000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Create Campaign Template",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{templateCreateIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaign_templates",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaign_templates"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"campaign_template\": {\n    \"name\": \"Event reminder\",\n    \"channel\": \"sms\",\n    \"status\": \"draft\",\n    \"metadata\": {\n      \"locale\": \"en\"\n    }\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [
+                {
+                  "name": "Template created",
+                  "status": "Created",
+                  "code": 201,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"template_01HXReminder\",\n    \"organization_id\": \"org_01HXExample\",\n    \"created_by_id\": \"user_01HXOrganizer\",\n    \"name\": \"Event reminder\",\n    \"channel\": \"sms\",\n    \"status\": \"draft\",\n    \"created_at\": \"2026-09-10T12:00:00.000Z\",\n    \"updated_at\": \"2026-09-10T12:00:00.000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Campaign Template",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{templateUpdateIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/organizations/{{organizationId}}/campaign_templates/{{templateId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "organizations",
+                    "{{organizationId}}",
+                    "campaign_templates",
+                    "{{templateId}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"campaign_template\": {\n    \"name\": \"Event reminder\",\n    \"status\": \"active\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [
+                {
+                  "name": "Template updated",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"template_01HXReminder\",\n    \"organization_id\": \"org_01HXExample\",\n    \"created_by_id\": \"user_01HXOrganizer\",\n    \"name\": \"Event reminder\",\n    \"channel\": \"sms\",\n    \"status\": \"active\",\n    \"created_at\": \"2026-09-10T12:00:00.000Z\",\n    \"updated_at\": \"2026-09-10T12:00:00.000Z\"\n  }\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Public Opt-Out & Provider Webhooks",
+          "item": [
+            {
+              "name": "Provider Inbound Opt-Out Webhook",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "X-Provider-Signature",
+                    "value": "{{inboundSignature}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/messaging/webhooks/{{inboundProvider}}/inbound?channel=sms",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "messaging",
+                    "webhooks",
+                    "{{inboundProvider}}",
+                    "inbound"
+                  ],
+                  "query": [
+                    {
+                      "key": "channel",
+                      "value": "sms"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"external_event_id\": \"provider-event-01HX\",\n  \"phone_number\": \"+251911000002\",\n  \"message\": \"STOP\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "description": "Unauthenticated provider ingress. Configure the provider adapter and sign the exact raw JSON body; valid STOP/unsubscribe messages are deduplicated and recorded as suppression."
+              },
+              "response": [
+                {
+                  "name": "STOP accepted",
+                  "status": "Accepted",
+                  "code": 202,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"inbound_01HXEvent\",\n    \"status\": \"processed\"\n  }\n}"
+                },
+                {
+                  "name": "Invalid provider signature",
+                  "status": "Unauthorized",
+                  "code": 401,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": false,\n  \"code\": \"invalid_provider_signature\",\n  \"message\": \"Provider signature could not be verified\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Preview Campaign Unsubscribe",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/messaging/unsubscribe/{{unsubscribeToken}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "messaging",
+                    "unsubscribe",
+                    "{{unsubscribeToken}}"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "description": "Read-only token validation for a public opt-out link. GET never changes suppression state. Token carries only organization/channel/digest identity and expires after 30 days."
+              },
+              "response": [
+                {
+                  "name": "Valid unsubscribe token",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"valid\": true,\n    \"channel\": \"email\"\n  }\n}"
+                },
+                {
+                  "name": "Invalid unsubscribe token",
+                  "status": "Bad Request",
+                  "code": 400,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": false,\n  \"code\": \"invalid_unsubscribe_token\",\n  \"message\": \"Unsubscribe link is invalid or expired\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Confirm Campaign Unsubscribe",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/messaging/unsubscribe/{{unsubscribeToken}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "messaging",
+                    "unsubscribe",
+                    "{{unsubscribeToken}}"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "description": "State-changing one-click opt-out. Use POST after the recipient confirms the read-only preview; suppression is idempotent."
+              },
+              "response": [
+                {
+                  "name": "Unsubscribe recorded",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"channel\": \"email\",\n    \"status\": \"unsubscribed\"\n  }\n}"
+                },
+                {
+                  "name": "Invalid unsubscribe token",
+                  "status": "Bad Request",
+                  "code": 400,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": false,\n  \"code\": \"invalid_unsubscribe_token\",\n  \"message\": \"Unsubscribe link is invalid or expired\"\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Admin Operations",
+          "description": "Platform-admin inspection and configuration of campaign records, global templates, and volume quotas.",
+          "item": [
+            {
+              "name": "Admin List Campaigns",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/messaging/campaigns?page=1&per_page=25&order_by=created_at&order_direction=desc",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "messaging",
+                    "campaigns"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "25"
+                    },
+                    {
+                      "key": "order_by",
+                      "value": "created_at"
+                    },
+                    {
+                      "key": "order_direction",
+                      "value": "desc"
+                    },
+                    {
+                      "key": "q[status_eq]",
+                      "value": "",
+                      "disabled": true
+                    },
+                    {
+                      "key": "q[channel_eq]",
+                      "value": "",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Platform-admin operational view with aggregate audience progress and the same safe campaign projection."
+              },
+              "response": [
+                {
+                  "name": "Admin campaign collection",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                "body": "{\n  \"success\": true,\n  \"data\": [\n    {\n      \"id\": \"campaign_01HXExample\",\n      \"organization_id\": \"org_01HXExample\",\n      \"created_by_id\": \"user_01HXOrganizer\",\n      \"event_id\": \"evt_01HXFestival\",\n      \"variables\": {\n        \"ticket_link\": \"https://digis.et/events/summer-festival\"\n      },\n      \"name\": \"Summer festival reminder\",\n      \"channel\": \"sms\",\n      \"status\": \"sending\",\n      \"timezone\": \"Africa/Addis_Ababa\",\n      \"send_at\": \"2026-09-15T09:00:00.000Z\",\n      \"launched_at\": \"2026-09-14T18:00:00.000Z\",\n      \"completed_at\": null,\n      \"canceled_at\": null,\n      \"quoted_quantity\": 1250,\n      \"quoted_unit_price_minor\": 25,\n      \"quoted_rate_version_id\": \"rate_01HXSms\",\n      \"quoted_at\": \"2026-09-14T17:45:00.000Z\",\n      \"quote_expires_at\": \"2026-09-14T18:00:00.000Z\",\n      \"audience_status\": \"ready\",\n      \"audience_total_count\": 1250,\n      \"audience_eligible_quantity\": 1250,\n      \"created_at\": \"2026-09-10T12:00:00.000Z\",\n      \"updated_at\": \"2026-09-14T18:00:00.000Z\"\n    }\n  ],\n  \"pagination\": {\n    \"current_page\": 1,\n    \"per_page\": 25,\n    \"total_count\": 1,\n    \"total_pages\": 1,\n    \"links\": {}\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Admin Get Campaign",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/messaging/campaigns/{{campaignId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "messaging",
+                    "campaigns",
+                    "{{campaignId}}"
+                  ]
+                }
+              },
+              "response": [
+                {
+                  "name": "Admin campaign detail",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"campaign_01HXExample\",\n    \"organization_id\": \"org_01HXExample\",\n    \"created_by_id\": \"user_01HXOrganizer\",\n    \"event_id\": \"evt_01HXFestival\",\n      \"variables\": {\n        \"ticket_link\": \"https://digis.et/events/summer-festival\"\n      },\n    \"name\": \"Summer festival reminder\",\n    \"channel\": \"sms\",\n    \"status\": \"sending\",\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"launch_version\": 1,\n    \"send_at\": \"2026-09-15T09:00:00.000Z\",\n    \"launched_at\": \"2026-09-14T18:00:00.000Z\",\n    \"completed_at\": null,\n    \"canceled_at\": null,\n    \"quoted_quantity\": 1250,\n    \"quoted_unit_price_minor\": 25,\n    \"quoted_rate_version_id\": \"rate_01HXSms\",\n    \"quoted_at\": \"2026-09-14T17:45:00.000Z\",\n    \"quote_expires_at\": \"2026-09-14T18:00:00.000Z\",\n    \"audience_status\": \"ready\",\n    \"audience_total_count\": 1250,\n    \"audience_eligible_quantity\": 1250,\n    \"created_at\": \"2026-09-10T12:00:00.000Z\",\n    \"updated_at\": \"2026-09-14T18:00:00.000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Admin List Campaign Templates",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/messaging/campaign_templates?page=1&per_page=25&order_by=created_at&order_direction=desc",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "messaging",
+                    "campaign_templates"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "25"
+                    },
+                    {
+                      "key": "order_by",
+                      "value": "created_at"
+                    },
+                    {
+                      "key": "order_direction",
+                      "value": "desc"
+                    }
+                  ]
+                }
+              },
+              "response": [
+                {
+                  "name": "Admin template collection",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": [\n    {\n      \"id\": \"template_01HXReminder\",\n      \"organization_id\": null,\n      \"created_by_id\": \"user_01HXAdmin\",\n      \"name\": \"Event reminder\",\n      \"channel\": \"sms\",\n      \"status\": \"active\",\n      \"metadata\": {\n        \"locale\": \"en\"\n      },\n      \"created_at\": \"2026-09-10T12:00:00.000Z\",\n      \"updated_at\": \"2026-09-10T12:00:00.000Z\"\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Admin Get Campaign Template",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/messaging/campaign_templates/{{templateId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "messaging",
+                    "campaign_templates",
+                    "{{templateId}}"
+                  ]
+                }
+              },
+              "response": [
+                {
+                  "name": "Admin template detail",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"template_01HXReminder\",\n    \"organization_id\": null,\n    \"created_by_id\": \"user_01HXAdmin\",\n    \"name\": \"Event reminder\",\n    \"channel\": \"sms\",\n    \"status\": \"active\",\n    \"metadata\": {\n      \"locale\": \"en\"\n    },\n    \"created_at\": \"2026-09-10T12:00:00.000Z\",\n    \"updated_at\": \"2026-09-10T12:00:00.000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Admin Create Campaign Template",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{adminTemplateCreateIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/messaging/campaign_templates",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "messaging",
+                    "campaign_templates"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"campaign_template\": {\n    \"name\": \"Event reminder\",\n    \"channel\": \"sms\",\n    \"status\": \"active\",\n    \"metadata\": {\n      \"locale\": \"en\"\n    }\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [
+                {
+                  "name": "Admin template created",
+                  "status": "Created",
+                  "code": 201,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"template_01HXReminder\",\n    \"organization_id\": null,\n    \"created_by_id\": \"user_01HXAdmin\",\n    \"name\": \"Event reminder\",\n    \"channel\": \"sms\",\n    \"status\": \"active\",\n    \"metadata\": {\n      \"locale\": \"en\"\n    },\n    \"created_at\": \"2026-09-10T12:00:00.000Z\",\n    \"updated_at\": \"2026-09-10T12:00:00.000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Admin Update Campaign Template",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{adminTemplateUpdateIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/messaging/campaign_templates/{{templateId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "messaging",
+                    "campaign_templates",
+                    "{{templateId}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"campaign_template\": {\n    \"name\": \"Festival reminder\",\n    \"status\": \"active\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [
+                {
+                  "name": "Admin template updated",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"template_01HXReminder\",\n    \"organization_id\": null,\n    \"created_by_id\": \"user_01HXAdmin\",\n    \"name\": \"Event reminder\",\n    \"channel\": \"sms\",\n    \"status\": \"active\",\n    \"metadata\": {\n      \"locale\": \"en\"\n    },\n    \"created_at\": \"2026-09-10T12:00:00.000Z\",\n    \"updated_at\": \"2026-09-10T12:00:00.000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Admin List Campaign Volume Policies",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/messaging/campaign_volume_policies?page=1&per_page=25&order_by=updated_at&order_direction=desc",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "messaging",
+                    "campaign_volume_policies"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "per_page",
+                      "value": "25"
+                    },
+                    {
+                      "key": "order_by",
+                      "value": "updated_at"
+                    },
+                    {
+                      "key": "order_direction",
+                      "value": "desc"
+                    }
+                  ]
+                }
+              },
+              "response": [
+                {
+                  "name": "Admin quota policy collection",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": [\n    {\n      \"id\": \"volume_policy_01HX\",\n      \"organization_id\": null,\n      \"channel\": \"sms\",\n      \"timezone\": \"Africa/Addis_Ababa\",\n      \"daily_limit\": 100000,\n      \"monthly_limit\": 1000000,\n      \"active\": true,\n      \"updated_by_id\": \"user_01HXAdmin\",\n      \"created_at\": \"2026-09-10T12:00:00.000Z\",\n      \"updated_at\": \"2026-09-10T12:00:00.000Z\"\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
+              "name": "Admin Get Campaign Volume Policy",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/messaging/campaign_volume_policies/{{campaignVolumePolicyId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "messaging",
+                    "campaign_volume_policies",
+                    "{{campaignVolumePolicyId}}"
+                  ]
+                }
+              },
+              "response": [
+                {
+                  "name": "Admin quota policy detail",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"volume_policy_01HX\",\n    \"organization_id\": null,\n    \"channel\": \"sms\",\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"daily_limit\": 100000,\n    \"monthly_limit\": 1000000,\n    \"active\": true,\n    \"updated_by_id\": \"user_01HXAdmin\",\n    \"created_at\": \"2026-09-10T12:00:00.000Z\",\n    \"updated_at\": \"2026-09-10T12:00:00.000Z\"\n  }\n}"
+                }
+              ]
+            },
+            {
+              "name": "Admin Update Campaign Volume Policy",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{campaignVolumePolicyUpdateIdempotencyKey}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/messaging/campaign_volume_policies/{{campaignVolumePolicyId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "messaging",
+                    "campaign_volume_policies",
+                    "{{campaignVolumePolicyId}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"campaign_volume_policy\": {\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"daily_limit\": 100000,\n    \"monthly_limit\": 1000000,\n    \"active\": true\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Apply an audited, idempotent quota policy update. Digests are never returned."
+              },
+              "response": [
+                {
+                  "name": "Admin quota policy updated",
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"volume_policy_01HX\",\n    \"organization_id\": null,\n    \"channel\": \"sms\",\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"daily_limit\": 100000,\n    \"monthly_limit\": 1000000,\n    \"active\": true,\n    \"updated_by_id\": \"user_01HXAdmin\",\n    \"created_at\": \"2026-09-10T12:00:00.000Z\",\n    \"updated_at\": \"2026-09-10T12:00:00.000Z\"\n  }\n}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   ]
 }
