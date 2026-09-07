@@ -67,13 +67,11 @@ module Messaging
     end
 
     test "maps a permanent adapter failure without leaking raw details" do
-      adapter = Class.new do
-        def deliver(**)
-          Messaging::Providers::DeliveryResult.failed(
-            provider: "fake", failure_code: "rejected", failure_detail: "Authorization: secret"
-          )
-        end
-      end.new
+      adapter = Messaging::Providers::TestAdapter.new(
+        default: Messaging::Providers::DeliveryResult.failed(
+          provider: "fake", failure_code: "rejected", failure_detail: "Authorization: secret"
+        )
+      )
       registry = Rails.application.config.x.messaging_provider_registry
       previous = registry.fetch(channel: "email")
       registry.register(channel: "email", adapter:)

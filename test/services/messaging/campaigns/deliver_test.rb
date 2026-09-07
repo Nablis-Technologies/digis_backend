@@ -48,11 +48,7 @@ module Messaging
       end
 
       test "settles a successful provider delivery" do
-        adapter = Class.new(Messaging::Providers::Adapter) do
-          def deliver_campaign(**)
-            Messaging::Providers::DeliveryResult.delivered(provider: "fake", provider_message_id: "msg-1")
-          end
-        end.new
+        adapter = Messaging::Providers::TestAdapter.new(default: :delivered, provider: "fake")
         Rails.application.config.x.messaging_provider_registry.register(channel: "sms", adapter:)
 
         result = Deliver.call(delivery_id: @delivery.id)
@@ -116,11 +112,7 @@ module Messaging
       end
 
       test "returns the claimed delivery in the batched outcome" do
-        adapter = Class.new(Messaging::Providers::Adapter) do
-          def deliver_campaign(**)
-            Messaging::Providers::DeliveryResult.delivered(provider: "fake", provider_message_id: "msg-2")
-          end
-        end.new
+        adapter = Messaging::Providers::TestAdapter.new(default: :delivered, provider: "fake")
         Rails.application.config.x.messaging_provider_registry.register(channel: "sms", adapter:)
 
         result = Deliver.call(delivery: @delivery, settle: false)
@@ -153,11 +145,7 @@ module Messaging
 
       test "stops retrying a delivery after the maximum attempts" do
         @delivery.update_columns(attempts: 4)
-        adapter = Class.new(Messaging::Providers::Adapter) do
-          def deliver_campaign(**)
-            Messaging::Providers::DeliveryResult.retryable(provider: "fake", failure_code: "rate_limited")
-          end
-        end.new
+        adapter = Messaging::Providers::TestAdapter.new(default: :retryable, provider: "fake")
         Rails.application.config.x.messaging_provider_registry.register(channel: "sms", adapter:)
 
         result = Deliver.call(delivery_id: @delivery.id)
@@ -171,11 +159,7 @@ module Messaging
 
       test "returns a failed batched outcome when provider errors exhaust attempts" do
         @delivery.update_columns(attempts: 4)
-        adapter = Class.new(Messaging::Providers::Adapter) do
-          def deliver_campaign(**)
-            raise "provider timeout"
-          end
-        end.new
+        adapter = Messaging::Providers::TestAdapter.new(default: :raise, provider: "fake")
         Rails.application.config.x.messaging_provider_registry.register(channel: "sms", adapter:)
 
         result = Deliver.call(delivery: @delivery, settle: false)
@@ -190,11 +174,7 @@ module Messaging
       end
 
       test "returns a retryable batched outcome when a provider error is recoverable" do
-        adapter = Class.new(Messaging::Providers::Adapter) do
-          def deliver_campaign(**)
-            raise "temporary provider timeout"
-          end
-        end.new
+        adapter = Messaging::Providers::TestAdapter.new(default: :raise, provider: "fake")
         Rails.application.config.x.messaging_provider_registry.register(channel: "sms", adapter:)
 
         result = Deliver.call(delivery: @delivery, settle: false)
@@ -208,11 +188,7 @@ module Messaging
 
       test "returns success after settling a provider error at the attempt limit" do
         @delivery.update_columns(attempts: 4)
-        adapter = Class.new(Messaging::Providers::Adapter) do
-          def deliver_campaign(**)
-            raise "permanent provider timeout"
-          end
-        end.new
+        adapter = Messaging::Providers::TestAdapter.new(default: :raise, provider: "fake")
         Rails.application.config.x.messaging_provider_registry.register(channel: "sms", adapter:)
 
         result = Deliver.call(delivery_id: @delivery.id)

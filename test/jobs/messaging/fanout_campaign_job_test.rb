@@ -195,20 +195,12 @@ module Messaging
     end
 
     def register_fake_provider
-      adapter = Class.new(Messaging::Providers::Adapter) do
-        def deliver_campaign(**)
-          Messaging::Providers::DeliveryResult.delivered(provider: "fake")
-        end
-      end.new
+      adapter = Messaging::Providers::TestAdapter.new(default: :delivered, provider: "fake")
       Rails.application.config.x.messaging_provider_registry.register(channel: "sms", adapter:)
     end
 
     def register_retryable_provider
-      adapter = Class.new(Messaging::Providers::Adapter) do
-        def deliver_campaign(**)
-          Messaging::Providers::DeliveryResult.retryable(provider: "fake", failure_code: "rate_limited")
-        end
-      end.new
+      adapter = Messaging::Providers::TestAdapter.new(default: :retryable, provider: "fake")
       Rails.application.config.x.messaging_provider_registry.register(channel: "sms", adapter:)
     end
   end
