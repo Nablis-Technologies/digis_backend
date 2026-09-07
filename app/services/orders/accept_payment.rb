@@ -38,6 +38,7 @@ module Orders
 
         payment.update!(accepted_at: now)
         order.update!(status: "paid", paid_at: now)
+        confirm_paid_registrations!(payment, order)
         commit_reservations!(order)
         commit_purchase_limits!(order)
         apply_promotion!(order)
@@ -104,6 +105,18 @@ module Orders
       group_ids |= Catalog::VenueCapacityReservation.where(order_item_id: item_ids).distinct.pluck(:reservation_group_id)
       group_ids.sort.each do |group_id|
         result = Catalog::Inventory::Commit.call(reservation_group_id: group_id)
+        raise AcceptanceFailure, result.error if result.failure?
+      end
+    end
+
+    def confirm_paid_registrations!(locked_payment, locked_order)
+      registration_ids = Orders::OrderItem.where(order_id: locked_order.id)
+        .where.not(registration_id: nil)
+        .select(:registration_id)
+      Ticketing::Registration.lock.where(id: registration_ids).find_each do |registration|
+        result = Ticketing::Registrations::ConfirmPaid.call(
+          registration:, payment: locked_payment, at: now
+        )
         raise AcceptanceFailure, result.error if result.failure?
       end
     end
