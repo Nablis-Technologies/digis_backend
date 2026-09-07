@@ -95,7 +95,13 @@ module Messaging
     end
 
     def rows_param
-      Array(params[:rows] || params.dig(:campaign_contact_list, :rows)).map(&:to_h)
+      raw_rows = params[:rows] || params.dig(:campaign_contact_list, :rows) || []
+      Array(raw_rows).map do |row|
+        attributes = row.respond_to?(:to_unsafe_h) ? row.to_unsafe_h : row
+        ActionController::Parameters.new(attributes).permit(
+          :phone_number, :email, :first_name, :last_name
+        ).to_h
+      end
     end
 
     def allowed_order_columns

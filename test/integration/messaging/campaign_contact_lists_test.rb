@@ -53,6 +53,21 @@ module Messaging
       file&.close!
     end
 
+    test "appends contacts from a real JSON request" do
+      list = CampaignContactList.create!(
+        organization: @organization, created_by: core_users(:super_admin),
+        name: "JSON append #{SecureRandom.hex(4)}"
+      )
+
+      post "/organizations/#{@organization.id}/campaign_contact_lists/#{list.id}/append",
+        params: { rows: [ { phone_number: "+251911123457", first_name: "Aster" } ] },
+        headers: admin_headers.merge("Idempotency-Key" => "json-append-#{SecureRandom.hex(4)}"), as: :json
+
+      assert_response :success
+      assert_equal 1, list.reload.entries.where(status: "active").count
+      assert_equal "Aster", list.entries.first.first_name
+    end
+
     test "removes a contact-list entry and returns its safe serialized state" do
       list = CampaignContactList.create!(
         organization: @organization, created_by: core_users(:super_admin),
