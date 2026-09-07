@@ -8,6 +8,10 @@ module Messaging
       def deliver(notification:, delivery:, content:, idempotency_key:)
         raise NotImplementedError, I18n.t("messaging.errors.adapter_not_implemented")
       end
+
+      def deliver_campaign(campaign:, delivery:, content:, idempotency_key:)
+        raise NotImplementedError, I18n.t("messaging.errors.adapter_not_implemented")
+      end
     end
   end
 end
