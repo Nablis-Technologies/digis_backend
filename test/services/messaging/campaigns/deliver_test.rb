@@ -58,6 +58,24 @@ module Messaging
         assert_equal "consumed", @delivery.credit_allocation.reload.status
       end
 
+      test "settles a delivery through the preview provider configuration" do
+        previous_registry = Rails.application.config.x.messaging_provider_registry
+        registry = Messaging::Providers::Registry.new
+        Messaging::Providers::PreviewConfiguration.call(
+          env: { "RENDER_PREVIEW" => "true", "DIGIS_MESSAGING_PREVIEW_PROVIDER" => "true" }, registry:
+        )
+        Rails.application.config.x.messaging_provider_registry = registry
+
+        result = Deliver.call(delivery_id: @delivery.id)
+
+        assert_predicate result, :success?, result.error&.message
+        assert_equal "delivered", @delivery.reload.status
+        assert_equal "preview", @delivery.provider
+        assert_equal "consumed", @delivery.credit_allocation.reload.status
+      ensure
+        Rails.application.config.x.messaging_provider_registry = previous_registry
+      end
+
       test "preloads the direct allocation when claiming by delivery id" do
         claimed = Deliver.new(delivery_id: @delivery.id).send(:claim_delivery)
 
