@@ -5,9 +5,10 @@ require "test_helper"
 module Links
   class ResolveTest < ActiveSupport::TestCase
     include ActiveJob::TestHelper
+    include Ticketing::PackageWorkflowTestHelpers
 
     setup do
-      @event = events_events(:ready_listing)
+      setup_package_workflow(admissions_per_unit: 1)
       configure_links(enabled: true)
     end
 
@@ -57,6 +58,20 @@ module Links
 
       assert_predicate result, :success?, result.error&.message
       assert_equal "https://example.com/campaign", result.value.location
+    end
+
+    test "resolves a canonical ticket link to a signed public ticket view" do
+      link = create_link(slug: "ticket-canonical", target_type: "ticket", target_id: @ticket.id, canonical: true)
+
+      result = Resolve.call(slug: link.slug, now: Time.current)
+
+      assert_predicate result, :success?, result.error&.message
+      location = URI.parse(result.value.location)
+      assert_equal "/public/tickets/#{@ticket.id}", location.path
+      token = URI.decode_www_form(location.query).to_h.fetch("view_token")
+      verified = Ticketing::GuestTicketViewToken.verify(token)
+      assert_predicate verified, :success?, verified.error&.message
+      assert_equal @ticket.id.to_s, verified.value.ticket_id
     end
 
     test "keeps target types allowlisted and canonical links unique" do
