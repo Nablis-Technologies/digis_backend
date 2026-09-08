@@ -18,6 +18,7 @@ module Ticketing
           idempotency_key: @event.idempotency_key
         }
         sender.call(**details) if sender
+        enqueue_guest_delivery(details.fetch(:ticket_id))
         success(details)
       rescue KeyError
         failure(
@@ -35,6 +36,15 @@ module Ticketing
 
       def sender
         @sender || Rails.application.config.x.credential_delivery_sender
+      end
+
+      def enqueue_guest_delivery(ticket_id)
+        ticket = Ticketing::Ticket.includes(:owner_user).find(ticket_id)
+        return unless ticket.owner_user.verified_at.blank? && ticket.owner_user.password_digest.blank?
+
+        Ticketing::GuestTicketDeliveryJob.perform_later(ticket.id)
+      rescue ActiveRecord::RecordNotFound
+        nil
       end
     end
   end
