@@ -1424,7 +1424,7 @@
                   ],
                   "query": []
                 },
-                "description": "Discover published public events without authentication. Each item exposes event basics, category summaries, event dates with minimal venue data, safe media variants, active organization summaries, and the allowlisted public event settings. Internal status/version fields, staff assignments, access codes, event streams, inventory counters, and raw private configuration are omitted.",
+                "description": "Discover published public events without authentication. Each item exposes event basics, the minimum currently active ETB price as price_from_minor when available, category summaries, event dates with minimal venue data, safe media variants, active organization summaries, and the allowlisted public event settings. Internal status/version fields, staff assignments, access codes, event streams, inventory counters, and raw private configuration are omitted.",
                 "auth": {
                   "type": "noauth"
                 }
@@ -1443,6 +1443,7 @@
                       "  pm.expect(json).to.have.property(\"success\", true);",
                       "  pm.expect(json).to.have.property(\"data\");",
                       "  pm.expect(json.data).to.be.an(\"array\");",
+                      "  if (json.data[0]) pm.expect(json.data[0]).to.have.property(\"price_from_minor\");",
                       "});"
                     ],
                     "type": "text/javascript"
@@ -1562,7 +1563,7 @@
                         "products"
                       ]
                     },
-                    "description": "List active public products for an event slug. Each product includes active currency-aware price_options and a boolean available projection. Draft and retired products, raw metadata, held/sold counters, and inventory internals are omitted; the order quote remains authoritative for final price and reservation.",
+                    "description": "List active public products for an event slug. Each product includes active currency-aware price_options, a boolean available projection, and the explicit requires_ticket boolean. Draft and retired products, raw metadata, held/sold counters, and inventory internals are omitted; the order quote remains authoritative for final price and reservation.",
                     "auth": {
                       "type": "noauth"
                     }
@@ -4571,6 +4572,30 @@
                   ]
                 },
                 {
+                  "name": "Discover Registration Schema",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/public/events/{{eventSlug}}/ticket_types/{{ticketTypeId}}/registration_schema",
+                      "host": [ "{{baseUrl}}" ],
+                      "path": [ "public", "events", "{{eventSlug}}", "ticket_types", "{{ticketTypeId}}", "registration_schema" ]
+                    },
+                    "description": "Returns published registration forms, attendee-safe question metadata, and applicable consent metadata for a public event. Answers and publication actors are never returned."
+                  },
+                  "response": [
+                    {
+                      "name": "Public registration schema",
+                      "status": "OK",
+                      "code": 200,
+                      "_postman_previewlanguage": "json",
+                      "header": [ { "key": "Content-Type", "value": "application/json" } ],
+                      "cookie": [],
+                      "body": "{\n  \"success\": true,\n  \"data\": {\n    \"event_id\": \"evt_01HXExample\",\n    \"ticket_type_id\": \"type_01HXExample\",\n    \"forms\": [{\n      \"id\": \"version_01HXExample\",\n      \"registration_form_id\": \"form_01HXExample\",\n      \"form_name\": \"Attendee details\",\n      \"version\": 1,\n      \"questions\": [{\n        \"id\": \"question_01HXExample\",\n        \"key\": \"dietary_need\",\n        \"type\": \"short_text\",\n        \"response_scope\": \"registration\",\n        \"sensitivity\": \"dietary\",\n        \"label\": \"Dietary need\",\n        \"required\": false,\n        \"position\": 0,\n        \"options\": [],\n        \"validation_rules\": { \"max_length\": 80 }\n      }]\n    }],\n    \"consent_requirements\": []\n  }\n}"
+                    }
+                  ]
+                },
+                {
                   "name": "Submit Registration",
                   "request": {
                     "method": "POST",
@@ -4639,6 +4664,33 @@
                     "description": "Get a registration visible to its registrant or an authorized event organizer. Phone-derived identity data and form answers are excluded."
                   },
                   "response": []
+                },
+                {
+                  "name": "Release Pending Registration",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+                      { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/registrations/{{registrationId}}/release",
+                      "host": [ "{{baseUrl}}" ],
+                      "path": [ "registrations", "{{registrationId}}", "release" ]
+                    },
+                    "description": "Releases a buyer-owned pending-payment registration and its still-open checkout hold. Reuse the same Idempotency-Key only for the same request."
+                  },
+                  "response": [
+                    {
+                      "name": "Pending registration released",
+                      "status": "OK",
+                      "code": 200,
+                      "_postman_previewlanguage": "json",
+                      "header": [ { "key": "Content-Type", "value": "application/json" } ],
+                      "cookie": [],
+                      "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"registration_01HXExample\",\n    \"status\": \"cancelled\",\n    \"cancelled_at\": \"2026-09-08T09:00:00.000Z\"\n  }\n}"
+                    }
+                  ]
                 },
                 {
                   "name": "Registration Workflows",
@@ -12937,6 +12989,34 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "List My Active Resale Listings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/resale_listings/mine",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "resale_listings", "mine" ]
+            }
+          },
+          "description": "Seller-only discovery of the authenticated seller's active listings with seller-safe economics. The public index never exposes seller fields.",
+          "auth": {
+            "type": "bearer",
+            "bearer": [ { "key": "token", "value": "{{accessToken}}", "type": "string" } ]
+          },
+          "response": [
+            {
+              "name": "Seller listing projection",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [ { "key": "Content-Type", "value": "application/json" } ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"data\": [{\n    \"id\": \"listing_01HXExample\",\n    \"status\": \"active\",\n    \"seller_user_id\": \"user_01HXExample\",\n    \"asking_amount_minor\": 2500,\n    \"currency\": \"ETB\",\n    \"calculated_cap_minor\": 3000,\n    \"max_completed_resales_snapshot\": 2\n  }]\n}"
+            }
+          ]
         },
         {
           "name": "Purchase Resale Listing",
