@@ -15,22 +15,37 @@ module Core
     end
 
     def call
-      return failure(throttled_error) unless allowed?(scope: "ip", value: @ip_address)
-      return failure(throttled_error) if @identifier && !allowed?(scope: "identifier", value: @identifier)
+      return failure(throttled_error) if throttled?
+
+      success(true)
+    end
+
+    def record_failure
+      counts = [
+        increment(scope: "ip", value: @ip_address),
+        increment(scope: "identifier", value: @identifier)
+      ]
+      return failure(throttled_error) if counts.any? { |count| count && count > LIMIT }
 
       success(true)
     end
 
     private
 
-    def allowed?(scope:, value:)
-      return true if value.blank?
+    def throttled?
+      [ [ "ip", @ip_address ], [ "identifier", @identifier ] ].any? do |scope, value|
+        value.present? && @cache.read(cache_key(scope:, value:)).to_i >= LIMIT
+      end
+    end
 
-      seeded = @cache.write(cache_key(scope:, value:), 1, expires_in: WINDOW, unless_exist: true)
-      return true if seeded
+    def increment(scope:, value:)
+      return if value.blank?
 
-      count = @cache.increment(cache_key(scope:, value:), 1, expires_in: WINDOW)
-      count.nil? || count <= LIMIT
+      key = cache_key(scope:, value:)
+      seeded = @cache.write(key, 1, expires_in: WINDOW, unless_exist: true)
+      return 1 if seeded
+
+      @cache.increment(key, 1, expires_in: WINDOW)
     end
 
     def cache_key(scope:, value:)
