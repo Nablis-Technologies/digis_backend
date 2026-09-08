@@ -3,7 +3,8 @@
 module Messaging
   module Providers
     # Deterministic preview transport. It simulates vendor outcomes while
-    # never sending a message or retaining content, credentials, or payloads.
+    # never sending a message or retaining content by default. Private Render
+    # previews may opt into body logging for frontend smoke tests.
     class PreviewAdapter < Adapter
       OUTCOMES = %w[delivered sent failed retryable].freeze
 
@@ -25,7 +26,16 @@ module Messaging
         result
       end
 
+      def deliver_sms(phone:, body:, **_arguments)
+        Rails.logger.warn("[PREVIEW SMS] body=#{body}") if preview_debug_logging?
+        result
+      end
+
       private
+
+      def preview_debug_logging?
+        ENV["RENDER_PREVIEW"] == "true" && ENV["DIGIS_PREVIEW_DEBUG_LOGGING"] == "true"
+      end
 
       def result
         case @outcome

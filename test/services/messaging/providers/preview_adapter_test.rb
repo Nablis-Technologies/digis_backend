@@ -45,6 +45,44 @@ module Messaging
           PreviewAdapter.new(outcome: "provider_magic")
         end
       end
+
+      test "logs an SMS body only for an explicitly enabled Render preview" do
+        Rails.logger.expects(:warn).with { |message|
+          message.include?("Your ticket is ready") && !message.include?("+251911234567")
+        }
+        with_env("RENDER_PREVIEW" => "true", "DIGIS_PREVIEW_DEBUG_LOGGING" => "true") do
+          result = PreviewAdapter.new.deliver_sms(
+            phone: "+251911234567",
+            body: "Your ticket is ready: http://preview.test/t-abc123",
+            idempotency_key: "digest"
+          )
+
+          assert_predicate result, :success?
+        end
+      end
+
+      test "does not log an SMS body when preview debug logging is disabled" do
+        Rails.logger.expects(:warn).never
+        with_env("RENDER_PREVIEW" => "true", "DIGIS_PREVIEW_DEBUG_LOGGING" => "false") do
+          result = PreviewAdapter.new.deliver_sms(
+            phone: "+251911234567",
+            body: "Your ticket is ready: http://preview.test/t-abc123",
+            idempotency_key: "digest"
+          )
+
+          assert_predicate result, :success?
+        end
+      end
+
+      private
+
+      def with_env(values)
+        original = values.to_h { |key, _value| [ key, ENV[key] ] }
+        values.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
+        yield
+      ensure
+        original&.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
+      end
     end
   end
 end
