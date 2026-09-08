@@ -55,7 +55,7 @@ module Ticketing
         order = orders.find { |candidate| candidate.status.in?(%w[draft pending_payment]) }
         return unless order
 
-        result = Orders::ReleaseCheckout.call(order:, reason: "checkout_expired", at: @at)
+        result = Orders::ReleaseCheckout.call(order:, reason: "buyer_requested", at: @at)
         raise result.error if result.failure?
       end
 
