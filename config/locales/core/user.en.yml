@@ -10,3 +10,4 @@ en:
       reactivate: "User reactivated successfully"
     errors:
       email_or_phone_required: "Either email or phone must be provided"
+      invalid_phone: "The phone number is not a valid Ethiopian mobile number"
