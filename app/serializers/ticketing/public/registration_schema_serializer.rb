@@ -18,7 +18,6 @@ module Ticketing
             key: question.key,
             type: question.type,
             response_scope: question.response_scope,
-            sensitivity: question.sensitivity,
             label: question.label,
             help_text: question.help_text,
             required: question.required,
