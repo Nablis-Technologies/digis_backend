@@ -19,6 +19,20 @@ en:
       signup: "Signup failed"
       password_required: "Password is required"
       rate_limited: "Too many authentication attempts. Please try again later"
+    phone_verification:
+      errors:
+        phone_invalid: "A valid phone number is required"
+        phone_mismatch: "The phone number does not match this account"
+        invalid_idempotency_key: "The Idempotency-Key value is invalid"
+        invalid_challenge: "The phone verification challenge is invalid"
+        challenge_not_found: "The phone verification challenge was not found"
+        code_invalid: "The verification code is invalid"
+        code_format_invalid: "The verification code must contain six digits"
+        attempts_exhausted: "The verification challenge has been exhausted"
+        verification_expired: "The verification challenge has expired"
+        verification_already_used: "The verification challenge has already been used"
+        delivery_unavailable: "Phone verification delivery is not configured"
+        delivery_failed: "The verification code could not be delivered"
 
   authorization:
     errors:
@@ -102,6 +116,9 @@ en:
         phone_identity_invalid: "A valid phone number is required"
         phone_identity_unverified: "The authenticated phone identity must be verified"
         phone_identity_mismatch: "The submitted phone must match the authenticated phone identity"
+        phone_confirmation_required: "Confirm your phone number before continuing"
+        guest_requires_authentication: "This phone already belongs to an account; sign in to continue"
+        guest_identity_invalid: "The guest identity could not be saved"
         invalid_registration: "Registration is invalid"
         active_registration_conflict: "An active registration already exists with different submission details"
         registration_not_owned: "Only the registrant can release this registration"

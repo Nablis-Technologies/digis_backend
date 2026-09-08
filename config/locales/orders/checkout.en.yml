@@ -8,6 +8,7 @@ en:
         event_required: "An event is required for checkout"
         event_cancelled: "Checkout is unavailable because this event has been cancelled"
         invalid_quote: "The checkout quote is invalid"
+        invalid_guest_quote: "The guest checkout quote is invalid or has expired"
         quote_expired: "The checkout quote has expired"
         quote_expiry_invalid: "The checkout quote expiry is invalid"
         unsupported_currency: "The selected charge currency is not supported"
