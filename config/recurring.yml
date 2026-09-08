@@ -119,6 +119,10 @@ production:
     class: Streaming::ExpireSessionsJob
     queue: streaming
     schedule: every minute
+  expire_phone_verification_challenges:
+    class: Core::ExpirePhoneVerificationChallengesJob
+    queue: maintenance
+    schedule: every minute
   purge_expired_short_link_clicks:
     class: Links::PurgeExpiredClicksJob
     queue: default

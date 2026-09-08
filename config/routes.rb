@@ -8,6 +8,7 @@ Rails.application.routes.draw do
     post "auth/logout", to: "auth#logout"
     post "auth/reauthenticate", to: "auth#reauthenticate"
     get "auth/me", to: "auth#me"
+    post "auth/phone_verifications", to: "phone_verifications#create"
   end
 
   resources :notifications, only: %i[index show], controller: "messaging/notifications" do
@@ -117,6 +118,8 @@ Rails.application.routes.draw do
       to: "ticketing/public_consent_requirements#index"
   get "public/events/:event_slug/ticket_types/:ticket_type_id/registration_schema",
       to: "ticketing/public_registration_schemas#show"
+  post "guest/ticket_types/:ticket_type_id/registrations",
+       to: "ticketing/guest_registrations#create"
 
   get "events/:event_id/add_on_reports", to: "catalog/event_add_on_reports#index",
       as: :event_add_on_reports
@@ -158,6 +161,17 @@ Rails.application.routes.draw do
     post :order_quotes, to: "orders/order_quotes#create"
     resources :orders, only: :create, controller: "orders/orders"
   end
+
+  post "guest/events/:event_id/order_quotes", to: "orders/guest_order_quotes#create"
+  post "guest/events/:event_id/orders", to: "orders/guest_orders#create"
+  post "guest/orders", to: "orders/guest_orders#create"
+  post "guest/orders/:order_id/payment_attempts", to: "orders/guest_payment_attempts#create"
+  post "guest/payments/:payment_id/refresh", to: "orders/guest_payment_refresh#create"
+
+  get "public/tickets/:ticket_id", to: "ticketing/public_ticket_views#show"
+  post "public/ticket_views/:token/request_otp", to: "core/phone_verifications#create"
+  post "phone_verifications/:id/verify", to: "core/phone_verifications#verify"
+  post "registrations/:id/claim_guest", to: "ticketing/guest_registrations#claim_guest"
 
   # Finance owns completion because it triggers the payout-maturity boundary;
   # the URL remains event-scoped for organizer operations.
@@ -441,7 +455,11 @@ Rails.application.routes.draw do
     get "feed", to: "feed#index"
   end
 
-  constraints(lambda { |request| request.host == Rails.application.config.x.short_links.host }) do
+  constraints(lambda do |request|
+    config = Rails.application.config.x.short_links
+    request.host == config.host &&
+      (config.port.blank? || request.port == config.port.to_i)
+  end) do
     get "/:slug", to: "links/redirects#show", as: :branded_redirect
   end
 end
