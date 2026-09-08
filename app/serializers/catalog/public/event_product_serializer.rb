@@ -31,8 +31,7 @@ module Catalog
       private
 
       def active_price?(price)
-        price.active_from <= evaluation_time &&
-          (price.active_to.blank? || price.active_to > evaluation_time)
+        Catalog::Public::PriceWindow.active?(price, at: evaluation_time)
       end
 
       def evaluation_time
