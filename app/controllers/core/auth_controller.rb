@@ -28,6 +28,7 @@ module Core
           }
         )
       else
+        record_auth_failure
         render_error(:"auth.errors.invalid_credentials", status: :unauthorized, code: "invalid_credentials")
       end
     end
@@ -35,12 +36,15 @@ module Core
     def signup
       skip_authorization
       user = Core::User.new(user_params)
-      return render_error(
-        I18n.t("auth.errors.signup"),
-        errors: [ I18n.t("auth.errors.password_required") ],
-        status: :unprocessable_entity,
-        code: "signup_failed"
-      ) if user.password.blank?
+      if user.password.blank?
+        record_auth_failure
+        return render_error(
+          I18n.t("auth.errors.signup"),
+          errors: [ I18n.t("auth.errors.password_required") ],
+          status: :unprocessable_entity,
+          code: "signup_failed"
+        )
+      end
 
       begin
         ActiveRecord::Base.transaction do
@@ -59,6 +63,7 @@ module Core
           }
         )
       rescue ActiveRecord::RecordInvalid => e
+        record_auth_failure
         render_error(
           :"auth.errors.signup",
           errors: e.record.errors.full_messages,
@@ -66,6 +71,7 @@ module Core
           code: "signup_failed"
         )
       rescue StandardError => e
+        record_auth_failure
         Rails.logger.error "Signup error: #{e.class} #{e.message}\n#{e.backtrace.first(8).join("\n")}" if defined?(Rails)
         render_error(
           :"auth.errors.signup",
@@ -126,6 +132,7 @@ module Core
         }
       )
     rescue Core::AuthenticationError => e
+      record_auth_failure
       render_error(:"auth.errors.#{e.code}", status: :unauthorized, code: e.code)
     end
 
@@ -154,14 +161,22 @@ module Core
     end
 
     def throttle_auth_request
-      result = Core::AuthThrottle.call(
+      result = auth_throttle.call
+      return if result.success?
+
+      render_error(result.error.message, status: result.error.status_code, code: result.error.code)
+    end
+
+    def record_auth_failure
+      auth_throttle.record_failure
+    end
+
+    def auth_throttle
+      @auth_throttle ||= Core::AuthThrottle.new(
         identifier: params[:identifier].presence || params.dig(:user, :email).presence ||
           params.dig(:user, :phone).presence || params[:refresh_token],
         ip_address: request.remote_ip
       )
-      return if result.success?
-
-      render_error(result.error.message, status: result.error.status_code, code: result.error.code)
     end
 
     def assign_default_role(user)
