@@ -66,6 +66,21 @@ module Marketplace
       end
     end
 
+    test "seller mine discovery returns only the seller-safe active projection" do
+      get "/resale_listings/mine", headers: headers_for(@owner), as: :json
+
+      assert_response :success
+      data = response.parsed_body.fetch("data").sole
+      assert_equal @listing.id, data.fetch("id")
+      assert_equal @owner.id, data.fetch("seller_user_id")
+      assert data.key?("calculated_cap_minor")
+
+      get "/resale_listings", headers: headers_for(@owner), as: :json
+
+      public_data = response.parsed_body.fetch("data").sole
+      refute public_data.key?("seller_user_id")
+    end
+
     test "the seller sees the immutable economics captured for their listing" do
       get "/resale_listings/#{@listing.id}", headers: headers_for(@owner), as: :json
 

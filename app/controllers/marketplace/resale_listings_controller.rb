@@ -15,14 +15,21 @@ module Marketplace
     def index
       @clazz = ResaleListing
       authorize @clazz.new, :index?
-      listings = policy_scope(@clazz)
-        .where(status: "active")
-        .includes(display_includes)
-        .order(created_at: :desc)
+      listings = active_listings
       render_success(
         data: listings,
         serializer_options: { serializer: Marketplace::Public::ResaleListingSerializer }
       )
+    end
+
+    def mine
+      @clazz = ResaleListing
+      authorize @clazz.new, :mine?
+      listings = policy_scope(@clazz)
+        .where(status: "active", seller_user_id: current_user.id)
+        .includes(display_includes)
+        .order(created_at: :desc)
+      render_success(data: listings, serializer_options: { serializer: ResaleListingSerializer })
     end
 
     def show
@@ -80,6 +87,13 @@ module Marketplace
           }
         }
       ]
+    end
+
+    def active_listings
+      policy_scope(@clazz)
+        .where(status: "active")
+        .includes(display_includes)
+        .order(created_at: :desc)
     end
 
     def seller_or_platform_view?

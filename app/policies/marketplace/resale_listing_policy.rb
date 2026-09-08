@@ -17,6 +17,8 @@ module Marketplace
 
     def index? = user.present?
 
+    def mine? = user.present?
+
     def show? = platform_admin? || seller? || (record.status == "active" && record.seller_user_id != user&.id)
 
     def create? = platform_admin? || owner_ticket?
@@ -27,6 +29,7 @@ module Marketplace
 
     VISIBILITY = {
       index: { default: { fields: BUYER_FIELDS, include: [] }, admin: { fields: :all, include: [] } },
+      mine: { default: { fields: SELLER_FIELDS, include: [] }, admin: { fields: :all, include: [] } },
       show: { default: { fields: BUYER_FIELDS, include: [] }, admin: { fields: :all, include: [] } },
       create: { default: { fields: SELLER_FIELDS, include: [] }, admin: { fields: :all, include: [] } },
       purchase: { default: { fields: BUYER_FIELDS, include: [] }, admin: { fields: :all, include: [] } },
