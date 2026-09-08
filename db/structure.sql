@@ -4592,6 +4592,31 @@ CREATE TABLE public.core_permissions (
 
 
 --
+-- Name: core_phone_verification_challenges; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.core_phone_verification_challenges (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    user_id uuid NOT NULL,
+    purpose character varying NOT NULL,
+    phone_digest character varying(64) NOT NULL,
+    code_digest character varying(64) NOT NULL,
+    idempotency_key_digest character varying(64) NOT NULL,
+    status character varying DEFAULT 'pending'::character varying NOT NULL,
+    attempts integer DEFAULT 0 NOT NULL,
+    max_attempts integer DEFAULT 5 NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    verified_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT core_phone_verification_challenges_attempts_check CHECK (((attempts >= 0) AND (max_attempts > 0) AND (attempts <= max_attempts))),
+    CONSTRAINT core_phone_verification_challenges_digests_check CHECK ((((phone_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((code_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT core_phone_verification_challenges_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'verified'::character varying, 'expired'::character varying, 'exhausted'::character varying, 'delivery_failed'::character varying])::text[]))),
+    CONSTRAINT core_phone_verification_challenges_verification_state_check CHECK (((((status)::text = 'verified'::text) AND (verified_at IS NOT NULL)) OR (((status)::text <> 'verified'::text) AND (verified_at IS NULL))))
+);
+
+
+--
 -- Name: core_reauthentication_proofs; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -7796,6 +7821,14 @@ ALTER TABLE ONLY public.core_permissions
 
 
 --
+-- Name: core_phone_verification_challenges core_phone_verification_challenges_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.core_phone_verification_challenges
+    ADD CONSTRAINT core_phone_verification_challenges_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: core_reauthentication_proofs core_reauthentication_proofs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8874,6 +8907,20 @@ CREATE INDEX idx_consent_withdrawals_by_registration ON public.ticketing_registr
 --
 
 CREATE INDEX idx_consent_withdrawals_by_signer ON public.ticketing_registration_consent_withdrawals USING btree (withdrawn_by_user_id, withdrawn_at);
+
+
+--
+-- Name: idx_core_phone_verification_challenges_idempotency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_core_phone_verification_challenges_idempotency ON public.core_phone_verification_challenges USING btree (user_id, purpose, idempotency_key_digest);
+
+
+--
+-- Name: idx_core_phone_verification_challenges_status_expires; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_core_phone_verification_challenges_status_expires ON public.core_phone_verification_challenges USING btree (status, expires_at);
 
 
 --
@@ -15457,12 +15504,21 @@ ALTER TABLE ONLY public.ticketing_ticket_suspensions
 
 
 --
+-- Name: core_phone_verification_challenges fk_core_phone_verification_challenges_user; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.core_phone_verification_challenges
+    ADD CONSTRAINT fk_core_phone_verification_challenges_user FOREIGN KEY (user_id) REFERENCES public.core_users(id);
+
+
+--
 -- PostgreSQL database dump complete
 --
 
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260908090001'),
 ('20260906090015'),
 ('20260906090014'),
 ('20260906090013'),
