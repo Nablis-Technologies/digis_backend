@@ -61,6 +61,15 @@ module Finance
         end.uniq.freeze
       end
 
+      def capabilities
+        {
+          currencies: %w[ETB USD],
+          payouts: { supported: true },
+          transfer_verification: true,
+          destination_registration: { supported: false }
+        }.freeze
+      end
+
       private
 
       Response = Data.define(:status, :body)
