@@ -115,6 +115,8 @@ Rails.application.routes.draw do
   get "public/events/:event_slug/products", to: "catalog/public_products#index"
   get "public/events/:event_slug/ticket_types/:ticket_type_id/consent_requirements",
       to: "ticketing/public_consent_requirements#index"
+  get "public/events/:event_slug/ticket_types/:ticket_type_id/registration_schema",
+      to: "ticketing/public_registration_schemas#show"
 
   get "events/:event_id/add_on_reports", to: "catalog/event_add_on_reports#index",
       as: :event_add_on_reports
@@ -206,7 +208,9 @@ Rails.application.routes.draw do
   end
 
   # Workflow endpoints delegate all state transitions to idempotent commands.
-  resources :registrations, only: :show, controller: "ticketing/registrations"
+  resources :registrations, only: :show, controller: "ticketing/registrations" do
+    post :release, on: :member
+  end
 
   resources :registrations, only: [] do
     member do
@@ -269,7 +273,9 @@ Rails.application.routes.draw do
 
   post "tickets/:ticket_id/cancel", to: "ticketing/cancellations#create"
 
-  resources :resale_listings, only: %i[index show], controller: "marketplace/resale_listings"
+  resources :resale_listings, only: %i[index show], controller: "marketplace/resale_listings" do
+    get :mine, on: :collection
+  end
   post "resale_listings/:resale_listing_id/purchase", to: "marketplace/resale_purchases#create"
   post "resale_listings/:id/cancel", to: "marketplace/resale_listings#cancel"
   resource :resale_policy, only: %i[show update],

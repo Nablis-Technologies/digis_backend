@@ -17,6 +17,8 @@ en:
       authentication_required: "Authentication required"
       refresh_token_missing: "Refresh token missing"
       signup: "Signup failed"
+      password_required: "Password is required"
+      rate_limited: "Too many authentication attempts. Please try again later"
 
   authorization:
     errors:
@@ -102,6 +104,9 @@ en:
         phone_identity_mismatch: "The submitted phone must match the authenticated phone identity"
         invalid_registration: "Registration is invalid"
         active_registration_conflict: "An active registration already exists with different submission details"
+        registration_not_owned: "Only the registrant can release this registration"
+        registration_not_releasable: "This registration cannot be released in its current state"
+        registration_payment_in_progress: "A payment is in progress for this registration"
     consents:
       errors:
         invalid_requirement: "The consent requirement is invalid"
