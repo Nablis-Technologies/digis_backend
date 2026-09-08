@@ -37,6 +37,20 @@ class MarketplacePayoutProvidersConfigurationTest < ActiveSupport::TestCase
     assert_empty Marketplace::PayoutProviders::Registry.available
   end
 
+  test "fails closed when the marketplace Chapa secret is missing" do
+    with_env(
+      "CHAPA_ENABLED" => "true",
+      "CHAPA_PAYOUT_ENABLED" => "true",
+      "CHAPA_MODE" => "test",
+      "CHAPA_SECRET_KEY" => nil,
+      "RENDER_PREVIEW" => "true"
+    ) do
+      Marketplace::PayoutProviders::Registration.call(env: ENV)
+    end
+
+    assert_empty Marketplace::PayoutProviders::Registry.available
+  end
+
   private
 
   def with_env(values)

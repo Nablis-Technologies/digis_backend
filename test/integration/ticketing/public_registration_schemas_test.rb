@@ -37,6 +37,7 @@ module Ticketing
       assert_equal "registration", question.fetch("response_scope")
       assert_equal false, question.fetch("required")
       assert_equal({ "max_length" => 80 }, question.fetch("validation_rules"))
+      refute question.key?("sensitivity")
       assert_equal "buyer", data.fetch("consent_requirements").sole.fetch("acceptance_scope")
       refute form.key?("published_by_id")
       refute question.key?("answer")

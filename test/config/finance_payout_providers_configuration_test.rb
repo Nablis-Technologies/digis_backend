@@ -41,6 +41,20 @@ class FinancePayoutProvidersConfigurationTest < ActiveSupport::TestCase
     assert_empty Finance::PayoutProviders::Registry.available
   end
 
+  test "fails closed when the Chapa secret is missing" do
+    with_env(
+      "CHAPA_ENABLED" => "true",
+      "CHAPA_PAYOUT_ENABLED" => "true",
+      "CHAPA_MODE" => "test",
+      "CHAPA_SECRET_KEY" => nil,
+      "RENDER_PREVIEW" => "true"
+    ) do
+      Finance::PayoutProviders::Registration.call(env: ENV)
+    end
+
+    assert_empty Finance::PayoutProviders::Registry.available
+  end
+
   test "rejects live Chapa payout mode in the Render preview" do
     assert_raises(RuntimeError) do
       with_env(
