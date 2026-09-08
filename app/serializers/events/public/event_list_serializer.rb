@@ -26,13 +26,10 @@ module Events
       private
 
       def active_price?(price)
-        price.currency == object.currency && price.active_from <= evaluation_time &&
-          (price.active_to.blank? || price.active_to > evaluation_time)
+        price.currency == object.currency && Catalog::Public::PriceWindow.active?(price, at: evaluation_time)
       end
 
-      def evaluation_time
-        instance_options.fetch(:at, Time.current)
-      end
+      def evaluation_time = instance_options.fetch(:at, Time.current)
     end
   end
 end
