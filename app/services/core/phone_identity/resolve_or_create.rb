@@ -27,6 +27,10 @@ module Core
         end
       end
 
+      def self.digest_for(value)
+        OpenSSL::HMAC.hexdigest("SHA256", Rails.application.secret_key_base, value.to_s)
+      end
+
       def initialize(phone:, actor:, allow_actor_mismatch: false)
         @phone = phone
         @actor = actor
@@ -61,7 +65,7 @@ module Core
       end
 
       def digest_for(value)
-        OpenSSL::HMAC.hexdigest("SHA256", Rails.application.secret_key_base, value)
+        self.class.digest_for(value)
       end
 
       def error(code)

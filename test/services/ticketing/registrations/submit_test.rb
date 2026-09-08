@@ -33,6 +33,45 @@ module Ticketing
         assert_equal registration.identity_digest, submit(phone: "251911000003").value.registration.identity_digest
       end
 
+      test "creates one canonical passwordless shadow identity for an explicit guest submission" do
+        result = submit(
+          actor: nil,
+          phone: "0911000011",
+          guest: true,
+          phone_confirmation: true,
+          email: "guest@example.com",
+          full_name: "Guest Buyer",
+          idempotency_key: "guest-registration-identity"
+        )
+
+        assert_predicate result, :success?,
+          "#{result.error&.code}: #{result.error&.message} #{result.error&.errors.inspect}"
+        user = Core::User.find_by(phone: "+251911000011")
+        assert user
+        assert_nil user.password_digest
+        assert_nil user.verified_at
+        assert_equal "guest@example.com", user.email
+        assert_equal user, result.value.registration.user
+        assert_equal user, result.value.registration.created_by
+        assert_equal "pending_payment", result.value.registration.status
+        assert_equal 1, Core::User.where(phone: "+251911000011").count
+      end
+
+      test "rejects a guest submission without phone confirmation before writing identity or registration" do
+        result = submit(
+          actor: nil,
+          phone: "0911000012",
+          guest: true,
+          phone_confirmation: false,
+          idempotency_key: "guest-registration-no-confirmation"
+        )
+
+        assert_predicate result, :failure?
+        assert_equal "phone_confirmation_required", result.error.code
+        assert_nil Core::User.find_by(phone: "+251911000012")
+        assert_equal 0, Registration.count
+      end
+
       test "requires a verified authenticated actor for the submitted phone" do
         @actor.update_column(:verified_at, nil)
 
@@ -419,9 +458,9 @@ module Ticketing
 
       private
 
-      def submit(ticket_type: @ticket_type, actor: @actor, phone: @actor.phone, package_quantity: 1,
+      def submit(ticket_type: @ticket_type, actor: @actor, phone: @actor&.phone, package_quantity: 1,
                  selected_event_date_id: nil, answers: default_answers, consents: [], audience_proof: {},
-                 idempotency_key: nil)
+                 idempotency_key: nil, guest: false, phone_confirmation: false, email: nil, full_name: nil)
         assert defined?(Ticketing::Registrations::Submit), "expected registration submission command"
 
         submission = Ticketing::RegistrationSubmission.new(
@@ -430,10 +469,12 @@ module Ticketing
           answers:,
           consents:
         )
-        Ticketing::Registrations::Submit.call(
+        attributes = {
           ticket_type:, actor:, phone:, submission:, audience_proof:,
           idempotency_key: idempotency_key || ("test-registration-consent" if consents.present?)
-        )
+        }
+        attributes.merge!(guest:, phone_confirmation:, email:, full_name:) if guest
+        Ticketing::Registrations::Submit.call(**attributes)
       end
 
       def submission_command(answers:, audience_proof:, consents: [])
