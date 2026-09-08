@@ -39,6 +39,39 @@ module Ticketing
       assert_not data.fetch("registration").key?("identity_digest")
     end
 
+    test "a guest submits a phone-confirmed registration as a passwordless shadow user" do
+      phone = "0911000021"
+      @event.update!(status: "published")
+
+      post "/guest/ticket_types/#{@ticket_type.id}/registrations",
+           params: registration_params.merge(
+             phone:, full_name: "Guest Buyer", email: "guest-21@example.com", phone_confirmation: true
+           ),
+           headers: { "Idempotency-Key" => "guest-registration-api-1" },
+           as: :json
+
+      assert_response :created
+      data = response.parsed_body.fetch("data")
+      assert_equal "pending_payment", data.dig("registration", "status")
+      refute data.key?("access_token")
+      user = Core::User.find_by(phone: "+251911000021")
+      assert user
+      assert_nil user.password_digest
+      assert_nil user.verified_at
+    end
+
+    test "a guest registration rejects missing phone confirmation before creating a shadow user" do
+      @event.update!(status: "published")
+      post "/guest/ticket_types/#{@ticket_type.id}/registrations",
+           params: registration_params.merge(phone: "0911000022"),
+           headers: { "Idempotency-Key" => "guest-registration-api-2" },
+           as: :json
+
+      assert_response :bad_request
+      assert_equal "phone_confirmation_required", response.parsed_body.fetch("code")
+      assert_nil Core::User.find_by(phone: "+251911000022")
+    end
+
     test "registration submission snapshots and accepts supplied buyer consent" do
       _document, version = create_consent_document(scope: "buyer", name: "API registration terms")
       Core::DataRetentionPolicy.create!(
