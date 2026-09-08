@@ -15732,6 +15732,97 @@
           ]
         }
       ]
+    },
+    {
+      "name": "Guest Shadow Checkout",
+      "description": "Phone-confirmed guest checkout. Keep quote and view tokens opaque, use a fresh Idempotency-Key per mutation, and never cache ticket responses.",
+      "item": [
+        {
+          "name": "Guest Submit Registration",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{guestRegistrationIdempotencyKey}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"phone\": \"+251911234567\",\n  \"full_name\": \"Guest Buyer\",\n  \"email\": \"guest@example.com\",\n  \"phone_confirmation\": true,\n  \"package_quantity\": 1,\n  \"answers\": []\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/guest/ticket_types/{{ticketTypeId}}/registrations"
+          },
+          "response": [
+            { "name": "Shadow registration created", "status": "Created", "code": 201, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": {\n    \"registration\": { \"id\": \"reg_01HX\", \"status\": \"pending_payment\", \"source\": \"self_service\" },\n    \"next_action\": { \"type\": \"requires_order\" }\n  }\n}" }
+          ]
+        },
+        {
+          "name": "Guest Create Quote",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json", "type": "text" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"phone\": \"+251911234567\",\n  \"phone_confirmation\": true,\n  \"charge_currency\": \"ETB\",\n  \"items\": [{ \"event_product_id\": \"{{eventProductId}}\", \"registration_id\": \"{{registrationId}}\", \"quantity\": 1 }]\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/guest/events/{{eventId}}/order_quotes"
+          },
+          "response": [
+            { "name": "Guest quote", "status": "OK", "code": 200, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": { \"quote_token\": \"opaque-guest-quote-token\", \"total_minor\": 1050, \"currency\": \"ETB\" }\n}" }
+          ]
+        },
+        {
+          "name": "Guest Create Order",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Idempotency-Key", "value": "{{guestOrderIdempotencyKey}}", "type": "text" } ],
+            "body": { "mode": "raw", "raw": "{ \"order\": { \"event_id\": \"{{eventId}}\", \"phone\": \"+251911234567\", \"quote_token\": \"{{guestQuoteToken}}\" } }", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/guest/orders"
+          },
+          "response": [
+            { "name": "Guest order", "status": "Created", "code": 201, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": { \"id\": \"order_01HX\", \"status\": \"pending_payment\" }\n}" }
+          ]
+        },
+        {
+          "name": "Guest Start Payment",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Idempotency-Key", "value": "{{guestPaymentIdempotencyKey}}", "type": "text" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"payment_attempt\": {\n    \"phone\": \"+251911234567\",\n    \"quote_token\": \"{{guestQuoteToken}}\",\n    \"provider\": \"chapa\",\n    \"payment_method\": \"telebirr\"\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/guest/orders/{{orderId}}/payment_attempts"
+          },
+          "response": [
+            { "name": "Payment attempt", "status": "Created", "code": 201, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": { \"id\": \"payment_01HX\", \"status\": \"processing\", \"checkout_url\": \"https://checkout.example.test/tx\" }\n}" }
+          ]
+        },
+        {
+          "name": "Guest Refresh Payment",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Idempotency-Key", "value": "{{guestRefreshIdempotencyKey}}", "type": "text" } ],
+            "body": { "mode": "raw", "raw": "{ \"payment_refresh\": { \"phone\": \"+251911234567\", \"quote_token\": \"{{guestQuoteToken}}\" } }", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/guest/payments/{{paymentId}}/refresh"
+          },
+          "response": [
+            { "name": "Pending then ready confirmation", "status": "OK", "code": 200, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": { \"state\": \"ready\", \"tickets\": [{ \"id\": \"ticket_01HX\", \"credentials\": [{ \"qr_token\": \"opaque-qr\" }] }] }\n}" }
+          ]
+        },
+        {
+          "name": "Public Ticket View",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/public/tickets/{{ticketId}}?view_token={{ticketViewToken}}" },
+          "response": [
+            { "name": "No-store public ticket", "status": "OK", "code": 200, "_postman_previewlanguage": "json", "header": [{ "key": "Cache-Control", "value": "no-store" }], "body": "{\n  \"success\": true,\n  \"data\": { \"id\": \"ticket_01HX\", \"event\": { \"title\": \"Summer Festival\" }, \"credentials\": [{ \"qr_token\": \"opaque-qr\" }] }\n}" }
+          ]
+        },
+        {
+          "name": "Request Guest OTP",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Idempotency-Key", "value": "{{guestOtpRequestIdempotencyKey}}", "type": "text" }], "body": { "mode": "raw", "raw": "{ \"phone\": \"+251911234567\" }", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/public/ticket_views/{{ticketViewToken}}/request_otp" },
+          "response": [{ "name": "OTP challenge", "status": "Created", "code": 201, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": { \"challenge_id\": \"challenge_01HX\", \"status\": \"pending\", \"expires_at\": \"2026-09-08T12:10:00Z\" }\n}" }]
+        },
+        {
+          "name": "Verify Guest OTP",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Idempotency-Key", "value": "{{guestOtpVerifyIdempotencyKey}}", "type": "text" }], "body": { "mode": "raw", "raw": "{ \"code\": \"123456\" }", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/phone_verifications/{{challengeId}}/verify" },
+          "response": [{ "name": "Signed verification proof", "status": "OK", "code": 200, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": { \"verification_token\": \"opaque-verification-proof\", \"expires_at\": \"2026-09-08T12:15:00Z\" }\n}" }]
+        },
+        {
+          "name": "Claim Guest Account",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Idempotency-Key", "value": "{{guestClaimIdempotencyKey}}", "type": "text" }], "body": { "mode": "raw", "raw": "{\n  \"phone\": \"+251911234567\",\n  \"verification_token\": \"{{verificationToken}}\",\n  \"password\": \"password123\",\n  \"password_confirmation\": \"password123\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/registrations/{{registrationId}}/claim_guest" },
+          "response": [{ "name": "Guest claimed", "status": "OK", "code": 200, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": { \"access_token\": \"jwt-access-token\", \"refresh_token\": \"opaque-refresh-token\", \"user\": { \"id\": \"user_01HX\", \"verified_at\": \"2026-09-08T12:12:00Z\" } }\n}" }]
+        }
+      ]
     }
   ]
 }
