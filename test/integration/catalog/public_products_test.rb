@@ -50,7 +50,7 @@ module Catalog
       assert_equal 1_500, product.fetch("price_options").find { |price| price["currency"] == "ETB" }.fetch("amount_minor")
       assert_equal true, product.fetch("available")
       refute product.key?("metadata")
-      refute product.key?("requires_ticket")
+      assert_equal true, product.fetch("requires_ticket")
       refute product.key?("status")
       refute product.key?("held_count")
       refute product.key?("sold_count")
