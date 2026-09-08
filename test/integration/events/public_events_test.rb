@@ -33,6 +33,29 @@ class EventsPublicEventsTest < ActionDispatch::IntegrationTest
     refute event.dig("event_setting", "config").key?("internal_flag")
   end
 
+  test "public event list exposes the minimum active price in event currency" do
+    product = Catalog::EventProduct.create!(
+      event: @event, name: "List price product", type: "merchandise", status: "active",
+      inventory_mode: "unlimited", schedule_change_refund_policy: "full_or_partial"
+    )
+    Catalog::ProductPrice.create!(event_product: product, type: "base", currency: "ETB",
+                                  amount_minor: 2_500, active_from: 1.hour.ago)
+    Catalog::ProductPrice.create!(event_product: product, type: "base", currency: "USD",
+                                  amount_minor: 10, active_from: 1.hour.ago)
+    cheaper = Catalog::EventProduct.create!(
+      event: @event, name: "Cheaper list price product", type: "merchandise", status: "active",
+      inventory_mode: "unlimited", schedule_change_refund_policy: "full_or_partial"
+    )
+    Catalog::ProductPrice.create!(event_product: cheaper, type: "base", currency: "ETB",
+                                  amount_minor: 1_900, active_from: 1.hour.ago)
+
+    get "/public/events", as: :json
+
+    assert_response :success
+    event = response.parsed_body.fetch("data").find { |item| item["id"] == @event.id }
+    assert_equal 1_900, event.fetch("price_from_minor")
+  end
+
   test "private draft events are excluded from public discovery" do
     get "/public/events", as: :json
     bodies = JSON.parse(response.body).dig("data")

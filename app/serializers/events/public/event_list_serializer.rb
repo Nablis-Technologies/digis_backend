@@ -6,7 +6,7 @@ module Events
       include Core::AttributeVisibilitySerializer
 
       attributes :id, :slug, :title, :description, :visibility,
-                 :timezone, :currency, :published_at
+                 :timezone, :currency, :published_at, :price_from_minor
 
       has_many :categories, serializer: Events::Public::CategorySerializer
       has_many :event_dates, serializer: Events::Public::EventDateSerializer
@@ -14,6 +14,25 @@ module Events
       has_many :event_organizations, serializer: Events::Public::EventOrganizationSerializer
       has_one :event_setting, serializer: Events::Public::EventSettingSerializer
       has_one :organization, serializer: Events::Public::OrganizationSummarySerializer
+
+      def price_from_minor
+        object.event_products
+          .select { |product| product.status == "active" }
+          .flat_map { |product| product.prices.select { |price| active_price?(price) } }
+          .map(&:amount_minor)
+          .min
+      end
+
+      private
+
+      def active_price?(price)
+        price.currency == object.currency && price.active_from <= evaluation_time &&
+          (price.active_to.blank? || price.active_to > evaluation_time)
+      end
+
+      def evaluation_time
+        instance_options.fetch(:at, Time.current)
+      end
     end
   end
 end

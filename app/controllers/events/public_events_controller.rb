@@ -13,6 +13,7 @@ module Events
       events = Events::Event.publicly_visible
                               .includes(
                                 :categories, :event_setting, :organization,
+                                { event_products: :prices },
                                 { event_dates: :venue },
                                 { event_media: { file_attachment: :blob } },
                                 { event_organizations: :organization }
@@ -22,6 +23,7 @@ module Events
                      data: events,
                      serializer_options: {
                        serializer: Events::Public::EventListSerializer,
+                       at: Time.current,
                        include: [ :categories, :event_dates, :event_media, :event_setting, :organization,
                                   { event_dates: :venue }, { event_organizations: :organization } ]
                      })
