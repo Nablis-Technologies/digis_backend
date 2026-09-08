@@ -90,6 +90,52 @@ class CoreAuthTest < ActionDispatch::IntegrationTest
     assert payload["error"].present?
   end
 
+  test "signup rejects a weak password and malformed phone" do
+    post "/auth/signup",
+         params: {
+           user: {
+             phone: "12345",
+             password: "short",
+             password_confirmation: "different"
+           }
+         },
+         as: :json
+
+    assert_response :unprocessable_entity
+    payload = response.parsed_body
+    assert_equal "signup_failed", payload.fetch("code")
+    assert payload.fetch("errors").any? { |error| error.include?("password") || error.include?("phone") }
+  end
+
+  test "signup requires a password while shadow users remain model-valid" do
+    post "/auth/signup", params: { user: { phone: "+251911123460" } }, as: :json
+
+    assert_response :unprocessable_entity
+    assert_equal "signup_failed", response.parsed_body.fetch("code")
+    assert_includes response.parsed_body.fetch("errors"), "Password is required"
+  end
+
+  test "login is throttled without revealing identifier details" do
+    cache = ActiveSupport::Cache::MemoryStore.new
+    Rails.stubs(:cache).returns(cache)
+
+    10.times do
+      post "/auth/login",
+           params: { identifier: "missing@example.com", password: "wrong" },
+           as: :json
+      assert_response :unauthorized
+    end
+
+    post "/auth/login",
+         params: { identifier: "missing@example.com", password: "wrong" },
+         as: :json
+
+    assert_response :too_many_requests
+    assert_equal "rate_limited", response.parsed_body.fetch("code")
+    assert_equal "Too many authentication attempts. Please try again later",
+      response.parsed_body.fetch("error")
+  end
+
   test "logout revokes the supplied refresh token" do
     user = core_users(:attendee)
     jti = core_refresh_tokens(:attendee_web_token).jti

@@ -2,6 +2,7 @@ module Core
   class AuthController < Core::ApplicationController
     skip_before_action :authenticate_user, only: %i[login signup refresh]
     skip_before_action :authorize_action!, only: %i[login signup refresh]
+    before_action :throttle_auth_request, only: %i[login signup refresh]
 
     def login
       skip_authorization
@@ -34,6 +35,13 @@ module Core
     def signup
       skip_authorization
       user = Core::User.new(user_params)
+      return render_error(
+        I18n.t("auth.errors.signup"),
+        errors: [ I18n.t("auth.errors.password_required") ],
+        status: :unprocessable_entity,
+        code: "signup_failed"
+      ) if user.password.blank?
+
       begin
         ActiveRecord::Base.transaction do
           user.save!
@@ -143,6 +151,17 @@ module Core
         ActiveRecord::Associations::Preloader.new(records: [ user ], associations: { roles: :permissions }).call
       end
       user
+    end
+
+    def throttle_auth_request
+      result = Core::AuthThrottle.call(
+        identifier: params[:identifier].presence || params.dig(:user, :email).presence ||
+          params.dig(:user, :phone).presence || params[:refresh_token],
+        ip_address: request.remote_ip
+      )
+      return if result.success?
+
+      render_error(result.error.message, status: result.error.status_code, code: result.error.code)
     end
 
     def assign_default_role(user)
