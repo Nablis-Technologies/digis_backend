@@ -8,10 +8,11 @@ module Finance
       class << self
         def call(env: ENV, registry: Registry)
           return unless enabled?(env)
+          return if env["CHAPA_SECRET_KEY"].to_s.strip.blank?
 
           mode = env.fetch("CHAPA_MODE", "test")
           reject_live_preview!(env:, mode:)
-          registry.register("chapa", chapa_adapter(env:, mode:))
+          registry.register("chapa", chapa_adapter(env:, mode:, secret_key: env.fetch("CHAPA_SECRET_KEY")))
         end
 
         private
@@ -26,10 +27,10 @@ module Finance
           raise "CHAPA_MODE must be test in the Render preview"
         end
 
-        def chapa_adapter(env:, mode:)
+        def chapa_adapter(env:, mode:, secret_key:)
           ChapaAdapter.new(
             client: ChapaTransferClient.new(
-              secret_key: env.fetch("CHAPA_SECRET_KEY"),
+              secret_key:,
               mode:,
               api_base_url: env.fetch("CHAPA_API_BASE_URL", ChapaTransferClient::DEFAULT_API_BASE_URL)
             ),
