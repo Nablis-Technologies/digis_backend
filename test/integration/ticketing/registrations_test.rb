@@ -263,6 +263,38 @@ module Ticketing
       assert_not response.parsed_body.fetch("data").key?("user_id")
     end
 
+    test "a registrant can release a pending registration and replay it safely" do
+      registration = create_registration
+      headers = submission_headers("registration-release-1")
+
+      post "/registrations/#{registration.id}/release", headers:, as: :json
+
+      assert_response :success
+      assert_equal "cancelled", response.parsed_body.dig("data", "status")
+      assert_equal "cancelled", registration.reload.status
+
+      post "/registrations/#{registration.id}/release", headers:, as: :json
+
+      assert_response :success
+      assert_equal "cancelled", response.parsed_body.dig("data", "status")
+      assert_equal 1, Core::AuditLog.where(
+        action: "ticketing.registration.pending_released", auditable_id: registration.id
+      ).count
+    end
+
+    test "registration release requires an idempotency key and registrant ownership" do
+      registration = create_registration
+
+      post "/registrations/#{registration.id}/release", headers: user_headers, as: :json
+      assert_response :bad_request
+      assert_equal "missing_idempotency_key", response.parsed_body["code"]
+
+      post "/registrations/#{registration.id}/release",
+           headers: owner_headers.merge("Idempotency-Key" => "registration-release-outsider"), as: :json
+      assert_response :forbidden
+      assert_equal "pending_payment", registration.reload.status
+    end
+
     private
 
     def registration_params
