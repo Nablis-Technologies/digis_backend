@@ -45,7 +45,16 @@ class CoreUserTest < ActiveSupport::TestCase
     user = Core::User.new(phone: "09 11 123 459", password: "password123", password_confirmation: "password123")
 
     assert_predicate user, :valid?
-    assert_equal "251911123459", user.phone
+    assert_equal "+251911123459", user.phone
+  end
+
+  test "canonical phone spellings cannot create duplicate identities" do
+    Core::User.create!(phone: "+251911123461", password: "password123", password_confirmation: "password123")
+    duplicate = Core::User.new(phone: "0911123461", password: "password123", password_confirmation: "password123")
+
+    assert_not duplicate.valid?
+    assert_equal "+251911123461", duplicate.phone
+    assert_includes duplicate.errors[:phone], "has already been taken"
   end
 
   test "permission helpers reflect active assigned permissions" do
