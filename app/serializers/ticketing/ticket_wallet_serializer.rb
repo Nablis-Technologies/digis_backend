@@ -33,7 +33,14 @@ module Ticketing
       {
         id: type.id,
         admissions_per_unit: type.admissions_per_unit,
-        entry_validation_mode: type.entry_validation_mode
+        entry_validation_mode: type.entry_validation_mode,
+        resale_enabled: type.resale_enabled,
+        resale_price_cap_type: type.resale_price_cap_type,
+        resale_fixed_cap_minor: type.resale_fixed_cap_minor,
+        resale_fixed_cap_currency: type.resale_fixed_cap_currency,
+        resale_percentage_cap_bps: type.resale_percentage_cap_bps,
+        resale_cutoff_seconds_before_start: type.resale_cutoff_seconds_before_start,
+        max_completed_resales: type.max_completed_resales
       }
     end
 
