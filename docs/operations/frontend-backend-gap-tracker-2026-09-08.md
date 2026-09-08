@@ -1,7 +1,7 @@
 # Frontend–Backend Gap Tracker
 
 Date: 2026-09-08  
-Status: G-01 through G-10 implemented and verified locally; G-11 through G-19 deferred
+Status: G-01 through G-10 implemented and verified locally; G-11 decision recorded and planned; G-12 through G-19 deferred
 
 ## Purpose
 
@@ -38,7 +38,7 @@ These findings are not being treated as unequivocal implementation tasks yet:
 
 | ID | Classification | Reason deferred |
 |---|---|---|
-| G-11 | Conditional | Guest checkout versus OTP verification is a product decision; current code intentionally requires an authenticated verified user, but no new-user verification path exists. |
+| G-11 | Decision recorded | Guest/shadow checkout selected with immediate ticket issuance after payment. OTP/password claiming happens later; signed public ticket views expire at event end + 30 days. The first implementation slice is now present locally in `docs/superpowers/plans/2026-09-08-guest-shadow-checkout-implementation.md`; live SMS-provider configuration and production smoke evidence remain pending. Unified phone-first dashboard auth and OAuth are intentionally separated into `docs/superpowers/plans/2026-09-08-unified-auth-oauth-implementation.md`. |
 | G-12 | Partial | The frontend/backend `cbe` mismatch is real, but the correct fix may be frontend mapping to a provider-supported canonical method rather than adding `cbe` to shared backend enums. |
 | G-13 | Partial | Public event-setting data is limited, but several requested fields are computed or sensitive and cannot be exposed by simply expanding the whitelist. |
 | G-14 | Conditional | User `name` and self-service profile editing depend on product requirements; the current password-only profile surface is consistent with the reduced UI. |
@@ -68,6 +68,6 @@ returning the same result.
 G-01 through G-10 were implemented in small, independently reviewable slices
 through the companion plan
 `docs/superpowers/plans/2026-09-08-frontend-backend-gap-remediation-implementation.md`.
-Before starting G-11 through G-19, make the relevant product/provider decision
-and update this tracker with the chosen contract. All changes remain unstaged
-and uncommitted for review.
+Before starting G-12 through G-19, make the relevant product/provider decision
+and update this tracker with the chosen contract. G-11 is planned separately;
+all changes remain unstaged and uncommitted for review.
