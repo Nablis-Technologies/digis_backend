@@ -63,7 +63,7 @@ module Core
       self.email = email.to_s.strip.downcase.presence
       normalized_phone = Core::PhoneIdentity::ResolveOrCreate.normalize(phone)
       self.phone = if normalized_phone
-        phone.to_s.strip.start_with?("+") ? "+#{normalized_phone}" : normalized_phone
+        "+#{normalized_phone}"
       else
         phone.to_s.strip.presence
       end
