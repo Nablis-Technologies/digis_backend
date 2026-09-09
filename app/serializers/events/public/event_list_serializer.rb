@@ -17,7 +17,7 @@ module Events
 
       def price_from_minor
         object.event_products
-          .select { |product| product.status == "active" }
+          .select { |product| product.status == "active" && product.ticket? }
           .flat_map { |product| product.prices.select { |price| active_price?(price) } }
           .map(&:amount_minor)
           .min

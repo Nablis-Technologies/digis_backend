@@ -33,7 +33,9 @@ class EventsPublicEventsTest < ActionDispatch::IntegrationTest
     refute event.dig("event_setting", "config").key?("internal_flag")
   end
 
-  test "public event list exposes the minimum active price in event currency" do
+  test "public event list exposes the minimum active ticket price in event currency" do
+    ticket_product = create_active_ticket_product(amount_minor: 30_000)
+
     product = Catalog::EventProduct.create!(
       event: @event, name: "List price product", type: "merchandise", status: "active",
       inventory_mode: "unlimited", schedule_change_refund_policy: "full_or_partial"
@@ -53,7 +55,7 @@ class EventsPublicEventsTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     event = response.parsed_body.fetch("data").find { |item| item["id"] == @event.id }
-    assert_equal 1_900, event.fetch("price_from_minor")
+    assert_equal 30_000, event.fetch("price_from_minor"), ticket_product.name
   end
 
   test "private draft events are excluded from public discovery" do
@@ -82,5 +84,22 @@ class EventsPublicEventsTest < ActionDispatch::IntegrationTest
   test "private event is not directly lookupable by unauthenticated user" do
     get "/public/events/#{events_events(:draft_concert).slug}", as: :json
     assert_response :not_found
+  end
+
+  private
+
+  def create_active_ticket_product(amount_minor:)
+    product = Catalog::Products::CreateDraft.call(
+      event: @event,
+      actor: core_users(:super_admin),
+      product_attributes: { name: "List ticket", type: "ticket" },
+      ticket_type_attributes: {
+        audience: "public", approval_mode: "automatic", date_selection: "fixed", admissions_per_unit: 1
+      },
+      price_attributes: { currency: "ETB", amount_minor:, active_from: 1.hour.ago },
+      inventory_configuration: { mode: "unlimited" }
+    ).value
+    product.product_accesses.create!(event_date: @event.event_dates.first, type: "venue", usage_limit: nil)
+    Catalog::Products::Activate.call(product:, actor: core_users(:super_admin)).value
   end
 end
