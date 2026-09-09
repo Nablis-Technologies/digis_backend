@@ -169,6 +169,9 @@ Rails.application.routes.draw do
   post "guest/payments/:payment_id/refresh", to: "orders/guest_payment_refresh#create"
 
   get "public/tickets/:ticket_id", to: "ticketing/public_ticket_views#show"
+  get "public/ticket_transfers/:id", to: "ticketing/public_ticket_transfers#show"
+  post "public/ticket_transfers/:id/request_otp", to: "ticketing/public_ticket_transfers#request_otp"
+  post "public/ticket_transfers/:id/accept_guest", to: "ticketing/public_ticket_transfers#accept_guest"
   post "public/ticket_views/:token/request_otp", to: "core/phone_verifications#create"
   post "phone_verifications/:id/verify", to: "core/phone_verifications#verify"
   post "registrations/:id/claim_guest", to: "ticketing/guest_registrations#claim_guest"
