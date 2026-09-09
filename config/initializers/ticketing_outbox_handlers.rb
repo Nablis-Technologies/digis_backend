@@ -9,6 +9,9 @@ Rails.application.config.x.credential_requirement_status_adapter ||= Ticketing::
 Rails.application.config.x.outbox_handlers.register("ticketing.invitation.created", priority: 100) do |outbox_event|
   Ticketing::DeliverInvitationJob.perform_later(outbox_event.payload.fetch("invitation_id"))
 end
+Rails.application.config.x.outbox_handlers.register("ticketing.ticket_transfer.initiated", priority: 100) do |outbox_event|
+  Ticketing::TicketTransferDeliveryJob.perform_later(outbox_event.payload.fetch("transfer_id"))
+end
 Rails.application.config.x.outbox_handlers.register("ticketing.registration_consent.reminder_due", priority: 100) do |outbox_event|
   Rails.application.config.x.consent_reminder_sender.call(
     requirement_id: outbox_event.payload.fetch("requirement_id")
