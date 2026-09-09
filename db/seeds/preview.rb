@@ -1008,6 +1008,51 @@ unless chapa_ticket_product
   chapa_ticket_product = result.value
 end
 
+# Dedicated free RSVP fixture for exercising the public OTP and submission
+# routes without charging Chapa. It is intentionally separate from the paid
+# checkout product so live smoke tests cannot create a payment by mistake.
+chapa_rsvp_product = Catalog::EventProduct.find_by(
+  event: chapa_event, name: "Chapa Test Free RSVP", type: "ticket"
+)
+unless chapa_rsvp_product
+  result = Catalog::Products::CreateDraft.call(
+    event: chapa_event,
+    actor: organizer,
+    product_attributes: {
+      name: "Chapa Test Free RSVP",
+      description: "Free public RSVP fixture for OTP and ticket issuance tests.",
+      type: "ticket",
+      min_per_order: 1,
+      max_per_order: 10,
+      sales_start_at: Time.zone.parse("2026-01-01 00:00")
+    },
+    ticket_type_attributes: {
+      approval_mode: "automatic",
+      audience: "public",
+      date_selection: "fixed",
+      admissions_per_unit: 1,
+      transferable: false,
+      delegation_enabled: false,
+      resale_enabled: false
+    },
+    inventory_configuration: { mode: "event_wide", capacity: 500 },
+    price_attributes: {
+      type: "override",
+      currency: "ETB",
+      amount_minor: 0,
+      active_from: Time.zone.parse("2026-01-01 00:00")
+    }
+  )
+  raise result.error.message unless result.success?
+
+  chapa_rsvp_product = result.value
+end
+
+unless chapa_rsvp_product.status == "active"
+  result = Catalog::Products::Activate.call(product: chapa_rsvp_product, actor: organizer)
+  raise result.error.message unless result.success?
+end
+
 chapa_event_date = chapa_event.event_dates.find_by!(source_key: "chapa-test-date-v1")
 chapa_main_zone = Events::AccessZone.find_or_create_by!(event: chapa_event, code: "MAIN") do |zone|
   zone.name = "Main Gate"
@@ -1035,6 +1080,22 @@ end
 unless chapa_ticket_product.status == "active"
   result = Catalog::Products::Activate.call(product: chapa_ticket_product, actor: organizer)
   raise result.error.message unless result.success?
+end
+
+unless chapa_rsvp_product.product_accesses.exists?(event_date: chapa_event_date, type: "venue")
+  access = chapa_rsvp_product.product_accesses.create!(
+    event_date: chapa_event_date,
+    type: "venue",
+    usage_limit: 1
+  )
+  access.product_access_zones.create!(access_zone: chapa_main_zone)
+end
+
+unless chapa_rsvp_product.product_date_allocations.exists?(event_date: chapa_event_date)
+  chapa_rsvp_product.product_date_allocations.create!(
+    event_date: chapa_event_date,
+    allocation_basis_points: 10_000
+  )
 end
 
 chapa_form = Ticketing::RegistrationForm.find_or_create_by!(
@@ -1534,7 +1595,7 @@ Messaging::PrepareCampaignAudienceJob.perform_now(preview_snapshot.id) unless pr
 puts "✓ Campaign fixture #{preview_campaign.id} prepared with #{preview_campaign.reload.recipients.count} recipient snapshot rows"
 
 puts "✓ #{chapa_event.title} published with #{chapa_product.name} and " \
-     "#{chapa_ticket_product.name} active"
+     "#{chapa_ticket_product.name} and #{chapa_rsvp_product.name} active"
 
 # Counter caches are maintained for new ORM-created events, but preview data
 # may already exist from an older seed version. Reconcile the denormalized

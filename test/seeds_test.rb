@@ -42,6 +42,14 @@ class SeedsTest < ActiveSupport::TestCase
     assert ticket_product.product_date_allocations.exists?
     assert Ticketing::RegistrationForm.exists?(event: event, name: "Chapa Attendee Details")
 
+    rsvp_product = Catalog::EventProduct.find_by!(name: "Chapa Test Free RSVP", event: event)
+    assert_predicate rsvp_product, :ticket?
+    assert_equal "active", rsvp_product.status
+    assert_equal "automatic", rsvp_product.ticket_type.approval_mode
+    assert_equal "public", rsvp_product.ticket_type.audience
+    assert_equal [ 0 ], rsvp_product.prices.active_at(Time.current).pluck(:amount_minor).uniq
+    assert rsvp_product.product_accesses.where(event_date: event.event_dates, type: "venue").exists?
+
     cancellation_event = Events::Event.find_by!(title: "Cancellation Drill Event", organization: organization)
     cancellation_product = Catalog::EventProduct.find_by!(
       name: "Cancellation Drill General Admission", event: cancellation_event
