@@ -28,7 +28,7 @@ class CreateLinksShortLinks < ActiveRecord::Migration[8.1]
               name: "idx_links_short_links_canonical_target"
 
     add_check_constraint :links_short_links,
-      "target_type IS NULL OR target_type IN ('event','ticket','organization')",
+      "target_type IS NULL OR target_type IN ('event','ticket','organization','ticket_transfer')",
       name: "links_short_links_target_type_check"
     add_check_constraint :links_short_links,
       "((target_type IS NOT NULL AND target_id IS NOT NULL AND custom_url IS NULL) OR " \

@@ -5415,7 +5415,7 @@ CREATE TABLE public.links_short_links (
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT links_short_links_click_bounds_check CHECK ((((max_clicks IS NULL) OR (max_clicks > 0)) AND (click_count >= 0) AND ((max_clicks IS NULL) OR (click_count <= max_clicks)))),
     CONSTRAINT links_short_links_https_url_check CHECK (((custom_url IS NULL) OR (custom_url ~~ 'https://%'::text))),
-    CONSTRAINT links_short_links_target_type_check CHECK (((target_type IS NULL) OR ((target_type)::text = ANY ((ARRAY['event'::character varying, 'ticket'::character varying, 'organization'::character varying])::text[])))),
+    CONSTRAINT links_short_links_target_type_check CHECK (((target_type IS NULL) OR ((target_type)::text = ANY ((ARRAY['event'::character varying, 'ticket'::character varying, 'organization'::character varying, 'ticket_transfer'::character varying])::text[])))),
     CONSTRAINT links_short_links_target_xor_check CHECK ((((target_type IS NOT NULL) AND (target_id IS NOT NULL) AND (custom_url IS NULL)) OR ((target_type IS NULL) AND (target_id IS NULL) AND (custom_url IS NOT NULL))))
 );
 
@@ -7403,6 +7403,7 @@ CREATE TABLE public.ticketing_ticket_transfers (
     to_user_id uuid NOT NULL,
     initiated_by_id uuid NOT NULL,
     token_digest character varying(64) NOT NULL,
+    token_ciphertext text NOT NULL,
     status character varying DEFAULT 'pending'::character varying NOT NULL,
     previous_version integer NOT NULL,
     new_version integer,
