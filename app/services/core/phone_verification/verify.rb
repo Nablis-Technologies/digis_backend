@@ -57,7 +57,8 @@ module Core
         {
           challenge_id: payload.fetch("challenge_id").to_s,
           user_id: payload.fetch("user_id").to_s,
-          phone_digest: payload.fetch("phone_digest").to_s
+          phone_digest: payload.fetch("phone_digest").to_s,
+          purpose: payload.fetch("purpose").to_s
         }
       rescue ActiveSupport::MessageVerifier::InvalidSignature,
              ActiveSupport::MessageVerifier::InvalidMessage,
@@ -95,7 +96,8 @@ module Core
           {
             "challenge_id" => locked.id.to_s,
             "user_id" => locked.user_id.to_s,
-            "phone_digest" => locked.phone_digest
+            "phone_digest" => locked.phone_digest,
+            "purpose" => locked.purpose
           },
           purpose: PROOF_PURPOSE,
           expires_at: PROOF_TTL.from_now
