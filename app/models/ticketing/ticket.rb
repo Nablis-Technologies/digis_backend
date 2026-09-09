@@ -135,7 +135,9 @@ module Ticketing
       end
       errors.add(:registration, :invalid) if registration_event_id.present? && registration_event_id != event_id
 
-      order_event_id = if association(:order_item).loaded?
+      order_event_id = if order_item_id.blank?
+        nil
+      elsif association(:order_item).loaded?
         order_item&.order&.event_id
       else
         Orders::OrderItem.joins(:order).where(id: order_item_id).pick("orders_orders.event_id")

@@ -48,6 +48,14 @@ module Ticketing
         assert_equal @buyer.id, ticket.owner_user_id
       end
 
+      test "issues every missing unit through the registration command" do
+        result = Ticketing::Registrations::IssuePackages.call(registration_id: @registration.id)
+
+        assert_predicate result, :success?, result.error&.message
+        assert result.value.complete
+        assert_equal [ 1 ], result.value.tickets.map(&:unit_number)
+      end
+
       test "leaves the group credential pending when a personal requirement is incomplete" do
         create_pending_personal_requirement
 
