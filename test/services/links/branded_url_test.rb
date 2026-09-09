@@ -27,6 +27,8 @@ module Links
       @config.port = @previous.fetch(:port)
       Rails.application.config.x.public_app_url = @previous.fetch(:public_app_url)
       Links::ShortLink.where(target_type: "ticket", target_id: @ticket.id).delete_all
+      Links::ShortLink.where(target_type: "ticket_transfer").delete_all
+      Ticketing::TicketTransfer.where(ticket_id: @ticket.id).delete_all
     end
 
     test "builds a configured branded origin without duplicate slashes" do
@@ -105,6 +107,31 @@ module Links
       assert_equal "http://localhost:3000/organizations/#{organization.id}", BrandedUrl.organization(organization)
     end
 
+    test "creates a compact branded transfer link that resolves with its encrypted token" do
+      transfer = create_transfer
+
+      url = BrandedUrl.transfer(transfer, "transfer-secret")
+
+      assert_match(%r{\Ahttp://localhost:3000/x-[a-z0-9]{6}\z}, url)
+      link = ShortLink.find_by!(target_type: "ticket_transfer", target_id: transfer.id)
+      location = URI.parse(TargetResolver.call("ticket_transfer", transfer.id))
+      assert_equal "/public/ticket_transfers/#{transfer.id}", location.path
+      token = URI.decode_www_form(location.query).to_h.fetch("token")
+      assert_equal Ticketing::TicketTransfer.token_digest_for(token:), transfer.token_digest
+      assert_equal link.slug, URI.parse(url).path.delete_prefix("/")
+    end
+
+    test "falls back to a direct transfer URL when branded links are disabled" do
+      transfer = create_transfer
+      configure_links(enabled: false)
+
+      url = BrandedUrl.transfer(transfer, "transfer-secret")
+
+      parsed = URI.parse(url)
+      assert_equal "/public/ticket_transfers/#{transfer.id}", parsed.path
+      assert_equal "transfer-secret", URI.decode_www_form(parsed.query).to_h.fetch("token")
+    end
+
     private
 
     def configure_links(enabled:, host: @config.host, protocol: @config.protocol, port: @config.port)
@@ -112,6 +139,19 @@ module Links
       @config.host = host
       @config.protocol = protocol
       @config.port = port
+    end
+
+    def create_transfer
+      @ticket.ticket_transfers.create!(
+        from_user: @owner,
+        to_user: @recipient,
+        initiated_by: @owner,
+        token: "transfer-secret",
+        token_digest: Ticketing::TicketTransfer.token_digest_for(token: "transfer-secret"),
+        previous_version: @ticket.credential_version,
+        status: "pending",
+        expires_at: 1.day.from_now
+      )
     end
   end
 end

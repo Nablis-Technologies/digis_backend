@@ -43,6 +43,15 @@ module Links
         direct_organization_url(organization)
       end
 
+      def transfer(transfer, token = nil)
+        token ||= transfer.token
+        return direct_transfer_url(transfer, token) unless enabled?
+
+        short_url(canonical_transfer_link(transfer).slug)
+      rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique, ArgumentError, Core::Error
+        direct_transfer_url(transfer, token)
+      end
+
       private
 
       def canonical_ticket_link(ticket)
@@ -55,6 +64,31 @@ module Links
 
         begin
           ShortLink.create!(target.merge(slug: ticket_slug, click_count: 0))
+        rescue ActiveRecord::RecordNotUnique
+          existing = ShortLink.find_by(**target) if attempts.zero?
+          return existing if existing
+
+          attempts += 1
+          retry if attempts < MAX_SLUG_ATTEMPTS
+
+          raise
+        end
+      end
+
+      def canonical_transfer_link(transfer)
+        target = { target_type: "ticket_transfer", target_id: transfer.id, canonical: true }
+        existing = ShortLink.find_by(**target)
+        return existing if existing
+
+        attempts = 0
+        begin
+          ShortLink.create!(
+            target.merge(
+              slug: "x-#{SecureRandom.alphanumeric(SLUG_LENGTH).downcase}",
+              expires_at: transfer.expires_at,
+              click_count: 0
+            )
+          )
         rescue ActiveRecord::RecordNotUnique
           existing = ShortLink.find_by(**target) if attempts.zero?
           return existing if existing
@@ -90,6 +124,10 @@ module Links
 
       def direct_organization_url(organization)
         "#{public_app_url}/organizations/#{organization.id}"
+      end
+
+      def direct_transfer_url(transfer, token)
+        "#{public_app_url}/public/ticket_transfers/#{transfer.id}?token=#{ERB::Util.url_encode(token)}"
       end
 
       def public_app_url

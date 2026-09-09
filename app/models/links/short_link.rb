@@ -8,7 +8,7 @@ module Links
   class ShortLink < Links::ApplicationRecord
     self.table_name = "links_short_links"
 
-    TARGET_TYPES = %w[event ticket organization].freeze
+    TARGET_TYPES = %w[event ticket organization ticket_transfer].freeze
     RESERVED_SLUGS = %w[
       up events tickets organizations catalog scanner auth public health
       add_on_reports
