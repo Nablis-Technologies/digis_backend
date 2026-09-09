@@ -60,12 +60,17 @@ module Links
           target_id: ticket.id,
           canonical: true
         }
+        existing = ShortLink.find_by(**target)
+        return existing if existing
+
         attempts = 0
 
         begin
-          ShortLink.create!(target.merge(slug: ticket_slug, click_count: 0))
+          ShortLink.transaction(requires_new: true) do
+            ShortLink.create!(target.merge(slug: ticket_slug, click_count: 0))
+          end
         rescue ActiveRecord::RecordNotUnique
-          existing = ShortLink.find_by(**target) if attempts.zero?
+          existing = ShortLink.find_by(**target)
           return existing if existing
 
           attempts += 1
@@ -82,15 +87,17 @@ module Links
 
         attempts = 0
         begin
-          ShortLink.create!(
-            target.merge(
-              slug: "x-#{SecureRandom.alphanumeric(SLUG_LENGTH).downcase}",
-              expires_at: transfer.expires_at,
-              click_count: 0
+          ShortLink.transaction(requires_new: true) do
+            ShortLink.create!(
+              target.merge(
+                slug: "x-#{SecureRandom.alphanumeric(SLUG_LENGTH).downcase}",
+                expires_at: transfer.expires_at,
+                click_count: 0
+              )
             )
-          )
+          end
         rescue ActiveRecord::RecordNotUnique
-          existing = ShortLink.find_by(**target) if attempts.zero?
+          existing = ShortLink.find_by(**target)
           return existing if existing
 
           attempts += 1
