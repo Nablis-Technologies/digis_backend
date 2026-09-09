@@ -91,12 +91,25 @@ module Orders
         charge_currency: "ETB", charge_unit_amount_minor: 10_500, exchange_rate: 1,
         discount_minor: 0, total_minor: 10_500, fulfillment_status: "fulfilled"
       )
+      add_on = Catalog::EventProduct.create!(
+        event: @event, name: "Refresh add-on", type: "merchandise", status: "active",
+        inventory_mode: "unlimited", schedule_change_refund_policy: "full_or_partial"
+      )
+      add_on_item = wallet_order.order_items.create!(
+        event_product: add_on, name_snapshot: add_on.name, type_snapshot: "merchandise",
+        quantity: 1, base_currency: "ETB", base_unit_amount_minor: 750,
+        charge_currency: "ETB", charge_unit_amount_minor: 750, exchange_rate: 1,
+        discount_minor: 0, total_minor: 750, fulfillment_status: "fulfilled"
+      )
+      wallet_order.update!(subtotal_minor: 10_750, total_minor: 11_250, settlement_total_minor: 11_250)
       wallet_order.update_columns(status: "fulfilled", paid_at: Time.current)
       ticket = Ticketing::Packages::Issue.call(order_item: item, unit_number: 1).value
       payment = Orders::Payment.create!(payment_attributes.merge(
         order: wallet_order, status: "succeeded", succeeded_at: Time.current, accepted_at: Time.current,
         idempotency_key: "wallet-refresh-#{SecureRandom.hex(4)}",
-        provider_reference: "wallet-provider-#{SecureRandom.hex(4)}"
+        provider_reference: "wallet-provider-#{SecureRandom.hex(4)}",
+        amount_minor: wallet_order.total_minor,
+        settlement_grace_expires_at: wallet_order.expires_at + 5.minutes
       ))
 
       post "/payments/#{payment.id}/refresh",
@@ -109,6 +122,15 @@ module Orders
       assert wallet_ticket
       refute wallet_ticket.key?("owner_user_id")
       assert wallet_ticket.key?("credentials")
+      assert_equal [
+        {
+          "id" => add_on_item.id,
+          "name" => "Refresh add-on",
+          "type" => "merchandise",
+          "quantity" => 1,
+          "unit_amount_minor" => 750
+        }
+      ], wallet_ticket.fetch("add_ons")
     end
 
     private

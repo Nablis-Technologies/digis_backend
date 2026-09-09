@@ -6,7 +6,7 @@ module Ticketing
   class TicketWalletSerializer < ActiveModel::Serializer
     attributes :id, :status, :unit_number, :admissions_per_unit_snapshot,
                :credential_mode, :credential_version, :event, :product,
-               :ticket_type, :event_dates, :admission_slots, :credentials
+               :ticket_type, :event_dates, :admission_slots, :credentials, :add_ons
 
     def event
       {
@@ -74,6 +74,23 @@ module Ticketing
           TicketWalletCredentialSerializer.new(
             credential, deliver_secret: object.status == "active"
           ).attributes
+        end
+    end
+
+    def add_ons
+      order = object.order_item&.order
+      return [] unless order
+
+      order.order_items
+        .reject { |item| item.type_snapshot == "ticket" }
+        .map do |item|
+          {
+            id: item.id,
+            name: item.name_snapshot,
+            type: item.type_snapshot,
+            quantity: item.quantity,
+            unit_amount_minor: item.charge_unit_amount_minor
+          }
         end
     end
 
