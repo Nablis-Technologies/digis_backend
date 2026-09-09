@@ -15,10 +15,14 @@ module Orders
       @product = create_product
       @phone = "0911000041"
       @previous_payment_adapters = Payments::Providers::Registry.instance_variable_get(:@adapters)&.dup
+      @delivered_codes = []
+      @previous_phone_sender = Rails.application.config.x.phone_verification_sender
+      Rails.application.config.x.phone_verification_sender = lambda { |code:, **| @delivered_codes << code }
     end
 
     teardown do
       Payments::Providers::Registry.instance_variable_set(:@adapters, @previous_payment_adapters)
+      Rails.application.config.x.phone_verification_sender = @previous_phone_sender
     end
 
     test "creates a phone-bound guest quote and order without authentication" do
@@ -173,7 +177,46 @@ module Orders
            as: :json
       assert_response :success
       assert_equal "ready", response.parsed_body.dig("data", "state")
-      assert_equal 1, response.parsed_body.fetch("data").fetch("tickets").length
+      data = response.parsed_body.fetch("data")
+      assert_equal 1, data.fetch("tickets").length
+      guest_ticket = data.fetch("tickets").first
+      assert_equal registration.value.registration.id, guest_ticket.fetch("registration_id")
+      view_token = guest_ticket.fetch("ticket_view_token")
+      assert Ticketing::GuestTicketViewToken.verify(view_token).success?
+      assert_equal guest_ticket.fetch("id"), Ticketing::GuestTicketViewToken.verify(view_token).value.ticket_id
+      view_url = URI.parse(guest_ticket.fetch("ticket_view_url"))
+      assert_equal "/public/tickets/#{guest_ticket.fetch("id")}", view_url.path
+      assert_equal view_token, URI.decode_www_form(view_url.query).to_h.fetch("view_token")
+      assert_match(
+        %r{(?:/t-[a-z0-9]{6}\z|/public/tickets/#{guest_ticket.fetch("id")}\?view_token=)},
+        guest_ticket.fetch("short_url")
+      )
+
+      post "/public/ticket_views/#{view_token}/request_otp",
+           params: { phone: @phone },
+           headers: { "Idempotency-Key" => "guest-payment-refresh-claim-otp-41" },
+           as: :json
+      assert_response :created
+      challenge_id = response.parsed_body.dig("data", "challenge_id")
+
+      post "/phone_verifications/#{challenge_id}/verify",
+           params: { code: @delivered_codes.last },
+           headers: { "Idempotency-Key" => "guest-payment-refresh-claim-verify-41" },
+           as: :json
+      assert_response :success
+      verification_token = response.parsed_body.dig("data", "verification_token")
+
+      post "/registrations/#{guest_ticket.fetch("registration_id")}/claim_guest",
+           params: {
+             phone: @phone,
+             verification_token:,
+             password: "password123",
+             password_confirmation: "password123"
+           },
+           headers: { "Idempotency-Key" => "guest-payment-refresh-claim-41" },
+           as: :json
+      assert_response :success
+      assert response.parsed_body.dig("data", "access_token").present?
     end
 
     private

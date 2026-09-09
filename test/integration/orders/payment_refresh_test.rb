@@ -121,6 +121,9 @@ module Orders
       wallet_ticket = data.fetch("tickets").find { |entry| entry.fetch("id") == ticket.id }
       assert wallet_ticket
       refute wallet_ticket.key?("owner_user_id")
+      refute wallet_ticket.key?("ticket_view_token")
+      refute wallet_ticket.key?("ticket_view_url")
+      refute wallet_ticket.key?("short_url")
       assert wallet_ticket.key?("credentials")
       assert_equal [
         {

@@ -27,6 +27,12 @@ module Links
         direct_ticket_url(ticket)
       end
 
+      # Builds the direct signed view URL used by guest clients to start the
+      # post-purchase claim flow without depending on SMS delivery.
+      def ticket_view(ticket, token: nil)
+        direct_ticket_url(ticket, token:)
+      end
+
       def event(event)
         return direct_event_url(event) unless enabled?
 
@@ -120,8 +126,8 @@ module Links
         "t-#{SecureRandom.alphanumeric(SLUG_LENGTH).downcase}"
       end
 
-      def direct_ticket_url(ticket)
-        token = Ticketing::GuestTicketViewToken.issue(ticket:)
+      def direct_ticket_url(ticket, token: nil)
+        token ||= Ticketing::GuestTicketViewToken.issue(ticket:)
         "#{public_app_url}/public/tickets/#{ticket.id}?view_token=#{ERB::Util.url_encode(token)}"
       end
 

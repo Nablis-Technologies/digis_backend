@@ -49,6 +49,14 @@ module Links
       assert Ticketing::GuestTicketViewToken.verify(token).success?
     end
 
+    test "builds a direct signed ticket-view URL from a supplied token" do
+      url = BrandedUrl.ticket_view(@ticket, token: "signed-view-token")
+      parsed = URI.parse(url)
+
+      assert_equal "/public/tickets/#{@ticket.id}", parsed.path
+      assert_equal "signed-view-token", URI.decode_www_form(parsed.query).to_h.fetch("view_token")
+    end
+
     test "creates and reuses one compact canonical ticket link" do
       first = BrandedUrl.ticket(@ticket)
       second = BrandedUrl.ticket(@ticket)

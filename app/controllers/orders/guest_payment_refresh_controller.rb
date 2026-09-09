@@ -30,7 +30,7 @@ module Orders
         serializer_options: {
           payment: { serializer: Orders::PaymentSerializer },
           order: { serializer: Orders::OrderSerializer },
-          tickets: { serializer: Ticketing::TicketWalletSerializer }
+          tickets: { serializer: Ticketing::GuestPaymentTicketSerializer }
         }
       )
     rescue ActiveRecord::RecordNotFound
