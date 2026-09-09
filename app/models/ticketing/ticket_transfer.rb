@@ -14,7 +14,18 @@ module Ticketing
     belongs_to :to_user, class_name: "Core::User", inverse_of: :incoming_ticket_transfers
     belongs_to :initiated_by, class_name: "Core::User", inverse_of: :initiated_ticket_transfers
 
+    encrypts :token_ciphertext
+
+    def token
+      token_ciphertext
+    end
+
+    def token=(value)
+      self.token_ciphertext = value
+    end
+
     validates :token_digest, format: { with: /\A[0-9a-f]{64}\z/ }, uniqueness: true
+    validates :token_ciphertext, presence: true
     validates :status, presence: true, inclusion: { in: STATUSES }
     validates :previous_version, numericality: { only_integer: true, greater_than: 0 }
     validates :expires_at, presence: true
