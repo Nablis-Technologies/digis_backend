@@ -1,0 +1,11 @@
+en:
+  ticketing:
+    rsvps:
+      errors:
+        rsvp_product_not_found: "The requested RSVP product was not found"
+        rsvp_paid_product_requires_checkout: "Paid RSVP products must use the checkout flow"
+        guest_requires_authentication: "This phone already belongs to an account; sign in to continue"
+        rsvp_verification_invalid: "The RSVP phone verification is invalid"
+        rsvp_verification_expired: "The RSVP phone verification has expired"
+        rsvp_quantity_invalid: "RSVP quantity must be between one and ten packages"
+        rsvp_registration_failed: "The RSVP could not be completed"

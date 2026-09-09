@@ -118,6 +118,10 @@ Rails.application.routes.draw do
       to: "ticketing/public_consent_requirements#index"
   get "public/events/:event_slug/ticket_types/:ticket_type_id/registration_schema",
       to: "ticketing/public_registration_schemas#show"
+  post "public/events/:event_slug/rsvp/request_otp",
+       to: "ticketing/public_rsvps#request_otp"
+  post "public/events/:event_slug/rsvp",
+       to: "ticketing/public_rsvps#create"
   post "guest/ticket_types/:ticket_type_id/registrations",
        to: "ticketing/guest_registrations#create"
 
