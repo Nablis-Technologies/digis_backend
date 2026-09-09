@@ -86,6 +86,21 @@ class Core::DispatchOutboxEventJobTest < ActiveJob::TestCase
     assert Rails.application.config.x.outbox_handlers.key?("orders.checkout.expired")
   end
 
+  test "enqueues transfer delivery for an initiated ticket transfer" do
+    event = core_outbox_events(:pending)
+    transfer_id = SecureRandom.uuid
+    event.update!(
+      topic: "ticketing",
+      event_type: "ticketing.ticket_transfer.initiated",
+      payload: { "transfer_id" => transfer_id, "ticket_id" => SecureRandom.uuid }
+    )
+
+    assert_enqueued_with(job: Ticketing::TicketTransferDeliveryJob, args: [ transfer_id ]) do
+      Core::Outbox::Dispatch.call(event_id: event.id)
+    end
+    assert event.reload.published_at?
+  end
+
   test "acknowledges event completion evidence without enqueueing maturity" do
     event = core_outbox_events(:pending)
     event.update!(
