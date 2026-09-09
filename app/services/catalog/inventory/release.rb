@@ -16,6 +16,7 @@ module Catalog
           reservations = group.reservations
           return group_not_found if reservations.empty?
           return success(reservations) if reservations.all?(&:released?)
+          return success(reservations) if reservations.all? { |reservation| reservation.released? || reservation.expired? }
 
           validate_all_active!(reservations)
           inventory_quantities = inventory_quantities(group.inventory_reservations)
