@@ -31,6 +31,11 @@ module Messaging
         result
       end
 
+      def deliver_email(to:, subject:, body:, **_arguments)
+        Rails.logger.warn("[PREVIEW EMAIL] subject=#{subject} body=#{body}") if preview_debug_logging?
+        result
+      end
+
       private
 
       def preview_debug_logging?

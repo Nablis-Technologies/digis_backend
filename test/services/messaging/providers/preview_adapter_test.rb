@@ -74,6 +74,23 @@ module Messaging
         end
       end
 
+      test "logs an email body only for an explicitly enabled Render preview" do
+        Rails.logger.expects(:warn).with { |message|
+          message.include?("Ticket transfer") && message.include?("http://preview.test/x-abc123") &&
+            !message.include?("recipient@example.com")
+        }
+        with_env("RENDER_PREVIEW" => "true", "DIGIS_PREVIEW_DEBUG_LOGGING" => "true") do
+          result = PreviewAdapter.new.deliver_email(
+            to: "recipient@example.com",
+            subject: "Ticket transfer",
+            body: "Ticket transfer: http://preview.test/x-abc123",
+            idempotency_key: "digest"
+          )
+
+          assert_predicate result, :success?
+        end
+      end
+
       private
 
       def with_env(values)
