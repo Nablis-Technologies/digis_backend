@@ -12,6 +12,16 @@ end
 Rails.application.config.x.outbox_handlers.register("ticketing.ticket_transfer.initiated", priority: 100) do |outbox_event|
   Ticketing::TicketTransferDeliveryJob.perform_later(outbox_event.payload.fetch("transfer_id"))
 end
+
+# Cancellation and decline are already persisted and audited by their domain
+# commands. Acknowledge them explicitly until a downstream notification
+# contract exists so terminal events do not retry forever.
+%w[cancelled declined].each do |status|
+  Rails.application.config.x.outbox_handlers.register("ticketing.ticket_transfer.#{status}", priority: 100) do |outbox_event|
+    outbox_event
+  end
+end
+
 Rails.application.config.x.outbox_handlers.register("ticketing.registration_consent.reminder_due", priority: 100) do |outbox_event|
   Rails.application.config.x.consent_reminder_sender.call(
     requirement_id: outbox_event.payload.fetch("requirement_id")
