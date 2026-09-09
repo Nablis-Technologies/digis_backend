@@ -24,6 +24,11 @@ module Ticketing
         assert_equal 1, @ticket.current_credential_generation.version
         assert initiated.value.token.present?
         assert_equal 64, transfer.token_digest.length
+        assert_equal initiated.value.token, transfer.reload.token
+        stored_token = Ticketing::TicketTransfer.connection.select_value(
+          "SELECT token_ciphertext FROM ticketing_ticket_transfers WHERE id = '#{transfer.id}'"
+        )
+        refute_equal initiated.value.token, stored_token
       end
 
       test "accepts only by the resolved recipient and creates a new group generation" do
