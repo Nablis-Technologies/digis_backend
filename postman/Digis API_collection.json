@@ -1349,7 +1349,8 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
             ],
             "body": {
               "mode": "raw",
@@ -1384,6 +1385,76 @@
             "description": "Cancels a pending transfer as the original owner without changing the current credential."
           },
           "response": []
+        },
+        {
+          "name": "Public Transfer Landing",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/public/ticket_transfers/{{transferId}}?token={{ticketTransferToken}}",
+            "description": "Shows a masked, recipient-safe transfer landing projection. The token is required; full phone numbers and delivery credentials are never returned."
+          },
+          "response": [
+            {
+              "name": "Transfer landing",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"transfer_01HX\",\n    \"status\": \"pending\",\n    \"expires_at\": \"2026-09-10T12:00:00.000Z\",\n    \"event\": { \"id\": \"evt_01HX\", \"title\": \"Summer Festival\", \"timezone\": \"Africa/Addis_Ababa\", \"currency\": \"ETB\" },\n    \"ticket\": { \"id\": \"ticket_01HX\", \"status\": \"active\", \"unit_number\": 1, \"product\": { \"name\": \"General Admission\", \"type\": \"ticket\" } },\n    \"recipient\": { \"phone\": \"+251******34\", \"email_present\": true }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Request Transfer OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{ticketTransferToken}}\",\n  \"phone\": \"+251911234567\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/public/ticket_transfers/{{transferId}}/request_otp",
+            "description": "Requests a transfer-scoped OTP for the intended phone recipient. The code is delivered through the configured SMS provider and never returned in the API response."
+          },
+          "response": [
+            {
+              "name": "Transfer OTP challenge",
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": true,\n  \"data\": { \"challenge_id\": \"challenge_01HX\", \"status\": \"pending\", \"expires_at\": \"2026-09-10T12:10:00.000Z\" }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Accept Guest Transfer",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{ticketTransferToken}}\",\n  \"phone\": \"+251911234567\",\n  \"verification_token\": \"{{verificationToken}}\",\n  \"password\": \"password123\",\n  \"password_confirmation\": \"password123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/public/ticket_transfers/{{transferId}}/accept_guest",
+            "description": "Accepts a pending transfer after OTP. Without a password the shadow recipient receives a signed ticket view; with a password the account is upgraded and JWTs are returned."
+          },
+          "response": [
+            {
+              "name": "Guest transfer accepted",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"transfer\": { \"id\": \"transfer_01HX\", \"status\": \"accepted\", \"new_version\": 2 },\n    \"ticket_view_url\": \"https://dig.is/t-x8k2mp\",\n    \"access_token\": \"jwt-access-token\",\n    \"refresh_token\": \"opaque-refresh-token\"\n  }\n}"
+            }
+          ]
         }
       ]
     },
