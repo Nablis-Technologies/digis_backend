@@ -50,7 +50,7 @@ module Finance
         success(account)
       rescue ArgumentError
         failure(input_error)
-      rescue Core::Audit::ReplayConflict
+      rescue Core::Audit::Record::ReplayConflict
         failure(finance_error(:idempotency_conflict, code: "idempotency_conflict", status: :conflict))
       rescue ActiveRecord::RecordNotUnique
         failure(finance_error(:payout_account_conflict, code: "payout_account_conflict", status: :conflict))
@@ -99,7 +99,7 @@ module Finance
       end
 
       def persist_account!(key:, audit_key:, request_digest:, verification:)
-        digest = PayoutAccountDigest.call(organization:, account_number:)
+        digest = Core::PayoutAccountDigest.call(namespace: organization.id, account_number:)
         Finance::ApplicationRecord.transaction do
           Core::Database::AdvisoryLock.acquire!("finance-payout-account", organization.id, provider, digest)
           existing = PayoutAccount.lock.find_by(organization:, provider:, account_number_digest: digest)

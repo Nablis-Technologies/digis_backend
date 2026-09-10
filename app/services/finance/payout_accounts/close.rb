@@ -50,7 +50,7 @@ module Finance
         success(closed)
       rescue ArgumentError
         failure(error(:idempotency_key_invalid, "idempotency_key_invalid"))
-      rescue Core::Audit::ReplayConflict
+      rescue Core::Audit::Record::ReplayConflict
         failure(error(:idempotency_conflict, "idempotency_conflict", :conflict))
       end
 
