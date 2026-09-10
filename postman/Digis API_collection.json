@@ -13229,7 +13229,7 @@
               "response": []
             },
             {
-              "name": "Verify Seller Payout Account",
+              "name": "Add Seller Payout Account",
               "request": {
                 "method": "POST",
                 "header": [
@@ -13238,7 +13238,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"payout_account\": {\n    \"type\": \"mobile_money\",\n    \"provider\": \"telebirr\",\n    \"account_details\": {\n      \"phone\": \"251911000003\"\n    },\n    \"account_label\": \"Primary wallet\",\n    \"holder_name\": \"Seller Holder\"\n  }\n}",
+                  "raw": "{\n  \"payout_account\": {\n    \"type\": \"bank\",\n    \"provider\": \"chapa\",\n    \"bank_code\": 128,\n    \"account_number\": \"1000000000001\",\n    \"holder_name\": \"Seller Holder\",\n    \"account_label\": \"Primary bank account\"\n  }\n}",
                   "options": { "raw": { "language": "json" } }
                 },
                 "url": {
@@ -13248,12 +13248,78 @@
                 }
               },
               "response": []
+            },
+            {
+              "name": "Set Default Seller Payout Account",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/marketplace/seller/payout_accounts/{{sellerPayoutAccountId}}/set_default",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "marketplace", "seller", "payout_accounts", "{{sellerPayoutAccountId}}", "set_default" ]
+                },
+                "description": "Selects one verified seller destination as the seller's default account. Existing payouts remain bound to their original account."
+              },
+              "response": []
             }
           ]
         },
         {
           "name": "Admin Payouts",
           "item": [
+            {
+              "name": "List Seller Payout Accounts",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/marketplace/seller_payout_accounts",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "admin", "marketplace", "seller_payout_accounts" ]
+                },
+                "description": "Lists safe seller payout destination metadata for authorized operators. Beneficiary credentials are never returned."
+              },
+              "response": []
+            },
+            {
+              "name": "Show Seller Payout Account",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/marketplace/seller_payout_accounts/{{sellerPayoutAccountId}}",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "admin", "marketplace", "seller_payout_accounts", "{{sellerPayoutAccountId}}" ]
+                },
+                "description": "Shows safe metadata for one seller payout destination. Beneficiary credentials are never returned."
+              },
+              "response": []
+            },
+            {
+              "name": "Verify Seller Payout Account",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json", "type": "text" },
+                  { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Verified against seller-provided bank evidence\",\n  \"evidence_reference\": \"case-2026-09-10-001\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/marketplace/seller_payout_accounts/{{sellerPayoutAccountId}}/verify",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "admin", "marketplace", "seller_payout_accounts", "{{sellerPayoutAccountId}}", "verify" ]
+                },
+                "description": "Admin-only manual verification with an auditable reason and evidence reference. It never exposes beneficiary credentials."
+              },
+              "response": []
+            },
             {
               "name": "List Seller Payouts",
               "request": {

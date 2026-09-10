@@ -145,8 +145,10 @@ Postman variables containing secrets:
 Preview safety:
 
 - CHAPA_PAYOUT_ENABLED is independent from checkout registration; keep it
-  disabled until transfer credentials and an approved payout-destination
-  workflow are available.
+  disabled by default. Organizer and Marketplace payout destinations are
+  encrypted and remain pending until provider or authorized manual
+  verification; enabling transfer dispatch requires an explicit test-mode
+  drill with approved credentials.
 
 - `RENDER_PREVIEW=true` requires `CHAPA_MODE=test`.
 - Preview requires a `CHASECK_TEST-...` key.
@@ -157,7 +159,32 @@ Render's Blueprint marks secret fields with `sync: false`; enter their
 values manually in the service environment. Merge updates instead of
 replacing the full environment-variable set.
 
-## 6. Seeded test data
+## 6. Marketplace seller payouts
+
+Marketplace resale sellers use the same direct transfer transport as Finance
+organizer payouts. The seller account endpoint accepts `bank_code`,
+`account_number`, `holder_name`, and an optional account label, encrypts the
+beneficiary values, and returns `pending_verification` when Chapa has no
+preflight beneficiary verifier.
+
+`GET /v1/banks` is only a supported-bank and routing-code lookup. It is not
+ownership verification. An authorized operator verifies a pending seller
+destination through:
+
+```text
+POST /admin/marketplace/seller_payout_accounts/:id/verify
+```
+
+with a reason, evidence reference, and idempotency key. Only verified seller
+accounts can be selected as default or used by the seller payout dispatch.
+The dispatch sends `account_number`, `account_name`, `bank_code`, `amount`,
+`currency`, and `reference` to `POST /v1/transfers`.
+
+Chapa subaccounts remain out of scope for resale payouts. They are split-
+payment resources used during customer checkout, while resale proceeds are
+settled later from the Marketplace seller ledger.
+
+## 7. Seeded test data
 
 The preview seed includes a Chapa-specific buyer because Chapa validates email
 values and test phone numbers independently of Digis authentication:
@@ -277,6 +304,11 @@ Event completion is automatic after ended dates become terminal. Authorized
 organizers and platform administrators may retry the same guarded transition
 with `POST /events/:event_id/complete` and an `Idempotency-Key`; this does not
 make funds payout-eligible before the seven-day maturity buffer.
+
+A proposed faster organizer-release policy is paused in
+`docs/superpowers/specs/2026-08-31-fast-organizer-payout-reserve-policy-design.md`.
+Until its reserve and compliance decisions are implemented, this seven-day
+guard remains the production-shaped behavior.
 
 ## 9. Render preview end-to-end test
 

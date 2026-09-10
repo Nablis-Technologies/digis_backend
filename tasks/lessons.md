@@ -1,5 +1,10 @@
 # Lessons
 
+- For public service pricing and policy research, prefer public documentation,
+  read-only web fetches, and search. Do not make browser sign-in or account access
+  a prerequisite when the user wants general limits and terms rather than an
+  account-specific audit.
+
 - Render MCP can update preview environment variables and run read-only database
   queries, but it cannot inspect effective runtime environment values or execute
   a writable shell command on the free service. When a preview reset is needed,
@@ -80,3 +85,69 @@
   environment-sensitive. Keep a strict local budget, define an explicit CI
   allowance or isolate the benchmark in a dedicated job, and do not treat one
   fast local run as proof that an absolute CI threshold is stable.
+
+- In Ruby, a method call placed after a `rescue SomeError => error` body is
+  still inside that rescue clause; it is not another rescue handler. Keep the
+  shared rescue wrapper around the transaction and add regression tests for
+  malformed idempotency keys and persistence errors.
+
+- When Pundit uses a custom namespaced policy resolver, rename policies only
+  together with the resolver's lookup order. Empty aliases may be required by
+  response serialization even when authorization passes an explicit policy
+  class; remove them only after canonical model-named policies resolve in both
+  public and admin contexts.
+
+- Billing payment subjects must translate command aborts into typed Results,
+  preserve succeeded provider evidence, and create durable refund obligations
+  for late or duplicate charges. Keep credit reversal evidence append-only;
+  if credits were already spent, a compensating entry may make the derived
+  balance negative so the chargeback is never silently dropped.
+
+- Billing callbacks must distinguish a failed superseded attempt from an
+  authoritative purchase failure. Never downgrade a paid purchase or reverse
+  its credits because an older retry failed; reconcile only the payment and
+  top-up identity that actually owns the transition.
+
+- A delayed accepted-credit event after a compensating refund must be an
+  idempotent no-op only when matching refund evidence exists. Do not broaden a
+  reconciler to refund every unaccepted succeeded payment, because a provider
+  webhook may already prove that the money was returned.
+
+- Campaign delivery tests must exercise rendered variables, provider exceptions,
+  and retry exhaustion through both singular and batched settlement paths.
+  A green test with a static message or one retry does not prove dispatch is
+  safe, complete, or financially settled.
+
+- When an aggregate service returns a Result, preserve its value's contract at
+  every caller boundary. Batched jobs must receive their declared outcome
+  object, while singular callers may receive the persisted model; never pass a
+  model-shaped retry result into a batch settlement API.
+
+- Every response path needs the policy for the object it actually returns, not
+  merely the object authorized at the request boundary. For scoped child
+  resources, keep the child policy and serializer profile explicit so Pundit
+  cannot turn a successful command into a 500 during serialization.
+
+- Lifecycle commands that change campaign state or release credit holds must
+  record request-bound actor evidence, not merely validate an idempotency key.
+  Keep quota semantics explicit when the policy intentionally measures launch
+  attempts rather than provider delivery consumption.
+
+- When a lifecycle command accepts a terminal no-op, validate required inputs
+  before the no-op and bind actor/request details with canonical JSON. Preserve
+  retry cursors while resetting only fresh-recovery cursors, so bounded workers
+  cannot skip unclaimed work after a partial failure.
+
+- Retention must distinguish durable organizer address books from ephemeral
+  campaign-recipient material. A stale provider attempt is not a failed result:
+  retry it with the original idempotency key, and refund only work that never
+  reached the provider.
+
+- JSON array payloads are still unpermitted `ActionController::Parameters` at
+  the controller boundary. Permit each row before converting it to a Hash;
+  calling `to_h` directly turns a valid API request into a 500.
+
+- Idempotent audit writers must make uniqueness races savepoint-safe. Use an
+  atomic create-or-find operation that does not leave the surrounding
+  transaction aborted, and rescue the actual nested `ReplayConflict` type at
+  every command boundary.
