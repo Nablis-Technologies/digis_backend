@@ -4601,7 +4601,7 @@ CREATE TABLE public.core_phone_verification_challenges (
     purpose character varying NOT NULL,
     phone_digest character varying(64) NOT NULL,
     code_digest character varying(64) NOT NULL,
-    idempotency_key_digest character varying(64) NOT NULL,
+    idempotency_key_digest character varying(64) CONSTRAINT core_phone_verification_challen_idempotency_key_digest_not_null NOT NULL,
     status character varying DEFAULT 'pending'::character varying NOT NULL,
     attempts integer DEFAULT 0 NOT NULL,
     max_attempts integer DEFAULT 5 NOT NULL,
@@ -5543,18 +5543,27 @@ CREATE TABLE public.marketplace_seller_payout_accounts (
     user_id uuid NOT NULL,
     type character varying NOT NULL,
     provider character varying NOT NULL,
-    account_token character varying NOT NULL,
+    bank_code integer NOT NULL,
+    account_number_ciphertext text CONSTRAINT marketplace_seller_payout_ac_account_number_ciphertext_not_null NOT NULL,
+    account_number_digest character varying(64) CONSTRAINT marketplace_seller_payout_accoun_account_number_digest_not_null NOT NULL,
     account_label_ciphertext text,
     holder_name_ciphertext text CONSTRAINT marketplace_seller_payout_accou_holder_name_ciphertext_not_null NOT NULL,
+    verification_source character varying,
+    verified_by_id uuid,
+    is_default boolean DEFAULT false NOT NULL,
     status character varying DEFAULT 'pending_verification'::character varying NOT NULL,
     verified_at timestamp with time zone,
     last_used_at timestamp with time zone,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
-    CONSTRAINT marketplace_payout_accounts_provider_check CHECK (((provider)::text = ANY ((ARRAY['telebirr'::character varying, 'chapa'::character varying, 'bank'::character varying])::text[]))),
+    CONSTRAINT marketplace_payout_accounts_default_status_check CHECK (((NOT is_default) OR ((status)::text = 'verified'::text))),
+    CONSTRAINT marketplace_payout_accounts_digest_check CHECK (((account_number_digest)::text ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT marketplace_payout_accounts_positive_bank_code_check CHECK ((bank_code > 0)),
+    CONSTRAINT marketplace_payout_accounts_provider_check CHECK (((provider)::text = 'chapa'::text)),
     CONSTRAINT marketplace_payout_accounts_status_check CHECK (((status)::text = ANY ((ARRAY['pending_verification'::character varying, 'verified'::character varying, 'suspended'::character varying, 'closed'::character varying])::text[]))),
-    CONSTRAINT marketplace_payout_accounts_type_check CHECK (((type)::text = ANY ((ARRAY['mobile_money'::character varying, 'bank'::character varying])::text[]))),
-    CONSTRAINT marketplace_payout_accounts_verification_metadata_check CHECK (((((status)::text = 'verified'::text) AND (verified_at IS NOT NULL)) OR (((status)::text <> 'verified'::text) AND (verified_at IS NULL))))
+    CONSTRAINT marketplace_payout_accounts_type_check CHECK (((type)::text = 'bank'::text)),
+    CONSTRAINT marketplace_payout_accounts_verification_metadata_check CHECK (((((status)::text = 'verified'::text) AND (verified_at IS NOT NULL) AND (verification_source IS NOT NULL) AND (((verification_source)::text <> 'manual'::text) OR (verified_by_id IS NOT NULL))) OR (((status)::text <> 'verified'::text) AND (verified_at IS NULL) AND (verification_source IS NULL) AND (verified_by_id IS NULL)))),
+    CONSTRAINT marketplace_payout_accounts_verification_source_check CHECK (((verification_source IS NULL) OR ((verification_source)::text = ANY ((ARRAY['provider'::character varying, 'test_fixture'::character varying, 'manual'::character varying])::text[]))))
 );
 
 
@@ -8918,13 +8927,6 @@ CREATE UNIQUE INDEX idx_core_phone_verification_challenges_idempotency ON public
 
 
 --
--- Name: idx_core_phone_verification_challenges_status_expires; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_core_phone_verification_challenges_status_expires ON public.core_phone_verification_challenges USING btree (status, expires_at);
-
-
---
 -- Name: idx_core_retention_policies_one_active; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9149,10 +9151,10 @@ CREATE UNIQUE INDEX idx_links_short_links_lower_slug ON public.links_short_links
 
 
 --
--- Name: idx_marketplace_payout_accounts_on_provider_and_token; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_marketplace_payout_accounts_on_default_user_provider; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_marketplace_payout_accounts_on_provider_and_token ON public.marketplace_seller_payout_accounts USING btree (provider, account_token);
+CREATE UNIQUE INDEX idx_marketplace_payout_accounts_on_default_user_provider ON public.marketplace_seller_payout_accounts USING btree (user_id, provider) WHERE is_default;
 
 
 --
@@ -9160,6 +9162,13 @@ CREATE UNIQUE INDEX idx_marketplace_payout_accounts_on_provider_and_token ON pub
 --
 
 CREATE INDEX idx_marketplace_payout_accounts_on_user_and_status ON public.marketplace_seller_payout_accounts USING btree (user_id, status);
+
+
+--
+-- Name: idx_marketplace_payout_accounts_on_user_provider_account_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_marketplace_payout_accounts_on_user_provider_account_digest ON public.marketplace_seller_payout_accounts USING btree (user_id, provider, account_number_digest);
 
 
 --
@@ -9811,6 +9820,13 @@ CREATE INDEX idx_on_scanner_device_id_da4fcfc529 ON public.ticketing_scanner_dev
 --
 
 CREATE INDEX idx_on_status_effective_from_effective_until_ed4ab9d52f ON public.commercial_fee_schedule_versions USING btree (status, effective_from, effective_until);
+
+
+--
+-- Name: idx_on_status_expires_at_3cd3a4e20c; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_status_expires_at_3cd3a4e20c ON public.core_phone_verification_challenges USING btree (status, expires_at);
 
 
 --
@@ -12857,6 +12873,14 @@ ALTER TABLE ONLY public.messaging_campaigns
 
 
 --
+-- Name: marketplace_seller_payout_accounts fk_rails_105152b948; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.marketplace_seller_payout_accounts
+    ADD CONSTRAINT fk_rails_105152b948 FOREIGN KEY (verified_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: legal_document_versions fk_rails_10caebc056; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15473,6 +15497,14 @@ ALTER TABLE ONLY public.ticketing_ticket_transfers
 
 
 --
+-- Name: core_phone_verification_challenges fk_rails_fd7a3ea94b; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.core_phone_verification_challenges
+    ADD CONSTRAINT fk_rails_fd7a3ea94b FOREIGN KEY (user_id) REFERENCES public.core_users(id);
+
+
+--
 -- Name: messaging_credit_reservations fk_rails_fd811d732e; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15502,14 +15534,6 @@ ALTER TABLE ONLY public.catalog_product_access_zones
 
 ALTER TABLE ONLY public.ticketing_ticket_suspensions
     ADD CONSTRAINT ticketing_ticket_suspensions_ticket_event_fk FOREIGN KEY (ticket_id, event_id) REFERENCES public.ticketing_tickets(id, event_id) ON DELETE RESTRICT;
-
-
---
--- Name: core_phone_verification_challenges fk_core_phone_verification_challenges_user; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.core_phone_verification_challenges
-    ADD CONSTRAINT fk_core_phone_verification_challenges_user FOREIGN KEY (user_id) REFERENCES public.core_users(id);
 
 
 --
