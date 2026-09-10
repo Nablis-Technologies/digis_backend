@@ -18,7 +18,11 @@ module Security
       Ticketing::InvitationSerializer => [ Ticketing::Invitation, %i[email phone token contact_digest token_digest] ],
       Ticketing::CredentialSerializer => [ Ticketing::Credential, %i[qr_token lookup_code] ],
       Marketplace::SellerPayoutAccountSerializer => [
-        Marketplace::SellerPayoutAccount, %i[account_token holder_name_ciphertext]
+        Marketplace::SellerPayoutAccount,
+        %i[
+          account_number account_number_ciphertext account_number_digest
+          holder_name holder_name_ciphertext account_token verified_by_id
+        ]
       ]
     }.freeze
 

@@ -1,12 +1,13 @@
 # frozen_string_literal: true
 
 module Marketplace
-  # Seller destination API. Provider tokenization is injected through the
-  # registry, while VerifyPayoutAccount remains the sole mutation command.
+  # Seller destination API. Sensitive beneficiary values enter only the
+  # registration command; the response remains a safe metadata projection.
   class SellerPayoutAccountsController < Marketplace::ApplicationController
     include Core::CommandResponse
 
-    before_action :ensure_idempotency_key_present, only: :create
+    before_action :ensure_idempotency_key_present, only: %i[create set_default]
+    before_action :load_account, only: :set_default
 
     def index
       @clazz = SellerPayoutAccount
@@ -24,7 +25,8 @@ module Marketplace
         user: current_user,
         type: payout_account_params.require(:type),
         provider:,
-        account_details: payout_account_params[:account_details]&.to_h || {},
+        bank_code: payout_account_params.require(:bank_code),
+        account_number: payout_account_params.require(:account_number),
         account_label: payout_account_params[:account_label],
         holder_name: payout_account_params[:holder_name],
         adapter:,
@@ -42,12 +44,26 @@ module Marketplace
       )
     end
 
+    def set_default
+      authorize @account, :set_default?
+      render_service_result(
+        SellerPayoutAccounts::SetDefault.call(
+          account: @account, actor: current_user, idempotency_key:
+        ),
+        serializer_options: { serializer: SellerPayoutAccountSerializer }
+      )
+    end
+
     private
 
     def payout_account_params
       params.require(:payout_account).permit(
-        :type, :provider, :account_label, :holder_name, account_details: {}
+        :type, :provider, :bank_code, :account_number, :account_label, :holder_name
       )
+    end
+
+    def load_account
+      @account = policy_scope(SellerPayoutAccount).find(params[:id])
     end
   end
 end

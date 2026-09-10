@@ -2,6 +2,8 @@
 
 en:
   marketplace:
+    permissions:
+      seller_payout_account_verify: "Verify seller payout destinations"
     resale:
       errors:
         resale_acquisition_value_required: "a percentage cap requires a positive acquisition value"
@@ -75,15 +77,18 @@ en:
         group_mode_required: "only a group package can complete resale fulfillment"
         seller_ledger_conflict: "the seller ledger conflicts with an earlier resale fulfillment"
         payout_account_input_invalid: "the seller payout account details are invalid"
+        payout_account_bank_unsupported: "the selected bank is not supported by the payout provider"
         payout_account_provider_unavailable: "the seller payout account provider is unavailable"
-        payout_account_token_invalid: "the payout provider did not return a valid account token"
         payout_account_verification_failed: "the seller payout account could not be verified"
-        payout_account_verification_pending: "the seller payout account is awaiting provider verification"
         payout_account_not_verified: "a verified seller payout account is required"
         payout_account_user_mismatch: "the seller payout account does not belong to the seller"
         payout_account_conflict: "the seller payout account conflicts with an existing destination"
         payout_account_invalid: "the seller payout account could not be saved"
         payout_account_replay_missing: "the seller payout account replay could not be resolved"
+        payout_account_verification_required: "a reason and evidence reference are required for seller payout verification"
+        payout_account_not_verifiable: "the seller payout account is not eligible for verification"
+        payout_account_not_found: "the seller payout account could not be found"
+        unauthorized: "you are not authorized to change seller payout destinations"
         seller_payout_currency_invalid: "the seller payout currency is invalid"
         seller_payout_amount_invalid: "the seller payout amount is invalid"
         seller_payout_not_matured: "seller proceeds are not yet eligible for payout"

@@ -1,10 +1,13 @@
 # frozen_string_literal: true
 
 module Marketplace
-  # A seller may manage only their own tokenized payout destinations. Raw
-  # provider credentials are never part of this policy's visible fields.
+  # A seller may manage only their own encrypted payout destinations. Raw
+  # beneficiary credentials are never part of this policy's visible fields.
   class SellerPayoutAccountPolicy < Core::ApplicationPolicy
-    SAFE_FIELDS = %i[id user_id type provider status verified_at last_used_at created_at updated_at].freeze
+    SAFE_FIELDS = %i[
+      id user_id type provider bank_code account_label status verification_source
+      is_default verified_at last_used_at created_at updated_at
+    ].freeze
 
     def index? = account_access?
 
@@ -12,10 +15,13 @@ module Marketplace
 
     def create? = platform_admin? || record.user_id == user&.id
 
+    def set_default? = account_access?
+
     VISIBILITY = {
       index: { default: { fields: SAFE_FIELDS, include: [] }, admin: { fields: SAFE_FIELDS, include: [] } },
       show: { default: { fields: SAFE_FIELDS, include: [] }, admin: { fields: SAFE_FIELDS, include: [] } },
-      create: { default: { fields: SAFE_FIELDS, include: [] }, admin: { fields: SAFE_FIELDS, include: [] } }
+      create: { default: { fields: SAFE_FIELDS, include: [] }, admin: { fields: SAFE_FIELDS, include: [] } },
+      set_default: { default: { fields: SAFE_FIELDS, include: [] }, admin: { fields: SAFE_FIELDS, include: [] } }
     }.freeze
 
     class Scope < Core::ApplicationPolicy::Scope

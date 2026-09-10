@@ -221,6 +221,11 @@ permissions.concat([
     description: I18n.t("finance.permissions.payout_account_verify") }
 ])
 
+permissions << {
+  resource: "marketplace.seller_payout_account", action: "verify", namespace: "marketplace",
+  description: I18n.t("marketplace.permissions.seller_payout_account_verify")
+}
+
 permissions.concat([
   { resource: "messaging_credit_account", action: "index", namespace: "messaging", description: "View messaging credit balances" },
   { resource: "messaging_credit_account", action: "show", namespace: "messaging", description: "View a messaging credit account" },

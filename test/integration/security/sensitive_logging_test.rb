@@ -8,7 +8,7 @@ module Security
       answer answer_ciphertext answers consent evidence_digest request_uuid
       email phone phone_ciphertext token_ciphertext tin_number
       business_license tin_certificate qr_token lookup_code credential
-      account_token account_details holder_name_ciphertext account_label_ciphertext
+      account_number account_name holder_name_ciphertext account_label_ciphertext
       provider_payload webhook_body
     ].freeze
 

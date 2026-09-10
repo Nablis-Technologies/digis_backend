@@ -17,7 +17,7 @@ module Admin
 
       test "platform admin delegates payout dispatch to one command" do
         adapter = ::Marketplace::PayoutProviders::Adapter.new
-        ::Marketplace::PayoutProviders::Registry.expects(:fetch).with("telebirr").returns(adapter)
+        ::Marketplace::PayoutProviders::Registry.expects(:fetch).with("chapa").returns(adapter)
         ::Marketplace::DispatchSellerPayout.expects(:call).with(
           payout: @payout, adapter:
         ).returns(Core::BaseService::Result.success(@payout))
@@ -34,7 +34,7 @@ module Admin
       end
 
       test "provider lookup failure prevents the payout command from running" do
-        ::Marketplace::PayoutProviders::Registry.expects(:fetch).with("telebirr").raises(KeyError)
+        ::Marketplace::PayoutProviders::Registry.expects(:fetch).with("chapa").raises(KeyError)
         ::Marketplace::DispatchSellerPayout.expects(:call).never
 
         post "/admin/marketplace/seller_payouts/#{@payout.id}/dispatch",

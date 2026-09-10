@@ -15,19 +15,23 @@ module Marketplace
       assert_response :success
       data = response.parsed_body.fetch("data").sole
       assert_equal @account.id, data.fetch("id")
-      %w[account_token account_label_ciphertext holder_name_ciphertext].each do |field|
+      %w[
+        account_number account_number_ciphertext account_number_digest holder_name
+        account_token account_label_ciphertext holder_name_ciphertext verified_by_id
+      ].each do |field|
         assert_not data.key?(field), "seller account response leaked #{field}"
       end
     end
 
-    test "seller account creation delegates verification to one command" do
+    test "seller account creation delegates direct verification to one command" do
       adapter = Marketplace::PayoutProviders::Adapter.new
-      Marketplace::PayoutProviders::Registry.expects(:fetch).with("telebirr").returns(adapter)
+      Marketplace::PayoutProviders::Registry.expects(:fetch).with("chapa").returns(adapter)
       Marketplace::VerifyPayoutAccount.expects(:call).with(
         user: @seller,
-        type: "mobile_money",
-        provider: "telebirr",
-        account_details: { "phone" => "251911000003" },
+        type: "bank",
+        provider: "chapa",
+        bank_code: 128,
+        account_number: "1000000000006",
         account_label: "Primary wallet",
         holder_name: "Seller Holder",
         adapter:,
@@ -37,7 +41,7 @@ module Marketplace
       post "/marketplace/seller/payout_accounts",
            params: {
              payout_account: {
-               type: "mobile_money", provider: "telebirr", account_details: { phone: "251911000003" },
+               type: "bank", provider: "chapa", bank_code: 128, account_number: "1000000000006",
                account_label: "Primary wallet", holder_name: "Seller Holder"
              }
            },
@@ -48,42 +52,43 @@ module Marketplace
       assert_not response.parsed_body.fetch("data").key?("account_token")
     end
 
-    test "configured Chapa fails closed instead of reporting an empty provider registry" do
-      with_env(
-        "CHAPA_ENABLED" => "true",
-        "CHAPA_PAYOUT_ENABLED" => "true",
-        "CHAPA_MODE" => "test",
-        "CHAPA_SECRET_KEY" => "CHASECK_TEST-marketplace-api-test",
-        "RENDER_PREVIEW" => "true"
-      ) do
-        Marketplace::PayoutProviders::Registration.call(env: ENV)
+    test "configured Chapa creates a pending account when preflight verification is unsupported" do
+      adapter = Marketplace::PayoutProviders::Adapter.new
+      Marketplace::PayoutProviders::Registry.expects(:fetch).with("chapa").returns(adapter)
 
-        post "/marketplace/seller/payout_accounts",
-             params: {
-               payout_account: {
-                 type: "bank", provider: "chapa", account_details: { account_number: "1000000000001" },
-                 holder_name: "Seller Holder"
-               }
-             },
-             headers: headers_for(@seller).merge("Idempotency-Key" => "chapa-account-api"), as: :json
-      end
+      post "/marketplace/seller/payout_accounts",
+           params: {
+             payout_account: {
+               type: "bank", provider: "chapa", bank_code: 128, account_number: "1000000000007",
+               holder_name: "Seller Holder"
+             }
+           },
+           headers: headers_for(@seller).merge("Idempotency-Key" => "chapa-account-api"), as: :json
 
-      assert_response :unprocessable_entity
-      assert_equal "payout_account_provider_unavailable", response.parsed_body.fetch("code")
+      assert_response :created
+      assert_equal "pending_verification", response.parsed_body.dig("data", "status")
+    end
+
+    test "seller can select a verified account as the default" do
+      post "/marketplace/seller/payout_accounts/#{@account.id}/set_default",
+           params: {}, headers: headers_for(@seller).merge("Idempotency-Key" => "seller-default-api"), as: :json
+
+      assert_response :success
+      assert_equal true, response.parsed_body.dig("data", "is_default")
+    end
+
+    test "seller default selection requires an idempotency key" do
+      post "/marketplace/seller/payout_accounts/#{@account.id}/set_default",
+           params: {}, headers: headers_for(@seller), as: :json
+
+      assert_response :bad_request
+      assert_equal "missing_idempotency_key", response.parsed_body.fetch("code")
     end
 
     private
 
     def headers_for(user)
       { "Authorization" => "Bearer #{Core::TokenService.issue(Core::TokenService.access_token_payload(user))}" }
-    end
-
-    def with_env(values)
-      original = values.to_h { |key, _value| [ key, ENV[key] ] }
-      values.each { |key, value| ENV[key] = value }
-      yield
-    ensure
-      original.each { |key, value| value.nil? ? ENV.delete(key) : ENV[key] = value }
     end
   end
 end

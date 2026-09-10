@@ -307,7 +307,9 @@ Rails.application.routes.draw do
     get "seller/balance", to: "marketplace/seller_reports#balance"
     get "seller/history", to: "marketplace/seller_reports#history"
     scope path: "seller" do
-      resources :payout_accounts, only: %i[index create], controller: "marketplace/seller_payout_accounts"
+      resources :payout_accounts, only: %i[index create], controller: "marketplace/seller_payout_accounts" do
+        post :set_default, on: :member
+      end
     end
   end
 
@@ -346,6 +348,10 @@ Rails.application.routes.draw do
     get "system/readiness", to: "system/readiness#show"
 
     namespace :marketplace do
+      resources :seller_payout_accounts, only: %i[index show], controller: "seller_payout_accounts" do
+        post :verify, on: :member
+      end
+
       resources :seller_payouts, only: %i[index show], controller: "seller_payouts" do
         post :dispatch, on: :member, action: :dispatch_payout
         post :reconcile, on: :member
