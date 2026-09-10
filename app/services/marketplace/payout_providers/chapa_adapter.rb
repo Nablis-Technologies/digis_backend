@@ -12,14 +12,17 @@ module Marketplace
         @client = client
       end
 
-      def tokenize_payout_account(**request)
-        return Result.unknown(raw_status: "unconfigured") unless @client
-        raise_not_implemented!(:tokenize_payout_account) unless @client.respond_to?(:tokenize_payout_account)
+      def available_banks(**request)
+        return unless @client&.respond_to?(:available_banks)
 
-        normalize_tokenization(@client.public_send(:tokenize_payout_account, **request))
+        @client.public_send(:available_banks, **request)
       end
 
-      def verify_payout_account(**request) = delegate(:verify_payout_account, **request)
+      def verify_payout_account(**request)
+        return Result.unknown(raw_status: "unsupported") unless @client&.respond_to?(:verify_payout_account)
+
+        delegate(:verify_payout_account, **request)
+      end
 
       def payout(**request) = delegate(:payout, **request)
 

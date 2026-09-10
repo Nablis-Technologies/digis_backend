@@ -3,9 +3,8 @@
 module Marketplace
   module PayoutProviders
     # Registers the shared Chapa transfer transport for marketplace dispatch.
-    # Chapa's bank-transfer API does not expose destination tokenization, so the
-    # adapter fails closed for seller-account registration until that provider
-    # capability is available; it must never silently store raw credentials.
+    # Direct transfers require beneficiary fields rather than a destination
+    # token, so account registration owns encrypted details and verification.
     class Registration
       class << self
         def call(env: ENV, registry: Registry)
