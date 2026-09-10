@@ -125,7 +125,7 @@ module Reconciliation
       second = create_processing_seller_payout("second")
       adapter = Object.new
 
-      Marketplace::PayoutProviders::Registry.expects(:fetch).with("telebirr").returns(adapter)
+      Marketplace::PayoutProviders::Registry.expects(:fetch).with("chapa").returns(adapter)
       Marketplace::ReconcileSellerPayout.expects(:call).with(payout: first, adapter:, at: @now).returns(
         Core::BaseService::Result.success(first)
       )
@@ -246,7 +246,7 @@ module Reconciliation
       Marketplace::SellerPayout.create!(
         seller_user: @seller,
         seller_payout_account: @account,
-        provider: "telebirr",
+        provider: "chapa",
         amount_minor: 1_000,
         currency: "ETB",
         status: "processing",

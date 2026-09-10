@@ -10,16 +10,24 @@ module Marketplace
       @account = create_payout_account(status: "verified", verified_at: @now)
     end
 
-    def create_payout_account(status: "pending_verification", verified_at: nil)
+    def create_payout_account(status: "pending_verification", verified_at: nil,
+      account_number: "1000000000001")
+      number = account_number
       SellerPayoutAccount.create!(
         user: @seller,
-        type: "mobile_money",
-        provider: "telebirr",
-        account_token: "seller-token-#{SecureRandom.hex(8)}",
-        account_label_ciphertext: "Seller wallet",
-        holder_name_ciphertext: "Seller Holder",
+        type: "bank",
+        provider: "chapa",
+        bank_code: 128,
+        account_number: number,
+        account_number_digest: Core::PayoutAccountDigest.call(
+          namespace: @seller.id, account_number: number
+        ),
+        account_label: "Seller bank account",
+        holder_name: "Seller Holder",
         status:,
-        verified_at:
+        verification_source: status == "verified" ? "test_fixture" : nil,
+        verified_at:,
+        is_default: false
       )
     end
 

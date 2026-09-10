@@ -11,7 +11,7 @@ module Marketplace
     end
 
     test "requires a verified account and does not fall back to the purchase method" do
-      pending_account = create_payout_account
+      pending_account = create_payout_account(account_number: "1000000000013")
       create_seller_ledger_entry(amount_minor: 10_000)
 
       result = build_seller_payout(account: pending_account)

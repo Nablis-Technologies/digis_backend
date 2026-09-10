@@ -21,13 +21,7 @@ module Marketplace
 
       payout = gate_result.value
       account = SellerPayoutAccount.find(payout.seller_payout_account_id)
-      result = normalize_provider_result(adapter.payout(
-        amount_minor: payout.amount_minor,
-        currency: payout.currency,
-        destination_token: account.account_token,
-        idempotency_key: payout.idempotency_key,
-        payout_id: payout.id
-      ))
+      result = normalize_provider_result(adapter.payout(**destination_payload(payout, account)))
       handle_provider_result(result)
     rescue ActiveRecord::RecordNotFound
       failure(payout_error(:seller_payout_not_found, code: "seller_payout_not_found", status: :not_found))
@@ -42,6 +36,18 @@ module Marketplace
     private
 
     attr_reader :payout_id, :adapter, :at
+
+    def destination_payload(payout, account)
+      {
+        amount_minor: payout.amount_minor,
+        currency: payout.currency,
+        idempotency_key: payout.idempotency_key,
+        payout_id: payout.id,
+        account_number: account.account_number,
+        account_name: account.holder_name,
+        bank_code: account.bank_code
+      }
+    end
 
     def persist_processing_intent
       payout = Marketplace::ApplicationRecord.transaction do

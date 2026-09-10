@@ -9,17 +9,21 @@ module Marketplace
       @seller = core_users(:attendee)
       @account = SellerPayoutAccount.create!(
         user: @seller,
-        type: "mobile_money",
-        provider: "telebirr",
-        account_token: "token-#{SecureRandom.hex(8)}",
-        holder_name_ciphertext: "holder-ciphertext",
+        type: "bank",
+        provider: "chapa",
+        bank_code: 128,
+        account_number: "1000000000015",
+        account_number_digest: Core::PayoutAccountDigest.call(
+          namespace: @seller.id, account_number: "1000000000015"
+        ),
+        holder_name: "Seller Holder",
         status: "pending_verification"
       )
     end
 
     test "business account type does not enable STI" do
       assert_predicate SellerPayoutAccount.inheritance_column, :blank?
-      assert_equal "mobile_money", @account.type
+      assert_equal "bank", @account.type
     end
 
     test "rejects payouts to an unverified account" do
@@ -30,7 +34,7 @@ module Marketplace
     end
 
     test "database rejects allocation beyond the ledger amount" do
-      @account.update!(status: "verified", verified_at: Time.current)
+      @account.update!(status: "verified", verification_source: "test_fixture", verified_at: Time.current)
       payout = build_payout(amount_minor: 600).tap(&:save!)
       ledger_entry = SellerLedgerEntry.create!(
         seller_user: @seller,
@@ -66,7 +70,7 @@ module Marketplace
         {
           seller_user: @seller,
           seller_payout_account: @account,
-          provider: "telebirr",
+          provider: "chapa",
           amount_minor: 500,
           currency: "ETB",
           status: "pending",

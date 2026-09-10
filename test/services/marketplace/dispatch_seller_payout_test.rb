@@ -21,8 +21,6 @@ module Marketplace
         @verify_result = @payout_result
       end
 
-      def tokenize_payout_account(**) = { account_token: "unused" }
-
       def verify_payout_account(**) = Marketplace::PayoutProviders::Result.success
 
       def payout(**request)
@@ -66,8 +64,13 @@ module Marketplace
         action: "marketplace.seller_payout_account.used"
       ).count
       request = @adapter.payout_requests.fetch(0)
-      assert_equal @account.account_token, request.fetch(:destination_token)
+      assert_equal @account.account_number, request.fetch(:account_number)
+      assert_equal @account.holder_name, request.fetch(:account_name)
+      assert_equal @account.bank_code, request.fetch(:bank_code)
+      assert_equal @payout.idempotency_key, request.fetch(:idempotency_key)
       assert_equal @payout.id, request.fetch(:payout_id)
+      refute request.key?(:destination_token)
+      refute request.key?(:account_token)
       refute request.key?(:payment_id)
       refute request.key?(:original_payment_method)
 
