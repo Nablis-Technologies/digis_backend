@@ -105,7 +105,8 @@ module Orders
       order_item_ids = payment.order.order_items.map(&:id)
       return Ticketing::Ticket.none if order_item_ids.empty?
 
-      Ticketing::Ticket.where(owner_user_id: @buyer.id, order_item_id: order_item_ids)
+      Ticketing::Ticket.where(owner_user_id: @buyer.id)
+        .where("order_item_id IN (:ids) OR current_acquisition_order_item_id IN (:ids)", ids: order_item_ids)
         .includes(
           :event,
           :admission_slots,

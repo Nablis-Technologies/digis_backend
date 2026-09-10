@@ -107,5 +107,17 @@ module Marketplace
         aggregate_id: @order.id, event_type: "orders.payment.fulfilled"
       )
     end
+
+    test "fulfills a resale when ticket type has no purchase limit configured" do
+      @ticket_type.update_columns(max_packages_per_user: nil)
+      Ticketing::PurchaseLimitAllocation.where(registration_id: @order_item.registration_id).delete_all
+
+      result = FulfillSale.call(listing: @listing, order: @order, payment: @payment)
+
+      assert_predicate result, :success?, result.error&.errors&.inspect || result.error&.message
+      assert_equal "sold", @listing.reload.status
+      assert_equal "fulfilled", @order.reload.status
+      assert_equal @buyer.id, @ticket.reload.owner_user_id
+    end
   end
 end

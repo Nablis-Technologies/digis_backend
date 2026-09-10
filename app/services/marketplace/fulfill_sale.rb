@@ -186,9 +186,21 @@ module Marketplace
         ticket_type_id: ticket_type.id,
         status: %w[reserved committed]
       ).lock.order(:unit_number).to_a
-      abort_with(error(:buyer_allocation_missing, :conflict)) unless allocations.one?
+      if purchase_limit_enforced?(ticket_type, registration, buyer_id)
+        abort_with(error(:buyer_allocation_missing, :conflict)) unless allocations.one?
+      end
 
       allocations
+    end
+
+    def purchase_limit_enforced?(ticket_type, registration, buyer_id)
+      return true if ticket_type.max_packages_per_user.present?
+
+      Ticketing::PurchaseLimitOverride.where(
+        registration_id: registration.id,
+        ticket_type_id: ticket_type.id,
+        user_id: buyer_id
+      ).exists?
     end
 
     def resolve_resale_component!(listing, order, event, ticket)
@@ -267,6 +279,7 @@ module Marketplace
     end
 
     def commit_buyer_allocation!(registration, buyer, item, allocations)
+      return if allocations.empty?
       return if allocations.all?(&:committed?)
 
       result = Ticketing::PurchaseLimits::Commit.call(

@@ -113,6 +113,78 @@ module Orders
       assert_equal "payment_order_not_owned", result.error.code
     end
 
+    test "returns ready state with wallet tickets for an accepted resale order" do
+      resale_buyer = core_users(:core_admin)
+      product = Catalog::Products::CreateDraft.call(
+        event: @event,
+        actor: core_users(:super_admin),
+        product_attributes: {
+          name: "Resale refresh product", type: "ticket", schedule_change_refund_policy: "full_or_partial"
+        },
+        ticket_type_attributes: {
+          audience: "public", approval_mode: "automatic", date_selection: "fixed", admissions_per_unit: 1
+        },
+        price_attributes: { type: "base", currency: "ETB", amount_minor: 10_000, active_from: 1.hour.ago },
+        inventory_configuration: { mode: "unlimited" },
+        idempotency_key: "resale-refresh-product-#{SecureRandom.hex(4)}"
+      ).value
+      resale_order = Orders::Order.create!(
+        order_attributes.merge(
+          buyer_user: resale_buyer,
+          sales_channel: "resale",
+          status: "draft",
+          idempotency_key_digest: Digest::SHA256.hexdigest("refresh-resale-order"),
+          creation_request_digest: Digest::SHA256.hexdigest("refresh-resale-order-request")
+        )
+      )
+      item = resale_order.order_items.create!(
+        event_product: product,
+        name_snapshot: product.name,
+        type_snapshot: "ticket",
+        quantity: 1,
+        admissions_per_unit_snapshot: 1,
+        base_currency: "ETB",
+        base_unit_amount_minor: 10_000,
+        charge_currency: "ETB",
+        charge_unit_amount_minor: 10_000,
+        discount_minor: 0,
+        total_minor: 10_000,
+        fulfillment_status: "fulfilled"
+      )
+      resale_order.update!(status: "paid", paid_at: Time.current)
+      ticket = Ticketing::Ticket.create!(
+        event: @event,
+        event_product: product,
+        order_item: item,
+        owner_user: resale_buyer,
+        current_acquisition_type: "resale_purchase",
+        current_acquisition_order_item: item,
+        current_acquisition_product_value_minor: 10_000,
+        current_acquisition_currency: "ETB",
+        unit_number: 1,
+        admissions_per_unit_snapshot: 1,
+        credential_mode: "group",
+        credential_version: 1,
+        status: "active",
+        issued_at: Time.current
+      )
+      resale_payment = Orders::Payment.create!(
+        payment_attributes.merge(
+          order: resale_order,
+          status: "succeeded",
+          idempotency_key: "refresh-resale-payment",
+          provider_reference: "refresh-resale-provider-ref",
+          accepted_at: Time.current
+        )
+      )
+
+      result = PaymentRefresh.call(payment: resale_payment, buyer: resale_buyer, idempotency_key: "refresh-resale")
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "ready", result.value.fetch(:state)
+      assert_equal [ ticket.id ], result.value.fetch(:tickets).map(&:id)
+    end
+
     private
 
     def order_attributes
