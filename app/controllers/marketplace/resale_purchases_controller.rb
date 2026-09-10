@@ -16,8 +16,8 @@ module Marketplace
         listing: @listing,
         buyer: current_user,
         idempotency_key:,
-        answers: purchase_params[:answers] || [],
-        consents: purchase_params[:consents] || []
+        answers: normalized_answers,
+        consents: normalized_consents
       )
       render_service_result(
         result,
@@ -32,10 +32,36 @@ module Marketplace
       @listing = ResaleListing.includes(commercial_fee_component: :fee_schedule_version).find(params[:resale_listing_id])
     end
 
-    def purchase_params
-      params.fetch(:purchase, ActionController::Parameters.new).permit(
-        answers: {}, consents: {}
-      )
+    def normalized_answers
+      raw = params.dig(:purchase, :answers) || params[:answers]
+      normalize_submission_collection(raw, %w[
+        form_version_id question_key package_unit_number admission_position value
+      ])
+    end
+
+    def normalized_consents
+      raw = params.dig(:purchase, :consents) || params[:consents]
+      normalize_submission_collection(raw, %w[
+        consent_document_version_id request_uuid acceptance_method content_sha256
+        package_unit_number admission_position idempotency_key
+      ])
+    end
+
+    def normalize_submission_collection(raw, allowed_keys)
+      return [] if raw.nil?
+      return raw.to_unsafe_h if raw.respond_to?(:to_unsafe_h) && !raw.is_a?(Array)
+      return raw if raw.is_a?(Hash)
+
+      if raw.is_a?(Array)
+        raw.filter_map do |entry|
+          attrs = entry.respond_to?(:to_unsafe_h) ? entry.to_unsafe_h : entry
+          next unless attrs.is_a?(Hash)
+
+          attrs.slice(*allowed_keys, *allowed_keys.map(&:to_sym)).symbolize_keys
+        end
+      else
+        []
+      end
     end
   end
 end

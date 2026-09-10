@@ -27,6 +27,39 @@ module Marketplace
       assert response.parsed_body.dig("data", "id").present?
     end
 
+    test "forwards normalized answers and consents to reservation command" do
+      order = Orders::Order.new(id: SecureRandom.uuid)
+      expected_answers = [
+        { question_key: "full_name", value: "Ada Lovelace" }
+      ]
+      expected_consents = [
+        { consent_document_version_id: "doc-v1", acceptance_method: "checkbox" }
+      ]
+
+      Marketplace::ReserveListing.expects(:call).with(
+        listing: @listing,
+        buyer: @buyer,
+        idempotency_key: "api-purchase-with-answers",
+        answers: expected_answers,
+        consents: expected_consents
+      ).returns(Core::BaseService::Result.success(order))
+
+      post "/resale_listings/#{@listing.id}/purchase",
+           params: {
+             purchase: {
+               answers: [
+                 { "question_key" => "full_name", "value" => "Ada Lovelace", "extra_dropped" => "test" }
+               ],
+               consents: [
+                 { "consent_document_version_id" => "doc-v1", "acceptance_method" => "checkbox" }
+               ]
+             }
+           },
+           headers: headers_for(@buyer).merge("Idempotency-Key" => "api-purchase-with-answers"), as: :json
+
+      assert_response :created
+    end
+
     test "purchase requires an idempotency key before the reservation command" do
       post "/resale_listings/#{@listing.id}/purchase",
            params: { purchase: {} }, headers: headers_for(@buyer), as: :json
