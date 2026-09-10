@@ -149,6 +149,26 @@ module Ticketing
       assert_equal 1, RegistrationFormSubmission.count
     end
 
+    test "allows a repeat submission after the earlier registration is confirmed" do
+      post "/ticket_types/#{@ticket_type.id}/registrations",
+           params: registration_params,
+           headers: submission_headers("registration-confirmed-repeat-1"),
+           as: :json
+      assert_response :created
+      first_id = response.parsed_body.dig("data", "registration", "id")
+      Registration.find(first_id).update!(status: "confirmed", confirmed_at: Time.current)
+
+      post "/ticket_types/#{@ticket_type.id}/registrations",
+           params: registration_params,
+           headers: submission_headers("registration-confirmed-repeat-2"),
+           as: :json
+
+      assert_response :created
+      second_id = response.parsed_body.dig("data", "registration", "id")
+      refute_equal first_id, second_id
+      assert_equal 2, Registration.count
+    end
+
     test "rejects a changed registration request under the same idempotency key" do
       headers = submission_headers("registration-conflict-1")
 

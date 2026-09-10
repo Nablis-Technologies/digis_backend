@@ -169,7 +169,7 @@ module Ticketing
       end
 
       def existing_active_registration(identity, locked_ticket_type)
-        Registration.active.lock.find_by(
+        Registration.blocking_duplicate.lock.find_by(
           ticket_type_id: locked_ticket_type.id,
           identity_digest: identity.digest,
           selected_event_date_id: submission.selected_event_date_id

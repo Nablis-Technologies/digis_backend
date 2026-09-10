@@ -503,6 +503,17 @@ module Ticketing
       assert_equal %w[ticket_type_id selected_event_date_id status waitlisted_at id], index.columns
     end
 
+    test "duplicate identity protection covers pending states but not confirmed purchases" do
+      index = Ticketing::Registration.connection.indexes("ticketing_registrations")
+        .find { |candidate| candidate.name == "idx_ticketing_registrations_active_identity" }
+
+      assert index, "expected the active identity uniqueness index"
+      %w[pending_payment pending_approval waitlisted offered].each do |status|
+        assert_includes index.where, status
+      end
+      refute_includes index.where, "confirmed"
+    end
+
     test "database protects submitted source and state timestamps" do
       event = events_events(:ready_listing)
       actor = core_users(:super_admin)

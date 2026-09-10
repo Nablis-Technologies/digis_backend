@@ -10489,7 +10489,7 @@ CREATE UNIQUE INDEX idx_ticketing_purchase_limit_overrides_registration ON publi
 -- Name: idx_ticketing_registrations_active_identity; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_ticketing_registrations_active_identity ON public.ticketing_registrations USING btree (ticket_type_id, identity_digest, COALESCE(selected_event_date_id, '00000000-0000-0000-0000-000000000000'::uuid)) WHERE ((status)::text = ANY ((ARRAY['pending_payment'::character varying, 'pending_approval'::character varying, 'waitlisted'::character varying, 'offered'::character varying, 'confirmed'::character varying])::text[]));
+CREATE UNIQUE INDEX idx_ticketing_registrations_active_identity ON public.ticketing_registrations USING btree (ticket_type_id, identity_digest, COALESCE(selected_event_date_id, '00000000-0000-0000-0000-000000000000'::uuid)) WHERE ((status)::text = ANY ((ARRAY['pending_payment'::character varying, 'pending_approval'::character varying, 'waitlisted'::character varying, 'offered'::character varying])::text[]));
 
 
 --

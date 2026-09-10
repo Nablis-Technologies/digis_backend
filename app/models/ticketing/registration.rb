@@ -64,6 +64,7 @@ module Ticketing
     validate :scope_immutable_after_submission
 
     scope :active, -> { where(status: %w[pending_payment pending_approval waitlisted offered confirmed]) }
+    scope :blocking_duplicate, -> { where(status: %w[pending_payment pending_approval waitlisted offered]) }
     scope :for_event, ->(event) { where(event_id: event.id) }
 
     def pending_payment?

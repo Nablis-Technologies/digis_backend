@@ -374,6 +374,18 @@ module Ticketing
         assert_equal 1, Registration.count
       end
 
+      test "allows a repeat registration after the earlier registration is confirmed" do
+        first = submit(idempotency_key: "repeat-registration-first")
+        assert_predicate first, :success?, first.error&.message
+        first.value.registration.update!(status: "confirmed", confirmed_at: Time.current)
+
+        second = submit(idempotency_key: "repeat-registration-second")
+
+        assert_predicate second, :success?, second.error&.message
+        refute_equal first.value.registration.id, second.value.registration.id
+        assert_equal 2, Registration.count
+      end
+
       test "uses an event-scoped keyed digest for canonical-equivalent answers and audience proof" do
         identity = Core::PhoneIdentity::ResolveOrCreate.call(phone: @actor.phone, actor: @actor).value
         first = submission_command(

@@ -87,7 +87,7 @@ class CreateTicketingRegistrations < ActiveRecord::Migration[8.1]
     add_index :ticketing_registrations,
       "ticket_type_id, identity_digest, COALESCE(selected_event_date_id, '00000000-0000-0000-0000-000000000000'::uuid)",
       unique: true,
-      where: "status IN ('pending_payment','pending_approval','waitlisted','offered','confirmed')",
+      where: "status IN ('pending_payment','pending_approval','waitlisted','offered')",
       name: "idx_ticketing_registrations_active_identity"
     add_index :ticketing_registrations, :issuance_idempotency_key,
               unique: true,

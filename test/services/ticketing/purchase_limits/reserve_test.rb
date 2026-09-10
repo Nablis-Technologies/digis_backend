@@ -52,6 +52,45 @@ module Ticketing
         assert_equal 2, PurchaseLimitAllocation.where(user: @actor, status: %w[reserved committed]).count
       end
 
+      test "enforces the cumulative cap across separate registrations" do
+        first = Reserve.call(
+          registration: @registration,
+          user: @actor,
+          quantity: 1,
+          expires_at: 10.minutes.from_now,
+          idempotency_key: "reserve-repeat-first"
+        )
+        assert_predicate first, :success?, first.error&.message
+        committed = Commit.call(
+          registration: @registration,
+          user: @actor,
+          idempotency_key: "commit-repeat-first"
+        )
+        assert_predicate committed, :success?, committed.error&.message
+
+        second_registration = create_registration(status: "cancelled")
+        second = Reserve.call(
+          registration: second_registration,
+          user: @actor,
+          quantity: 1,
+          expires_at: 10.minutes.from_now,
+          idempotency_key: "reserve-repeat-second"
+        )
+        assert_predicate second, :success?, second.error&.message
+
+        third_registration = create_registration(status: "cancelled")
+        third = Reserve.call(
+          registration: third_registration,
+          user: @actor,
+          quantity: 1,
+          expires_at: 10.minutes.from_now,
+          idempotency_key: "reserve-repeat-third"
+        )
+
+        assert_predicate third, :failure?
+        assert_equal "purchase_limit_exceeded", third.error.code
+      end
+
       test "releases expired reservations before counting availability" do
         expired_registration = create_registration(status: "cancelled")
         PurchaseLimitAllocation.create!(
