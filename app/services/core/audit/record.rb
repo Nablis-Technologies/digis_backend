@@ -87,9 +87,9 @@ module Core
       end
 
       def create_or_find_audit
-        Core::AuditLog.create!(@attributes)
-      rescue ActiveRecord::RecordNotUnique
-        Core::AuditLog.find_by!(audit_key: @attributes.fetch(:audit_key))
+        Core::AuditLog.create_or_find_by!(audit_key: @attributes.fetch(:audit_key)) do |audit|
+          audit.assign_attributes(@attributes.except(:audit_key))
+        end
       end
 
       # A replay must produce byte-for-byte the same canonical payload as the

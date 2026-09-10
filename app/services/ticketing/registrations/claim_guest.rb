@@ -78,7 +78,7 @@ module Ticketing
         failure(error(:invalid_idempotency_key, :bad_request))
       rescue ActiveRecord::RecordNotFound
         failure(error(:registration_not_found, :not_found))
-      rescue Core::Audit::ReplayConflict
+      rescue Core::Audit::Record::ReplayConflict
         failure(error(:idempotency_conflict, :conflict))
       rescue ActiveRecord::RecordInvalid => exception
         failure(error(:claim_invalid, :unprocessable_entity, errors: exception.record.errors.to_hash))

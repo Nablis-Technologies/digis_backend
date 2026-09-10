@@ -93,7 +93,7 @@ module Ticketing
         failure(error(:invalid_idempotency_key, :bad_request))
       rescue ActiveRecord::RecordNotFound
         failure(error(:transfer_not_found, :not_found))
-      rescue Core::Audit::ReplayConflict
+      rescue Core::Audit::Record::ReplayConflict
         failure(error(:transfer_conflict, :conflict))
       rescue ActiveRecord::RecordInvalid => exception
         failure(error(:transfer_acceptance_failed, :unprocessable_entity, errors: exception.record.errors.to_hash))
