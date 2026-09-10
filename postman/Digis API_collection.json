@@ -15872,7 +15872,7 @@
             "url": "{{baseUrl}}/guest/payments/{{paymentId}}/refresh"
           },
           "response": [
-            { "name": "Pending then ready confirmation", "status": "OK", "code": 200, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": { \"state\": \"ready\", \"tickets\": [{ \"id\": \"ticket_01HX\", \"add_ons\": [{ \"id\": \"order_item_01HXAddon\", \"name\": \"Festival T-shirt\", \"type\": \"merchandise\", \"quantity\": 1, \"unit_amount_minor\": 750 }], \"credentials\": [{ \"qr_token\": \"opaque-qr\" }] }] }\n}" }
+            { "name": "Pending then ready confirmation", "status": "OK", "code": 200, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": {\n    \"state\": \"ready\",\n    \"tickets\": [{\n      \"id\": \"ticket_01HX\",\n      \"registration_id\": \"registration_01HX\",\n      \"ticket_view_token\": \"opaque-signed-view-token\",\n      \"ticket_view_url\": \"https://app.digis.com/public/tickets/ticket_01HX?view_token=opaque-signed-view-token\",\n      \"short_url\": \"https://dig.is/t-x8k2mp\",\n      \"add_ons\": [{ \"id\": \"order_item_01HXAddon\", \"name\": \"Festival T-shirt\", \"type\": \"merchandise\", \"quantity\": 1, \"unit_amount_minor\": 750 }],\n      \"credentials\": [{ \"qr_token\": \"opaque-qr\" }]\n    }]\n  }\n}" }
           ]
         },
         {
