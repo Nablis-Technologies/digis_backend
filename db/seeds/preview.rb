@@ -490,6 +490,18 @@ commercial_components = [
     funded_by: "buyer",
     refund_policy: "nonrefundable",
     label: "Seeded processing cost recovery"
+  },
+  {
+    component_type: "resale_platform_fee",
+    calculation_type: "percentage",
+    charged_to: "organizer",
+    funded_by: "organizer",
+    basis_type: "resale_acquisition_amount",
+    rate_bps: 500,
+    refund_policy: "nonrefundable",
+    sale_context: "resale",
+    sales_channel: "resale",
+    label: "Seeded resale platform fee"
   }
 ]
 
