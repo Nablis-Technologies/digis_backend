@@ -25,8 +25,8 @@ existing `Core::JsonResponse`, `Core::Pagination`, `Core::IdempotencyKey`,
 Tasks 1–10 are implemented in the working tree: credit/rate persistence,
 atomic reservation commands, Orders billing-payment subjects, Chapa-compatible
 top-ups, delivery settlement, reconciliation jobs, APIs, seeds, and Postman
-examples. Focused and full-suite verification is green. Task 11's final gate
-is the remaining review checkpoint; staging/committing remains user-owned.
+examples. Task 11's focused and full-suite acceptance gates are green; the
+repository owner's staging/commit/merge checkpoint remains user-owned.
 
 ---
 
@@ -668,7 +668,7 @@ git commit -m "docs(messaging): add credit billing fixtures and handoff"
 
 ## Task 11: Final acceptance gate
 
-- [ ] **Step 1: Run focused Messaging/Orders tests with N+1 detection**
+- [x] **Step 1: Run focused Messaging/Orders tests with N+1 detection**
 
 ```bash
 N_PLUS_ONE=1 bin/rails test \
@@ -677,7 +677,7 @@ N_PLUS_ONE=1 bin/rails test \
   test/services/orders test/models/orders test/integration/orders
 ```
 
-- [ ] **Step 2: Run quality and schema gates**
+- [x] **Step 2: Run quality and schema gates**
 
 ```bash
 bundle exec rubocop --parallel
@@ -687,7 +687,7 @@ bin/rails db:drop db:create db:migrate
 git diff --check
 ```
 
-- [ ] **Step 3: Run the full suite**
+- [x] **Step 3: Run the full suite**
 
 ```bash
 N_PLUS_ONE=1 bin/rails test
@@ -696,7 +696,7 @@ N_PLUS_ONE=1 bin/rails test
 Expected: zero failures and zero errors, with any existing skips explicitly
 reported. Re-run the credit reservation race test three times.
 
-- [ ] **Step 4: Review the final diff**
+- [x] **Step 4: Review the final diff**
 
 Confirm no campaign tables, campaign consent, provider credentials, direct
 Chapa calls from Messaging, Finance payout mutations, mutable credit balance,
@@ -710,8 +710,10 @@ written.
 
 ## Completion handoff
 
-After this plan is accepted and merged, write and review
-`docs/superpowers/specs/2026-09-03-marketing-campaigns-design.md`. That separate
-design will own campaign/audience/consent/template/schedule/link/analytics
+After this plan is accepted and merged, review the campaign design and
+implementation plan in
+`docs/superpowers/specs/2026-09-05-marketing-campaigns-design.md` and
+`docs/superpowers/plans/2026-09-06-marketing-campaigns-implementation.md`. That
+separate plan owns campaign/audience/consent/template/schedule/link/analytics
 tables and organizer/admin campaign APIs while consuming these credit and
 notification contracts.

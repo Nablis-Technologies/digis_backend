@@ -22,9 +22,11 @@ projection until it reconnects.
    and possible exposure window.
 2. Stop assigning the device to a gate and require online validation for the
    affected gate if the event is high security.
-3. Rotate the device token through `Ticketing::Scanners::RotateToken` using an
-   authorized organization/platform administrator. Deliver the new plaintext
-   token only through the approved secure channel.
+3. Rotate the device token through `POST /scanner_devices/:id/rotate_token` as
+   an authorized organization/platform administrator, always sending a fresh
+   `Idempotency-Key`. Deliver the returned plaintext token only through the
+   approved secure channel. Replaying the same key never rotates again and
+   cannot recover the one-time plaintext token; use a new key to rotate again.
 4. If signing-key compromise is suspected, follow
    [security-key-rotation.md](security-key-rotation.md) and treat cached,
    disconnected scanners as untrusted until synchronized.
@@ -37,6 +39,17 @@ projection until it reconnects.
 - Do not assume a signed QR is fresh while the device is disconnected.
 
 ## Diagnostics
+
+Discover devices for an organization as an authorized owner/admin or platform
+administrator:
+
+```bash
+curl -H "Authorization: Bearer $ACCESS_TOKEN" \
+  "$BASE_URL/organizations/$ORGANIZATION_ID/scanner_devices"
+```
+
+The response includes lifecycle fields only; token digests and idempotency
+receipts are never serialized.
 
 ```bash
 DEVICE_IDENTIFIER="..." PATH="$HOME/.asdf/shims:$PATH" bundle exec rails runner '
@@ -54,20 +67,32 @@ puts device.assignments.order(created_at: :desc)
 Rotate the device token with an authorized actor:
 
 ```bash
-DEVICE_ID="..." ACTOR_ID="..." PATH="$HOME/.asdf/shims:$PATH" bundle exec rails runner '
+DEVICE_ID="..." ACTOR_ID="..." IDEMPOTENCY_KEY="..." PATH="$HOME/.asdf/shims:$PATH" bundle exec rails runner '
 device = Ticketing::ScannerDevice.find(ENV.fetch("DEVICE_ID"))
 actor = Core::User.find(ENV.fetch("ACTOR_ID"))
-result = Ticketing::Scanners::RotateToken.call(device:, actor:)
+result = Ticketing::Scanners::RotateToken.call(
+  device:, actor:, idempotency_key: ENV.fetch("IDEMPOTENCY_KEY")
+)
 raise result.error unless result.success?
 puts "New scanner token must be delivered through the secure operator channel."
 '
 ```
 
-The repository currently has a token-rotation command but no dedicated
-device-revocation command/API. A compromised device therefore remains an
-operational gap: revoke/suspend it through the approved device-management
-surface before production, or require online validation until that surface is
-available. Do not substitute raw SQL.
+The device-management surface is:
+
+- `GET /organizations/:organization_id/scanner_devices` — lists safe scanner
+  lifecycle fields for an authorized organization or platform administrator.
+- `POST /scanner_devices/:id/rotate_token` with `Idempotency-Key` — returns the
+  new plaintext token once and never serializes token digests.
+- `POST /scanner_devices/:id/revoke` with `Idempotency-Key` and
+  `{ "reason": "..." }` — revokes the device and its active event assignments
+  atomically.
+
+Both endpoints require an authorized organization administrator or platform
+administrator. Offline scanners may continue using their last synchronized
+public keys and ticket-revocation projection until they reconnect; device
+revocation blocks subsequent online authentication and does not rewrite prior
+scan history. Do not substitute raw SQL.
 
 After recovery, authenticate the replacement device, download a full or delta
 sync, and acknowledge cursors only after the scanner commits its local

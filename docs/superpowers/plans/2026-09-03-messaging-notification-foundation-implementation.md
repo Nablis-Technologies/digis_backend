@@ -1007,4 +1007,8 @@ design and implementation plan. The master roadmap contains this sequence so
 the next task remains visible across branches and sessions.
 
 The post-review hardening plan is a prerequisite to this handoff; it does not
-expand the notification foundation into campaigns or credit billing.
+expand the notification foundation into campaigns or credit billing. The
+separate Credit/Billing plan is now accepted and owns the organization credit
+ledger, rate precedence, top-up payment boundary, and reservation settlement;
+Marketing Campaigns must consume those contracts rather than add a second
+balance or delivery path.

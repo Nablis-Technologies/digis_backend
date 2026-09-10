@@ -2,26 +2,7 @@
 
 # If running the rails server then create or migrate existing database
 if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
-  align_seller_payout_schema() {
-    local db_url="${RENDER_PREVIEW_DATABASE_URL:-$DATABASE_URL}"
-    if [ -n "$db_url" ]; then
-      local has_digest_col
-      has_digest_col="$(psql "$db_url" --tuples-only --no-align --quiet \
-        --command "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'marketplace_seller_payout_accounts' AND column_name = 'account_number_digest')" 2>/dev/null || true)"
-      if [ "$has_digest_col" != "t" ]; then
-        echo "Aligning marketplace seller payout accounts schema..."
-        psql "$db_url" --quiet --command "
-          DROP TABLE IF EXISTS marketplace_seller_payout_allocations CASCADE;
-          DROP TABLE IF EXISTS marketplace_seller_payouts CASCADE;
-          DROP TABLE IF EXISTS marketplace_seller_payout_accounts CASCADE;
-          DELETE FROM schema_migrations WHERE version IN ('20260814090001', '20260814090005', '20260814090006');
-        " 2>/dev/null || true
-      fi
-    fi
-  }
-
   if [ "${RENDER_PREVIEW}" == "true" ]; then
-    align_seller_payout_schema
     # db:prepare seeds a brand-new database before the shared queue schema is
     # available. Preview migrations and fixture seeding therefore run in order.
     ./bin/rails db:migrate

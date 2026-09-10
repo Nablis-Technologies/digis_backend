@@ -43,7 +43,8 @@ profile-name/editing, repeat-registration, slug, or Chapa-v2 decisions here.
 - Create `app/services/core/auth_throttle.rb`, add the authentication concern to
   `app/controllers/core/auth_controller.rb`, and extend auth locales for G-05.
 - Modify `app/serializers/events/public/event_list_serializer.rb` and
-  `app/controllers/events/public_events_controller.rb` for G-06.
+  `app/controllers/events/public_events_controller.rb`; create
+  `app/services/catalog/public/price_window.rb` for G-06.
 - Modify `app/serializers/catalog/public/event_product_serializer.rb` for G-07.
 - Create `app/serializers/ticketing/public/registration_schema_serializer.rb`,
   `app/controllers/ticketing/public_registration_schemas_controller.rb`, add
@@ -92,7 +93,8 @@ profile-name/editing, repeat-registration, slug, or Chapa-v2 decisions here.
   `Marketplace::PayoutProviders::ChapaAdapter` around the existing transfer
   client, without duplicating Finance payout transport code.
 - [x] Add an initializer with the same preview/live guard used by Finance and
-  preserve fail-closed behavior when configuration is absent.
+  preserve fail-closed behavior when configuration or Chapa destination
+  tokenization is absent.
 - [x] Add an integration test proving a configured marketplace Chapa adapter is
   resolved from the registry and account registration fails closed with the
   provider-unavailable contract when Chapa lacks destination tokenization.
@@ -103,8 +105,8 @@ profile-name/editing, repeat-registration, slug, or Chapa-v2 decisions here.
   confirmation mismatch, malformed phone rejection, canonical Ethiopian phone
   acceptance, and existing email/phone uniqueness behavior.
 - [x] Add model-level validations to `Core::UserAuthenticatable`; keep password
-  hashing and normalization unchanged and return existing typed validation
-  errors through the signup controller.
+  hashing unchanged, persist every accepted phone in one `+251...` form, and
+  return existing typed validation errors through the signup controller.
 - [x] Run auth model/integration tests and the full auth policy suite.
 
 ### Task 5: Add authentication throttling (G-05)
@@ -114,7 +116,7 @@ profile-name/editing, repeat-registration, slug, or Chapa-v2 decisions here.
   identity details, and signup/refresh share the configured boundary.
 - [x] Implement a small `Core::AuthThrottle` around `Rails.cache.write(...,
   unless_exist: true)`/increment semantics with HMAC/digest identifier keys;
-  do not store raw identifiers.
+  record only failed authentication attempts and do not store raw identifiers.
 - [x] Call it from `Core::AuthController` before login/signup/refresh and return
   localized `429 rate_limited` through the existing JSON response contract.
 - [x] Run auth throttle and controller tests, then Brakeman.

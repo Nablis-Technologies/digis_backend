@@ -596,9 +596,9 @@ Each runbook states detection signal, severity, authority required, safe immedia
 
 Added seven runbooks covering provider outages, webhook delays/duplicates,
 refund liquidity, event cancellation, offline scanner compromise, payout
-reconciliation, and backup/restore disaster recovery. The scanner runbook
-records the current gap that token rotation exists but a dedicated device
-revocation command/API does not yet exist.
+reconciliation, and backup/restore disaster recovery. The scanner runbook now
+documents the supported token-rotation and device-revocation endpoints,
+digest-only credentials, and the accepted offline stale-state limitation.
 
 - [ ] **Step 2: Exercise failure drills in staging**
 
@@ -610,6 +610,26 @@ Local recovery-path verification is green: 48 tests and 220 assertions passed
 with `N_PLUS_ONE=1`, covering webhook processing, outbox recovery, refunds,
 cancellation batches, scanner token/key/revocation recovery, and reconciliation
 domain jobs. This is not staging evidence and does not complete this step.
+
+Partial staging evidence is recorded in
+`docs/operations/launch-hardening-staging-drill-2026-08-20.md`: a fresh Chapa
+hosted payment reached `fulfilled` through callback verification and outbox
+processing, and an ambiguous callback replay left one payment event and one
+outbox event. The Chapa dashboard webhook setting is saved and enabled. A
+fresh signed POST reached the deployed webhook route but returned 422 because
+the deployed controller did not yet map Chapa's `event`, `reference`, and
+`tx_ref` fields; the local regression fix and payment lookup coverage are
+green, pending deployment. Historical GET traffic to the webhook path came
+from an older payment with a mispointed callback URL. The remaining signed-
+webhook, destructive, and isolated-restore drills are still pending. After
+deployment, Chapa POST delivery reached the route and moved from the old 422
+payload rejection to HTTP 401 signature rejection. Chapa's official package
+confirms the exact raw-body HMAC contract, which the client follows. The local
+diagnosis found Rails' `HTTP_X_CHAPA_SIGNATURE` header-key normalization gap;
+the regression fix is green locally and the final deployed Chapa drill now
+returns HTTP 202 for both webhook and callback, with one fulfilled-order
+outbox effect. Cross-channel callback/webhook inbox identity deduplication is
+recorded as a follow-up.
 
 Staging preflight after branch deployment: live commit `cf7c6b2` is deployed;
 `GET /up` returned HTTP 200, the
@@ -638,6 +658,50 @@ not control.
 
 The approved design is recorded in
 `docs/superpowers/specs/2026-08-19-chapa-payment-provider-design.md`.
+
+Latest staging update: deploy `cb730142596d2b43c493f78148f34360bc0b52e4`
+is live. The preview scanner fixture authenticated successfully and its full
+sync returned contract version 1 with signing keys, schedule, access-zone and
+product-access mappings, attendee index, and package-revocation state. The
+local branch now adds supported token-rotation and device-revocation endpoints
+with a database-unique digest-only idempotency receipt. The old-token rejection
+and revocation synchronization drill was pending at this pre-deployment
+checkpoint; the live result below supersedes that status.
+
+Live preview follow-up after deploy `a6b425d49d4023690e7e9bd9d9b0e2463013d1b3`:
+the device lifecycle drill passed. One rotation receipt/audit was created;
+same-key replay returned no plaintext token, the old token failed with HTTP
+401, the new token authenticated with HTTP 200, revocation succeeded, and
+post-revocation authentication failed with HTTP 401. The device and active
+assignment are both revoked. Offline ticket/credential revocation-delta
+verification remains a separate staging drill.
+
+The follow-up organization-scoped scanner discovery endpoint is now available
+for incident response, and the local committed-response-loss coverage is
+explicitly named `crash recovery replays a committed rotation after response
+loss`. Discovery remains safe-field-only; no token or idempotency receipt data
+is serialized.
+
+The offline revocation-delta drill also passed after deploy
+`c82af39e90e4cc3f7cec8e84dfd01449c1cceb19`: authenticated delta sync returned
+revocation version `1` with one suspended package projection and no dead or
+credential-revocation rows. The scanner security and offline projection
+evidence is now complete; remaining Task 8 drills are listed below.
+
+Synthetic signed webhook staging evidence is also complete: a reverse-ordered
+failed/success pair plus an exact duplicate all returned HTTP 202, produced two
+unique inbox rows and two processing outbox rows, and processed once as ignored
+against an intentionally unknown payment reference. This verifies the
+application HMAC, ordering tolerance, and duplicate boundary without claiming
+external Chapa transport behavior.
+
+The event-completion lifecycle extension is now also live and verified: deploy
+`dep-da87umjncjis73ffr6ug` completed a disposable published past-date event
+through the authorized manual retry endpoint, enqueued and completed
+`Finance::MatureEventFundsJob`, and replayed the same idempotency key without a
+duplicate audit or maturity effect. This closes the completion-path evidence;
+the organizer payout hold/release drill remains separate because it requires a
+positive ledger entry that has passed the seven-day maturity buffer.
 
 Run and record:
 

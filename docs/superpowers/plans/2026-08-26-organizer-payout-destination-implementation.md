@@ -178,9 +178,27 @@ N_PLUS_ONE=1 bundle exec rails test \
 - [x] Run full RuboCop, Zeitwerk, Ruby syntax, YAML, route, and Postman checks.
 - [ ] Reset the disposable Render preview database only after explicit
   confirmation, then redeploy and verify readiness.
-- [ ] Exercise test-mode automatic fixture verification, create/select a
-  destination, build a matured payout, and verify that provider timeout remains
-  processing without duplicate transfer submission.
+- [x] Exercise test-mode automatic fixture verification and create/select the
+  synthetic Chapa destination through the idempotent preview seed. Render
+  deploy `dep-da761qm7bikc739jka80` completed the seed, and the deployed API
+  returned one verified/default destination for Addis Music Fest.
+- [ ] Build a matured payout and verify that provider timeout remains
+  processing without duplicate transfer submission. The hosted Chapa test
+  checkout itself is now verified live: callback and webhook were accepted,
+  both payment events processed, the order became `fulfilled`, and one sale
+  ledger entry was created. The seeded event remains `published`, so the
+  seven-day maturity gate correctly prevents payout construction. A live
+  super-admin payout-build attempt returned `payout_balance_not_positive` and
+  created zero payout rows; the positive sale proceeds have `available_at` in
+  2030 under the seeded event schedule.
+- [x] Record the separate event-completion deployment evidence. The live
+  completion drill uses the normal locked command and maturity fan-out, but it
+  does not satisfy this payout task's matured-positive-ledger requirement.
+- [x] Record the proposed fast-payout policy in
+  `docs/superpowers/specs/2026-08-31-fast-organizer-payout-reserve-policy-design.md`.
+  This is a paused design decision only; the current seven-day maturity guard
+  remains active until Finance/compliance approves reserve parameters and a
+  follow-up implementation is completed.
 - [ ] Review the final diff and leave commits/staging to the user.
 
 No automatic commit or push is part of this plan.
@@ -192,5 +210,6 @@ collection parses, Render YAML parses, and all payout-account routes load.
 The full repository suite currently reports 2,825 tests, 11,823 assertions,
 and 7 failures in pre-existing Ticketing credential-claim/transfer fixture
 identity tests; no Finance or payout-account failures were reported. Render
-preview reset/redeployment and a live payout request remain pending until the
-user authorizes the disposable reset and a test transfer destination.
+preview reset remains pending; the non-destructive force-seed path provisioned
+the synthetic destination without resetting the database, while a live payout
+request remains pending.

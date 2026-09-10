@@ -43,6 +43,20 @@ dates/events automatically and adds a guarded manual retry surface before the
 Finance payout live-drill gate; it does not change the phase ordering or payout
 maturity rules.
 
+Live staging checkpoint (2026-08-27): deploy `dep-da87umjncjis73ffr6ug` is live;
+the recurring completion worker ran successfully, a disposable published
+past-date event completed through `POST /events/:event_id/complete`, the
+`MatureEventFundsJob` completed, and replaying the same idempotency key created
+no duplicate audit or maturity effect. The payout maturity/timeout drill
+remains pending because the seven-day buffer and a matured positive ledger are
+still required.
+
+The proposed next-business-day organizer payout/reserve policy is recorded in
+`docs/superpowers/specs/2026-08-31-fast-organizer-payout-reserve-policy-design.md`.
+It is paused pending explicit Finance/compliance approval; do not change the
+current seven-day maturity guard or start implementation from the proposal
+alone.
+
 ### Commercial/Orders execution handoff
 
 The plan-level table above is intentionally coarse. Commercial and Orders are
@@ -186,28 +200,102 @@ domain prerequisites, but it is not a reason to introduce a temporary
   parking, reporting, fulfillment, and transfer-boundary coverage passes 33
   tests and 221 assertions; serializer/security contracts pass 47 tests and
   267 assertions; and the full N+1-enabled suite passes 2,689 tests and
-  11,174 assertions with zero failures and zero errors. The branch contains
-  the final concurrency acceptance test/helper and plan-checkpoint updates
-  awaiting the user's commit and merge.
+  11,174 assertions with zero failures and zero errors. The completed branch
+  was merged through PR #36; its final concurrency acceptance test/helper and
+  plan-checkpoint updates are retained in `main`.
+- The approved frontend/backend contract follow-up is implemented locally in
+  `2026-09-01-frontend-backend-contracts-implementation.md`: zero-total ticket
+  checkout now crosses the normal fulfillment outbox boundary, public event
+  and product projections expose safe display/price/availability fields,
+  authenticated `GET /tickets` delivers owner-scoped static QR/PNR wallet data,
+  and buyer resale browse includes event/date/venue context without seller or
+  finance leakage. Its focused gate passes 46 tests and 268 assertions with
+  `N_PLUS_ONE=1`; the broader affected-domain run has one unrelated baseline
+  failure in the add-on transfer test. The full suite also has six independent
+  recipient-authorization failures in credential-claim/transfer tests; all
+  seven remain explicitly open and are outside this follow-up.
+- The organizer API response-contract follow-up is implemented locally in
+  `2026-09-02-organizer-api-response-contracts-implementation.md`.
+  Authenticated organizer event/date/product projections now include safe
+  nested display context and media, collaborator ownership is explicit, list
+  endpoints are bounded/paginated, organization event counts use the existing
+  counter-cache contract, and finance reports expose safe payout-account/event
+  context plus ledger-derived maturity facts. Seller history now has the same
+  safe event display context, and owner organization reads correct stale
+  counter-cache values from authoritative event rows. Public projections and
+  provider/treasury privacy boundaries remain unchanged. Its focused and full
+  N+1 gates, seed convergence check, RuboCop, Zeitwerk, route, Postman JSON,
+  and diff checks pass with zero failures/errors; it remains uncommitted for
+  review. The Render preview counter was reconciled in a controlled seed
+  deploy and `DIGIS_FORCE_SEED` was restored to `false`; the live organizer
+  response now matches the five Addis Music Fest events.
 
 The next human-visible action is therefore:
 
-1. Commit and merge the completed Streaming / Add-ons / Links branch,
-   including its final concurrency acceptance coverage and synchronized plan
-   checkpoints.
-2. Keep the Scanner Task 8 contract files synchronized with the eventual
+1. Review and merge the frontend/backend contract follow-up in
+   `2026-09-01-frontend-backend-contracts-implementation.md`. It is a
+   pre-launch contract closure, not a new platform phase, and must retain its
+   safe public projections, static wallet credentials, and zero-total issuance
+   boundary.
+2. Review and merge the organizer API response-contract follow-up in
+   `2026-09-02-organizer-api-response-contracts-implementation.md`; its final
+   related-domain/static verification is recorded in the plan. It is a
+   read-projection closure and must retain the explicit public-vs-organizer
+   serializer boundary.
+3. Keep the Scanner Task 8 contract files synchronized with the eventual
    Swift/Kotlin/Flutter client, then run that client-side SQLite acceptance
    gate when the client exists. It remains an independent external gate.
-3. Start Launch Hardening Plan 10 on a new branch after the Streaming plan is
-   merged. Do not introduce new product behavior there; it owns the final
+4. Start or continue Launch Hardening Plan 10 after both contract follow-ups
+   are merged.
+   Do not introduce unrelated product behavior there; it owns the final
    security, observability, reconciliation, performance, and launch gates.
-4. Keep the native scanner SQLite acceptance row and any other explicitly
+5. Keep the native scanner SQLite acceptance row and any other explicitly
    documented external gates visible rather than silently treating them as
    Rails-complete.
 
 Do not use a plan's numeric task number by itself as the next-task signal. Use
 the current checkpoint above and the explicit gate at the top of each dependent
 plan.
+
+## Planned Messaging sequence after Launch Hardening
+
+Messaging is intentionally a post-launch-hardening product sequence. It is
+planned here so the next task remains visible after the notification foundation
+is merged; none of these follow-ups is complete until its own design,
+implementation, and acceptance gate are recorded.
+
+1. **Messaging Notification Foundation** — implement the transactional,
+   recipient-owned in-app inbox, preferences, bounded delivery, and provider
+   seams in `2026-09-03-messaging-notification-foundation-implementation.md`.
+   Start only after the current frontend/organizer contract follow-ups and
+   Launch Hardening Plan 10 are merged and green.
+2. **Messaging Credit/Billing** — the design and implementation plan are now
+   acceptance-green in `2026-09-03-messaging-credit-billing-design.md` and
+   `2026-09-03-messaging-credit-billing-implementation.md`; the repository
+   owner's staging, commit, and merge remain pending. It owns
+   organization-scoped immutable messaging credits, channel/rate versions,
+   Chapa/Orders top-ups, reservations, settlement, failed-delivery refunds,
+   and provider costs. It must remain separate from organizer finance/payout
+   ledgers.
+3. **Marketing Campaigns** — the design and implementation plan are recorded
+   in `docs/superpowers/specs/2026-09-05-marketing-campaigns-design.md` and
+   `docs/superpowers/plans/2026-09-06-marketing-campaigns-implementation.md`
+   for review. It owns campaign/audience snapshots, organizer-attested
+   marketing consent and suppression, templates, scheduling, tracked links,
+   delivery analytics, and organizer/admin campaign APIs. It must consume the
+   Messaging delivery and credit contracts rather than create parallel send or
+   balance systems.
+
+After Credit/Billing is user-merged, write and review the separate Marketing
+Campaigns design and implementation plan.
+
+**Marketing Campaigns implementation checkpoint (2026-09-06):** the approved
+design and implementation plan are being executed on the campaign branch.
+Audience snapshots, consent/suppression ingress, aggregate credit holds,
+bounded delivery, tracked-link analytics, recovery/retention jobs, organizer
+routes, and preview fixtures are now implemented and locally verified. Live
+provider delivery remains an external acceptance gate until real SMS/email
+adapters and credentials are configured.
 
 ## Delivery waves and safe parallel work
 

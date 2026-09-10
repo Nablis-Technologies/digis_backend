@@ -55,6 +55,26 @@ render_success(
 - `Core::AuditLogSerializer`
 - `Core::ReviewSerializer`
 
+## Event, Catalog, and Finance Projection Boundaries
+
+The same resource intentionally has different read projections by audience.
+Do not merge these serializers merely to make their JSON shapes identical:
+
+| Surface | Serializer/projection | What it includes | What it omits |
+| --- | --- | --- | --- |
+| Authenticated organizer `GET /events` | `Events::Organizer::EventSerializer` | Event lifecycle fields, organization/category summaries, dates with venue and event-scoped capacity, cover media on lists, full ordered media on detail | Private storage metadata and finance/provider data |
+| Public `GET /public/events` | `Events::Public::EventListSerializer` / `EventDetailSerializer` | Published attendee-safe event, venue, organization, category, and media data | Internal status/version, capacity counters, staff, access, and finance data |
+| Authenticated organizer `GET /events/:event_id/event_products` | `Catalog::Organizer::EventProductSerializer` | Ticket configuration, product-owned `pricing.options`, access/date context, and operational inventory pools | Provider and credential secrets |
+| Public `GET /public/events/:event_slug/products` | `Catalog::Public::EventProductSerializer` | Active price options and boolean availability | Metadata, inventory counters, and organizer controls |
+| Organizer finance reports | `Finance::PayoutSerializer` / `LedgerEntrySerializer` with policy fields | Safe payout-account/event summaries and ledger-derived maturity facts | Provider references, raw failure codes, idempotency keys, and treasury diagnostics |
+| Admin event and mutation responses | Existing generic serializers | Resource-oriented mutation/admin fields and explicit admin controls | The organizer aggregate graph unless a nested endpoint is requested |
+
+Organizer event create/update/publish responses intentionally remain the
+generic event projection. Clients that need the aggregate graph should follow
+the mutation with `GET /events/:id`; this keeps writes bounded and gives the
+read path one stable aggregate contract. Platform admin endpoints remain a
+separate authorization surface even when they reuse a generic serializer.
+
 ## Attribute Visibility Pipeline
 
 Responses can be filtered per-action (controller) and per-role (policy). The pipeline:

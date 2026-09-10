@@ -94,3 +94,27 @@ communication status. Chapa transport tests use injected responses for the same
 success, failure, pending, and timeout cases. Live organizer dispatch remains
 blocked until the destination is verified; the provider adapter alone must not
 be treated as beneficiary verification.
+
+The preview seed now provisions one synthetic verified/default Chapa destination
+for the seeded Addis Music Fest organizer. This confirms destination setup and
+API visibility only; the matured payout dispatch and timeout-reconciliation
+drill remain separate live gates.
+
+The dedicated Chapa test buyer also completed one hosted test checkout in
+preview. Chapa delivered both callback and signed webhook events; both were
+processed, the order reached `fulfilled`, and the sale ledger entry was posted.
+Payout construction correctly remains blocked while the event is still
+`published` and before the seven-day maturity buffer expires.
+
+A live payout-build attempt against that fulfilled order was rejected with
+`payout_balance_not_positive` and created no payout row. This is expected
+evidence of the maturity/availability guard, not a provider failure.
+
+## Proposed faster release policy (paused)
+
+The proposed next-business-day organizer payout policy is documented in
+`docs/superpowers/specs/2026-08-31-fast-organizer-payout-reserve-policy-design.md`.
+It is not active: the current seven-day maturity guard, Finance dispatch
+authorization, and provider-balance checks remain authoritative until reserve
+percentages, organizer risk tiers, compliance ownership, and the automatic
+release worker are approved and implemented.

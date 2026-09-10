@@ -12,10 +12,15 @@ This vertical slice covers inbound payment initialization and verification,
 refund submission and verification, available-balance checks, and signed Chapa
 webhooks. It persists only normalized provider evidence plus the buyer-safe
 hosted checkout URL. Payout adapters remain separate domain boundaries and use
-the deterministic fake during the Task 8 recovery drills; payout transport
-integration is a separate follow-up.
+the deterministic fake during the Task 8 recovery drills. Chapa transfer
+transport is implemented separately behind the Finance payout-provider
+boundary; organizer destination verification remains a separate prerequisite.
 
 ## Architecture
+
+Finance::PayoutProviders::ChapaTransferClient owns transfer initialization,
+verification, and CHAPA payout balance reads; CHAPA_PAYOUT_ENABLED controls its
+separate registration.
 
 `Payments::Providers::ChapaClient` owns Chapa HTTP, authentication, endpoint
 paths, decimal-to-minor-unit conversion, response mapping, and HMAC validation.
@@ -33,6 +38,8 @@ secrets, and signature material are never persisted or logged.
 
 The deployment supplies secrets through environment variables, never through
 Git or seeds:
+
+- CHAPA_PAYOUT_ENABLED
 
 - `CHAPA_ENABLED`
 - `CHAPA_MODE` (`test` or `live`)
@@ -57,8 +64,12 @@ and its secret hash must match `CHAPA_WEBHOOK_SECRET`.
   by transaction reference, verifies `trx_ref`, and only then writes the
   normalized `Orders::PaymentEvent` inbox row. The signed POST webhook remains
   a separate ingestion path.
+- Chapa transaction webhooks use `event`, `type`, `reference`, `tx_ref`, and
+  `status` fields. The controller maps `reference` to the durable provider
+  event identity and uses `tx_ref` to locate the payment when initialization
+  did not provide a provider reference.
 - Both documented Chapa signature headers are accepted only when one matches
-  the HMAC-SHA256 digest of the exact raw body using constant-time comparison.
+  the HMAC-SHA256 digest of the exact raw body, using constant-time comparison.
 - HTTP errors, malformed responses, and missing provider references map to the
   existing normalized result boundary without leaking response bodies.
 - Missing or invalid staging configuration fails closed at boot when Chapa is

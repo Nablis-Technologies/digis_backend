@@ -238,5 +238,7 @@ No Render database reset or preview-only completion flag is part of this plan. A
 Verification: the event-completion focused suite passes 59 tests and 297
 assertions with `N_PLUS_ONE=1`; the broader Finance regression suite passes 123
 tests and 567 assertions. RuboCop, Zeitwerk, Ruby syntax, recurring/render YAML,
-routes, Postman JSON, and `git diff --check` all pass. Render deployment and the
-live completion request remain pending until this branch is pushed.
+routes, Postman JSON, and `git diff --check` all pass. Render deploy
+`dep-da87umjncjis73ffr6ug` is live; the recurring worker runs successfully, the
+manual completion drill returned HTTP 200, the event/date reached `completed`,
+and the same-key replay produced no duplicate audit or maturity effect.
