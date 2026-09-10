@@ -1,62 +1,55 @@
 # frozen_string_literal: true
 
 module Marketplace
-  # Tokenizes and verifies one seller destination. Provider credentials live
-  # only in the adapter call; the account row stores the provider token and
-  # encrypted display values, and the audit record contains no sensitive data.
+  # Registers one encrypted seller destination and keeps provider verification
+  # separate from bank-code validation. Chapa's unsupported preflight verifier
+  # leaves a safe pending account for the audited manual workflow.
   class VerifyPayoutAccount < Core::BaseService
-    def initialize(user:, type:, provider:, account_details:, account_label: nil, holder_name: nil,
-      adapter:, idempotency_key:, at: Time.current)
+    include SellerPayoutAccounts::CommandSupport
+
+    def initialize(user:, type:, provider:, bank_code:, account_number:, account_label: nil,
+      holder_name: nil, adapter:, idempotency_key:, verification_source: nil, at: Time.current)
       @user = user
-      @user_id = user.id
+      @user_id = user&.id
       @type = type.to_s.strip.downcase
       @provider = provider.to_s.strip.downcase
-      @account_details = account_details
+      @bank_code = bank_code.to_i
+      @account_number = account_number.to_s.strip
       @account_label = account_label.to_s.strip.presence
       @holder_name = holder_name.to_s.strip.presence
       @adapter = adapter
       @idempotency_key = idempotency_key
+      @verification_source = verification_source.to_s.strip.downcase.presence
       @at = at.to_time.utc
     end
 
     def call
       key = Core::IdempotencyKey.new(idempotency_key)
+      audit_key = command_audit_key("registered", key)
+      request_digest = registration_request_digest if user_id.present?
+      if request_digest
+        replay = replay_result(audit_key:, request_digest:)
+        return replay if replay
+      end
       return failure(input_error) unless valid_input?
+      return failure(bank_error) unless bank_code_supported?
 
-      audit_key = "marketplace-seller-payout-account-verified-#{key.digest}"
-      replay = Core::AuditLog.find_by(audit_key:)
-      return replay_account(replay) if replay
+      verification = verification_result(key)
+      return failure(verification_failed_error(verification)) if verification.failure? || verification.cancelled?
 
-      tokenized = normalize_tokenization(adapter.tokenize_payout_account(
-        user_id: user_id,
-        type:,
-        provider:,
-        account_label:,
-        holder_name:,
-        account_details:,
-        idempotency_key: key.to_s
-      ))
-      return failure(tokenized) if tokenized.is_a?(Core::BusinessError)
-
-      account = persist_pending_account!(tokenized.fetch(:account_token))
+      account = persist_account!(key:, request_digest:, audit_key:, verification:)
       return failure(account) if account.is_a?(Core::BusinessError)
 
-      verification = normalize_provider_result(adapter.verify_payout_account(
-        account_token: account.account_token,
-        type: account.type,
-        provider: account.provider,
-        idempotency_key: key.to_s
-      ))
-      apply_verification!(account, verification, key:, audit_key:)
+      success(account)
     rescue ArgumentError
       failure(Core::BusinessError.new(
         I18n.t("marketplace.resale.errors.payout_account_input_invalid"),
         code: "payout_account_input_invalid", status: :unprocessable_entity
       ))
-    rescue NotImplementedError
+    rescue Core::Audit::Record::ReplayConflict
       failure(Core::BusinessError.new(
-        I18n.t("marketplace.resale.errors.payout_account_provider_unavailable"),
-        code: "payout_account_provider_unavailable", status: :unprocessable_entity
+        I18n.t("marketplace.resale.errors.idempotency_conflict"),
+        code: "idempotency_conflict", status: :conflict
       ))
     rescue ActiveRecord::RecordNotUnique
       failure(Core::BusinessError.new(
@@ -67,12 +60,15 @@ module Marketplace
 
     private
 
-    attr_reader :user, :user_id, :type, :provider, :account_details, :account_label, :holder_name,
-      :adapter, :idempotency_key, :at
+    attr_reader :user, :user_id, :type, :provider, :bank_code, :account_number, :account_label,
+      :holder_name, :adapter, :idempotency_key, :verification_source, :at
 
     def valid_input?
-      account_details.is_a?(Hash) && SellerPayoutAccount::TYPES.include?(type) &&
-        SellerPayoutAccount::PROVIDERS.include?(provider) && holder_name.present?
+      SellerPayoutAccount::TYPES.include?(type) && SellerPayoutAccount::PROVIDERS.include?(provider) &&
+        bank_code.to_i.positive? && account_number.present? && holder_name.present? &&
+        user.present? &&
+        (verification_source.blank? || verification_source == "test_fixture") &&
+        (verification_source != "test_fixture" || fixture_allowed?)
     end
 
     def input_error
@@ -82,43 +78,73 @@ module Marketplace
       )
     end
 
-    def normalize_tokenization(response)
-      attributes = response.to_h.deep_symbolize_keys
-      token = attributes[:account_token] || attributes[:token]
-      return token_error if token.to_s.strip.blank?
-
-      { account_token: token.to_s.strip }
-    rescue NoMethodError, TypeError
-      token_error
-    end
-
-    def token_error
+    def bank_error
       Core::BusinessError.new(
-        I18n.t("marketplace.resale.errors.payout_account_token_invalid"),
-        code: "payout_account_token_invalid", status: :unprocessable_entity
+        I18n.t("marketplace.resale.errors.payout_account_bank_unsupported"),
+        code: "payout_account_bank_unsupported", status: :unprocessable_entity
       )
     end
 
-    def persist_pending_account!(account_token)
+    def bank_code_supported?
+      banks = adapter.available_banks
+      banks.nil? || banks.include?(bank_code.to_i)
+    end
+
+    def fixture_allowed?
+      Rails.env.test? || Rails.env.development? || ENV["RENDER_PREVIEW"] == "true"
+    end
+
+    def registration_request_digest
+      command_request_digest(
+        operation: "register", account_id: nil, actor: user,
+        identity: {
+          type:, provider:, bank_code: bank_code.to_i,
+          account_number_digest: account_digest, account_label:, holder_name:
+        }
+      )
+    end
+
+    def account_digest
+      @account_digest ||= Core::PayoutAccountDigest.call(namespace: user.id, account_number:)
+    end
+
+    def verification_result(key)
+      return Marketplace::PayoutProviders::Result.success(raw_status: "test_fixture") if verification_source == "test_fixture"
+
+      normalize_provider_result(adapter.verify_payout_account(
+        account_number:, account_name: holder_name, bank_code:, type:, provider:,
+        idempotency_key: key.to_s
+      ))
+    end
+
+    def persist_account!(key:, request_digest:, audit_key:, verification:)
       Marketplace::SellerPayoutAccount.transaction do
-        Core::Database::AdvisoryLock.acquire!("marketplace-payout-account", user_id, provider, account_token)
-        existing = SellerPayoutAccount.lock.find_by(provider:, account_token:)
-        if existing && existing.user_id != user_id
-          next Core::BusinessError.new(
-            I18n.t("marketplace.resale.errors.payout_account_conflict"),
-            code: "payout_account_conflict", status: :conflict
-          )
+        digest = account_digest
+        Core::Database::AdvisoryLock.acquire!("marketplace-payout-account", user_id, provider, digest)
+        existing = SellerPayoutAccount.lock.find_by(user_id:, provider:, account_number_digest: digest)
+        if existing
+          next existing if command_replay_matches?(audit_key:, request_digest:)
+
+          next conflict_error
         end
 
-        account = existing || SellerPayoutAccount.new(user_id:, type:, provider:, account_token:)
-        account.assign_attributes(
-          type:,
-          account_label_ciphertext: account_label,
-          holder_name_ciphertext: holder_name,
-          status: "pending_verification",
-          verified_at: nil
+        account = SellerPayoutAccount.new(
+          user:, type:, provider:, bank_code: bank_code.to_i, account_number:,
+          account_number_digest: digest, account_label:, holder_name:,
+          **verification_attributes(verification), is_default: false
         )
         account.save!
+        account.record_audit!(
+          "marketplace.seller_payout_account.registered",
+          audited_changes: { status: [ nil, account.status ] },
+          metadata: {
+            account_id: account.id, provider:, verification_source: account.verification_source,
+            idempotency_key: key.to_s, request_digest:
+          },
+          actor: user,
+          audit_key:
+        )
+        record_verification_audit!(account, key:, request_digest:) if account.verified?
         account
       end
     rescue ActiveRecord::RecordInvalid => error
@@ -129,57 +155,45 @@ module Marketplace
       )
     end
 
-    def apply_verification!(account, result, key:, audit_key:)
-      return failure(verification_pending_error) if result.unknown? || result.timeout?
-      return failure(verification_failed_error(result)) unless result.success?
+    def verification_attributes(result)
+      return {
+        status: "verified", verification_source: verification_source || "provider",
+        verified_by: nil, verified_at: at
+      } if result.success?
 
-      verified = Marketplace::SellerPayoutAccount.transaction do
-        locked = SellerPayoutAccount.lock.find(account.id)
-        locked.update!(status: "verified", verified_at: at)
-        locked.record_audit!(
-          "marketplace.seller_payout_account.verified",
-          audited_changes: { status: [ "pending_verification", "verified" ], verified_at: at.iso8601 },
-          metadata: { account_id: locked.id, provider: locked.provider, idempotency_key: key.to_s },
-          actor: user,
-          audit_key:
-        )
-        locked
-      end
-      success(verified)
-    rescue ActiveRecord::RecordInvalid => error
-      failure(Core::BusinessError.new(
-        I18n.t("marketplace.resale.errors.payout_account_invalid"),
-        code: "payout_account_invalid", status: :conflict, errors: error.record.errors.to_hash
-      ))
+      { status: "pending_verification", verification_source: nil, verified_by: nil, verified_at: nil }
     end
 
-    def replay_account(audit)
-      account = SellerPayoutAccount.find_by(id: audit.metadata["account_id"] || audit.metadata[:account_id])
-      return success(account) if account
-
-      failure(Core::BusinessError.new(
-        I18n.t("marketplace.resale.errors.payout_account_replay_missing"),
-        code: "payout_account_replay_missing", status: :conflict
-      ))
-    end
-
-    def verification_pending_error
-      Core::BusinessError.new(
-        I18n.t("marketplace.resale.errors.payout_account_verification_pending"),
-        code: "payout_account_verification_pending", status: :unprocessable_entity
+    def record_verification_audit!(account, key:, request_digest:)
+      account.record_audit!(
+        "marketplace.seller_payout_account.verified",
+        audited_changes: {
+          status: [ nil, "verified" ], verification_source: [ nil, account.verification_source ],
+          verified_at: account.verified_at.iso8601
+        },
+        metadata: { account_id: account.id, provider: account.provider, idempotency_key: key.to_s, request_digest: },
+        actor: user,
+        audit_key: command_audit_key("verified", key)
       )
     end
 
     def verification_failed_error(result)
       Core::BusinessError.new(
         I18n.t("marketplace.resale.errors.payout_account_verification_failed"),
-        code: result.failure_code.presence || "payout_account_verification_failed",
+        code: result.failure_code.presence || result.status.to_s.presence || "payout_account_verification_failed",
         status: :unprocessable_entity
       )
     end
 
     def normalize_provider_result(response)
       Marketplace::PayoutProviders::Result.from_provider_response(response)
+    end
+
+    def conflict_error
+      Core::BusinessError.new(
+        I18n.t("marketplace.resale.errors.payout_account_conflict"),
+        code: "payout_account_conflict", status: :conflict
+      )
     end
   end
 end
