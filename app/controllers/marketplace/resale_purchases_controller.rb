@@ -11,7 +11,7 @@ module Marketplace
     before_action :load_listing
 
     def create
-      authorize @listing, :purchase?, policy_class: ResaleListingPolicy
+      authorize @listing, :purchase?, policy_class: ResaleListingPolicy unless replayable_purchase?
       result = ReserveListing.call(
         listing: @listing,
         buyer: current_user,
@@ -30,6 +30,10 @@ module Marketplace
 
     def load_listing
       @listing = ResaleListing.includes(commercial_fee_component: :fee_schedule_version).find(params[:resale_listing_id])
+    end
+
+    def replayable_purchase?
+      ReserveListing.replayable?(listing: @listing, buyer: current_user, idempotency_key:)
     end
 
     def normalized_answers

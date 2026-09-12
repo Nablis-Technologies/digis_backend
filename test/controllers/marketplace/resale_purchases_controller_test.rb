@@ -76,6 +76,25 @@ module Marketplace
       assert_response :forbidden
     end
 
+    test "replays a buyer's purchase after the listing is sold" do
+      key = "api-purchase-sold-replay"
+      first = Marketplace::ReserveListing.call(
+        listing: @listing,
+        buyer: @buyer,
+        idempotency_key: key
+      )
+      assert_predicate first, :success?, first.error&.message
+
+      @listing.update_columns(status: "sold", sold_at: Time.current, closed_at: Time.current)
+
+      post "/resale_listings/#{@listing.id}/purchase",
+           params: { purchase: {} },
+           headers: headers_for(@buyer).merge("Idempotency-Key" => key), as: :json
+
+      assert_response :created
+      assert_equal first.value.id, response.parsed_body.dig("data", "id")
+    end
+
     private
 
     def headers_for(user)
