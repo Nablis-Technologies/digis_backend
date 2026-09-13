@@ -68,9 +68,9 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails runner \
   'Reconciliation::SupervisorJob.perform_now("slow")'
 ```
 
-Chapa organizer transfers use the separate Finance transfer client. A
+Chapa organizer payouts use the separate V2 Finance payout client. A
 transport timeout or ambiguous Chapa response remains processing; reconcile
-with GET /v1/transfers/verify/<tx_ref> before taking any further action. Do
+with GET /v2/payouts/<chapa_reference>/verify before taking any further action. Do
 not retry the transfer merely because the HTTP request timed out.
 
 Organizer payout destinations are encrypted and verified provider-first. If
