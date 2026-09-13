@@ -26,6 +26,8 @@ module Payments
       end
 
       def create(**request)
+        return unsupported_amount_result if fractional_etb_amount?(request[:amount_minor], request[:currency])
+
         payload = payment_payload(request).merge(
           preferred_payment_methods: Array(request[:payment_method]).presence
         ).compact
@@ -33,6 +35,8 @@ module Payments
       end
 
       def direct_charge(**request)
+        return unsupported_amount_result if fractional_etb_amount?(request[:amount_minor], request[:currency])
+
         payload = payment_payload(request).merge(payment_method: request.fetch(:payment_method).to_s)
         map_result(post("/v2/payments/direct", payload, idempotency_key: request[:idempotency_key]))
       end
@@ -43,6 +47,11 @@ module Payments
       end
 
       def refund(**request)
+        if request[:refund_type] != "payment_reversal" &&
+            fractional_etb_amount?(request[:amount_minor], request[:currency])
+          return unsupported_amount_result
+        end
+
         payload = {
           payment_reference: request.fetch(:provider_reference),
           merchant_reference: request.fetch(:idempotency_key),
@@ -192,6 +201,19 @@ module Payments
         normalized = phone.sub(/\A00/, "")
         normalized = normalized.sub(/\A0/, "251") unless normalized.start_with?("251")
         "+#{normalized}"
+      end
+
+      def fractional_etb_amount?(amount_minor, currency)
+        return false unless currency.to_s.strip.upcase == "ETB"
+
+        amount = Integer(amount_minor)
+        amount.positive? && (amount % 100).positive?
+      rescue ArgumentError, TypeError
+        false
+      end
+
+      def unsupported_amount_result
+        Result.failure(failure_code: "amount_precision_unsupported", raw_status: "amount_precision_unsupported")
       end
 
       def minor_amount(amount)

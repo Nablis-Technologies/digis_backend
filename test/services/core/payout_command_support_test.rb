@@ -35,12 +35,12 @@ module Core
       first = command.send(
         :command_request_digest,
         operation: "set_default", account_id: "account-1", actor: nil,
-        identity: { provider: "chapa", fields: { bank_code: 128, type: "bank" } }
+        identity: { provider: "chapa", fields: { bank_slug: "cbe", type: "bank" } }
       )
       second = command.send(
         :command_request_digest,
         operation: "set_default", account_id: "account-1", actor: nil,
-        identity: { fields: { type: "bank", bank_code: 128 }, provider: "chapa" }
+        identity: { fields: { type: "bank", bank_slug: "cbe" }, provider: "chapa" }
       )
 
       assert_equal first, second

@@ -7,10 +7,11 @@ module Orders
   class StartBillingPaymentAttemptTest < ActiveSupport::TestCase
     class FakeAdapter < Payments::Providers::Adapter
       attr_reader :create_calls
-      attr_accessor :result
+      attr_accessor :result, :capabilities
 
       def initialize
         @create_calls = []
+        @capabilities = { currencies: [ "ETB" ], payment_methods: [ "telebirr" ] }
         @result = Payments::Providers::Result.unknown(
           provider_reference: "billing-checkout", checkout_url: "https://checkout.test/billing"
         )
@@ -25,7 +26,7 @@ module Orders
       def refund(**) = Payments::Providers::Result.unknown
       def verify_refund(**) = Payments::Providers::Result.unknown
       def available_balance(**) = { amount_minor: 100_000, currency: "ETB" }
-      def capabilities = { currencies: [ "ETB" ], payment_methods: [ "telebirr" ] }
+      def capabilities = @capabilities
       def settlement_grace_minutes = 5
     end
 
@@ -55,6 +56,21 @@ module Orders
       assert_equal 1, @adapter.create_calls.length
       assert_equal @purchase.id, first.value.billing_purchase_id
       assert_nil first.value.order_id
+    end
+
+    test "rejects a fractional ETB billing amount before creating a provider attempt" do
+      @adapter.capabilities = {
+        currencies: [ "ETB" ], payment_methods: [ "telebirr" ],
+        amounts: { ETB: { minor_unit: 100, fractional: false } }
+      }
+      @purchase.update_columns(amount_minor: @purchase.amount_minor + 1)
+
+      result = start("fractional-billing")
+
+      assert_predicate result, :failure?
+      assert_equal "provider_amount_precision_unsupported", result.error.code
+      assert_empty @adapter.create_calls
+      assert_empty Orders::Payment.where(billing_purchase: @purchase)
     end
 
     test "returns a typed failure when the billing purchase has expired" do

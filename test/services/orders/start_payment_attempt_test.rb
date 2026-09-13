@@ -7,7 +7,7 @@ module Orders
     self.use_transactional_tests = false
 
     class FakeAdapter < Payments::Providers::Adapter
-      attr_accessor :result, :raise_on_create
+      attr_accessor :result, :raise_on_create, :capabilities
       attr_reader :create_calls, :cancel_calls, :payment_present_at_create
 
       def initialize(result: Payments::Providers::Result.unknown(raw_status: "pending"),
@@ -89,6 +89,39 @@ module Orders
       assert_equal @order.expires_at + 5.minutes, payment.settlement_grace_expires_at
       assert_equal [ true ], @chapa.payment_present_at_create
       assert_equal 1, Orders::Payment.current.where(order: @order).count
+    end
+
+    test "rejects a fractional ETB amount before creating a provider attempt" do
+      @chapa.capabilities = {
+        currencies: [ "ETB" ], payment_methods: [ "telebirr" ],
+        amounts: { ETB: { minor_unit: 100, fractional: false } }
+      }
+      fractional_buyer = Core::User.create!(
+        email: "fractional-#{SecureRandom.hex(4)}@example.test",
+        phone: "+2519#{rand(10_000_000..99_999_999)}",
+        verified_at: @now,
+        password: "password123",
+        password_confirmation: "password123"
+      )
+      fractional_order = Orders::Order.create!(
+        order_attributes.merge(
+          buyer_user: fractional_buyer, subtotal_minor: 10_001, total_minor: 10_501,
+          settlement_total_minor: 10_501
+        )
+      )
+
+      result = Orders::StartPaymentAttempt.call(
+        order: fractional_order, buyer: fractional_buyer, provider: "chapa", payment_method: "telebirr",
+        idempotency_key: "fractional-order", at: @now
+      )
+
+      assert_predicate result, :failure?
+      assert_equal "provider_amount_precision_unsupported", result.error.code
+      assert_empty @chapa.create_calls
+      assert_empty Orders::Payment.where(order: fractional_order)
+      fractional_order.update_columns(status: "draft")
+      fractional_order.destroy!
+      fractional_buyer.destroy!
     end
 
     test "persists the buyer-safe hosted checkout URL returned by the provider" do

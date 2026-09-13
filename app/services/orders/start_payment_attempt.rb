@@ -30,6 +30,9 @@ module Orders
       prepare_idempotency!
       adapter = resolve_adapter
       return failure(adapter.error) if adapter.failure?
+      return failure(payment_error(
+        :provider_amount_precision_unsupported, code: "provider_amount_precision_unsupported"
+      )) unless provider_amount_supported?(adapter.value, amount_minor: order.total_minor, currency: order.charge_currency)
 
       state = reserve_attempt!(adapter.value)
       return state[:result] if state[:result]

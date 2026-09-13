@@ -30,7 +30,7 @@ module Payments
         )
 
         result = build_client(transport:).create(
-          amount_minor: 1_250, currency: "ETB", idempotency_key: "attempt-1",
+          amount_minor: 1_200, currency: "ETB", idempotency_key: "attempt-1",
           email: "buyer@example.com", phone_number: "+251911000000"
         )
 
@@ -41,7 +41,7 @@ module Payments
         assert_equal "Bearer CHAPA_TEST_secret", request.dig(:headers, "Authorization")
         assert_equal "attempt-1", request.dig(:headers, "Idempotency-Key")
         payload = JSON.parse(request.fetch(:body))
-        assert_equal 12.5, payload.fetch("amount")
+        assert_equal 12, payload.fetch("amount")
         assert_equal "attempt-1", payload.fetch("merchant_reference")
         assert_equal "buyer@example.com", payload.dig("customer", "email")
         assert_equal "+251911000000", payload.dig("customer", "phone_number")
@@ -95,10 +95,10 @@ module Payments
         transport = FakeTransport.new(Response.new(status: 200, body: { status: "success", data: {} }))
 
         build_client(transport:).create(
-          amount_minor: 9_007_199_254_740_993, currency: "ETB", idempotency_key: "large-amount"
+          amount_minor: 900_719_925_474_099_300, currency: "ETB", idempotency_key: "large-amount"
         )
 
-        assert_includes transport.requests.sole.fetch(:body), '"amount":90071992547409.93'
+        assert_includes transport.requests.sole.fetch(:body), '"amount":9007199254740993'
       end
 
       test "uses the shared Core transport by default" do
@@ -124,6 +124,18 @@ module Payments
         assert_raises(ArgumentError) do
           build_client.create(amount_minor: 0, currency: "ETB", idempotency_key: "zero-amount")
         end
+      end
+
+      test "rejects a fractional ETB amount before provider I/O" do
+        transport = FakeTransport.new
+
+        result = build_client(transport:).create(
+          amount_minor: 513, currency: "ETB", idempotency_key: "fractional-amount"
+        )
+
+        assert_predicate result, :failure?
+        assert_equal "amount_precision_unsupported", result.failure_code
+        assert_empty transport.requests
       end
 
       test "verifies a V2 payment and normalizes the provider fee" do
