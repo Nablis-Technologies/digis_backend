@@ -30,7 +30,7 @@ module Marketplace
         user: @seller,
         type: "bank",
         provider: "chapa",
-        bank_code: 128,
+        bank_slug: "cbe",
         account_number: "1000000000006",
         account_label: "Primary wallet",
         holder_name: "Seller Holder",
@@ -41,7 +41,7 @@ module Marketplace
       post "/marketplace/seller/payout_accounts",
            params: {
              payout_account: {
-               type: "bank", provider: "chapa", bank_code: 128, account_number: "1000000000006",
+               type: "bank", provider: "chapa", bank_slug: "cbe", account_number: "1000000000006",
                account_label: "Primary wallet", holder_name: "Seller Holder"
              }
            },
@@ -59,7 +59,7 @@ module Marketplace
       post "/marketplace/seller/payout_accounts",
            params: {
              payout_account: {
-               type: "bank", provider: "chapa", bank_code: 128, account_number: "1000000000007",
+               type: "bank", provider: "chapa", bank_slug: "cbe", account_number: "1000000000007",
                holder_name: "Seller Holder"
              }
            },

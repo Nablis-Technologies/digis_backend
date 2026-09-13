@@ -25,7 +25,7 @@ module Marketplace
         user: current_user,
         type: payout_account_params.require(:type),
         provider:,
-        bank_code: payout_account_params.require(:bank_code),
+        bank_slug: payout_account_params.require(:bank_slug),
         account_number: payout_account_params.require(:account_number),
         account_label: payout_account_params[:account_label],
         holder_name: payout_account_params[:holder_name],
@@ -58,7 +58,7 @@ module Marketplace
 
     def payout_account_params
       params.require(:payout_account).permit(
-        :type, :provider, :bank_code, :account_number, :account_label, :holder_name
+        :type, :provider, :bank_slug, :account_number, :account_label, :holder_name
       )
     end
 

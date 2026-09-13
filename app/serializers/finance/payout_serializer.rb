@@ -19,7 +19,7 @@ module Finance
         id: account.id,
         type: account.type,
         provider: account.provider,
-        bank_code: account.bank_code,
+        bank_slug: account.bank_slug,
         account_label: account.account_label,
         status: account.status,
         is_default: account.is_default,

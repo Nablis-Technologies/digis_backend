@@ -39,7 +39,7 @@ module Finance
         organization: @organization,
         type: payout_account_params.require(:type),
         provider: payout_account_params.require(:provider),
-        bank_code: payout_account_params.require(:bank_code),
+        bank_slug: payout_account_params.require(:bank_slug),
         account_number: payout_account_params.require(:account_number),
         account_name: payout_account_params[:account_name],
         account_label: payout_account_params[:account_label],
@@ -103,7 +103,7 @@ module Finance
 
     def payout_account_params
       params.require(:payout_account).permit(
-        :type, :provider, :bank_code, :account_number, :account_name, :account_label
+        :type, :provider, :bank_slug, :account_number, :account_name, :account_label
       )
     end
 
