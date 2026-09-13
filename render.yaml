@@ -69,7 +69,7 @@ services:
       - key: CHAPA_WEBHOOK_SECRET
         sync: false
       - key: CHAPA_API_BASE_URL
-        value: https://api.chapa.co/v1
+        value: https://api.chapa.global
       - key: CHAPA_CALLBACK_URL
         sync: false
       - key: CHAPA_RETURN_URL

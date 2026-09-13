@@ -115,3 +115,6 @@ en:
         adapter_operation_not_implemented: "Payment provider operation is not implemented"
         invalid_grace_minutes: "Payment settlement grace must be between 3 and 15 minutes"
         invalid_result: "Payment provider returned an invalid result"
+        invalid_mode: "Chapa mode must be one of: %{modes}"
+        secrets_required: "Chapa secret and webhook secrets are required"
+        secret_prefix: "Chapa %{mode} secret key must start with %{prefix}"

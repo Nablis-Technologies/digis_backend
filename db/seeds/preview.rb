@@ -221,7 +221,7 @@ payout_account_result = Finance::PayoutAccounts::Register.call(
   organization: fest_org,
   type: "bank",
   provider: "chapa",
-  bank_code: 128,
+  bank_slug: "cbe",
   account_number: "1000000000001",
   account_name: "Preview Organizer",
   account_label: "Preview Chapa destination",

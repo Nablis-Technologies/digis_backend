@@ -56,6 +56,9 @@ en:
       errors:
         adapter_operation_not_implemented: "%{adapter} does not implement %{operation}"
         invalid_result: "The payout provider returned an invalid result"
+        invalid_mode: "Chapa mode must be one of: %{modes}"
+        secret_required: "Chapa secret key is required"
+        secret_prefix: "Chapa %{mode} secret key must start with %{prefix}"
     ledger:
       descriptions:
         sale: "Accepted sale proceeds"
