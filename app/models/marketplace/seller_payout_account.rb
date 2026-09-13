@@ -25,13 +25,13 @@ module Marketplace
 
     before_validation :normalize_fields
 
-    validates :user, :type, :provider, :bank_code, :account_number, :account_number_digest,
+    validates :user, :type, :provider, :bank_slug, :account_number, :account_number_digest,
               :holder_name, :status, presence: true
     validates :type, inclusion: { in: TYPES }
     validates :provider, inclusion: { in: PROVIDERS }
     validates :status, inclusion: { in: STATUSES }
     validates :verification_source, inclusion: { in: VERIFICATION_SOURCES }, allow_nil: true
-    validates :bank_code, numericality: { only_integer: true, greater_than: 0 }
+    validates :bank_slug, format: { with: /\A[a-z0-9][a-z0-9_-]*\z/ }
     validates :account_number_digest, format: { with: /\A[0-9a-f]{64}\z/ }
     validate :verification_metadata
     validate :default_requires_verified
@@ -63,7 +63,7 @@ module Marketplace
     def closed? = status == "closed"
 
     def self.ransackable_attributes(_auth_object = nil)
-      %w[id user_id type provider bank_code status verification_source is_default
+      %w[id user_id type provider bank_slug status verification_source is_default
          verified_at last_used_at created_at updated_at]
     end
 
@@ -76,7 +76,7 @@ module Marketplace
     def normalize_fields
       self.type = type.to_s.strip.downcase.presence
       self.provider = provider.to_s.strip.downcase.presence
-      self.bank_code = bank_code.to_i if bank_code.present?
+      self.bank_slug = bank_slug.to_s.strip.downcase.presence
       self.status = status.to_s.strip.downcase.presence
       self.verification_source = verification_source.to_s.strip.downcase.presence
     end

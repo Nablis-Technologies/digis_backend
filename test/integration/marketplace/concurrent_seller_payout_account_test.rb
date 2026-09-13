@@ -25,7 +25,7 @@ module Marketplace
           user: Core::User.find(@seller.id),
           type: "bank",
           provider: "chapa",
-          bank_code: 128,
+          bank_slug: "cbe",
           account_number: "100000000002#{index + 1}",
           holder_name: "Concurrent Seller #{index}",
           adapter: Marketplace::PayoutProviders::Adapter.new,

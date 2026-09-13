@@ -12,7 +12,7 @@ module Marketplace
         user: @seller,
         type: "bank",
         provider: "chapa",
-        bank_code: 128,
+        bank_slug: "cbe",
         account_number: @number,
         account_number_digest: Core::PayoutAccountDigest.call(
           namespace: @seller.id, account_number: @number
@@ -77,11 +77,11 @@ module Marketplace
       assert_includes account.errors.attribute_names, :is_default
     end
 
-    test "requires a positive bank code and an allowed lifecycle status" do
-      account = SellerPayoutAccount.new(@attributes.merge(bank_code: 0, status: "unknown"))
+    test "requires a valid bank slug and an allowed lifecycle status" do
+      account = SellerPayoutAccount.new(@attributes.merge(bank_slug: "", status: "unknown"))
 
       assert_not account.valid?
-      assert_includes account.errors.attribute_names, :bank_code
+      assert_includes account.errors.attribute_names, :bank_slug
       assert_includes account.errors.attribute_names, :status
     end
 

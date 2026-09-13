@@ -17,7 +17,7 @@ module Marketplace
         user: @seller,
         type: "bank",
         provider: "chapa",
-        bank_code: 128,
+        bank_slug: "cbe",
         account_number: number,
         account_number_digest: Core::PayoutAccountDigest.call(
           namespace: @seller.id, account_number: number
