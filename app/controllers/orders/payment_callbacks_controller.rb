@@ -10,8 +10,8 @@ module Orders
     def show
       result = Orders::RecordPaymentCallback.call(
         provider: params[:provider],
-        transaction_reference: params[:trx_ref] || params[:tx_ref],
-        provider_reference: params[:ref_id] || params[:reference],
+        transaction_reference: params[:merchant_reference] || params[:trx_ref] || params[:tx_ref],
+        provider_reference: params[:chapa_reference] || params[:ref_id] || params[:reference],
         callback_status: params[:status]
       )
       return render_service_result(result) if result.failure?

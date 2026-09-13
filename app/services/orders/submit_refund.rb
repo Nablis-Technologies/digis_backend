@@ -38,7 +38,8 @@ module Orders
         provider_reference: snapshot[:provider_reference],
         amount_minor: snapshot[:amount_minor],
         currency: snapshot[:currency],
-        idempotency_key: snapshot[:idempotency_key]
+        idempotency_key: snapshot[:idempotency_key],
+        refund_type: snapshot[:refund_type]
       )
       applied = Orders::ApplyRefundResult.call(refund: transition, result: provider_result, now:)
       return failure(applied.error) if applied.failure?

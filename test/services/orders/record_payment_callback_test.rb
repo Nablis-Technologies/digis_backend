@@ -46,7 +46,7 @@ module Orders
 
       assert_predicate result, :success?, result.error&.message
       event = result.value
-      assert_equal [ { provider_reference: "tx-ref", idempotency_key: "tx-ref" } ], @adapter.verify_calls
+      assert_equal [ { provider_reference: "ref-1", idempotency_key: "tx-ref" } ], @adapter.verify_calls
       assert_equal @payment.id, event.payment_id
       assert_equal "payment.succeeded", event.event_type
       assert_equal "success", event.payload.fetch("status")
@@ -70,6 +70,16 @@ module Orders
 
       assert_predicate result, :success?, result.error&.message
       assert_equal @payment.id, result.value.payment_id
+    end
+
+    test "verifies with the V2 provider reference while locating by merchant reference" do
+      result = Orders::RecordPaymentCallback.call(
+        provider: "chapa", transaction_reference: "tx-ref", provider_reference: "ref-1",
+        callback_status: "success"
+      )
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "ref-1", @adapter.verify_calls.sole.fetch(:provider_reference)
     end
 
     test "records a verified provider failure without accepting payment" do

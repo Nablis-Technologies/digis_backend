@@ -51,13 +51,17 @@ module Orders
     def locate_payment(locked_event)
       return Orders::Payment.find(locked_event.payment_id) if locked_event.payment_id
 
-      reference = locked_event.payload.values_at("provider_reference", "tx_ref", "reference").compact.find(&:present?)
-      return unless reference
-
-      # Chapa initializes with tx_ref as the payment idempotency key and may
-      # omit a provider reference until its webhook arrives.
-      Orders::Payment.find_by(provider: locked_event.provider, provider_reference: reference) ||
-        Orders::Payment.find_by(provider: locked_event.provider, idempotency_key: reference)
+      # Chapa V2 uses merchant_reference for Digis's payment idempotency key
+      # and chapa_reference for the provider reference.
+      references = locked_event.payload.values_at(
+        "provider_reference", "chapa_reference", "merchant_reference", "tx_ref", "reference"
+      ).filter_map(&:presence)
+      references.each do |reference|
+        payment = Orders::Payment.find_by(provider: locked_event.provider, provider_reference: reference) ||
+          Orders::Payment.find_by(provider: locked_event.provider, idempotency_key: reference)
+        return payment if payment
+      end
+      nil
     end
 
     def success_event?(locked_event)

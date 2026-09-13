@@ -255,6 +255,37 @@ module Orders
       assert_equal "succeeded", @payment.reload.status
     end
 
+    test "locates a Chapa V2 webhook payment by its merchant reference" do
+      event = record_event(
+        event_id: "chapa-v2-merchant-reference-event",
+        event_type: "payment.succeeded",
+        payload: { "status" => "success", "merchant_reference" => @payment.idempotency_key }
+      )
+
+      result = Orders::ProcessPaymentEvent.call(event:)
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "fulfilled", @order.reload.status
+      assert_equal "succeeded", @payment.reload.status
+    end
+
+    test "keeps a blocked Chapa V2 webhook retryable" do
+      event = record_event(
+        event_id: "chapa-v2-blocked-event",
+        event_type: "payment.blocked",
+        payload: {
+          "status" => "blocked", "merchant_reference" => @payment.idempotency_key,
+          "chapa_reference" => "blocked-ref"
+        }
+      )
+
+      result = Orders::ProcessPaymentEvent.call(event:)
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "processing", @payment.reload.status
+      assert_equal "pending_payment", @order.reload.status
+    end
+
     test "publishes one terminal failure event when payment processing fails" do
       event = record_event(
         event_id: "evt-failure",

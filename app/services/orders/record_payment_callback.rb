@@ -46,7 +46,7 @@ module Orders
     def verify_payment
       adapter = Payments::Providers::Registry.fetch(provider)
       result = adapter.verify(
-        provider_reference: transaction_reference,
+        provider_reference: provider_reference.presence || transaction_reference,
         idempotency_key: transaction_reference
       )
       result.is_a?(Payments::Providers::Result) ? result : Payments::Providers::Result.from_provider_response(result)
