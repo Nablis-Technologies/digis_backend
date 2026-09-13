@@ -22,7 +22,7 @@ module Finance
         organization: @organization,
         type: "bank",
         provider: "chapa",
-        bank_code: 128,
+        bank_slug: "cbe",
         account_number: "1000000000001",
         account_name: "Payout Test Organizer",
         account_label: "Payout test destination",

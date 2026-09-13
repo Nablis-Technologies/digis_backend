@@ -6,7 +6,7 @@ class CreateFinancePayoutAccounts < ActiveRecord::Migration[8.1]
       t.uuid :organization_id, null: false
       t.string :type, null: false
       t.string :provider, null: false
-      t.integer :bank_code, null: false
+      t.string :bank_slug, null: false
       t.text :account_number_ciphertext, null: false
       t.string :account_number_digest, limit: 64, null: false
       t.text :account_name_ciphertext
@@ -35,8 +35,8 @@ class CreateFinancePayoutAccounts < ActiveRecord::Migration[8.1]
       "provider IN ('chapa')",
       name: "finance_payout_accounts_provider_check"
     add_check_constraint :finance_payout_accounts,
-      "bank_code > 0",
-      name: "finance_payout_accounts_positive_bank_code_check"
+      "bank_slug ~ '^[a-z0-9][a-z0-9_-]*$'",
+      name: "finance_payout_accounts_bank_slug_check"
     add_check_constraint :finance_payout_accounts,
       "account_number_digest ~ '^[0-9a-f]{64}$'",
       name: "finance_payout_accounts_digest_check"

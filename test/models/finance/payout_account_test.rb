@@ -10,7 +10,7 @@ module Finance
         organization: @organization,
         type: "bank",
         provider: "chapa",
-        bank_code: 128,
+        bank_slug: "cbe",
         account_number: "1000000000001",
         account_name: "Digis Organizer",
         account_label: "Primary account",
@@ -56,11 +56,11 @@ module Finance
       assert_includes account.errors.attribute_names, :is_default
     end
 
-    test "requires a positive bank code and an allowed lifecycle status" do
-      account = PayoutAccount.new(@attributes.merge(bank_code: 0, status: "unknown"))
+    test "requires a valid bank slug and an allowed lifecycle status" do
+      account = PayoutAccount.new(@attributes.merge(bank_slug: "", status: "unknown"))
 
       assert_not account.valid?
-      assert_includes account.errors.attribute_names, :bank_code
+      assert_includes account.errors.attribute_names, :bank_slug
       assert_includes account.errors.attribute_names, :status
     end
 

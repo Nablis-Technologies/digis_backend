@@ -87,7 +87,7 @@ module Commercial
             organization: event.organization,
             type: "bank",
             provider: "chapa",
-            bank_code: 128,
+            bank_slug: "cbe",
             account_number: "1000000000001",
             account_name: "Task 12 Organizer",
             account_number_digest: Core::KeyedDigest.digest(
