@@ -24,9 +24,7 @@ module Payments
               secret_key: env.fetch("CHAPA_SECRET_KEY"),
               webhook_secret: env.fetch("CHAPA_WEBHOOK_SECRET"),
               mode:,
-              api_base_url: env.fetch("CHAPA_API_BASE_URL", ChapaClient::DEFAULT_API_BASE_URL),
-              callback_url: env["CHAPA_CALLBACK_URL"],
-              return_url: env["CHAPA_RETURN_URL"]
+              api_base_url: env.fetch("CHAPA_API_BASE_URL", ChapaClient::DEFAULT_API_BASE_URL)
             ),
             capabilities: {
               currencies: %w[ETB USD],

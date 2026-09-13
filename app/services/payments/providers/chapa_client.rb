@@ -14,13 +14,10 @@ module Payments
       DEFAULT_API_BASE_URL = "https://api.chapa.global"
       MODES = %w[test live].freeze
 
-      def initialize(secret_key:, webhook_secret:, mode: "test", api_base_url: DEFAULT_API_BASE_URL,
-        callback_url: nil, return_url: nil, transport: nil)
+      def initialize(secret_key:, webhook_secret:, mode: "test", api_base_url: DEFAULT_API_BASE_URL, transport: nil)
         @secret_key = secret_key.to_s
         @webhook_secret = webhook_secret.to_s
         @mode = mode.to_s
-        @callback_url = callback_url.to_s.presence
-        @return_url = return_url.to_s.presence
         validate_configuration!
         @transport = transport || Core::HttpTransport.new(base_url: api_base_url)
       end
@@ -90,8 +87,6 @@ module Payments
           currency: request.fetch(:currency).to_s.upcase,
           merchant_reference: request.fetch(:idempotency_key),
           customer: customer_payload(request),
-          callback_url: @callback_url,
-          return_url: @return_url,
           meta: metadata(request)
         }.compact
       end
