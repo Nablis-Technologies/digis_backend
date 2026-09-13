@@ -11,12 +11,12 @@ class MarketplacePayoutProvidersConfigurationTest < ActiveSupport::TestCase
     Marketplace::PayoutProviders::Registry.instance_variable_set(:@adapters, {})
   end
 
-  test "registers the shared Chapa transfer adapter when payouts are enabled" do
+  test "registers the shared Chapa V2 payout adapter when payouts are enabled" do
     with_env(
       "CHAPA_ENABLED" => "true",
       "CHAPA_PAYOUT_ENABLED" => "true",
       "CHAPA_MODE" => "test",
-      "CHAPA_SECRET_KEY" => "CHASECK_TEST-marketplace-config-test",
+      "CHAPA_SECRET_KEY" => "CHAPA_TEST_marketplace-config-test",
       "RENDER_PREVIEW" => "true"
     ) { Marketplace::PayoutProviders::Registration.call(env: ENV) }
 
@@ -30,7 +30,7 @@ class MarketplacePayoutProvidersConfigurationTest < ActiveSupport::TestCase
       "CHAPA_ENABLED" => "true",
       "CHAPA_PAYOUT_ENABLED" => "false",
       "CHAPA_MODE" => "test",
-      "CHAPA_SECRET_KEY" => "CHASECK_TEST-marketplace-config-test",
+      "CHAPA_SECRET_KEY" => "CHAPA_TEST_marketplace-config-test",
       "RENDER_PREVIEW" => "true"
     ) { Marketplace::PayoutProviders::Registration.call(env: ENV) }
 

@@ -23,7 +23,7 @@ module Marketplace
 
         def available_balance(**) = { amount_minor: 100_000, currency: "ETB" }
 
-        def available_banks = [ 128, 656 ]
+        def available_banks = [ { bank_slug: "cbe" }, { bank_slug: "awash" } ]
 
         def capabilities = { payouts: { supported: true } }
       end
@@ -37,22 +37,22 @@ module Marketplace
           currency: "ETB",
           account_number: "1000000000001",
           account_name: "Seller Holder",
-          bank_code: 128,
+          bank_slug: "cbe",
           idempotency_key: "seller-payout-1"
         )
 
         assert_predicate result, :success?
         assert_equal "1000000000001", client.payout_requests.sole.fetch(:account_number)
         assert_equal "Seller Holder", client.payout_requests.sole.fetch(:account_name)
-        assert_equal 128, client.payout_requests.sole.fetch(:bank_code)
+        assert_equal "cbe", client.payout_requests.sole.fetch(:bank_slug)
         refute client.payout_requests.sole.key?(:destination_token)
       end
 
-      test "exposes bank codes and leaves unsupported preflight verification unknown" do
+      test "exposes bank slugs and leaves unsupported preflight verification unknown" do
         adapter = ChapaAdapter.new(client: FakeClient.new)
 
-        assert_equal [ 128, 656 ], adapter.available_banks
-        result = adapter.verify_payout_account(account_number: "1000000000001", bank_code: 128)
+        assert_equal [ { bank_slug: "cbe" }, { bank_slug: "awash" } ], adapter.available_banks
+        result = adapter.verify_payout_account(account_number: "1000000000001", bank_slug: "cbe")
         assert_predicate result, :unknown?
         assert_equal "unsupported", result.raw_status
       end

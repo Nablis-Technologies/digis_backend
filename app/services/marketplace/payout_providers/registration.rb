@@ -2,8 +2,8 @@
 
 module Marketplace
   module PayoutProviders
-    # Registers the shared Chapa transfer transport for marketplace dispatch.
-    # Direct transfers require beneficiary fields rather than a destination
+    # Registers the shared Chapa V2 payout transport for marketplace dispatch.
+    # Direct payouts require beneficiary fields rather than a destination
     # token, so account registration owns encrypted details and verification.
     class Registration
       class << self
@@ -13,7 +13,7 @@ module Marketplace
 
           mode = env.fetch("CHAPA_MODE", "test")
           reject_live_preview!(env:, mode:)
-          registry.register("chapa", ChapaAdapter.new(client: transfer_client(env:, mode:, secret_key: env.fetch("CHAPA_SECRET_KEY"))))
+          registry.register("chapa", ChapaAdapter.new(client: payout_client(env:, mode:, secret_key: env.fetch("CHAPA_SECRET_KEY"))))
         end
 
         private
@@ -28,12 +28,12 @@ module Marketplace
           raise "CHAPA_MODE must be test in the Render preview"
         end
 
-        def transfer_client(env:, mode:, secret_key:)
-          Finance::PayoutProviders::ChapaTransferClient.new(
+        def payout_client(env:, mode:, secret_key:)
+          Finance::PayoutProviders::ChapaPayoutClient.new(
             secret_key:,
             mode:,
             api_base_url: env.fetch(
-              "CHAPA_API_BASE_URL", Finance::PayoutProviders::ChapaTransferClient::DEFAULT_API_BASE_URL
+              "CHAPA_API_BASE_URL", Finance::PayoutProviders::ChapaPayoutClient::DEFAULT_API_BASE_URL
             )
           )
         end
