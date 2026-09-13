@@ -11,7 +11,7 @@ class PaymentProvidersBootTest < ActiveSupport::TestCase
       "RENDER_PREVIEW_DATABASE_URL" => ENV.fetch("DATABASE_URL", "postgresql://localhost/digis_backend_test"),
       "CHAPA_ENABLED" => "true",
       "CHAPA_MODE" => "test",
-      "CHAPA_SECRET_KEY" => "CHASECK_TEST-boot-test",
+      "CHAPA_SECRET_KEY" => "CHAPA_TEST_boot-test",
       "CHAPA_WEBHOOK_SECRET" => "webhook-secret"
     }
     _stdout, stderr, status = Open3.capture3(

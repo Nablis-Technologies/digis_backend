@@ -16,211 +16,202 @@ module Payments
           @requests = []
         end
 
-        def call(method:, path:, headers:, body:)
+        def call(method:, path:, headers:, body: nil)
           @requests << { method:, path:, headers:, body: }
           @responses.shift || Response.new(status: 200, body: {})
         end
       end
 
-      test "initializes an ETB payment with a hosted checkout URL" do
+      test "initializes an ETB V2 hosted payment with a checkout URL" do
         transport = FakeTransport.new(
-          Response.new(
-            status: 200,
-            body: {
-              status: "success",
-              data: {
-                status: "pending",
-                tx_ref: "attempt-1",
-                checkout_url: "https://checkout.chapa.test/attempt-1"
-              }
-            }
-          )
+          Response.new(status: 200, body: {
+            status: "success", data: { checkout_url: "https://checkout.chapa.test/attempt-1" }
+          })
         )
 
         result = build_client(transport:).create(
-          amount_minor: 1_250,
-          currency: "ETB",
-          idempotency_key: "attempt-1",
-          email: "buyer@example.com",
-          phone_number: "+251911000000"
+          amount_minor: 1_250, currency: "ETB", idempotency_key: "attempt-1",
+          email: "buyer@example.com", phone_number: "+251911000000"
         )
 
         assert_predicate result, :unknown?
-        assert_equal "attempt-1", result.provider_reference
         assert_equal "https://checkout.chapa.test/attempt-1", result.checkout_url
         request = transport.requests.sole
-        assert_equal :post, request.fetch(:method)
-        assert_equal "/transaction/initialize", request.fetch(:path)
-        assert_equal "Bearer CHASECK_TEST-secret", request.dig(:headers, "Authorization")
+        assert_equal "/v2/payments/hosted", request.fetch(:path)
+        assert_equal "Bearer CHAPA_TEST_secret", request.dig(:headers, "Authorization")
+        assert_equal "attempt-1", request.dig(:headers, "Idempotency-Key")
         payload = JSON.parse(request.fetch(:body))
-        assert_equal "12.50", payload.fetch("amount")
-        assert_equal "attempt-1", payload.fetch("tx_ref")
-        assert_equal "buyer@example.com", payload.fetch("email")
-        assert_equal "0911000000", payload.fetch("phone_number")
+        assert_equal 12.5, payload.fetch("amount")
+        assert_equal "attempt-1", payload.fetch("merchant_reference")
+        assert_equal "buyer@example.com", payload.dig("customer", "email")
+        assert_equal "+251911000000", payload.dig("customer", "phone_number")
       end
 
-      test "omits optional customer fields when they are absent" do
+      test "omits absent customer fields from the V2 hosted payload" do
+        transport = FakeTransport.new(Response.new(status: 200, body: { status: "success", data: {} }))
+
+        build_client(transport:).create(amount_minor: 1_000, currency: "ETB", idempotency_key: "optional")
+
+        assert_equal({}, JSON.parse(transport.requests.sole.fetch(:body)).fetch("customer"))
+      end
+
+      test "initializes a V2 direct charge with an authentication state" do
+        transport = FakeTransport.new(
+          Response.new(status: 200, body: {
+            status: "success",
+            data: { auth_type: "ussd", request_id: "request-1", chapa_reference: "CHV2-1", payment_status: "PENDING" }
+          })
+        )
+
+        result = build_client(transport:).direct_charge(
+          amount_minor: 100, currency: "ETB", idempotency_key: "direct-1",
+          payment_method: "telebirr", phone_number: "+251911000000"
+        )
+
+        assert_predicate result, :unknown?
+        assert_equal "CHV2-1", result.provider_reference
+        assert_equal "ussd", result.auth_type
+        assert_equal "request-1", result.request_id
+        assert_equal "/v2/payments/direct", transport.requests.sole.fetch(:path)
+        assert_equal "telebirr", JSON.parse(transport.requests.sole.fetch(:body)).fetch("payment_method")
+      end
+
+      test "does not parse an untrusted webhook before checking its signature" do
+        original_parse = JSON.method(:parse)
+        parse_called = false
+        JSON.define_singleton_method(:parse) { |*| parse_called = true; {} }
+
+        begin
+          assert_not build_client.verify_webhook(
+            payload: '{"malformed":', headers: { "x-chapa-signature" => "invalid" }
+          )
+          assert_not parse_called
+        ensure
+          JSON.define_singleton_method(:parse, original_parse)
+        end
+      end
+
+      test "serializes large minor amounts without floating point loss" do
         transport = FakeTransport.new(Response.new(status: 200, body: { status: "success", data: {} }))
 
         build_client(transport:).create(
-          amount_minor: 1_000,
-          currency: "ETB",
-          idempotency_key: "attempt-optional-fields",
-          phone_number: "+251911000000"
+          amount_minor: 9_007_199_254_740_993, currency: "ETB", idempotency_key: "large-amount"
         )
 
-        payload = JSON.parse(transport.requests.sole.fetch(:body))
-        refute payload.key?("email")
-        refute payload.key?("first_name")
-        refute payload.key?("last_name")
+        assert_includes transport.requests.sole.fetch(:body), '"amount":90071992547409.93'
       end
 
-      test "keeps hosted checkout initialization pending until payment confirmation" do
+      test "uses the shared Core transport by default" do
+        transport = build_client.instance_variable_get(:@transport)
+
+        assert_instance_of Core::HttpTransport, transport
+      end
+
+      test "maps a blocked V2 payment to a retryable unknown state" do
         transport = FakeTransport.new(
-          Response.new(
-            status: 200,
-            body: {
-              status: "success",
-              data: {
-                checkout_url: "https://checkout.chapa.test/attempt-pending"
-              }
-            }
-          )
+          Response.new(status: 200, body: {
+            status: "success", data: { status: "blocked", chapa_reference: "CHV2-blocked" }
+          })
         )
 
-        result = build_client(transport:).create(
-          amount_minor: 1_000,
-          currency: "ETB",
-          idempotency_key: "attempt-pending",
-          email: "buyer@example.com",
-          phone_number: "+251911000000"
+        result = build_client(transport:).verify(provider_reference: "CHV2-blocked")
+
+        assert_predicate result, :unknown?
+        assert_equal "blocked", result.failure_code
+      end
+
+      test "rejects a zero minor-unit payment amount" do
+        assert_raises(ArgumentError) do
+          build_client.create(amount_minor: 0, currency: "ETB", idempotency_key: "zero-amount")
+        end
+      end
+
+      test "verifies a V2 payment and normalizes the provider fee" do
+        transport = FakeTransport.new(
+          Response.new(status: 200, body: {
+            status: "success",
+            data: { status: "success", chapa_reference: "CHV2-verified", service_fee: "1.25", currency: "ETB" }
+          })
+        )
+
+        result = build_client(transport:).verify(provider_reference: "CHV2-verified")
+
+        assert_predicate result, :success?
+        assert_equal "CHV2-verified", result.provider_reference
+        assert_equal 125, result.provider_fee_minor
+        assert_equal "/v2/payments/CHV2-verified/verify", transport.requests.sole.fetch(:path)
+      end
+
+      test "verifies V2 webhook signatures against exact raw bytes and normalized Rack headers" do
+        raw_body = '{"event":"payment.success","mode":"test","merchant_reference":"attempt-1"}'
+        signature = OpenSSL::HMAC.hexdigest("SHA256", "webhook-secret", raw_body)
+        client = build_client(webhook_secret: "webhook-secret")
+
+        assert client.verify_webhook(payload: raw_body, headers: { "HTTP_X_CHAPA_SIGNATURE" => signature })
+        assert_not client.verify_webhook(payload: raw_body, headers: { "x-chapa-signature" => "invalid" })
+      end
+
+      test "rejects a correctly signed webhook from the wrong environment" do
+        raw_body = '{"event":"payment.success","mode":"live","merchant_reference":"attempt-live"}'
+        signature = OpenSSL::HMAC.hexdigest("SHA256", "webhook-secret", raw_body)
+
+        assert_not build_client.verify_webhook(
+          payload: raw_body, headers: { "x-chapa-signature" => signature }
+        )
+      end
+
+      test "maps V2 refund verification and leaves undocumented balance preflight unavailable" do
+        transport = FakeTransport.new(
+          Response.new(status: 200, body: {
+            status: "success", data: { status: "completed", chapa_reference: "RFND-1", currency: "ETB" }
+          })
+        )
+        client = build_client(transport:)
+
+        refund = client.verify_refund(provider_reference: "RFND-1")
+
+        assert_predicate refund, :success?
+        assert_equal "RFND-1", refund.provider_reference
+        assert_nil client.available_balance(currency: "ETB")
+      end
+
+      test "submits a V2 partial refund with a native idempotency key" do
+        transport = FakeTransport.new(
+          Response.new(status: 200, body: {
+            status: "success", data: { status: "pending", chapa_reference: "RFND-2" }
+          })
+        )
+
+        result = build_client(transport:).refund(
+          provider_reference: "CHV2-payment-1", amount_minor: 100,
+          currency: "ETB", idempotency_key: "refund-2", refund_type: "item_refund"
         )
 
         assert_predicate result, :unknown?
-        assert_equal "initialized", result.raw_status
-        assert_equal "https://checkout.chapa.test/attempt-pending", result.checkout_url
+        request = transport.requests.sole
+        assert_equal "/v2/refunds", request.fetch(:path)
+        assert_equal "refund-2", request.dig(:headers, "Idempotency-Key")
+        payload = JSON.parse(request.fetch(:body))
+        assert_equal "CHV2-payment-1", payload.fetch("payment_reference")
+        assert_equal 1.0, payload.fetch("amount")
       end
 
-      test "verifies a payment and normalizes the provider fee" do
-        transport = FakeTransport.new(
-          Response.new(
-            status: 200,
-            body: {
-              status: "success",
-              data: {
-                status: "success",
-                tx_ref: "attempt-1",
-                charge: "1.25",
-                currency: "ETB"
-              }
-            }
-          )
-        )
-
-        result = build_client(transport:).verify(provider_reference: "attempt-1")
-
-        assert_predicate result, :success?
-        assert_equal "attempt-1", result.provider_reference
-        assert_equal 125, result.provider_fee_minor
-        assert_equal "ETB", result.provider_fee_currency
-        assert_equal "/transaction/verify/attempt-1", transport.requests.sole.fetch(:path)
-      end
-
-      test "logs safe metadata for a rejected transaction" do
-        transport = FakeTransport.new(
-          Response.new(
-            status: 404,
-            body: {
-              status: "failed",
-              message: "Payments through API is disabled, please contact us",
-              data: nil
-            }
-          )
-        )
-        Rails.logger.expects(:warn).with(
-          includes("status_code=404", "status=failed", "Payments through API is disabled")
-        )
-
-        result = build_client(transport:).create(
-          amount_minor: 1_000,
-          currency: "ETB",
-          idempotency_key: "attempt-rejected",
-          email: "buyer@example.com",
-          phone_number: "+251911000000"
-        )
-
-        assert_predicate result, :failure?
-      end
-
-      test "verifies Chapa webhook signatures against the exact raw body" do
-        raw_body = '{"event":"charge.success","tx_ref":"attempt-1"}'
-        signature = OpenSSL::HMAC.hexdigest("SHA256", "webhook-secret", raw_body)
-        client = build_client(webhook_secret: "webhook-secret")
-
-        assert client.verify_webhook(payload: raw_body, headers: { "x-chapa-signature" => signature })
-        assert_not client.verify_webhook(payload: raw_body, headers: { "x-chapa-signature" => "invalid" })
-        assert_not client.verify_webhook(payload: raw_body, headers: {})
-      end
-
-      test "normalizes Rack HTTP-prefixed Chapa signature headers" do
-        raw_body = '{"event":"charge.success","tx_ref":"attempt-1"}'
-        signature = OpenSSL::HMAC.hexdigest("SHA256", "webhook-secret", raw_body)
-        client = build_client(webhook_secret: "webhook-secret")
-
-        assert client.verify_webhook(
-          payload: raw_body,
-          headers: { "HTTP_X_CHAPA_SIGNATURE" => signature }
-        )
-      end
-
-      test "requires a mode-matching Chapa secret key" do
+      test "requires a V2 mode-matching secret key" do
         assert_raises(ArgumentError) do
-          ChapaClient.new(secret_key: "CHASECK-live", webhook_secret: "secret", mode: "test")
+          ChapaClient.new(secret_key: "LEGACY_TEST_secret", webhook_secret: "secret", mode: "test")
         end
 
         assert_raises(ArgumentError) do
-          ChapaClient.new(secret_key: "CHASECK_TEST-secret", webhook_secret: "secret", mode: "live")
+          ChapaClient.new(secret_key: "CHAPA_LIVE_secret", webhook_secret: "secret", mode: "test")
         end
-      end
-
-      test "maps refund verification and available balance without exposing provider payloads" do
-        transport = FakeTransport.new(
-          Response.new(
-            status: 200,
-            body: {
-              status: "success",
-              data: { status: "refunded", ref_id: "refund-1", currency: "ETB" }
-            }
-          ),
-          Response.new(
-            status: 200,
-            body: {
-              status: "success",
-              data: [ { currency: "ETB", available_balance: "42.50" } ]
-            }
-          )
-        )
-
-        client = build_client(transport:)
-        refund = client.verify_refund(provider_reference: "refund-1")
-        balance = client.available_balance(currency: "ETB")
-
-        assert_predicate refund, :success?
-        assert_equal "refund-1", refund.provider_reference
-        assert_equal({ amount_minor: 4_250, currency: "ETB" }, balance)
-        refute_match(/secret|payload|CHASECK/i, refund.raw_status.to_s)
       end
 
       private
 
       def build_client(transport: nil, webhook_secret: "webhook-secret")
         ChapaClient.new(
-          secret_key: "CHASECK_TEST-secret",
-          webhook_secret:,
-          api_base_url: "https://api.chapa.test/v1",
-          callback_url: "https://digis.example/payments/chapa/webhook",
-          return_url: "https://digis.example/payments/return",
-          transport:
+          secret_key: "CHAPA_TEST_secret", webhook_secret:, mode: "test",
+          api_base_url: "https://api.chapa.test", transport:
         )
       end
     end

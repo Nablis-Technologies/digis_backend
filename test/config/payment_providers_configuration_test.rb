@@ -15,7 +15,7 @@ class PaymentProvidersConfigurationTest < ActiveSupport::TestCase
     with_env(
       "CHAPA_ENABLED" => "true",
       "CHAPA_MODE" => "test",
-      "CHAPA_SECRET_KEY" => "CHASECK_TEST-config-test",
+      "CHAPA_SECRET_KEY" => "CHAPA_TEST_config-test",
       "CHAPA_WEBHOOK_SECRET" => "webhook-secret",
       "RENDER_PREVIEW" => "true"
     ) do
@@ -24,7 +24,8 @@ class PaymentProvidersConfigurationTest < ActiveSupport::TestCase
 
     adapter = Payments::Providers::Registry.fetch("chapa")
     assert_equal %w[ETB USD], adapter.capabilities.fetch(:currencies)
-    assert_equal %w[telebirr card bank], adapter.capabilities.fetch(:payment_methods)
+    assert_equal %w[telebirr cbebirr mpesa awashbirr ebirr enat_bank card bank],
+      adapter.capabilities.fetch(:payment_methods)
   end
 
   test "rejects live Chapa mode in the Render preview" do
@@ -32,7 +33,7 @@ class PaymentProvidersConfigurationTest < ActiveSupport::TestCase
       with_env(
         "CHAPA_ENABLED" => "true",
         "CHAPA_MODE" => "live",
-        "CHAPA_SECRET_KEY" => "CHASECK-live-config-test",
+        "CHAPA_SECRET_KEY" => "CHAPA_LIVE_config-test",
         "CHAPA_WEBHOOK_SECRET" => "webhook-secret",
         "RENDER_PREVIEW" => "true"
       ) do

@@ -7,11 +7,11 @@ require "openssl"
 
 module Payments
   module Providers
-    # Chapa's HTTP contract is isolated here. The adapter and Orders receive
-    # only canonical results, while this client owns Chapa paths, payload
-    # shapes, test/live key validation, money conversion, and webhook HMACs.
+    # Chapa V2 pay-in/refund contract. Domain services receive only the
+    # canonical payment result; V2 paths, payloads, headers, and status
+    # normalization stay behind this adapter seam.
     class ChapaClient
-      DEFAULT_API_BASE_URL = "https://api.chapa.co/v1"
+      DEFAULT_API_BASE_URL = "https://api.chapa.global"
       MODES = %w[test live].freeze
 
       def initialize(secret_key:, webhook_secret:, mode: "test", api_base_url: DEFAULT_API_BASE_URL,
@@ -22,56 +22,47 @@ module Payments
         @callback_url = callback_url.to_s.presence
         @return_url = return_url.to_s.presence
         validate_configuration!
-        @transport = transport || ChapaHttpTransport.new(base_url: api_base_url)
+        @transport = transport || Core::HttpTransport.new(base_url: api_base_url)
       end
 
       def create(**request)
-        payload = {
-          amount: major_amount(request.fetch(:amount_minor)),
-          currency: request.fetch(:currency).to_s.upcase,
-          tx_ref: request.fetch(:idempotency_key),
-          email: request[:email].to_s.strip.presence,
-          first_name: request[:first_name].to_s.strip.presence,
-          last_name: request[:last_name].to_s.strip.presence,
-          phone_number: chapa_phone(request[:phone_number]),
-          callback_url: @callback_url,
-          return_url: @return_url
-        }.compact
-        map_result(post("/transaction/initialize", payload), checkout_url: true)
+        payload = payment_payload(request).merge(
+          preferred_payment_methods: Array(request[:payment_method]).presence
+        ).compact
+        map_result(post("/v2/payments/hosted", payload, idempotency_key: request[:idempotency_key]), checkout_url: true)
+      end
+
+      def direct_charge(**request)
+        payload = payment_payload(request).merge(payment_method: request.fetch(:payment_method).to_s)
+        map_result(post("/v2/payments/direct", payload, idempotency_key: request[:idempotency_key]))
       end
 
       def verify(**request)
         reference = request[:provider_reference].presence || request.fetch(:idempotency_key)
-        map_result(get("/transaction/verify/#{CGI.escape(reference.to_s)}"))
+        map_result(get("/v2/payments/#{CGI.escape(reference.to_s)}/verify"))
       end
 
       def refund(**request)
         payload = {
-          amount: major_amount(request.fetch(:amount_minor)),
-          reference: request.fetch(:idempotency_key)
-        }
-        map_result(post_form("/refund/#{CGI.escape(request.fetch(:provider_reference).to_s)}", payload))
+          payment_reference: request.fetch(:provider_reference),
+          merchant_reference: request.fetch(:idempotency_key),
+          reason: request[:reason].to_s.strip.presence,
+          meta: metadata(request)
+        }.compact
+        payload[:amount] = major_amount(request.fetch(:amount_minor)) unless request[:refund_type] == "payment_reversal"
+        map_result(post("/v2/refunds", payload, idempotency_key: request[:idempotency_key]))
       end
 
       def verify_refund(**request)
-        path = "/refund/#{CGI.escape(request.fetch(:provider_reference).to_s)}/verify"
-        map_result(get(path))
+        reference = request.fetch(:provider_reference)
+        map_result(get("/v2/refunds/#{CGI.escape(reference.to_s)}/verify"))
       end
 
-      def available_balance(**request)
-        response = get("/balances/#{request.fetch(:currency).to_s.downcase}")
-        return unless response.is_a?(Response)
-        return unless response.status.between?(200, 299)
-
-        balance = Array(response.body[:data]).find do |entry|
-          entry[:currency].to_s.upcase == request.fetch(:currency).to_s.upcase
-        end
-        return unless balance
-
-        {
-          amount_minor: minor_amount(balance[:available_balance]),
-          currency: balance[:currency].to_s.upcase
-        }.freeze
+      # V2's public payout contract does not document a merchant-balance
+      # endpoint. A nil result makes the higher-level refund path skip the
+      # optional preflight rather than inventing a balance fact.
+      def available_balance(**)
+        nil
       end
 
       def verify_webhook(payload:, headers:, **_request)
@@ -79,27 +70,55 @@ module Payments
           normalized[normalize_header_key(key)] = value.to_s
         end
         expected = OpenSSL::HMAC.hexdigest("SHA256", @webhook_secret, payload.to_s)
-        %w[chapa-signature x-chapa-signature].any? do |header|
-          secure_equal?(received[header], expected)
-        end
+        return false unless secure_equal?(received["x-chapa-signature"], expected)
+
+        webhook_mode_matches?(payload)
       end
 
       private
 
       Response = Data.define(:status, :body)
 
-      def get(path) = request(:get, path)
-
-      def post(path, payload) = request(:post, path, JSON.generate(payload), "application/json")
-
-      def post_form(path, payload)
-        request(:post, path, URI.encode_www_form(payload), "application/x-www-form-urlencoded")
+      def payment_payload(request)
+        {
+          amount: major_amount(request.fetch(:amount_minor)),
+          currency: request.fetch(:currency).to_s.upcase,
+          merchant_reference: request.fetch(:idempotency_key),
+          customer: customer_payload(request),
+          callback_url: @callback_url,
+          return_url: @return_url,
+          meta: metadata(request)
+        }
       end
 
-      def request(method, path, body = nil, content_type = "application/json")
+      def customer_payload(request)
+        {
+          first_name: request[:first_name].to_s.strip.presence,
+          last_name: request[:last_name].to_s.strip.presence,
+          email: request[:email].to_s.strip.presence,
+          phone_number: chapa_phone(request[:phone_number])
+        }.compact
+      end
+
+      def metadata(request)
+        request[:meta].to_h.merge(
+          payment_id: request[:payment_id],
+          order_id: request[:order_id],
+          billing_purchase_id: request[:billing_purchase_id]
+        ).compact
+      end
+
+      def get(path) = request(:get, path)
+
+      def post(path, payload, idempotency_key: nil)
+        headers = { "Idempotency-Key" => idempotency_key.to_s.presence }.compact
+        request(:post, path, JSON.generate(payload), "application/json", headers:)
+      end
+
+      def request(method, path, body = nil, content_type = "application/json", headers: {})
         response = @transport.call(
           method:, path:, body:,
-          headers: { "Authorization" => "Bearer #{@secret_key}", "Content-Type" => content_type }
+          headers: { "Authorization" => "Bearer #{@secret_key}", "Content-Type" => content_type }.merge(headers)
         )
         Response.new(status: response.status.to_i, body: symbolize(response.body))
       rescue Net::OpenTimeout, Net::ReadTimeout, Timeout::Error
@@ -113,20 +132,22 @@ module Payments
         return Result.unknown(raw_status: "provider_unavailable") if response.status >= 500
 
         data = response.body[:data].to_h
-        status = data[:status].presence || response.body[:status]
-        status = response.status.between?(200, 299) ? "success" : "failure" if status == true
-        status = "failure" if status == false
+        provider_status = data[:status].presence || data[:payment_status].presence || response.body[:status]
+        hosted_checkout = checkout_url && data[:checkout_url].present?
+        status = hosted_checkout ? "pending" : provider_status
         failure_code = failure_code_for(status, data, response.body)
         log_provider_failure(response, status, failure_code)
-        hosted_checkout = checkout_url && data[:checkout_url].present?
         Result.new(
-          status: hosted_checkout ? "pending" : (status || "unknown"),
-          provider_reference: data[:tx_ref].presence || data[:ref_id].presence || data[:reference],
+          status:,
+          provider_reference: data[:chapa_reference].presence || data[:reference].presence ||
+            data[:ref_id].presence || data[:tx_ref].presence,
           failure_code:,
-          provider_fee_minor: minor_amount(data[:charge]),
+          provider_fee_minor: minor_amount(data[:service_fee].presence || data[:charge]),
           provider_fee_currency: data[:currency],
           raw_status: hosted_checkout ? "initialized" : status,
-          checkout_url: checkout_url ? data[:checkout_url] : nil
+          checkout_url: checkout_url ? data[:checkout_url] : nil,
+          auth_type: data[:auth_type],
+          request_id: data[:request_id]
         )
       end
 
@@ -135,17 +156,19 @@ module Payments
       end
 
       def failure_code_for(status, data, body)
-        return if status.to_s == "success"
+        normalized_status = status.to_s.downcase
+        return if normalized_status.in?(%w[
+          success succeeded completed paid pending processing auth_needed otp_needed incomplete unknown
+        ])
 
-        candidate = data[:failure_code].presence || data[:status].presence || body[:status]
+        candidate = data[:failure_code].presence || data.dig(:error, :code).presence ||
+          data[:reason].presence || body.dig(:error, :code).presence || normalized_status
         candidate = "provider_rejected" if candidate.blank? || candidate == false
         candidate.to_s.downcase.gsub(/[^a-z0-9]+/, "_").sub(/\A_+|_+\z/, "")[0, 64]
       end
 
-      # Keep provider rejection diagnostics available without logging the raw
-      # response, which may contain customer or gateway payload data.
       def log_provider_failure(response, status, failure_code)
-        return unless %w[failure failed declined error reversed].include?(status.to_s.downcase)
+        return unless %w[failure failed declined error reversed blocked].include?(status.to_s.downcase)
 
         message = response.body[:message].to_s.gsub(/\s+/, " ").truncate(200)
         Rails.logger.warn(
@@ -156,16 +179,19 @@ module Payments
 
       def major_amount(amount_minor)
         amount = Integer(amount_minor)
-        fail ArgumentError if amount.negative?
+        raise ArgumentError unless amount.positive?
 
-        format("%d.%02d", amount / 100, amount % 100)
+        Core::JsonNumber.new((BigDecimal(amount.to_s) / 100).to_s("F"))
       end
 
       def chapa_phone(value)
         phone = value.to_s.strip
-        phone = phone.sub(/\A\+?251/, "0")
-        phone = "0#{phone}" if phone.match?(/\A[97]\d{8}\z/)
-        phone.presence
+        return if phone.blank?
+        return phone if phone.start_with?("+")
+
+        normalized = phone.sub(/\A00/, "")
+        normalized = normalized.sub(/\A0/, "251") unless normalized.start_with?("251")
+        "+#{normalized}"
       end
 
       def minor_amount(amount)
@@ -178,18 +204,24 @@ module Payments
         left.present? && left.bytesize == right.bytesize && ActiveSupport::SecurityUtils.secure_compare(left, right)
       end
 
-      # Rack exposes inbound headers as HTTP_-prefixed CGI keys. Normalize
-      # those keys before matching Chapa's documented signature names.
+      def webhook_mode_matches?(payload)
+        parsed = JSON.parse(payload.to_s)
+        mode = parsed["mode"].to_s.presence
+        mode.blank? || mode == @mode
+      rescue JSON::ParserError
+        false
+      end
+
       def normalize_header_key(key)
         key.to_s.sub(/\AHTTP_/i, "").downcase.tr("_", "-")
       end
 
       def validate_configuration!
-        fail ArgumentError unless MODES.include?(@mode)
-        fail ArgumentError if @secret_key.blank? || @webhook_secret.blank?
+        raise ArgumentError, I18n.t("payments.providers.errors.invalid_mode", modes: MODES.join(", ")) unless MODES.include?(@mode)
+        raise ArgumentError, I18n.t("payments.providers.errors.secrets_required") if @secret_key.blank? || @webhook_secret.blank?
 
-        prefix = @mode == "test" ? "CHASECK_TEST-" : "CHASECK-"
-        fail ArgumentError unless @secret_key.start_with?(prefix)
+        prefix = @mode == "test" ? "CHAPA_TEST_" : "CHAPA_LIVE_"
+        raise ArgumentError, I18n.t("payments.providers.errors.secret_prefix", mode: @mode, prefix:) unless @secret_key.start_with?(prefix)
       end
     end
   end

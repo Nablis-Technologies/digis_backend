@@ -16,6 +16,8 @@ module Payments
 
       def create(**request) = delegate(:create, **request)
 
+      def direct_charge(**request) = delegate(:direct_charge, **request)
+
       def cancel(**request) = delegate(:cancel, **request)
 
       def verify(**request) = delegate(:verify, **request)

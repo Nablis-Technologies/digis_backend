@@ -30,7 +30,8 @@ module Payments
             ),
             capabilities: {
               currencies: %w[ETB USD],
-              payment_methods: %w[telebirr card bank],
+              payment_methods: %w[telebirr cbebirr mpesa awashbirr ebirr enat_bank card bank],
+              direct_charge: { supported: true, payment_methods: %w[telebirr cbebirr mpesa awashbirr] },
               cancel: false,
               refunds: { supported: true, partial: true, fee_estimate_minor: 0 }
             }
