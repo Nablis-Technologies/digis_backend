@@ -62,7 +62,7 @@ module Finance
       assert_equal(-@payout.amount_minor, payout_entry.amount_minor)
       assert_equal 1, Finance::LedgerEntry.where(idempotency_key: "finance-payout-#{@payout.id}").count
       assert_equal "1000000000001", @adapter.payout_requests.sole.fetch(:account_number)
-      assert_equal 128, @adapter.payout_requests.sole.fetch(:bank_code)
+      assert_equal "cbe", @adapter.payout_requests.sole.fetch(:bank_slug)
 
       second = Finance::DispatchPayout.call(payout: @payout, adapter: @adapter, at: @now)
       assert_predicate second, :success?, second.error&.message

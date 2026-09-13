@@ -6,12 +6,13 @@ module Finance
   module PayoutAccounts
     class RegisterTest < ActiveSupport::TestCase
       class FakeAdapter < Finance::PayoutProviders::Adapter
-        attr_reader :verification_requests
+        attr_reader :verification_requests, :bank_requests
         attr_accessor :banks
 
         def initialize(result)
           @result = result
           @verification_requests = []
+          @bank_requests = []
           @banks = nil
         end
 
@@ -20,7 +21,8 @@ module Finance
           @result
         end
 
-        def available_banks(**)
+        def available_banks(**request)
+          bank_requests << request
           banks
         end
       end
@@ -32,7 +34,7 @@ module Finance
           organization: @organization,
           type: "bank",
           provider: "chapa",
-          bank_code: 128,
+          bank_slug: "cbe",
           account_number: "1000000000001",
           account_name: "Digis Organizer",
           account_label: "Primary account",
@@ -50,7 +52,8 @@ module Finance
         assert_predicate result.value, :verified?
         assert_equal "provider", result.value.verification_source
         assert_equal "1000000000001", adapter.verification_requests.sole.fetch(:account_number)
-        assert_equal 128, adapter.verification_requests.sole.fetch(:bank_code)
+        assert_equal "cbe", adapter.verification_requests.sole.fetch(:bank_slug)
+        assert_equal [ { country: "ET" } ], adapter.bank_requests
       end
 
       test "leaves the account pending when provider verification is unsupported" do
@@ -100,14 +103,23 @@ module Finance
         assert_equal 1, adapter.verification_requests.length
       end
 
-      test "rejects a bank code absent from the provider bank list" do
+      test "rejects a bank slug absent from the provider bank list" do
         adapter = FakeAdapter.new(Finance::PayoutProviders::Result.success)
-        adapter.banks = [ 999 ]
+        adapter.banks = [ { bank_slug: "other" } ]
 
         result = Register.call(**@attributes, adapter:)
 
         assert_predicate result, :failure?
         assert_equal "payout_account_bank_unsupported", result.error.code
+      end
+
+      test "matches provider bank slugs case-insensitively" do
+        adapter = FakeAdapter.new(Finance::PayoutProviders::Result.success)
+        adapter.banks = [ { bank_slug: "CBE" } ]
+
+        result = Register.call(**@attributes, adapter:)
+
+        assert_predicate result, :success?, result.error&.message
       end
     end
   end

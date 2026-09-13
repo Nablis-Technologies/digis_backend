@@ -26,7 +26,7 @@ module Finance
         payout_id: gate_result.value.id,
         account_number: gate_result.value.payout_account.account_number,
         account_name: gate_result.value.payout_account.account_name,
-        bank_code: gate_result.value.payout_account.bank_code
+        bank_slug: gate_result.value.payout_account.bank_slug
       ))
       mark_payout_account_used!(gate_result.value)
       handle_provider_result(result)

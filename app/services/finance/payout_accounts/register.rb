@@ -7,13 +7,13 @@ module Finance
     class Register < Core::BaseService
       include CommandSupport
 
-      def initialize(organization:, type:, provider:, bank_code:, account_number:,
+      def initialize(organization:, type:, provider:, bank_slug:, account_number:,
         account_name: nil, account_label: nil, adapter:, idempotency_key:,
         actor: nil, verification_source: nil, at: Time.current)
         @organization = organization
         @type = type.to_s.strip.downcase
         @provider = provider.to_s.strip.downcase
-        @bank_code = bank_code
+        @bank_slug = bank_slug.to_s.strip.downcase
         @account_number = account_number.to_s.strip
         @account_name = account_name.to_s.strip.presence
         @account_label = account_label.to_s.strip.presence
@@ -30,7 +30,7 @@ module Finance
         request_digest = command_request_digest(
           operation: "register", account_id: nil, actor:,
           identity: {
-            organization_id: organization&.id, type:, provider:, bank_code: bank_code.to_i,
+            organization_id: organization&.id, type:, provider:, bank_slug:,
             account_number:, account_name:, account_label:, verification_source:
           }
         )
@@ -38,7 +38,7 @@ module Finance
         return replay if replay
 
         return failure(input_error) unless valid_input_shape?
-        return failure(bank_error) unless bank_code_supported?
+        return failure(bank_error) unless bank_slug_supported?
         return failure(input_error) if fixture_source? && !fixture_allowed?
 
         verification = verification_result(key)
@@ -58,7 +58,7 @@ module Finance
 
       private
 
-      attr_reader :organization, :type, :provider, :bank_code, :account_number,
+      attr_reader :organization, :type, :provider, :bank_slug, :account_number,
         :account_name, :account_label, :adapter, :idempotency_key, :actor,
         :verification_source, :at
 
@@ -66,7 +66,7 @@ module Finance
         organization.present? &&
           PayoutAccount::TYPES.include?(type) &&
           PayoutAccount::PROVIDERS.include?(provider) &&
-          bank_code.to_i.positive? &&
+          bank_slug.match?(/\A[a-z0-9][a-z0-9_-]*\z/) &&
           account_number.present? &&
           (verification_source.blank? || verification_source == "test_fixture")
       end
@@ -79,12 +79,14 @@ module Finance
         Rails.env.test? || Rails.env.development? || ENV["RENDER_PREVIEW"] == "true"
       end
 
-      def bank_code_supported?
-        banks = adapter.available_banks
+      def bank_slug_supported?
+        banks = adapter.available_banks(country: "ET")
         # A provider outage is unknown, not proof that every bank is valid.
         return true if banks.nil?
 
-        banks.include?(bank_code.to_i)
+        banks.any? do |bank|
+          bank.to_h.deep_symbolize_keys[:bank_slug].to_s.downcase == bank_slug.downcase
+        end
       end
 
       def verification_result(key)
@@ -92,7 +94,7 @@ module Finance
 
         Finance::PayoutProviders::Result.from_provider_response(
           adapter.verify_payout_account(
-            account_number:, account_name:, bank_code: bank_code.to_i,
+            account_number:, account_name:, bank_slug:,
             idempotency_key: key.to_s
           )
         )
@@ -107,7 +109,7 @@ module Finance
           return conflict_error if existing
 
           account = PayoutAccount.new(
-            organization:, type:, provider:, bank_code: bank_code.to_i,
+            organization:, type:, provider:, bank_slug:,
             account_number:, account_name:, account_label:,
             account_number_digest: digest,
             **verification_attributes(verification)

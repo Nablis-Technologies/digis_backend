@@ -202,7 +202,7 @@ module Finance
           organization: @organization,
           type: "bank",
           provider: "chapa",
-          bank_code: 128,
+          bank_slug: "cbe",
           account_number: number,
           account_name: "Digis Organizer",
           account_number_digest: Core::KeyedDigest.digest(
