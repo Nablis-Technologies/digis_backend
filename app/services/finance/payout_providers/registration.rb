@@ -2,7 +2,7 @@
 
 module Finance
   module PayoutProviders
-    # Registers Chapa transfers only when payout dispatch is explicitly enabled.
+    # Registers Chapa V2 payouts only when payout dispatch is explicitly enabled.
     # Preview environments accept test credentials and never live payout keys.
     class Registration
       class << self
@@ -29,14 +29,15 @@ module Finance
 
         def chapa_adapter(env:, mode:, secret_key:)
           ChapaAdapter.new(
-            client: ChapaTransferClient.new(
+            client: ChapaPayoutClient.new(
               secret_key:,
               mode:,
-              api_base_url: env.fetch("CHAPA_API_BASE_URL", ChapaTransferClient::DEFAULT_API_BASE_URL)
+              api_base_url: env.fetch("CHAPA_API_BASE_URL", ChapaPayoutClient::DEFAULT_API_BASE_URL)
             ),
             capabilities: {
               currencies: %w[ETB USD],
               payouts: { supported: true },
+              balance_api: { supported: false },
               transfer_verification: true
             }
           )

@@ -46,7 +46,7 @@ module Finance
         adapter = ChapaAdapter.new(client: FakeClient.new)
 
         result = adapter.verify_payout_account(
-          account_number: "1000000000001", bank_code: 128, currency: "ETB"
+          account_number: "1000000000001", bank_slug: "cbe", currency: "ETB"
         )
 
         assert_predicate result, :unknown?

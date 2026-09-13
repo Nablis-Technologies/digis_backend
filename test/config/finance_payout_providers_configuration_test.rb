@@ -11,12 +11,12 @@ class FinancePayoutProvidersConfigurationTest < ActiveSupport::TestCase
     Finance::PayoutProviders::Registry.instance_variable_set(:@adapters, {})
   end
 
-  test "registers Chapa transfers only when payment and payout integration are enabled" do
+  test "registers Chapa V2 payouts only when payment and payout integration are enabled" do
     with_env(
       "CHAPA_ENABLED" => "true",
       "CHAPA_PAYOUT_ENABLED" => "true",
       "CHAPA_MODE" => "test",
-      "CHAPA_SECRET_KEY" => "CHASECK_TEST-payout-config-test",
+      "CHAPA_SECRET_KEY" => "CHAPA_TEST_payout-config-test",
       "RENDER_PREVIEW" => "true"
     ) do
       Finance::PayoutProviders::Registration.call(env: ENV)
@@ -25,14 +25,15 @@ class FinancePayoutProvidersConfigurationTest < ActiveSupport::TestCase
     adapter = Finance::PayoutProviders::Registry.fetch("chapa")
     assert_equal %w[ETB USD], adapter.capabilities.fetch(:currencies)
     assert_equal({ supported: true }, adapter.capabilities.fetch(:payouts))
+    assert_equal({ supported: false }, adapter.capabilities.fetch(:balance_api))
   end
 
-  test "does not register Chapa transfers when payout integration is disabled" do
+  test "does not register Chapa payouts when payout integration is disabled" do
     with_env(
       "CHAPA_ENABLED" => "true",
       "CHAPA_PAYOUT_ENABLED" => "false",
       "CHAPA_MODE" => "test",
-      "CHAPA_SECRET_KEY" => "CHASECK_TEST-payout-config-test",
+      "CHAPA_SECRET_KEY" => "CHAPA_TEST_payout-config-test",
       "RENDER_PREVIEW" => "true"
     ) do
       Finance::PayoutProviders::Registration.call(env: ENV)
@@ -61,7 +62,7 @@ class FinancePayoutProvidersConfigurationTest < ActiveSupport::TestCase
         "CHAPA_ENABLED" => "true",
         "CHAPA_PAYOUT_ENABLED" => "true",
         "CHAPA_MODE" => "live",
-        "CHAPA_SECRET_KEY" => "CHASECK-live-payout-config-test",
+        "CHAPA_SECRET_KEY" => "CHAPA_LIVE_payout-config-test",
         "RENDER_PREVIEW" => "true"
       ) do
         Finance::PayoutProviders::Registration.call(env: ENV)
