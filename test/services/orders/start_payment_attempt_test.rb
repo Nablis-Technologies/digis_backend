@@ -152,6 +152,21 @@ module Orders
       assert_equal 2, second.value.attempt_number
     end
 
+    test "persists a missing hosted checkout URL as a retryable failed attempt" do
+      @chapa.result = Payments::Providers::Result.failure(
+        failure_code: "checkout_url_missing", raw_status: "checkout_url_missing"
+      )
+
+      first = start(provider: "chapa", payment_method: "telebirr", key: "missing-checkout")
+      replay = start(provider: "chapa", payment_method: "telebirr", key: "missing-checkout")
+
+      assert_predicate first, :success?, first.error&.message
+      assert_equal "failed", first.value.status
+      assert_equal "checkout_url_missing", first.value.failure_code
+      assert_equal first.value.id, replay.value.id
+      assert_equal 1, @chapa.create_calls.length
+    end
+
     test "rejects a request from a different buyer" do
       result = Orders::StartPaymentAttempt.call(
         order: @order,

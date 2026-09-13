@@ -55,6 +55,21 @@ module Payments
         assert_equal({}, JSON.parse(transport.requests.sole.fetch(:body)).fetch("customer"))
       end
 
+      test "does not send the internal payment method as an undocumented hosted preference" do
+        transport = FakeTransport.new(
+          Response.new(status: 200, body: {
+            status: "success", data: { checkout_url: "https://checkout.chapa.test/attempt-2" }
+          })
+        )
+
+        build_client(transport:).create(
+          amount_minor: 1_200, currency: "ETB", idempotency_key: "attempt-2", payment_method: "telebirr"
+        )
+
+        payload = JSON.parse(transport.requests.sole.fetch(:body))
+        assert_not payload.key?("preferred_payment_methods")
+      end
+
       test "initializes a V2 direct charge with an authentication state" do
         transport = FakeTransport.new(
           Response.new(status: 200, body: {
@@ -136,6 +151,19 @@ module Payments
         assert_predicate result, :failure?
         assert_equal "amount_precision_unsupported", result.failure_code
         assert_empty transport.requests
+      end
+
+      test "fails a hosted initialization that does not return a checkout URL" do
+        transport = FakeTransport.new(
+          Response.new(status: 200, body: { status: "success", data: { status: "processing" } })
+        )
+
+        result = build_client(transport:).create(
+          amount_minor: 1_200, currency: "ETB", idempotency_key: "missing-checkout-url"
+        )
+
+        assert_predicate result, :failure?
+        assert_equal "checkout_url_missing", result.failure_code
       end
 
       test "verifies a V2 payment and normalizes the provider fee" do

@@ -25,12 +25,13 @@ module Payments
         @transport = transport || Core::HttpTransport.new(base_url: api_base_url)
       end
 
+      # Hosted checkout owns payment-method selection. Chapa documents the
+      # preference field as optional but does not publish its wire shape, and
+      # the live V2 endpoint rejected the string array used by the old client.
       def create(**request)
         return unsupported_amount_result if fractional_etb_amount?(request[:amount_minor], request[:currency])
 
-        payload = payment_payload(request).merge(
-          preferred_payment_methods: Array(request[:payment_method]).presence
-        ).compact
+        payload = payment_payload(request)
         map_result(post("/v2/payments/hosted", payload, idempotency_key: request[:idempotency_key]), checkout_url: true)
       end
 
@@ -141,6 +142,8 @@ module Payments
         return Result.unknown(raw_status: "provider_unavailable") if response.status >= 500
 
         data = response.body[:data].to_h
+        return missing_checkout_url_result(response) if checkout_url && response.status.between?(200, 299) && !valid_checkout_url?(data[:checkout_url])
+
         provider_status = data[:status].presence || data[:payment_status].presence || response.body[:status]
         hosted_checkout = checkout_url && data[:checkout_url].present?
         status = hosted_checkout ? "pending" : provider_status
@@ -158,6 +161,15 @@ module Payments
           auth_type: data[:auth_type],
           request_id: data[:request_id]
         )
+      end
+
+      def missing_checkout_url_result(response)
+        Rails.logger.warn("Chapa hosted initialization returned no checkout_url status_code=#{response.status}")
+        Result.failure(failure_code: "checkout_url_missing", raw_status: "checkout_url_missing")
+      end
+
+      def valid_checkout_url?(value)
+        value.to_s.match?(/\Ahttps:\/\/\S+\z/)
       end
 
       def symbolize(value)
