@@ -33,6 +33,13 @@ module Admin
         end
       end
 
+      test "platform admin can list seller payouts" do
+        get "/admin/marketplace/seller_payouts", headers: admin_headers, as: :json
+
+        assert_response :success
+        assert_equal [ @payout.id ], response.parsed_body.fetch("data").map { |row| row.fetch("id") }
+      end
+
       test "provider lookup failure prevents the payout command from running" do
         ::Marketplace::PayoutProviders::Registry.expects(:fetch).with("chapa").raises(KeyError)
         ::Marketplace::DispatchSellerPayout.expects(:call).never

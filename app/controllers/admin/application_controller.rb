@@ -11,9 +11,10 @@ module Admin
       record
     end
 
-    def policy_scope(scope)
+    def policy_scope(scope, policy_scope_class: nil)
       admin_policy = resolve_admin_policy(scope)
-      admin_policy.class::Scope.new(pundit_user, scope).resolve
+      scope_class = policy_scope_class || admin_policy.class::Scope
+      scope_class.new(pundit_user, scope).resolve
     rescue NameError
       Core::ApplicationPolicy::Scope.new(pundit_user, scope).resolve
     end

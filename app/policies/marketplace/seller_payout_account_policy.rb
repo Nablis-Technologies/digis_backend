@@ -5,7 +5,7 @@ module Marketplace
   # beneficiary credentials are never part of this policy's visible fields.
   class SellerPayoutAccountPolicy < Core::ApplicationPolicy
     SAFE_FIELDS = %i[
-      id user_id type provider bank_code account_label status verification_source
+      id user_id type provider bank_slug account_label status verification_source
       is_default verified_at last_used_at created_at updated_at
     ].freeze
 

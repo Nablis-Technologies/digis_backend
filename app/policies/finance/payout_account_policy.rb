@@ -5,7 +5,7 @@ module Finance
   # The policy never exposes encrypted beneficiary values.
   class PayoutAccountPolicy < Core::ApplicationPolicy
     SAFE_FIELDS = %i[
-      id organization_id type provider bank_code account_label status
+      id organization_id type provider bank_slug account_label status
       verification_source is_default verified_at last_used_at created_at updated_at
     ].freeze
 
