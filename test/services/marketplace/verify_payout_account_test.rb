@@ -7,11 +7,12 @@ module Marketplace
     include SellerPayoutTestHelpers
 
     class FakeAdapter < Marketplace::PayoutProviders::Adapter
-      attr_reader :verify_requests
+      attr_reader :verify_requests, :bank_requests
       attr_accessor :banks, :verification_result
 
       def initialize
         @verify_requests = []
+        @bank_requests = []
         @banks = nil
         @verification_result = Marketplace::PayoutProviders::Result.success(
           provider_reference: "account-verification-1"
@@ -23,7 +24,10 @@ module Marketplace
         verification_result
       end
 
-      def available_banks = banks
+      def available_banks(**request)
+        @bank_requests << request
+        banks
+      end
 
       def payout(**) = Marketplace::PayoutProviders::Result.unknown(raw_status: "unused")
 
@@ -44,7 +48,7 @@ module Marketplace
         user: @seller,
         type: "bank",
         provider: "chapa",
-        bank_code: 128,
+        bank_slug: "cbe",
         account_number: "1000000000005",
         account_label: "Telebirr wallet",
         holder_name: "Seller Holder",
@@ -57,7 +61,7 @@ module Marketplace
       account = result.value
       assert_equal "verified", account.status
       assert_equal "1000000000005", account.account_number
-      assert_equal 128, account.bank_code
+      assert_equal "cbe", account.bank_slug
       assert_equal "Seller Holder", account.holder_name
       assert_equal "Telebirr wallet", account.account_label
       stored = SellerPayoutAccount.connection.select_value(
@@ -68,7 +72,8 @@ module Marketplace
       refute_includes SellerPayoutAccount.ransackable_attributes, "account_number_digest"
       refute_includes SellerPayoutAccount.ransackable_attributes, "holder_name_ciphertext"
       assert_equal "1000000000005", @adapter.verify_requests.first.fetch(:account_number)
-      assert_equal 128, @adapter.verify_requests.first.fetch(:bank_code)
+      assert_equal "cbe", @adapter.verify_requests.first.fetch(:bank_slug)
+      assert_equal [ { country: "ET" } ], @adapter.bank_requests
     end
 
     test "returns an unresolved account as pending without marking it verified" do
@@ -78,7 +83,7 @@ module Marketplace
         user: @seller,
         type: "bank",
         provider: "chapa",
-        bank_code: 128,
+        bank_slug: "cbe",
         account_number: "1000000000002",
         account_label: "Pending wallet",
         holder_name: "Seller Holder",
@@ -99,7 +104,7 @@ module Marketplace
         user: @seller,
         type: "bank",
         provider: "chapa",
-        bank_code: 128,
+        bank_slug: "cbe",
         account_number: "1000000000003",
         account_label: "Replay wallet",
         holder_name: "Seller Holder",
@@ -117,14 +122,14 @@ module Marketplace
       assert_equal 1, @adapter.verify_requests.size
     end
 
-    test "rejects a bank code absent from the provider bank list" do
-      @adapter.banks = [ 999 ]
+    test "rejects a bank slug absent from the provider bank list" do
+      @adapter.banks = [ { bank_slug: "other" } ]
 
       result = VerifyPayoutAccount.call(
         user: @seller,
         type: "bank",
         provider: "chapa",
-        bank_code: 128,
+        bank_slug: "cbe",
         account_number: "1000000000004",
         holder_name: "Seller Holder",
         adapter: @adapter,
@@ -138,12 +143,30 @@ module Marketplace
       assert_not SellerPayoutAccount.exists?(user: @seller, account_number_digest: digest)
     end
 
+    test "matches provider bank slugs case-insensitively" do
+      @adapter.banks = [ { bank_slug: "CBE" } ]
+
+      result = VerifyPayoutAccount.call(
+        user: @seller,
+        type: "bank",
+        provider: "chapa",
+        bank_slug: "cbe",
+        account_number: "1000000000018",
+        holder_name: "Seller Holder",
+        adapter: @adapter,
+        idempotency_key: "verify-account-bank-case",
+        at: @now
+      )
+
+      assert_predicate result, :success?, result.error&.message
+    end
+
     test "allows a guarded test fixture to be verified without a provider call" do
       result = VerifyPayoutAccount.call(
         user: @seller,
         type: "bank",
         provider: "chapa",
-        bank_code: 128,
+        bank_slug: "cbe",
         account_number: "1000000000014",
         holder_name: "Preview Seller",
         adapter: @adapter,
@@ -165,12 +188,12 @@ module Marketplace
     end
 
     test "replays a registration before consulting a changed bank list" do
-      @adapter.banks = [ 128 ]
+      @adapter.banks = [ { bank_slug: "cbe" } ]
       arguments = {
         user: @seller,
         type: "bank",
         provider: "chapa",
-        bank_code: 128,
+        bank_slug: "cbe",
         account_number: "1000000000016",
         holder_name: "Replay Seller",
         adapter: @adapter,
@@ -179,7 +202,7 @@ module Marketplace
       }
 
       first = VerifyPayoutAccount.call(**arguments)
-      @adapter.banks = [ 999 ]
+      @adapter.banks = [ { bank_slug: "other" } ]
       replay = VerifyPayoutAccount.call(**arguments)
 
       assert_predicate first, :success?, first.error&.message
@@ -197,7 +220,7 @@ module Marketplace
         user: @seller,
         type: "bank",
         provider: "chapa",
-        bank_code: 128,
+        bank_slug: "cbe",
         account_number: "1000000000017",
         holder_name: "Rejected Seller",
         adapter: @adapter,
@@ -219,7 +242,7 @@ module Marketplace
         user: @seller,
         type: "bank",
         provider: "chapa",
-        bank_code: 128,
+        bank_slug: "cbe",
         account_number: "1000000000018",
         holder_name: "Retry Seller",
         adapter: @adapter,
@@ -244,7 +267,7 @@ module Marketplace
         user: @seller,
         type: "bank",
         provider: "chapa",
-        bank_code: 128,
+        bank_slug: "cbe",
         account_number: "1000000000019",
         holder_name: "Conflict Seller",
         adapter: @adapter,
@@ -261,7 +284,7 @@ module Marketplace
         user: @seller,
         type: "bank",
         provider: "chapa",
-        bank_code: 128,
+        bank_slug: "cbe",
         account_number: "1000000000021",
         holder_name: "Replay Seller",
         adapter: @adapter,
@@ -282,7 +305,7 @@ module Marketplace
         user: nil,
         type: "bank",
         provider: "chapa",
-        bank_code: 128,
+        bank_slug: "cbe",
         account_number: "1000000000020",
         holder_name: "Missing Seller",
         adapter: @adapter,

@@ -9,12 +9,13 @@ module Marketplace
 
     class FakeAdapter < Marketplace::PayoutProviders::Adapter
       attr_reader :payout_requests, :verify_requests
-      attr_accessor :payout_result, :verify_result, :balance
+      attr_accessor :payout_result, :verify_result, :balance, :balance_api_supported
 
       def initialize
         @payout_requests = []
         @verify_requests = []
         @balance = { amount_minor: 100_000, currency: "ETB" }
+        @balance_api_supported = true
         @payout_result = Marketplace::PayoutProviders::Result.success(
           provider_reference: "seller-payout-reference-1"
         )
@@ -35,7 +36,9 @@ module Marketplace
 
       def available_balance(**) = balance
 
-      def capabilities = { payouts: { supported: true } }
+      def capabilities = {
+        payouts: { supported: true }, balance_api: { supported: balance_api_supported }
+      }
     end
 
     setup do
@@ -66,7 +69,7 @@ module Marketplace
       request = @adapter.payout_requests.fetch(0)
       assert_equal @account.account_number, request.fetch(:account_number)
       assert_equal @account.holder_name, request.fetch(:account_name)
-      assert_equal @account.bank_code, request.fetch(:bank_code)
+      assert_equal @account.bank_slug, request.fetch(:bank_slug)
       assert_equal @payout.idempotency_key, request.fetch(:idempotency_key)
       assert_equal @payout.id, request.fetch(:payout_id)
       refute request.key?(:destination_token)
@@ -124,6 +127,17 @@ module Marketplace
       assert_equal "seller_payout_provider_reserve_breach", result.error.code
       assert_equal "pending", @payout.reload.status
       assert_empty @adapter.payout_requests
+    end
+
+    test "dispatches when V2 has no documented balance API" do
+      @adapter.balance = nil
+      @adapter.balance_api_supported = false
+
+      result = DispatchSellerPayout.call(payout: @payout, adapter: @adapter, at: @now)
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "succeeded", @payout.reload.status
+      assert_equal 1, @adapter.payout_requests.size
     end
   end
 end

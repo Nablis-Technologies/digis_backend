@@ -45,7 +45,7 @@ module Marketplace
         payout_id: payout.id,
         account_number: account.account_number,
         account_name: account.holder_name,
-        bank_code: account.bank_code
+        bank_slug: account.bank_slug
       }
     end
 
@@ -94,6 +94,7 @@ module Marketplace
 
       balance_result = provider_balance(adapter, payout.currency)
       return balance_result.error if balance_result.failure?
+      return nil if balance_result.value[:balance_api_supported] == false
 
       target = provider_reserve_target(provider: payout.provider, currency: payout.currency)
       return payout_error(:seller_payout_provider_reserve_breach) if balance_result.value.fetch(:amount_minor) < payout.amount_minor + target

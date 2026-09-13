@@ -54,6 +54,11 @@ module Marketplace
     end
 
     def provider_balance(adapter, currency)
+      capabilities = adapter.capabilities.to_h.deep_symbolize_keys
+      if capabilities.dig(:balance_api, :supported) == false
+        return success(balance_api_supported: false, currency: currency)
+      end
+
       balance = adapter.available_balance(currency:)
       return failure(payout_error(:seller_payout_provider_unavailable)) if balance.nil?
 

@@ -7,13 +7,13 @@ module Marketplace
   class VerifyPayoutAccount < Core::BaseService
     include SellerPayoutAccounts::CommandSupport
 
-    def initialize(user:, type:, provider:, bank_code:, account_number:, account_label: nil,
+    def initialize(user:, type:, provider:, bank_slug:, account_number:, account_label: nil,
       holder_name: nil, adapter:, idempotency_key:, verification_source: nil, at: Time.current)
       @user = user
       @user_id = user&.id
       @type = type.to_s.strip.downcase
       @provider = provider.to_s.strip.downcase
-      @bank_code = bank_code.to_i
+      @bank_slug = bank_slug.to_s.strip.downcase
       @account_number = account_number.to_s.strip
       @account_label = account_label.to_s.strip.presence
       @holder_name = holder_name.to_s.strip.presence
@@ -32,7 +32,7 @@ module Marketplace
         return replay if replay
       end
       return failure(input_error) unless valid_input?
-      return failure(bank_error) unless bank_code_supported?
+      return failure(bank_error) unless bank_slug_supported?
 
       verification = verification_result(key)
       return failure(verification_failed_error(verification)) if verification.failure? || verification.cancelled?
@@ -60,12 +60,12 @@ module Marketplace
 
     private
 
-    attr_reader :user, :user_id, :type, :provider, :bank_code, :account_number, :account_label,
+    attr_reader :user, :user_id, :type, :provider, :bank_slug, :account_number, :account_label,
       :holder_name, :adapter, :idempotency_key, :verification_source, :at
 
     def valid_input?
       SellerPayoutAccount::TYPES.include?(type) && SellerPayoutAccount::PROVIDERS.include?(provider) &&
-        bank_code.to_i.positive? && account_number.present? && holder_name.present? &&
+        bank_slug.match?(/\A[a-z0-9][a-z0-9_-]*\z/) && account_number.present? && holder_name.present? &&
         user.present? &&
         (verification_source.blank? || verification_source == "test_fixture") &&
         (verification_source != "test_fixture" || fixture_allowed?)
@@ -85,9 +85,11 @@ module Marketplace
       )
     end
 
-    def bank_code_supported?
-      banks = adapter.available_banks
-      banks.nil? || banks.include?(bank_code.to_i)
+    def bank_slug_supported?
+      banks = adapter.available_banks(country: "ET")
+      banks.nil? || banks.any? do |bank|
+        bank.to_h.deep_symbolize_keys[:bank_slug].to_s.downcase == bank_slug.downcase
+      end
     end
 
     def fixture_allowed?
@@ -98,7 +100,7 @@ module Marketplace
       command_request_digest(
         operation: "register", account_id: nil, actor: user,
         identity: {
-          type:, provider:, bank_code: bank_code.to_i,
+          type:, provider:, bank_slug:,
           account_number_digest: account_digest, account_label:, holder_name:
         }
       )
@@ -112,7 +114,7 @@ module Marketplace
       return Marketplace::PayoutProviders::Result.success(raw_status: "test_fixture") if verification_source == "test_fixture"
 
       normalize_provider_result(adapter.verify_payout_account(
-        account_number:, account_name: holder_name, bank_code:, type:, provider:,
+        account_number:, account_name: holder_name, bank_slug:, type:, provider:,
         idempotency_key: key.to_s
       ))
     end
@@ -129,7 +131,7 @@ module Marketplace
         end
 
         account = SellerPayoutAccount.new(
-          user:, type:, provider:, bank_code: bank_code.to_i, account_number:,
+          user:, type:, provider:, bank_slug:, account_number:,
           account_number_digest: digest, account_label:, holder_name:,
           **verification_attributes(verification), is_default: false
         )
