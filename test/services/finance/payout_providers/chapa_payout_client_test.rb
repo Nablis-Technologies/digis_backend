@@ -49,7 +49,7 @@ module Finance
         assert_equal "Bearer CHAPA_TEST_secret", request.dig(:headers, "Authorization")
         assert_equal "seller-payout-v2-1", request.dig(:headers, "Idempotency-Key")
         payload = JSON.parse(request.fetch(:body))
-        assert_equal 12, payload.fetch("amount")
+        assert_equal 1_200, payload.fetch("amount")
         assert_equal "seller-payout-v2-1", payload.fetch("merchant_reference")
         assert_equal "cbe", payload.dig("account", "bank_slug")
       end
@@ -62,24 +62,27 @@ module Finance
           bank_slug: "cbe", idempotency_key: "large-payout"
         )
 
-        assert_includes transport.requests.sole.fetch(:body), '"amount":9007199254740993'
+        assert_includes transport.requests.sole.fetch(:body), '"amount":900719925474099300'
       end
 
       test "does not advertise bulk payout while returning scalar results" do
         assert_nil build_client.capabilities.dig(:payouts, :bulk)
       end
 
-      test "rejects a fractional ETB payout before provider I/O" do
-        transport = FakeTransport.new
+      test "sends fractional ETB payouts as integer minor units" do
+        transport = FakeTransport.new(
+          Response.new(status: 200, body: {
+            status: "success", data: { chapa_reference: "PAYOUT-V2-FRACTIONAL", status: "pending" }
+          })
+        )
 
         result = build_client(transport:).payout(
           amount_minor: 513, currency: "ETB", account_number: "1000000000001",
           bank_slug: "cbe", idempotency_key: "fractional-payout"
         )
 
-        assert_predicate result, :failure?
-        assert_equal "amount_precision_unsupported", result.failure_code
-        assert_empty transport.requests
+        assert_predicate result, :unknown?
+        assert_equal 513, JSON.parse(transport.requests.sole.fetch(:body)).fetch("amount")
       end
 
       test "reports actionable errors for invalid V2 payout configuration" do

@@ -41,7 +41,7 @@ module Payments
         assert_equal "Bearer CHAPA_TEST_secret", request.dig(:headers, "Authorization")
         assert_equal "attempt-1", request.dig(:headers, "Idempotency-Key")
         payload = JSON.parse(request.fetch(:body))
-        assert_equal 12, payload.fetch("amount")
+        assert_equal 1_200, payload.fetch("amount")
         assert_equal "attempt-1", payload.fetch("merchant_reference")
         assert_equal "buyer@example.com", payload.dig("customer", "email")
         assert_equal "+251911000000", payload.dig("customer", "phone_number")
@@ -91,6 +91,13 @@ module Payments
         assert_equal "telebirr", JSON.parse(transport.requests.sole.fetch(:body)).fetch("payment_method")
       end
 
+      test "returns a typed failure for the deferred hosted cancellation operation" do
+        result = build_client.cancel(payment_id: "payment-1", idempotency_key: "cancel-1")
+
+        assert_predicate result, :failure?
+        assert_equal "cancellation_unsupported", result.failure_code
+      end
+
       test "does not parse an untrusted webhook before checking its signature" do
         original_parse = JSON.method(:parse)
         parse_called = false
@@ -113,7 +120,7 @@ module Payments
           amount_minor: 900_719_925_474_099_300, currency: "ETB", idempotency_key: "large-amount"
         )
 
-        assert_includes transport.requests.sole.fetch(:body), '"amount":9007199254740993'
+        assert_includes transport.requests.sole.fetch(:body), '"amount":900719925474099300'
       end
 
       test "uses the shared Core transport by default" do
@@ -141,16 +148,19 @@ module Payments
         end
       end
 
-      test "rejects a fractional ETB amount before provider I/O" do
-        transport = FakeTransport.new
+      test "sends fractional ETB amounts as integer minor units" do
+        transport = FakeTransport.new(
+          Response.new(status: 200, body: {
+            status: "success", data: { checkout_url: "https://checkout.chapa.test/fractional" }
+          })
+        )
 
         result = build_client(transport:).create(
           amount_minor: 513, currency: "ETB", idempotency_key: "fractional-amount"
         )
 
-        assert_predicate result, :failure?
-        assert_equal "amount_precision_unsupported", result.failure_code
-        assert_empty transport.requests
+        assert_predicate result, :unknown?
+        assert_equal 513, JSON.parse(transport.requests.sole.fetch(:body)).fetch("amount")
       end
 
       test "fails a hosted initialization that does not return a checkout URL" do
@@ -164,6 +174,22 @@ module Payments
 
         assert_predicate result, :failure?
         assert_equal "checkout_url_missing", result.failure_code
+      end
+
+      test "maps a Chapa HTTP rejection into a typed provider failure" do
+        transport = FakeTransport.new(
+          Response.new(status: 400, body: {
+            status: "error", message: "Invalid amount", error: { code: "invalid_format" }
+          })
+        )
+
+        result = build_client(transport:).create(
+          amount_minor: 513, currency: "ETB", idempotency_key: "provider-rejection"
+        )
+
+        assert_predicate result, :failure?
+        assert_equal "invalid_format", result.failure_code
+        assert_equal "provider_rejected", result.raw_status
       end
 
       test "verifies a V2 payment and normalizes the provider fee" do
@@ -233,7 +259,7 @@ module Payments
         assert_equal "refund-2", request.dig(:headers, "Idempotency-Key")
         payload = JSON.parse(request.fetch(:body))
         assert_equal "CHV2-payment-1", payload.fetch("payment_reference")
-        assert_equal 1.0, payload.fetch("amount")
+        assert_equal 100, payload.fetch("amount")
       end
 
       test "requires a V2 mode-matching secret key" do

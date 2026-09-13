@@ -45,20 +45,7 @@ module Orders
 
     def capability(adapter, key)
       capabilities = adapter.capabilities.to_h
-      capabilities[key] || capabilities[key.to_s]
-    end
-
-    def provider_amount_supported?(adapter, amount_minor:, currency:)
-      amounts = capability(adapter, :amounts)
-      return true unless amounts.is_a?(Hash)
-
-      constraints = amounts.deep_symbolize_keys[currency.to_s.upcase.to_sym]
-      return true unless constraints.is_a?(Hash) && constraints[:fractional] == false
-
-      minor_unit = constraints[:minor_unit].to_i
-      return true unless minor_unit.positive?
-
-      amount_minor.is_a?(Integer) && (amount_minor % minor_unit).zero?
+      capabilities.key?(key) ? capabilities[key] : capabilities[key.to_s]
     end
 
     def payment_status_for(result)

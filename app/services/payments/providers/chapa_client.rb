@@ -27,19 +27,19 @@ module Payments
 
       # Hosted checkout owns payment-method selection. Chapa documents the
       # preference field as optional but does not publish its wire shape, and
-      # the live V2 endpoint rejected the string array used by the old client.
+      # the live V2 endpoint rejected the string array used by this adapter.
       def create(**request)
-        return unsupported_amount_result if fractional_etb_amount?(request[:amount_minor], request[:currency])
-
         payload = payment_payload(request)
         map_result(post("/v2/payments/hosted", payload, idempotency_key: request[:idempotency_key]), checkout_url: true)
       end
 
       def direct_charge(**request)
-        return unsupported_amount_result if fractional_etb_amount?(request[:amount_minor], request[:currency])
-
         payload = payment_payload(request).merge(payment_method: request.fetch(:payment_method).to_s)
         map_result(post("/v2/payments/direct", payload, idempotency_key: request[:idempotency_key]))
+      end
+
+      def cancel(**)
+        Result.failure(failure_code: "cancellation_unsupported", raw_status: "cancellation_unsupported")
       end
 
       def verify(**request)
@@ -48,18 +48,13 @@ module Payments
       end
 
       def refund(**request)
-        if request[:refund_type] != "payment_reversal" &&
-            fractional_etb_amount?(request[:amount_minor], request[:currency])
-          return unsupported_amount_result
-        end
-
         payload = {
           payment_reference: request.fetch(:provider_reference),
           merchant_reference: request.fetch(:idempotency_key),
           reason: request[:reason].to_s.strip.presence,
           meta: metadata(request)
         }.compact
-        payload[:amount] = major_amount(request.fetch(:amount_minor)) unless request[:refund_type] == "payment_reversal"
+        payload[:amount] = integer_amount(request.fetch(:amount_minor)) unless request[:refund_type] == "payment_reversal"
         map_result(post("/v2/refunds", payload, idempotency_key: request[:idempotency_key]))
       end
 
@@ -91,14 +86,14 @@ module Payments
 
       def payment_payload(request)
         {
-          amount: major_amount(request.fetch(:amount_minor)),
+          amount: integer_amount(request.fetch(:amount_minor)),
           currency: request.fetch(:currency).to_s.upcase,
           merchant_reference: request.fetch(:idempotency_key),
           customer: customer_payload(request),
           callback_url: @callback_url,
           return_url: @return_url,
           meta: metadata(request)
-        }
+        }.compact
       end
 
       def customer_payload(request)
@@ -131,17 +126,28 @@ module Payments
           headers: { "Authorization" => "Bearer #{@secret_key}", "Content-Type" => content_type }.merge(headers)
         )
         Response.new(status: response.status.to_i, body: symbolize(response.body))
-      rescue Net::OpenTimeout, Net::ReadTimeout, Timeout::Error
+      rescue Net::OpenTimeout, Net::ReadTimeout, Timeout::Error => error
+        log_transport_failure(method:, error:)
         Result.timeout(raw_status: "provider_timeout")
-      rescue StandardError
+      rescue StandardError => error
+        log_transport_failure(method:, error:)
         Result.unknown(raw_status: "provider_exception")
       end
 
       def map_result(response, checkout_url: false)
         return response if response.is_a?(Result)
-        return Result.unknown(raw_status: "provider_unavailable") if response.status >= 500
+        if response.status >= 500
+          log_http_failure(response, "provider_unavailable")
+          return Result.unknown(raw_status: "provider_unavailable")
+        end
 
         data = response.body[:data].to_h
+        if response.status >= 400
+          failure_code = failure_code_for("failure", data, response.body)
+          log_http_failure(response, failure_code)
+          return Result.failure(failure_code: failure_code, raw_status: "provider_rejected")
+        end
+
         return missing_checkout_url_result(response) if checkout_url && response.status.between?(200, 299) && !valid_checkout_url?(data[:checkout_url])
 
         provider_status = data[:status].presence || data[:payment_status].presence || response.body[:status]
@@ -172,6 +178,18 @@ module Payments
         value.to_s.match?(/\Ahttps:\/\/\S+\z/)
       end
 
+      def log_http_failure(response, failure_code)
+        message = response.body[:message].to_s.gsub(/\s+/, " ").truncate(200)
+        Rails.logger.warn(
+          "Chapa provider response status_code=#{response.status} " \
+          "failure_code=#{failure_code} message=#{message}"
+        )
+      end
+
+      def log_transport_failure(method:, error:)
+        Rails.logger.warn("Chapa provider transport failure method=#{method} error=#{error.class}")
+      end
+
       def symbolize(value)
         value.respond_to?(:deep_symbolize_keys) ? value.deep_symbolize_keys : {}
       end
@@ -182,10 +200,17 @@ module Payments
           success succeeded completed paid pending processing auth_needed otp_needed incomplete unknown
         ])
 
-        candidate = data[:failure_code].presence || data.dig(:error, :code).presence ||
-          data[:reason].presence || body.dig(:error, :code).presence || normalized_status
+        candidate = data[:failure_code].presence || nested_error_code(data[:error]) ||
+          data[:reason].presence || nested_error_code(body[:error]) || body[:code].presence || normalized_status
         candidate = "provider_rejected" if candidate.blank? || candidate == false
         candidate.to_s.downcase.gsub(/[^a-z0-9]+/, "_").sub(/\A_+|_+\z/, "")[0, 64]
+      end
+
+      def nested_error_code(value)
+        return unless value.respond_to?(:to_h)
+
+        attributes = value.to_h
+        attributes[:code].presence || attributes["code"].presence
       end
 
       def log_provider_failure(response, status, failure_code)
@@ -198,11 +223,11 @@ module Payments
         )
       end
 
-      def major_amount(amount_minor)
+      def integer_amount(amount_minor)
         amount = Integer(amount_minor)
         raise ArgumentError unless amount.positive?
 
-        Core::JsonNumber.new((BigDecimal(amount.to_s) / 100).to_s("F"))
+        amount
       end
 
       def chapa_phone(value)
@@ -213,19 +238,6 @@ module Payments
         normalized = phone.sub(/\A00/, "")
         normalized = normalized.sub(/\A0/, "251") unless normalized.start_with?("251")
         "+#{normalized}"
-      end
-
-      def fractional_etb_amount?(amount_minor, currency)
-        return false unless currency.to_s.strip.upcase == "ETB"
-
-        amount = Integer(amount_minor)
-        amount.positive? && (amount % 100).positive?
-      rescue ArgumentError, TypeError
-        false
-      end
-
-      def unsupported_amount_result
-        Result.failure(failure_code: "amount_precision_unsupported", raw_status: "amount_precision_unsupported")
       end
 
       def minor_amount(amount)

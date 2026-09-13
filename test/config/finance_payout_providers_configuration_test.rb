@@ -25,7 +25,6 @@ class FinancePayoutProvidersConfigurationTest < ActiveSupport::TestCase
     adapter = Finance::PayoutProviders::Registry.fetch("chapa")
     assert_equal %w[ETB USD], adapter.capabilities.fetch(:currencies)
     assert_equal({ supported: true }, adapter.capabilities.fetch(:payouts))
-    assert_equal({ minor_unit: 100, fractional: false }, adapter.capabilities.dig(:amounts, :ETB))
     assert_equal({ supported: false }, adapter.capabilities.fetch(:balance_api))
   end
 

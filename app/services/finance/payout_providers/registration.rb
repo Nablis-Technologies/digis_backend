@@ -36,7 +36,6 @@ module Finance
             ),
             capabilities: {
               currencies: %w[ETB USD],
-              amounts: { "ETB" => { minor_unit: 100, fractional: false } },
               payouts: { supported: true },
               balance_api: { supported: false },
               transfer_verification: true

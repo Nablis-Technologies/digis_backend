@@ -26,7 +26,6 @@ class PaymentProvidersConfigurationTest < ActiveSupport::TestCase
     assert_equal %w[ETB USD], adapter.capabilities.fetch(:currencies)
     assert_equal %w[telebirr cbebirr mpesa awashbirr ebirr enat_bank card bank],
       adapter.capabilities.fetch(:payment_methods)
-    assert_equal({ minor_unit: 100, fractional: false }, adapter.capabilities.dig(:amounts, :ETB))
   end
 
   test "rejects live Chapa mode in the Render preview" do

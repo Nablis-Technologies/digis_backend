@@ -91,39 +91,6 @@ module Orders
       assert_equal 1, Orders::Payment.current.where(order: @order).count
     end
 
-    test "rejects a fractional ETB amount before creating a provider attempt" do
-      @chapa.capabilities = {
-        currencies: [ "ETB" ], payment_methods: [ "telebirr" ],
-        amounts: { ETB: { minor_unit: 100, fractional: false } }
-      }
-      fractional_buyer = Core::User.create!(
-        email: "fractional-#{SecureRandom.hex(4)}@example.test",
-        phone: "+2519#{rand(10_000_000..99_999_999)}",
-        verified_at: @now,
-        password: "password123",
-        password_confirmation: "password123"
-      )
-      fractional_order = Orders::Order.create!(
-        order_attributes.merge(
-          buyer_user: fractional_buyer, subtotal_minor: 10_001, total_minor: 10_501,
-          settlement_total_minor: 10_501
-        )
-      )
-
-      result = Orders::StartPaymentAttempt.call(
-        order: fractional_order, buyer: fractional_buyer, provider: "chapa", payment_method: "telebirr",
-        idempotency_key: "fractional-order", at: @now
-      )
-
-      assert_predicate result, :failure?
-      assert_equal "provider_amount_precision_unsupported", result.error.code
-      assert_empty @chapa.create_calls
-      assert_empty Orders::Payment.where(order: fractional_order)
-      fractional_order.update_columns(status: "draft")
-      fractional_order.destroy!
-      fractional_buyer.destroy!
-    end
-
     test "persists the buyer-safe hosted checkout URL returned by the provider" do
       @chapa.result = Payments::Providers::Result.unknown(
         provider_reference: "checkout-ref",
@@ -255,6 +222,17 @@ module Orders
       assert_equal first.value.id, @chapa.cancel_calls.first.fetch(:payment_id)
       assert_equal 1, Orders::Payment.current.where(order: @order).count
       assert_equal second.value.id, Orders::Payment.current.find_by(order: @order).id
+    end
+
+    test "does not request cancellation when the provider explicitly disables it" do
+      @chapa.capabilities = @chapa.capabilities.merge(cancel: false)
+
+      first = start(provider: "chapa", payment_method: "telebirr", key: "no-cancel-1")
+      second = start(provider: "stripe", payment_method: "card", key: "no-cancel-2")
+
+      assert_predicate first, :success?, first.error&.message
+      assert_predicate second, :success?, second.error&.message
+      assert_empty @chapa.cancel_calls
     end
 
     test "allows at most three attempts" do

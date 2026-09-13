@@ -30,7 +30,6 @@ module Payments
             ),
             capabilities: {
               currencies: %w[ETB USD],
-              amounts: { "ETB" => { minor_unit: 100, fractional: false } },
               payment_methods: %w[telebirr cbebirr mpesa awashbirr ebirr enat_bank card bank],
               direct_charge: { supported: true, payment_methods: %w[telebirr cbebirr mpesa awashbirr] },
               cancel: false,

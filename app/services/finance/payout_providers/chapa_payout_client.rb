@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "bigdecimal"
 require "cgi"
 require "json"
 
@@ -20,10 +19,8 @@ module Finance
       end
 
       def payout(**request)
-        return unsupported_amount_result if fractional_etb_amount?(request[:amount_minor], request[:currency])
-
         payload = {
-          amount: major_amount(request.fetch(:amount_minor)),
+          amount: integer_amount(request.fetch(:amount_minor)),
           currency: currency(request.fetch(:currency)),
           merchant_reference: request.fetch(:idempotency_key),
           account: {
@@ -70,7 +67,6 @@ module Finance
       def capabilities
         {
           currencies: %w[ETB USD UGX DJF],
-          amounts: { "ETB" => { minor_unit: 100, fractional: false } },
           payouts: { supported: true },
           transfer_verification: true,
           balance_api: { supported: false },
@@ -146,24 +142,11 @@ module Finance
         normalized
       end
 
-      def major_amount(amount_minor)
+      def integer_amount(amount_minor)
         amount = Integer(amount_minor)
         raise ArgumentError unless amount.positive?
 
-        Core::JsonNumber.new((BigDecimal(amount.to_s) / 100).to_s("F"))
-      end
-
-      def fractional_etb_amount?(amount_minor, currency)
-        return false unless currency.to_s.strip.upcase == "ETB"
-
-        amount = Integer(amount_minor)
-        amount.positive? && (amount % 100).positive?
-      rescue ArgumentError, TypeError
-        false
-      end
-
-      def unsupported_amount_result
-        Result.failure(failure_code: "amount_precision_unsupported", raw_status: "amount_precision_unsupported")
+        amount
       end
 
       def validate_configuration!

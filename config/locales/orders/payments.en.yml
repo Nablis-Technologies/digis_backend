@@ -10,7 +10,6 @@ en:
         provider_unavailable: "The selected payment provider is unavailable"
         provider_method_unsupported: "The selected payment method is not supported by this provider"
         provider_currency_unsupported: "The selected payment provider does not support this currency"
-        provider_amount_precision_unsupported: "The selected payment provider accepts only whole-unit amounts for this currency"
         payment_order_not_owned: "Only the order buyer can start its payment"
         event_cancelled: "This event has been cancelled and cannot accept payments"
         payment_attempt_unavailable: "This order cannot accept a payment attempt"
