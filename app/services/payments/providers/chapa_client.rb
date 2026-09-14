@@ -83,7 +83,10 @@ module Payments
         end
         expected = OpenSSL::HMAC.hexdigest("SHA256", @webhook_secret, payload.to_s)
         received_signature = signature.to_s.presence || received["x-chapa-signature"]
-        return false unless secure_equal?(received_signature, expected)
+        unless secure_equal?(received_signature, expected)
+          log_webhook_signature_diagnostic(received_signature, expected, payload, received)
+          return false
+        end
 
         webhook_mode_matches?(payload)
       end
@@ -284,6 +287,17 @@ module Payments
 
       def secure_equal?(left, right)
         left.present? && left.bytesize == right.bytesize && ActiveSupport::SecurityUtils.secure_compare(left, right)
+      end
+
+      def log_webhook_signature_diagnostic(received_signature, expected, payload, headers)
+        signature_headers = headers.keys.grep(/signature/).sort.join(",").presence || "none"
+        content_length = headers["content-length"].presence || "unknown"
+        Rails.logger.warn(
+          "[CHAPA-WEBHOOK-DIAGNOSTIC] signature_present=#{received_signature.present?} " \
+          "signature_length=#{received_signature.to_s.bytesize} expected_length=#{expected.bytesize} " \
+          "raw_payload_bytes=#{payload.to_s.bytesize} content_length=#{content_length} " \
+          "signature_headers=#{signature_headers}"
+        )
       end
 
       def webhook_mode_matches?(payload)

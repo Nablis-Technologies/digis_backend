@@ -83,6 +83,25 @@ module Orders
       assert @payment.reload.accepted?
     end
 
+    test "persists a Chapa reference from a verified webhook before fulfillment" do
+      @payment.update!(provider_reference: nil)
+      event = record_event(
+        event_id: "chapa-provider-reference-event",
+        event_type: "payment.succeeded",
+        payload: {
+          "status" => "success",
+          "merchant_reference" => @payment.provider_merchant_reference,
+          "chapa_reference" => "chapa-provider-reference"
+        }
+      )
+
+      result = Orders::ProcessPaymentEvent.call(event:)
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "chapa-provider-reference", @payment.reload.provider_reference
+      assert @payment.accepted?
+    end
+
     test "accepts a billing payment without fulfilling an event order" do
       purchase = Orders::BillingPurchase.create!(
         organization: organizations_organizations(:one), requested_by: @buyer,

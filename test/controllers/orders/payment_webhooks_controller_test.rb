@@ -51,7 +51,7 @@ module Orders
            headers: { "X-Provider-Signature" => "valid-signature" },
            as: :json
 
-      assert_response :accepted
+      assert_response :ok
       assert_equal true, response.parsed_body.fetch("success")
       assert_equal "evt-controller", response.parsed_body.dig("data", "provider_event_id")
       assert Orders::PaymentEvent.exists?(provider: "chapa", provider_event_id: "evt-controller")
@@ -86,7 +86,7 @@ module Orders
            headers: { "X-Chapa-Signature" => "valid-signature" },
            as: :json
 
-      assert_response :accepted
+      assert_response :ok
       assert_equal "AP-chapa-reference", response.parsed_body.dig("data", "provider_event_id")
       assert Orders::PaymentEvent.exists?(provider_event_id: "AP-chapa-reference")
     end
@@ -99,7 +99,7 @@ module Orders
            headers: { "X-Chapa-Signature" => "header-signature" },
            as: :json
 
-      assert_response :accepted
+      assert_response :ok
       assert_equal "header-signature", @adapter.last_webhook_request.fetch(:signature)
     end
   end

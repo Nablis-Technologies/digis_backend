@@ -23,6 +23,7 @@ module Orders
         payment = locate_payment(event)
         return finish_ignored!(event) unless payment
         event.update!(payment_id: payment.id) if event.payment_id.nil?
+        record_provider_reference!(payment, event)
 
         if success_event?(event)
           acceptance = if payment.billing_payment?
@@ -63,6 +64,13 @@ module Orders
         return payment if payment
       end
       nil
+    end
+
+    def record_provider_reference!(payment, locked_event)
+      reference = locked_event.payload.values_at("provider_reference", "chapa_reference").filter_map(&:presence).first
+      return if reference.blank? || payment.provider_reference.present?
+
+      payment.update!(provider_reference: reference)
     end
 
     def success_event?(locked_event)

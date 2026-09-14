@@ -70,6 +70,8 @@ module Orders
 
       assert_predicate result, :success?, result.error&.message
       assert_equal @payment.id, result.value.payment_id
+      assert_equal "payment.pending", result.value.event_type
+      assert_empty @adapter.verify_calls
     end
 
     test "finds the payment by its persisted provider merchant reference" do
@@ -82,7 +84,8 @@ module Orders
 
       assert_predicate result, :success?, result.error&.message
       assert_equal @payment.id, result.value.payment_id
-      assert_equal "merchant-ref", @adapter.verify_calls.sole.fetch(:provider_reference)
+      assert_equal "payment.pending", result.value.event_type
+      assert_empty @adapter.verify_calls
     end
 
     test "verifies with the V2 provider reference while locating by merchant reference" do

@@ -27,7 +27,7 @@ module Orders
       render_success(
         I18n.t("orders.payments.webhooks.received"),
         data: { id: event.id, provider_event_id: event.provider_event_id, status: event.status },
-        status: :accepted
+        status: :ok
       )
     rescue JSON::ParserError
       render_error(

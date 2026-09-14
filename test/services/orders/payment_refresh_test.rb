@@ -49,7 +49,7 @@ module Orders
                    @provider.requests_for("provider-ref")
     end
 
-    test "verifies a pending payment using its stored merchant reference" do
+    test "leaves a pending Chapa payment alone when its provider reference is absent" do
       @payment.update!(provider_reference: nil)
       process = ::Core::BaseService::Result.success(@payment)
       Orders::ProcessPaymentEvent.expects(:call).with(event_id: kind_of(String)).returns(process)
@@ -57,8 +57,8 @@ module Orders
       result = PaymentRefresh.call(payment: @payment, buyer: @buyer, idempotency_key: "refresh-merchant")
 
       assert_predicate result, :success?, result.error&.message
-      assert_equal [ { provider_reference: "merchant-ref", idempotency_key: "merchant-ref" } ],
-                   @provider.requests_for("merchant-ref")
+      assert_equal "pending", result.value.fetch(:state)
+      assert_empty @provider.requests_for("merchant-ref")
     end
 
     test "returns a typed failure when the provider cannot be verified" do

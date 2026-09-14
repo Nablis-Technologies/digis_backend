@@ -45,9 +45,11 @@ module Orders
     end
 
     def verify_payment
+      return Payments::Providers::Result.unknown(raw_status: "provider_reference_missing") if provider_reference.blank?
+
       adapter = Payments::Providers::Registry.fetch(provider)
       result = adapter.verify(
-        provider_reference: provider_reference.presence || transaction_reference,
+        provider_reference:,
         idempotency_key: transaction_reference
       )
       result.is_a?(Payments::Providers::Result) ? result : Payments::Providers::Result.from_provider_response(result)

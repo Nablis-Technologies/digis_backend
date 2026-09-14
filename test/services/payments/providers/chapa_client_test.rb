@@ -307,6 +307,27 @@ module Payments
         assert client.verify_webhook(payload: raw_body, signature:, headers: {})
       end
 
+      test "logs only safe metadata when webhook signature verification fails" do
+        raw_body = '{"event":"payment.success","mode":"test","merchant_reference":"attempt-3"}'
+        Rails.logger.expects(:warn).with { |message|
+          message.start_with?("[CHAPA-WEBHOOK-DIAGNOSTIC]") &&
+            message.include?("signature_present=true") &&
+            message.include?("signature_length=17") &&
+            message.include?("raw_payload_bytes=#{raw_body.bytesize}") &&
+            message.include?("content_length=#{raw_body.bytesize}") &&
+            message.include?("signature_headers=x-chapa-signature") &&
+            !message.include?(raw_body) &&
+            !message.include?("invalid-signature") &&
+            !message.include?("webhook-secret")
+        }
+
+        assert_not build_client(webhook_secret: "webhook-secret").verify_webhook(
+          payload: raw_body,
+          signature: "invalid-signature",
+          headers: { "CONTENT_LENGTH" => raw_body.bytesize.to_s, "HTTP_X_CHAPA_SIGNATURE" => "invalid-signature" }
+        )
+      end
+
       test "rejects a correctly signed webhook from the wrong environment" do
         raw_body = '{"event":"payment.success","mode":"live","merchant_reference":"attempt-live"}'
         signature = OpenSSL::HMAC.hexdigest("SHA256", "webhook-secret", raw_body)
