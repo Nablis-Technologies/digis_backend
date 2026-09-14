@@ -16,6 +16,12 @@ module Payments
 
       def create(**request) = delegate(:create, **request)
 
+      def merchant_reference(**request)
+        return unless @client&.respond_to?(:merchant_reference)
+
+        @client.public_send(:merchant_reference, **request)
+      end
+
       def direct_charge(**request) = delegate(:direct_charge, **request)
 
       def cancel(**request) = delegate(:cancel, **request)

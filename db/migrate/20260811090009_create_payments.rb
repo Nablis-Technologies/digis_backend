@@ -18,6 +18,7 @@ class CreatePayments < ActiveRecord::Migration[8.1]
       t.bigint :provider_fee_minor
       t.string :provider_fee_currency, limit: 3
       t.string :idempotency_key, null: false
+      t.string :provider_merchant_reference, limit: 20
       t.string :provider_reference
       t.string :checkout_url
       t.string :failure_code
@@ -44,6 +45,10 @@ class CreatePayments < ActiveRecord::Migration[8.1]
               unique: true,
               where: "provider_reference IS NOT NULL",
               name: "idx_payments_on_provider_and_reference"
+    add_index :orders_payments, %i[provider provider_merchant_reference],
+              unique: true,
+              where: "provider_merchant_reference IS NOT NULL",
+              name: "idx_payments_on_provider_and_merchant_reference"
     add_index :orders_payments, :order_id,
               unique: true,
               where: "accepted_at IS NOT NULL",
@@ -86,6 +91,9 @@ class CreatePayments < ActiveRecord::Migration[8.1]
     add_check_constraint :orders_payments,
       "billing_purchase_price_digest IS NULL OR billing_purchase_price_digest ~ '^[0-9a-f]{64}$'",
       name: "orders_payments_billing_price_digest_check"
+    add_check_constraint :orders_payments,
+      "provider_merchant_reference IS NULL OR provider_merchant_reference ~ '^[a-z0-9_-]{1,20}$'",
+      name: "orders_payments_provider_merchant_reference_check"
     add_check_constraint :orders_payments,
       "(order_id IS NOT NULL AND commercial_signature IS NOT NULL AND billing_purchase_price_digest IS NULL) OR " \
       "(billing_purchase_id IS NOT NULL AND commercial_signature IS NULL AND billing_purchase_price_digest IS NOT NULL)",

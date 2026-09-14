@@ -13,7 +13,7 @@ module Orders
     SNAPSHOT_ATTRIBUTES = %w[
       order_id billing_purchase_id attempt_number provider payment_method amount_minor currency
       commercial_signature buyer_fee_minor organizer_fee_minor provider_fee_minor
-      provider_fee_currency idempotency_key settlement_grace_minutes
+      provider_fee_currency idempotency_key provider_merchant_reference settlement_grace_minutes
       settlement_grace_expires_at billing_purchase_price_digest
     ].freeze
 
@@ -60,6 +60,7 @@ module Orders
               format: { with: /\A[A-Z]{3}\z/ }, allow_nil: true
     validates :checkout_url, format: { with: %r{\Ahttps://[^[:space:]]+\z} }, allow_nil: true
     validates :idempotency_key, presence: true
+    validates :provider_merchant_reference, format: { with: /\A[a-z0-9_-]{1,20}\z/ }, allow_nil: true
     validates :settlement_grace_minutes, numericality: { only_integer: true, in: 3..15 }
     validates :settlement_grace_expires_at, presence: true
 
@@ -89,6 +90,7 @@ module Orders
         id order_id attempt_number provider payment_method status amount_minor currency
         commercial_signature billing_purchase_price_digest buyer_fee_minor organizer_fee_minor provider_fee_minor
         provider_fee_currency idempotency_key provider_reference failure_code raw_status
+        provider_merchant_reference
         billing_purchase_id
         settlement_grace_minutes settlement_grace_expires_at succeeded_at accepted_at superseded_at
         created_at updated_at
@@ -107,6 +109,7 @@ module Orders
       self.currency = currency.to_s.strip.upcase.presence
       self.provider_fee_currency = provider_fee_currency.to_s.strip.upcase.presence
       self.provider_reference = provider_reference.to_s.strip.presence
+      self.provider_merchant_reference = provider_merchant_reference.to_s.strip.downcase.presence
       self.checkout_url = checkout_url.to_s.strip.presence
       self.failure_code = failure_code.to_s.strip.presence
       self.raw_status = raw_status.to_s.strip.presence

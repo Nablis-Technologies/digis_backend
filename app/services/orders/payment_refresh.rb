@@ -77,7 +77,8 @@ module Orders
     end
 
     def record_verified_event(payment)
-      reference = payment.provider_reference.presence || payment.idempotency_key
+      reference = payment.provider_reference.presence || payment.provider_merchant_reference.presence ||
+        payment.idempotency_key
       result = Orders::RecordPaymentCallback.call(
         provider: payment.provider,
         transaction_reference: reference,

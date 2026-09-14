@@ -97,7 +97,9 @@ module Orders
         billing_purchase: purchase, attempt_number:, provider:, payment_method:, status: "created",
         amount_minor: purchase.amount_minor, currency: purchase.currency,
         billing_purchase_price_digest: purchase.price_digest, buyer_fee_minor: 0, organizer_fee_minor: 0,
-        idempotency_key:, settlement_grace_minutes: adapter.settlement_grace_minutes,
+        idempotency_key:, provider_merchant_reference: adapter.merchant_reference(
+          subject_id: purchase.id, idempotency_key:, attempt_number:
+        ), settlement_grace_minutes: adapter.settlement_grace_minutes,
         settlement_grace_expires_at: purchase.expires_at + adapter.settlement_grace_minutes.minutes
       )
     end
@@ -107,7 +109,8 @@ module Orders
         payment_id: payment.id, billing_purchase_id: payment.billing_purchase_id,
         provider: payment.provider, payment_method: payment.payment_method,
         amount_minor: payment.amount_minor, currency: payment.currency,
-        idempotency_key: payment.idempotency_key, email: buyer.email, phone_number: buyer.phone,
+        idempotency_key: payment.idempotency_key, merchant_reference: payment.provider_merchant_reference,
+        email: buyer.email, phone_number: buyer.phone,
         expires_at: billing_purchase.expires_at
       )
       result.is_a?(Payments::Providers::Result) ? result : Payments::Providers::Result.from_provider_response(result)

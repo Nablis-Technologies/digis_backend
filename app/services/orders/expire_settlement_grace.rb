@@ -53,6 +53,7 @@ module Orders
         payment_id: payment.id,
         order_id: payment.order_id,
         provider_reference: payment.provider_reference,
+        merchant_reference: payment.provider_merchant_reference,
         amount_minor: payment.amount_minor,
         currency: payment.currency,
         idempotency_key: "orders-payment-verification-#{payment.id}"

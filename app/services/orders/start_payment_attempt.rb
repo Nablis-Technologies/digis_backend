@@ -132,6 +132,9 @@ module Orders
         buyer_fee_minor:,
         organizer_fee_minor:,
         idempotency_key:,
+        provider_merchant_reference: adapter.merchant_reference(
+          subject_id: locked_order.id, idempotency_key:, attempt_number:
+        ),
         settlement_grace_minutes: adapter.settlement_grace_minutes,
         settlement_grace_expires_at: locked_order.expires_at + adapter.settlement_grace_minutes.minutes
       )
@@ -181,6 +184,7 @@ module Orders
         currency: payment.currency,
         commercial_signature: payment.commercial_signature,
         idempotency_key: payment.idempotency_key,
+        merchant_reference: payment.provider_merchant_reference,
         email: buyer.email,
         phone_number: buyer.phone,
         expires_at: payment.order.expires_at,

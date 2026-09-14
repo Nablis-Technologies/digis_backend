@@ -36,7 +36,8 @@ module Orders
     end
 
     def find_payment
-      payment = Orders::Payment.find_by(provider:, idempotency_key: transaction_reference)
+      payment = Orders::Payment.find_by(provider:, provider_merchant_reference: transaction_reference) ||
+        Orders::Payment.find_by(provider:, idempotency_key: transaction_reference)
       return payment if payment
       return unless provider_reference.present?
 

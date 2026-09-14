@@ -22,7 +22,7 @@ module Finance
         payload = {
           amount: integer_amount(request.fetch(:amount_minor)),
           currency: currency(request.fetch(:currency)),
-          merchant_reference: request.fetch(:idempotency_key),
+          merchant_reference: merchant_reference_for(request),
           account: {
             account_number: required_string(request, :account_number),
             account_name: request[:account_name].to_s.strip.presence,
@@ -37,7 +37,8 @@ module Finance
       end
 
       def verify_payout(**request)
-        reference = request[:provider_reference].presence || request.fetch(:idempotency_key)
+        reference = request[:provider_reference].presence || request[:merchant_reference].presence ||
+          merchant_reference_for(request)
         map_result(get("/v2/payouts/#{CGI.escape(reference.to_s)}/verify"))
       end
 
@@ -55,13 +56,20 @@ module Finance
         response = get(path)
         return unless response.is_a?(Response) && response.status.between?(200, 299)
 
-        Array(response.body.dig(:data, :items)).filter_map do |bank|
+        bank_items(response.body[:data]).filter_map do |bank|
           attributes = bank.to_h.deep_symbolize_keys
           next if attributes[:bank_slug].blank? || attributes[:is_active] == false
 
           attributes.slice(:bank_slug, :bank_name, :type, :min_amount, :max_amount,
             :supported_currencies, :is_active).freeze
         end.freeze
+      end
+
+      def bank_items(data)
+        return data[:items] if data.is_a?(Hash)
+        return data if data.is_a?(Array)
+
+        []
       end
 
       def capabilities
@@ -147,6 +155,16 @@ module Finance
         raise ArgumentError unless amount.positive?
 
         amount
+      end
+
+      def merchant_reference_for(request)
+        reference = request[:merchant_reference].to_s.strip.presence
+        return reference if reference && reference.length <= Core::ProviderMerchantReference::LENGTH
+
+        Core::ProviderMerchantReference.call(
+          provider: "chapa", subject_id: request[:payout_id].presence || "payout",
+          idempotency_key: request.fetch(:idempotency_key)
+        )
       end
 
       def validate_configuration!

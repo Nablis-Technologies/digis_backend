@@ -20,6 +20,13 @@ module Payments
         end
       end
 
+      # Providers may need a bounded merchant reference separate from the
+      # client-facing idempotency key. Adapters without that constraint leave
+      # this optional seam unset.
+      def merchant_reference(**)
+        nil
+      end
+
       # Refund submission needs an explicit capability boundary because a
       # payment adapter may support charges without supporting partial refunds
       # or a reliable provider-side fee estimate.
