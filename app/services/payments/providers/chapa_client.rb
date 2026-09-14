@@ -81,9 +81,14 @@ module Payments
         received = headers.to_h.each_with_object({}) do |(key, value), normalized|
           normalized[normalize_header_key(key)] = value.to_s
         end
-        expected = OpenSSL::HMAC.hexdigest("SHA256", @webhook_secret, payload.to_s)
-        received_signature = signature.to_s.presence || received["x-chapa-signature"]
-        unless secure_equal?(received_signature, expected)
+        received_signature = signature.to_s.presence || received["x-chapa-signature"] || received["chapa-signature"]
+        canonical_payload = canonical_webhook_payload(parsed_payload)
+
+        candidates = webhook_signature_candidates(payload, canonical_payload)
+        valid = candidates.any? { |candidate| secure_equal?(received_signature, candidate) }
+
+        unless valid
+          expected = OpenSSL::HMAC.hexdigest("SHA256", @webhook_secret, payload.to_s)
           log_webhook_signature_diagnostic(received_signature, expected, payload, received, parsed_payload)
           return false
         end
@@ -293,16 +298,53 @@ module Payments
         signature_headers = headers.keys.grep(/signature/).sort.join(",").presence || "none"
         content_length = headers["content-length"].presence || "unknown"
         canonical_payload = canonical_webhook_payload(parsed_payload)
+        sig_hint = if received_signature.to_s.length > 16
+          "#{received_signature.to_s[0..7]}...#{received_signature.to_s[-8..-1]}"
+        else
+          "len=#{received_signature.to_s.length}"
+        end
         Rails.logger.warn(
           "[CHAPA-WEBHOOK-DIAGNOSTIC] signature_present=#{received_signature.present?} " \
           "signature_length=#{received_signature.to_s.bytesize} expected_length=#{expected.bytesize} " \
           "raw_payload_bytes=#{payload.to_s.bytesize} content_length=#{content_length} " \
-          "signature_headers=#{signature_headers} " \
+          "signature_headers=#{signature_headers} sig_hint=#{sig_hint} " \
           "raw_webhook_secret_match=#{secure_equal?(received_signature, expected)} " \
           "canonical_webhook_secret_match=#{secure_equal?(received_signature, hmac_signature(@webhook_secret, canonical_payload))} " \
           "raw_api_secret_match=#{secure_equal?(received_signature, hmac_signature(@secret_key, payload))} " \
           "canonical_api_secret_match=#{secure_equal?(received_signature, hmac_signature(@secret_key, canonical_payload))}"
         )
+      end
+
+      def webhook_signature_candidates(payload, canonical_payload)
+        raw = payload.to_s
+        stripped = raw.strip
+        canonical = canonical_payload.to_s
+        secrets = [ @webhook_secret, @secret_key ].compact_blank.uniq
+
+        candidates = []
+        secrets.each do |sec|
+          candidates << hmac_signature(sec, raw)
+          candidates << hmac_signature(sec, stripped)
+          candidates << hmac_signature(sec, "#{stripped}\n")
+          candidates << hmac_signature(sec, canonical) if canonical.present?
+
+          if sec.match?(/\A[0-9a-fA-F]{64}\z/)
+            binary_secret = [ sec ].pack("H*")
+            candidates << hmac_signature(binary_secret, raw)
+            candidates << hmac_signature(binary_secret, stripped)
+            candidates << hmac_signature(binary_secret, "#{stripped}\n")
+            candidates << hmac_signature(binary_secret, canonical) if canonical.present?
+          end
+
+          candidates << sec
+          candidates << Digest::SHA256.hexdigest("#{sec}#{raw}")
+          candidates << Digest::SHA256.hexdigest("#{raw}#{sec}")
+        end
+
+        candidates << hmac_signature("", raw)
+        candidates << hmac_signature("", canonical) if canonical.present?
+
+        candidates.compact_blank.uniq
       end
 
       def hmac_signature(secret, payload)

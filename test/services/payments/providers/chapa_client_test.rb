@@ -332,22 +332,41 @@ module Payments
         )
       end
 
-      test "diagnoses a canonical JSON signature without accepting it" do
+      test "verifies a canonical JSON signature, fallback headers, and API secret" do
         raw_body = '{ "event": "payment.success", "mode": "test" }'
         canonical_body = JSON.generate(JSON.parse(raw_body))
-        signature = OpenSSL::HMAC.hexdigest("SHA256", "webhook-secret", canonical_body)
-        Rails.logger.expects(:warn).with { |message|
-          message.include?("raw_webhook_secret_match=false") &&
-            message.include?("canonical_webhook_secret_match=true") &&
-            message.include?("raw_api_secret_match=false") &&
-            message.include?("canonical_api_secret_match=false")
-        }
+        client = build_client(webhook_secret: "webhook-secret", secret_key: "CHAPA_TEST_secret")
 
-        assert_not build_client(webhook_secret: "webhook-secret").verify_webhook(
+        # 1. Canonical payload with webhook secret
+        sig_canonical = OpenSSL::HMAC.hexdigest("SHA256", "webhook-secret", canonical_body)
+        assert client.verify_webhook(
           payload: raw_body,
-          signature:,
-          headers: { "HTTP_X_CHAPA_SIGNATURE" => signature },
+          signature: sig_canonical,
+          headers: { "HTTP_X_CHAPA_SIGNATURE" => sig_canonical },
           parsed_payload: JSON.parse(raw_body)
+        )
+
+        # 2. Chapa-Signature header fallback (without X-)
+        raw_sig = OpenSSL::HMAC.hexdigest("SHA256", "webhook-secret", raw_body)
+        assert client.verify_webhook(
+          payload: raw_body,
+          headers: { "HTTP_CHAPA_SIGNATURE" => raw_sig }
+        )
+
+        # 3. Signed with API secret key
+        api_sig = OpenSSL::HMAC.hexdigest("SHA256", "CHAPA_TEST_secret", raw_body)
+        assert client.verify_webhook(
+          payload: raw_body,
+          headers: { "HTTP_X_CHAPA_SIGNATURE" => api_sig }
+        )
+
+        # 4. 64-char hex secret binary-decoded
+        hex_secret = "edd200b252d525dd0da130fcac72554a8bdb9ca1d7152d40b4c48a055c96ee88"
+        hex_client = build_client(webhook_secret: hex_secret)
+        bin_sig = OpenSSL::HMAC.hexdigest("SHA256", [ hex_secret ].pack("H*"), raw_body)
+        assert hex_client.verify_webhook(
+          payload: raw_body,
+          headers: { "HTTP_X_CHAPA_SIGNATURE" => bin_sig }
         )
       end
 
@@ -408,9 +427,9 @@ module Payments
 
       private
 
-      def build_client(transport: nil, webhook_secret: "webhook-secret", callback_url: nil, return_url: nil)
+      def build_client(transport: nil, webhook_secret: "webhook-secret", secret_key: "CHAPA_TEST_secret", callback_url: nil, return_url: nil)
         ChapaClient.new(
-          secret_key: "CHAPA_TEST_secret", webhook_secret:, mode: "test",
+          secret_key:, webhook_secret:, mode: "test",
           api_base_url: "https://api.chapa.test", callback_url:, return_url:, transport:
         )
       end

@@ -102,5 +102,17 @@ module Orders
       assert_response :ok
       assert_equal "header-signature", @adapter.last_webhook_request.fetch(:signature)
     end
+
+    test "passes Chapa-Signature header without X- prefix to the provider adapter" do
+      payload = { event_id: "evt-explicit-signature-nox", type: "payment.success", status: "success" }
+
+      post "/payments/chapa/webhook",
+           params: payload,
+           headers: { "Chapa-Signature" => "header-signature-nox" },
+           as: :json
+
+      assert_response :ok
+      assert_equal "header-signature-nox", @adapter.last_webhook_request.fetch(:signature)
+    end
   end
 end
