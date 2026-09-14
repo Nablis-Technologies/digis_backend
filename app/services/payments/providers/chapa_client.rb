@@ -303,15 +303,25 @@ module Payments
         else
           "len=#{received_signature.to_s.length}"
         end
+        wh_raw = expected
+        wh_canon = canonical_payload.present? ? hmac_signature(@webhook_secret, canonical_payload) : ""
+        api_raw = hmac_signature(@secret_key, payload)
+        api_canon = canonical_payload.present? ? hmac_signature(@secret_key, canonical_payload) : ""
+        wh_hint = wh_raw.length > 16 ? "#{wh_raw[0..7]}...#{wh_raw[-8..-1]}" : wh_raw
+        api_hint = api_raw.length > 16 ? "#{api_raw[0..7]}...#{api_raw[-8..-1]}" : api_raw
+        sec_hint = "#{@secret_key[0..12]}...len=#{@secret_key.length}"
+        wh_sec_hint = "#{@webhook_secret[0..5]}...#{@webhook_secret[-6..-1]} len=#{@webhook_secret.length}"
         Rails.logger.warn(
           "[CHAPA-WEBHOOK-DIAGNOSTIC] signature_present=#{received_signature.present?} " \
           "signature_length=#{received_signature.to_s.bytesize} expected_length=#{expected.bytesize} " \
           "raw_payload_bytes=#{payload.to_s.bytesize} content_length=#{content_length} " \
           "signature_headers=#{signature_headers} sig_hint=#{sig_hint} " \
+          "wh_hmac_hint=#{wh_hint} api_hmac_hint=#{api_hint} " \
+          "wh_sec_hint=#{wh_sec_hint} api_sec_hint=#{sec_hint} " \
           "raw_webhook_secret_match=#{secure_equal?(received_signature, expected)} " \
-          "canonical_webhook_secret_match=#{secure_equal?(received_signature, hmac_signature(@webhook_secret, canonical_payload))} " \
-          "raw_api_secret_match=#{secure_equal?(received_signature, hmac_signature(@secret_key, payload))} " \
-          "canonical_api_secret_match=#{secure_equal?(received_signature, hmac_signature(@secret_key, canonical_payload))}"
+          "canonical_webhook_secret_match=#{secure_equal?(received_signature, wh_canon)} " \
+          "raw_api_secret_match=#{secure_equal?(received_signature, api_raw)} " \
+          "canonical_api_secret_match=#{secure_equal?(received_signature, api_canon)}"
         )
       end
 

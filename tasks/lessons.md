@@ -151,3 +151,26 @@
   atomic create-or-find operation that does not leave the surrounding
   transaction aborted, and rescue the actual nested `ReplayConflict` type at
   every command boundary.
+
+- A provider status page being green does not validate a merchant request.
+  Classify a payment failure from the exact provider response, request
+  contract, account mode, and merchant dashboard evidence; do not label a
+  request-specific HTTP 500 a provider-wide outage without checking those
+  boundaries.
+
+- Treat authenticated provider responses as contract evidence even when the
+  vendor documentation disagrees. Normalize documented object and observed
+  array envelopes explicitly, and test the live envelope so a missing path
+  such as `data.items` cannot silently turn a valid response into an empty
+  capability set.
+
+- Reproduce a payment-provider failure outside the application with the same
+  operation, credentials, and payload before changing application code. A
+  successful unrelated endpoint does not validate the target operation; retain
+  the provider request ID when a structured error supplies one.
+
+- Provider reference constraints are separate from client idempotency
+  constraints. Keep the full client key for local replay and the native
+  `Idempotency-Key` header, but derive and persist a provider-safe reference
+  when the gateway imposes a shorter `merchant_reference` limit; never truncate
+  an identifier without a durable correlation strategy.

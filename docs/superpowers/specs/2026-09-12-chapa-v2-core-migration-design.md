@@ -45,18 +45,21 @@ exact JSON-number value object; the domain adapters remain separate.
 
 The migration is a clean V2 cutover for this development branch: no runtime V1
 fallback, no V1/V2 branching in domain services, and no provider payloads leak
-past the adapter seams. Existing internal idempotency keys become both Digis
-references and V2 `Idempotency-Key` headers.
+past the adapter seams. Existing internal idempotency keys remain the Digis
+replay identity and V2 `Idempotency-Key` header; Chapa merchant references are
+separate deterministic values bounded to the provider's 20-character limit.
 
 ## Provider contracts
 
 ### Hosted payment
 
-`POST /v2/payments/hosted` receives major-unit amount, currency, unique
-`merchant_reference`, nested customer details, optional callback/return URLs,
-and internal metadata. A successful initialization is still `pending` and only
-returns a checkout URL; payment verification remains required before value is
-delivered.
+`POST /v2/payments/hosted` receives an integer minor-unit amount, currency,
+unique provider-safe `merchant_reference` (20 characters or fewer), nested
+customer details, configured callback and return URLs, and internal metadata.
+The redirect fields are supported and retained for UX compatibility, although
+the public documentation describes them as optional. A successful
+initialization is still `pending` and only returns a checkout URL; payment
+verification remains required before value is delivered.
 
 ### Direct charge
 
@@ -86,8 +89,10 @@ lets existing durable inbox/outbox processing remain idempotent.
 
 ## Data and security invariants
 
-- Amounts remain integer minor units inside Digis; conversion to exact JSON
-  provider major-unit numbers happens only in the V2 client boundary.
+- Amounts remain integer minor units inside Digis and are sent unchanged as
+  exact JSON integers at the V2 provider boundary. A fractional ETB price such
+  as `5.13` is sent as `513`; Digis does not divide, round, or reinterpret the
+  integer at the provider boundary.
 - Encrypted payout account fields remain the only storage for raw beneficiary
   values; V2 payout requests decrypt only at dispatch time.
 - V2 references and webhook event IDs are stored as reconciliation evidence.

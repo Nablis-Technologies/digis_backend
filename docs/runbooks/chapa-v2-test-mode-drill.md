@@ -13,9 +13,9 @@ Set these values in the deployment environment:
 - `CHAPA_MODE=test`
 - `CHAPA_SECRET_KEY=CHAPA_TEST_...`
 - `CHAPA_WEBHOOK_SECRET=<dashboard webhook secret>`
+- `CHAPA_CALLBACK_URL=https://<app-host>/payments/chapa/callback`
+- `CHAPA_RETURN_URL=https://<app-host>/payments/chapa/callback`
 - `CHAPA_API_BASE_URL=https://api.chapa.global`
-- `CHAPA_CALLBACK_URL=<deployed callback URL>`
-- `CHAPA_RETURN_URL=<deployed return URL>`
 
 Configure the V2 payment/refund webhook endpoint in the Chapa dashboard:
 

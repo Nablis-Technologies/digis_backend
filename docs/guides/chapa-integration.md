@@ -66,12 +66,25 @@ Quote -> Order -> Payment attempt -> Chapa hosted checkout
 
 The client sends Chapa:
 
-- `amount` as an exact JSON major-unit number converted from integer minor units;
+- `amount` as an exact JSON integer minor-unit value;
 - uppercase ISO currency such as `ETB`;
-- the durable payment idempotency key as `merchant_reference` and the native
-  `Idempotency-Key` header;
+- a deterministic provider-safe `merchant_reference` no longer than 20
+  characters, plus the full client idempotency key in the native
+  `Idempotency-Key` header. The client key remains the local replay identity;
 - buyer email and normalized phone;
-- configured callback and return URLs when present.
+- configured `callback_url` and `return_url` for hosted checkout when enabled.
+  Both point to the deployed `/payments/chapa/callback` endpoint.
+
+Chapa V2 expects the `amount` field as an integer minor-unit value. Digis
+continues to store and calculate exact integer minor units and sends that value
+unchanged at the provider boundary. For example, `513` means `5.13 ETB` and
+must be sent as JSON `513`; it must not be divided by 100 or rounded.
+
+Hosted initialization intentionally omits `preferred_payment_methods`. Chapa
+documents that field as optional but does not publish its request shape, and
+the V2 endpoint rejected the string-array form during the Render test drill.
+The hosted page remains responsible for selecting an enabled payment method;
+Direct Charge continues to receive one explicit method.
 
 Digis accepts canonical Ethiopian numbers such as `+251900123456` and sends
 the provider payload in E.164 format. The stored Digis phone remains in
@@ -93,41 +106,36 @@ the existence of a checkout URL does not mean the customer paid.
 Unknown outcomes never become success. Replayed callbacks and webhooks are
 deduplicated by durable provider-event identity.
 
-## 4. Callback, webhook, and return URL
+## 4. Webhook and redirect handling
 
-These are different endpoints and must not be combined.
-
-### Callback URL
-
-Set `CHAPA_CALLBACK_URL` to:
-
-```text
-GET https://<digis-host>/payments/chapa/callback
-```
-
-Chapa V2 may send `merchant_reference`, `chapa_reference`, and `status`.
-Digis uses those values for lookup and diagnostics, then verifies the payment
-with Chapa before creating the durable event. The controller also accepts the
-older aliases `trx_ref`, `tx_ref`, `ref_id`, and `reference` for test fixtures
-and previously captured redirects.
+The V2 hosted request includes the configured callback and return URLs. The
+official documentation describes redirects as optional, and a short-reference
+request also succeeds without them; the current deployment sends both for
+redirect UX and callback compatibility. Configure the Chapa webhook in the
+dashboard and use it as the authoritative server-to-server signal.
 
 ### Webhook URL
 
-Configure this separately in the Chapa dashboard:
+Configure this in the Chapa dashboard:
 
 ```text
 POST https://<digis-host>/payments/chapa/webhook
 ```
 
-The webhook is signed and handled independently. Keep both endpoints: the
-callback supports the browser redirect flow, while the webhook provides a
-server-to-server notification path.
+The webhook is signed and handled independently. Digis verifies the exact raw
+body before parsing it, then records the event for idempotent processing.
 
-### Return URL
+### Optional callback route
 
-Set `CHAPA_RETURN_URL` to the customer-facing frontend destination. It is
-not a payment confirmation endpoint. A dummy HTML page is optional for backend
-testing; server-side verification does not depend on it.
+The backend retains the callback route for provider redirect signals and test
+fixtures:
+
+```text
+GET https://<digis-host>/payments/chapa/callback
+```
+
+It is not sent in the current hosted initialization request and is never a
+payment confirmation endpoint. Always verify through the V2 API or webhook.
 
 ## 5. Environment configuration
 
@@ -141,9 +149,9 @@ Postman variables containing secrets:
 | `CHAPA_MODE` | yes | `test` for Render preview |
 | `CHAPA_SECRET_KEY` | yes | Chapa `CHAPA_TEST_...` key |
 | `CHAPA_WEBHOOK_SECRET` | yes | Secret used for raw-body HMAC verification |
+| `CHAPA_CALLBACK_URL` | recommended for hosted checkout | Deployed callback endpoint |
+| `CHAPA_RETURN_URL` | recommended for hosted checkout | Deployed callback endpoint |
 | `CHAPA_API_BASE_URL` | no | Defaults to `https://api.chapa.global` |
-| `CHAPA_CALLBACK_URL` | recommended | `https://<digis-host>/payments/chapa/callback` |
-| `CHAPA_RETURN_URL` | recommended | Frontend or test return page |
 
 Preview safety:
 
@@ -182,7 +190,8 @@ with a reason, evidence reference, and idempotency key. Only verified seller
 accounts can be selected as default or used by the seller payout dispatch.
 The dispatch sends `account_number`, `account_name`, `bank_slug`, `amount`,
 `currency`, and `merchant_reference` to `POST /v2/payouts` with the native
-`Idempotency-Key` header.
+`Idempotency-Key` header. Payout amounts use the same integer minor-unit
+contract: a seller balance of `513` minor units is sent as JSON `513`.
 
 Chapa subaccounts remain out of scope for resale payouts. They are split-
 payment resources used during customer checkout, while resale proceeds are
@@ -254,8 +263,6 @@ CHAPA_PAYOUT_ENABLED=true \
 CHAPA_MODE=test \
 CHAPA_SECRET_KEY='CHAPA_TEST_...' \
 CHAPA_WEBHOOK_SECRET='local-test-webhook-secret' \
-CHAPA_CALLBACK_URL='http://localhost:3000/payments/chapa/callback' \
-CHAPA_RETURN_URL='http://localhost:3000/payment-test-return' \
 bin/rails server
 ```
 
@@ -465,6 +472,8 @@ The application maps Chapa's `chapa_reference` to the durable provider-event
 identity and uses `merchant_reference` to locate the Digis payment. The Postman request is a shape example; its
 signature must be generated from the exact raw body with the configured
 webhook secret, so it is not a substitute for a real Chapa-signed delivery.
+The endpoint acknowledges a verified receipt with HTTP 200; processing remains
+asynchronous through the payment-event inbox and outbox.
 
 ### Frontend behavior
 
@@ -526,16 +535,19 @@ Check:
 3. Preview uses `CHAPA_TEST_...`.
 4. The buyer email is accepted by Chapa.
 5. The phone is a supported test number.
-6. The amount is a nonnegative integer minor-unit value.
+6. The amount is a positive integer minor-unit value. Chapa V2 receives that
+   exact integer; `513` represents `5.13 ETB`.
 7. Render logs show the safe provider status and failure code.
 
 ### Callback returns payment_not_found
 
-Use the exact merchant reference stored in
-`orders_payments.idempotency_key` (`merchant_reference`). Do not use the hosted
-checkout URL token or receipt reference unless it is stored as the provider reference.
+Use the exact provider merchant reference stored in
+`orders_payments.provider_merchant_reference` to locate the payment, and pass
+Chapa's `chapa_reference` to verification. Chapa V2 `/verify` accepts the
+provider reference returned by Chapa, not the merchant reference. Do not use
+the client `idempotency_key` or hosted checkout URL token as either reference.
 
-### Callback returns 202 but the order remains pending
+### Callback is accepted but the order remains pending
 
 This may be correct while the event is queued or Chapa reports pending. Check
 `orders_payment_events`, `core_outbox_events`, and Solid Queue. Do not
