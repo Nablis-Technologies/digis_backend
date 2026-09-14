@@ -77,12 +77,13 @@ module Payments
         nil
       end
 
-      def verify_webhook(payload:, headers:, **_request)
+      def verify_webhook(payload:, headers:, signature: nil, **_request)
         received = headers.to_h.each_with_object({}) do |(key, value), normalized|
           normalized[normalize_header_key(key)] = value.to_s
         end
         expected = OpenSSL::HMAC.hexdigest("SHA256", @webhook_secret, payload.to_s)
-        return false unless secure_equal?(received["x-chapa-signature"], expected)
+        received_signature = signature.to_s.presence || received["x-chapa-signature"]
+        return false unless secure_equal?(received_signature, expected)
 
         webhook_mode_matches?(payload)
       end

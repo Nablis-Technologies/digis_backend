@@ -299,6 +299,14 @@ module Payments
         assert_not client.verify_webhook(payload: raw_body, headers: { "x-chapa-signature" => "invalid" })
       end
 
+      test "verifies a signature explicitly supplied by the webhook controller" do
+        raw_body = '{"event":"payment.success","mode":"test","merchant_reference":"attempt-2"}'
+        signature = OpenSSL::HMAC.hexdigest("SHA256", "webhook-secret", raw_body)
+        client = build_client(webhook_secret: "webhook-secret")
+
+        assert client.verify_webhook(payload: raw_body, signature:, headers: {})
+      end
+
       test "rejects a correctly signed webhook from the wrong environment" do
         raw_body = '{"event":"payment.success","mode":"live","merchant_reference":"attempt-live"}'
         signature = OpenSSL::HMAC.hexdigest("SHA256", "webhook-secret", raw_body)

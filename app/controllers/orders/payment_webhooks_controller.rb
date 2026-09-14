@@ -18,7 +18,7 @@ module Orders
         event_type: event_type(payload),
         payload:,
         raw_payload: request.raw_post,
-        signature: request.headers["X-Provider-Signature"],
+        signature: request.headers["X-Chapa-Signature"],
         headers: request.headers.to_h
       )
       return render_service_result(result) if result.failure?

@@ -6,12 +6,16 @@ module Orders
   class PaymentWebhooksControllerTest < ActionDispatch::IntegrationTest
     class WebhookAdapter < Payments::Providers::Adapter
       attr_accessor :webhook_valid
+      attr_reader :last_webhook_request
 
       def initialize
         @webhook_valid = true
       end
 
-      def verify_webhook(**) = webhook_valid
+      def verify_webhook(**request)
+        @last_webhook_request = request
+        webhook_valid
+      end
 
       def create(**) = Payments::Providers::Result.unknown(raw_status: "pending")
 
@@ -85,6 +89,18 @@ module Orders
       assert_response :accepted
       assert_equal "AP-chapa-reference", response.parsed_body.dig("data", "provider_event_id")
       assert Orders::PaymentEvent.exists?(provider_event_id: "AP-chapa-reference")
+    end
+
+    test "passes Chapa's signature header to the provider adapter" do
+      payload = { event_id: "evt-explicit-signature", type: "payment.success", status: "success" }
+
+      post "/payments/chapa/webhook",
+           params: payload,
+           headers: { "X-Chapa-Signature" => "header-signature" },
+           as: :json
+
+      assert_response :accepted
+      assert_equal "header-signature", @adapter.last_webhook_request.fetch(:signature)
     end
   end
 end
