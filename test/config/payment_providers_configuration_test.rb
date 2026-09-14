@@ -17,6 +17,8 @@ class PaymentProvidersConfigurationTest < ActiveSupport::TestCase
       "CHAPA_MODE" => "test",
       "CHAPA_SECRET_KEY" => "CHAPA_TEST_config-test",
       "CHAPA_WEBHOOK_SECRET" => "webhook-secret",
+      "CHAPA_CALLBACK_URL" => "https://digis.example/payments/chapa/callback",
+      "CHAPA_RETURN_URL" => "https://digis.example/payments/chapa/callback",
       "RENDER_PREVIEW" => "true"
     ) do
       Payments::Providers::Registration.call(env: ENV)
@@ -26,6 +28,9 @@ class PaymentProvidersConfigurationTest < ActiveSupport::TestCase
     assert_equal %w[ETB USD], adapter.capabilities.fetch(:currencies)
     assert_equal %w[telebirr cbebirr mpesa awashbirr ebirr enat_bank card bank],
       adapter.capabilities.fetch(:payment_methods)
+    client = adapter.instance_variable_get(:@client)
+    assert_equal "https://digis.example/payments/chapa/callback", client.instance_variable_get(:@callback_url)
+    assert_equal "https://digis.example/payments/chapa/callback", client.instance_variable_get(:@return_url)
   end
 
   test "rejects live Chapa mode in the Render preview" do

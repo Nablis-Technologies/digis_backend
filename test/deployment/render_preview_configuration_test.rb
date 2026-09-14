@@ -26,6 +26,10 @@ class RenderPreviewConfigurationTest < ActiveSupport::TestCase
     assert_equal "false", env_vars.fetch("CHAPA_PAYOUT_ENABLED")
     assert_equal "test", env_vars.fetch("CHAPA_MODE")
     assert_equal "https://api.chapa.global", env_vars.fetch("CHAPA_API_BASE_URL")
+    assert_equal "https://digis-backend-preview.onrender.com/payments/chapa/callback",
+      env_vars.fetch("CHAPA_CALLBACK_URL")
+    assert_equal "https://digis-backend-preview.onrender.com/payments/chapa/callback",
+      env_vars.fetch("CHAPA_RETURN_URL")
     %w[CHAPA_SECRET_KEY CHAPA_WEBHOOK_SECRET].each do |key|
       assert service.fetch("envVars").any? { |entry| entry.fetch("key") == key && entry.fetch("sync") == false }
     end

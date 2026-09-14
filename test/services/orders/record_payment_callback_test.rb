@@ -72,6 +72,19 @@ module Orders
       assert_equal @payment.id, result.value.payment_id
     end
 
+    test "finds the payment by its persisted provider merchant reference" do
+      @payment.update!(provider_merchant_reference: "merchant-ref")
+
+      result = Orders::RecordPaymentCallback.call(
+        provider: "chapa", transaction_reference: "merchant-ref", provider_reference: nil,
+        callback_status: "success"
+      )
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal @payment.id, result.value.payment_id
+      assert_equal "merchant-ref", @adapter.verify_calls.sole.fetch(:provider_reference)
+    end
+
     test "verifies with the V2 provider reference while locating by merchant reference" do
       result = Orders::RecordPaymentCallback.call(
         provider: "chapa", transaction_reference: "tx-ref", provider_reference: "ref-1",
@@ -151,6 +164,7 @@ module Orders
         buyer_fee_minor: 500,
         organizer_fee_minor: 0,
         idempotency_key: "tx-ref",
+        provider_merchant_reference: "merchant-ref",
         settlement_grace_minutes: 5,
         settlement_grace_expires_at: @order.expires_at + 5.minutes
       }

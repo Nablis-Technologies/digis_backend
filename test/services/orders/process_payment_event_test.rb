@@ -70,6 +70,19 @@ module Orders
       ).count
     end
 
+    test "locates a webhook by the persisted provider merchant reference" do
+      @payment.update!(provider_reference: nil)
+      event = record_event(event_id: "evt-merchant-ref", event_type: "payment.succeeded", payload: {
+        "status" => "paid", "merchant_reference" => "merchant-ref"
+      })
+
+      result = Orders::ProcessPaymentEvent.call(event:)
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal @payment.id, event.reload.payment_id
+      assert @payment.reload.accepted?
+    end
+
     test "accepts a billing payment without fulfilling an event order" do
       purchase = Orders::BillingPurchase.create!(
         organization: organizations_organizations(:one), requested_by: @buyer,
@@ -424,8 +437,14 @@ module Orders
         provider: "chapa",
         provider_event_id: event_id,
         event_type:,
-        payload: payload || { "status" => "paid", "provider_reference" => @payment.provider_reference },
-        raw_payload: JSON.generate(payload || { status: "paid", provider_reference: @payment.provider_reference }),
+        payload: payload || {
+          "status" => "paid", "provider_reference" => @payment.provider_reference,
+          "merchant_reference" => @payment.provider_merchant_reference
+        },
+        raw_payload: JSON.generate(payload || {
+          status: "paid", provider_reference: @payment.provider_reference,
+          merchant_reference: @payment.provider_merchant_reference
+        }),
         signature: "valid-signature",
         headers: { "X-Provider-Signature" => "valid-signature" }
       ).then { |result| result.success? ? result.value : result }
@@ -471,6 +490,7 @@ module Orders
         organizer_fee_minor: 0,
         idempotency_key: "payment-#{SecureRandom.hex(6)}",
         provider_reference: "provider-ref-#{SecureRandom.hex(4)}",
+        provider_merchant_reference: "merchant-ref",
         settlement_grace_minutes: 5,
         settlement_grace_expires_at: @order.expires_at + 5.minutes
       }

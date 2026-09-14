@@ -42,6 +42,10 @@ module Orders
 
       def verify_refund(**) = Payments::Providers::Result.unknown(raw_status: "pending")
 
+      def merchant_reference(subject_id:, idempotency_key:, attempt_number:)
+        "fake-ref-#{attempt_number}"
+      end
+
       def available_balance(**) = { amount_minor: 100_000, currency: "ETB" }
 
       def capabilities = @capabilities
@@ -87,6 +91,8 @@ module Orders
       assert_equal 1, payment.attempt_number
       assert_equal @order.commercial_signature, payment.commercial_signature
       assert_equal @order.expires_at + 5.minutes, payment.settlement_grace_expires_at
+      assert_equal "fake-ref-1", payment.provider_merchant_reference
+      assert_equal "fake-ref-1", @chapa.create_calls.sole.fetch(:merchant_reference)
       assert_equal [ true ], @chapa.payment_present_at_create
       assert_equal 1, Orders::Payment.current.where(order: @order).count
     end

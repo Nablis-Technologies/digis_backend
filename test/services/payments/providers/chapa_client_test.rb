@@ -31,6 +31,7 @@ module Payments
 
         result = build_client(transport:).create(
           amount_minor: 1_200, currency: "ETB", idempotency_key: "attempt-1",
+          merchant_reference: "attempt-1",
           email: "buyer@example.com", phone_number: "+251911000000"
         )
 
@@ -45,6 +46,29 @@ module Payments
         assert_equal "attempt-1", payload.fetch("merchant_reference")
         assert_equal "buyer@example.com", payload.dig("customer", "email")
         assert_equal "+251911000000", payload.dig("customer", "phone_number")
+      end
+
+      test "separates a long client idempotency key from Chapa merchant_reference" do
+        client_key = "DIGIS_DIAG_20260913182310"
+        transport = FakeTransport.new(
+          Response.new(status: 200, body: {
+            status: "success", data: { checkout_url: "https://checkout.chapa.test/bounded" }
+          })
+        )
+
+        result = build_client(transport:).create(
+          amount_minor: 4_100, currency: "ETB", idempotency_key: client_key,
+          payment_id: "payment-1", order_id: "order-1", attempt_number: 1
+        )
+
+        assert_predicate result, :unknown?
+        request = transport.requests.sole
+        payload = JSON.parse(request.fetch(:body))
+        merchant_reference = payload.fetch("merchant_reference")
+        assert_equal 20, merchant_reference.length
+        assert_match(/\A[0-9a-f]{20}\z/, merchant_reference)
+        assert_equal client_key, request.dig(:headers, "Idempotency-Key")
+        refute_equal client_key, merchant_reference
       end
 
       test "omits absent customer fields from the V2 hosted payload" do
@@ -68,6 +92,45 @@ module Payments
 
         payload = JSON.parse(transport.requests.sole.fetch(:body))
         assert_not payload.key?("preferred_payment_methods")
+      end
+
+      test "includes configured callback and return URLs in the hosted payload" do
+        transport = FakeTransport.new(
+          Response.new(status: 200, body: {
+            status: "success", data: { checkout_url: "https://checkout.chapa.test/redirected" }
+          })
+        )
+
+        build_client(
+          transport:,
+          callback_url: "https://digis.example/payments/chapa/callback",
+          return_url: "https://digis.example/payments/chapa/callback"
+        ).create(amount_minor: 4_100, currency: "ETB", idempotency_key: "redirected")
+
+        payload = JSON.parse(transport.requests.sole.fetch(:body))
+        assert_equal "https://digis.example/payments/chapa/callback", payload.fetch("callback_url")
+        assert_equal "https://digis.example/payments/chapa/callback", payload.fetch("return_url")
+      end
+
+      test "does not send hosted redirect URLs to direct charge" do
+        transport = FakeTransport.new(
+          Response.new(status: 200, body: {
+            status: "success", data: { chapa_reference: "CHV2-direct-redirect" }
+          })
+        )
+
+        build_client(
+          transport:,
+          callback_url: "https://digis.example/payments/chapa/callback",
+          return_url: "https://digis.example/payments/chapa/callback"
+        ).direct_charge(
+          amount_minor: 4_100, currency: "ETB", idempotency_key: "direct-redirect",
+          payment_method: "telebirr", phone_number: "+251900000000"
+        )
+
+        payload = JSON.parse(transport.requests.sole.fetch(:body))
+        assert_not payload.key?("callback_url")
+        assert_not payload.key?("return_url")
       end
 
       test "initializes a V2 direct charge with an authentication state" do
@@ -192,6 +255,25 @@ module Payments
         assert_equal "provider_rejected", result.raw_status
       end
 
+      test "preserves a provider processing failure and request ID for HTTP 500" do
+        transport = FakeTransport.new(
+          Response.new(status: 500, body: {
+            status: "error",
+            message: "Internal server error",
+            error: { code: "PROCESSING_FAILED", details: { request_id: "REQ-500" } }
+          })
+        )
+
+        result = build_client(transport:).create(
+          amount_minor: 4_100, currency: "ETB", idempotency_key: "provider-500"
+        )
+
+        assert_predicate result, :unknown?
+        assert_equal "processing_failed", result.failure_code
+        assert_equal "provider_unavailable", result.raw_status
+        assert_equal "REQ-500", result.request_id
+      end
+
       test "verifies a V2 payment and normalizes the provider fee" do
         transport = FakeTransport.new(
           Response.new(status: 200, body: {
@@ -274,10 +356,10 @@ module Payments
 
       private
 
-      def build_client(transport: nil, webhook_secret: "webhook-secret")
+      def build_client(transport: nil, webhook_secret: "webhook-secret", callback_url: nil, return_url: nil)
         ChapaClient.new(
           secret_key: "CHAPA_TEST_secret", webhook_secret:, mode: "test",
-          api_base_url: "https://api.chapa.test", transport:
+          api_base_url: "https://api.chapa.test", callback_url:, return_url:, transport:
         )
       end
     end

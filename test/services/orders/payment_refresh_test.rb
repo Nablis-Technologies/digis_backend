@@ -49,6 +49,18 @@ module Orders
                    @provider.requests_for("provider-ref")
     end
 
+    test "verifies a pending payment using its stored merchant reference" do
+      @payment.update!(provider_reference: nil)
+      process = ::Core::BaseService::Result.success(@payment)
+      Orders::ProcessPaymentEvent.expects(:call).with(event_id: kind_of(String)).returns(process)
+
+      result = PaymentRefresh.call(payment: @payment, buyer: @buyer, idempotency_key: "refresh-merchant")
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal [ { provider_reference: "merchant-ref", idempotency_key: "merchant-ref" } ],
+                   @provider.requests_for("merchant-ref")
+    end
+
     test "returns a typed failure when the provider cannot be verified" do
       ::Payments::Providers::Registry.instance_variable_set(:@adapters, {})
 
@@ -174,6 +186,7 @@ module Orders
           status: "succeeded",
           idempotency_key: "refresh-resale-payment",
           provider_reference: "refresh-resale-provider-ref",
+          provider_merchant_reference: "resale-merchant-ref",
           accepted_at: Time.current
         )
       )
@@ -227,6 +240,7 @@ module Orders
         organizer_fee_minor: 0,
         idempotency_key: "tx-ref",
         provider_reference: "provider-ref",
+        provider_merchant_reference: "merchant-ref",
         settlement_grace_minutes: 5,
         settlement_grace_expires_at: @order.expires_at + 5.minutes
       }

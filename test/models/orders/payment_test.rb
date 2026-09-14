@@ -42,6 +42,18 @@ module Orders
       assert_nil payment.checkout_url
     end
 
+    test "normalizes and validates the provider merchant reference" do
+      payment = Orders::Payment.new(payment_attributes(provider_merchant_reference: "  ABC123  "))
+
+      assert_predicate payment, :valid?, payment.errors.full_messages
+      assert_equal "abc123", payment.provider_merchant_reference
+
+      invalid = Orders::Payment.new(payment_attributes(provider_merchant_reference: "a" * 21))
+
+      assert_not invalid.valid?
+      assert_includes invalid.errors.attribute_names, :provider_merchant_reference
+    end
+
     test "allows compatible cross-provider retries with the same commercial signature" do
       first = Orders::Payment.create!(payment_attributes(provider: "chapa", payment_method: "telebirr"))
       retry_payment = Orders::Payment.new(
@@ -231,6 +243,7 @@ module Orders
         provider_fee_currency: nil,
         idempotency_key: "payment-#{SecureRandom.hex(6)}",
         provider_reference: nil,
+        provider_merchant_reference: nil,
         settlement_grace_minutes: 5,
         settlement_grace_expires_at: 15.minutes.from_now,
         accepted_at: nil,

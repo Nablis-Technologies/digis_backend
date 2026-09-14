@@ -24,6 +24,10 @@ module Orders
       def verify(**) = Payments::Providers::Result.unknown
       def refund(**) = Payments::Providers::Result.unknown
       def verify_refund(**) = Payments::Providers::Result.unknown
+
+      def merchant_reference(subject_id:, idempotency_key:, attempt_number:)
+        "fake-ref-#{attempt_number}"
+      end
       def available_balance(**) = { amount_minor: 100_000, currency: "ETB" }
       def capabilities = { currencies: [ "ETB" ], payment_methods: [ "telebirr" ] }
       def settlement_grace_minutes = 5
@@ -55,6 +59,8 @@ module Orders
       assert_equal 1, @adapter.create_calls.length
       assert_equal @purchase.id, first.value.billing_purchase_id
       assert_nil first.value.order_id
+      assert_equal "fake-ref-1", first.value.provider_merchant_reference
+      assert_equal "fake-ref-1", @adapter.create_calls.sole.fetch(:merchant_reference)
     end
 
     test "returns a typed failure when the billing purchase has expired" do

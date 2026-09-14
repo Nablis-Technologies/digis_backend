@@ -37,6 +37,7 @@ module Finance
           account_name: "Seller Account",
           bank_slug: "cbe",
           bank_name: "Commercial Bank of Ethiopia",
+          payout_id: "payout-1",
           idempotency_key: "seller-payout-v2-1"
         )
 
@@ -50,7 +51,7 @@ module Finance
         assert_equal "seller-payout-v2-1", request.dig(:headers, "Idempotency-Key")
         payload = JSON.parse(request.fetch(:body))
         assert_equal 1_200, payload.fetch("amount")
-        assert_equal "seller-payout-v2-1", payload.fetch("merchant_reference")
+        assert_match(/\A[0-9a-f]{20}\z/, payload.fetch("merchant_reference"))
         assert_equal "cbe", payload.dig("account", "bank_slug")
       end
 
@@ -111,6 +112,25 @@ module Finance
         assert_equal "/v2/payouts/PAYOUT-V2-2/verify", transport.requests.sole.fetch(:path)
       end
 
+      test "verifies a V2 payout using its bounded merchant reference when needed" do
+        transport = FakeTransport.new(
+          Response.new(status: 200, body: {
+            status: "success", data: { chapa_reference: "PAYOUT-V2-3", status: "success" }
+          })
+        )
+        client = build_client(transport:)
+        payout_id = "payout-3"
+        idempotency_key = "finance-payout-#{SecureRandom.hex(16)}"
+        expected = Core::ProviderMerchantReference.call(
+          provider: "chapa", subject_id: payout_id, idempotency_key:
+        )
+
+        result = client.verify_payout(payout_id:, idempotency_key:)
+
+        assert_predicate result, :success?
+        assert_equal "/v2/payouts/#{expected}/verify", transport.requests.sole.fetch(:path)
+      end
+
       test "keeps a blocked payout recoverable for reconciliation" do
         transport = FakeTransport.new(
           Response.new(status: 200, body: {
@@ -160,6 +180,37 @@ module Finance
 
         assert_equal [
           { bank_slug: "cbe", bank_name: "Commercial Bank of Ethiopia", is_active: true }
+        ], banks
+      end
+
+      test "normalizes a live V2 bank list returned as a data array" do
+        transport = FakeTransport.new(
+          Response.new(status: 200, body: {
+            status: "success",
+            data: [
+              {
+                bank_name: "Link",
+                bank_slug: "link",
+                type: "store_value",
+                min_amount: 100,
+                max_amount: 5_000_000,
+                is_active: true
+              }
+            ]
+          })
+        )
+
+        banks = build_client(transport:).available_banks(country: "ET")
+
+        assert_equal [
+          {
+            bank_name: "Link",
+            bank_slug: "link",
+            type: "store_value",
+            min_amount: 100,
+            max_amount: 5_000_000,
+            is_active: true
+          }
         ], banks
       end
 
