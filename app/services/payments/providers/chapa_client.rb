@@ -77,14 +77,14 @@ module Payments
         nil
       end
 
-      def verify_webhook(payload:, headers:, signature: nil, **_request)
+      def verify_webhook(payload:, headers:, signature: nil, parsed_payload: nil, **_request)
         received = headers.to_h.each_with_object({}) do |(key, value), normalized|
           normalized[normalize_header_key(key)] = value.to_s
         end
         expected = OpenSSL::HMAC.hexdigest("SHA256", @webhook_secret, payload.to_s)
         received_signature = signature.to_s.presence || received["x-chapa-signature"]
         unless secure_equal?(received_signature, expected)
-          log_webhook_signature_diagnostic(received_signature, expected, payload, received)
+          log_webhook_signature_diagnostic(received_signature, expected, payload, received, parsed_payload)
           return false
         end
 
@@ -289,15 +289,34 @@ module Payments
         left.present? && left.bytesize == right.bytesize && ActiveSupport::SecurityUtils.secure_compare(left, right)
       end
 
-      def log_webhook_signature_diagnostic(received_signature, expected, payload, headers)
+      def log_webhook_signature_diagnostic(received_signature, expected, payload, headers, parsed_payload)
         signature_headers = headers.keys.grep(/signature/).sort.join(",").presence || "none"
         content_length = headers["content-length"].presence || "unknown"
+        canonical_payload = canonical_webhook_payload(parsed_payload)
         Rails.logger.warn(
           "[CHAPA-WEBHOOK-DIAGNOSTIC] signature_present=#{received_signature.present?} " \
           "signature_length=#{received_signature.to_s.bytesize} expected_length=#{expected.bytesize} " \
           "raw_payload_bytes=#{payload.to_s.bytesize} content_length=#{content_length} " \
-          "signature_headers=#{signature_headers}"
+          "signature_headers=#{signature_headers} " \
+          "raw_webhook_secret_match=#{secure_equal?(received_signature, expected)} " \
+          "canonical_webhook_secret_match=#{secure_equal?(received_signature, hmac_signature(@webhook_secret, canonical_payload))} " \
+          "raw_api_secret_match=#{secure_equal?(received_signature, hmac_signature(@secret_key, payload))} " \
+          "canonical_api_secret_match=#{secure_equal?(received_signature, hmac_signature(@secret_key, canonical_payload))}"
         )
+      end
+
+      def hmac_signature(secret, payload)
+        return "" if payload.blank?
+
+        OpenSSL::HMAC.hexdigest("SHA256", secret, payload)
+      end
+
+      def canonical_webhook_payload(payload)
+        return if payload.blank?
+
+        JSON.generate(payload)
+      rescue TypeError
+        nil
       end
 
       def webhook_mode_matches?(payload)

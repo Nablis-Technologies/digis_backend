@@ -316,6 +316,10 @@ module Payments
             message.include?("raw_payload_bytes=#{raw_body.bytesize}") &&
             message.include?("content_length=#{raw_body.bytesize}") &&
             message.include?("signature_headers=x-chapa-signature") &&
+            message.include?("raw_webhook_secret_match=false") &&
+            message.include?("canonical_webhook_secret_match=false") &&
+            message.include?("raw_api_secret_match=false") &&
+            message.include?("canonical_api_secret_match=false") &&
             !message.include?(raw_body) &&
             !message.include?("invalid-signature") &&
             !message.include?("webhook-secret")
@@ -325,6 +329,25 @@ module Payments
           payload: raw_body,
           signature: "invalid-signature",
           headers: { "CONTENT_LENGTH" => raw_body.bytesize.to_s, "HTTP_X_CHAPA_SIGNATURE" => "invalid-signature" }
+        )
+      end
+
+      test "diagnoses a canonical JSON signature without accepting it" do
+        raw_body = '{ "event": "payment.success", "mode": "test" }'
+        canonical_body = JSON.generate(JSON.parse(raw_body))
+        signature = OpenSSL::HMAC.hexdigest("SHA256", "webhook-secret", canonical_body)
+        Rails.logger.expects(:warn).with { |message|
+          message.include?("raw_webhook_secret_match=false") &&
+            message.include?("canonical_webhook_secret_match=true") &&
+            message.include?("raw_api_secret_match=false") &&
+            message.include?("canonical_api_secret_match=false")
+        }
+
+        assert_not build_client(webhook_secret: "webhook-secret").verify_webhook(
+          payload: raw_body,
+          signature:,
+          headers: { "HTTP_X_CHAPA_SIGNATURE" => signature },
+          parsed_payload: JSON.parse(raw_body)
         )
       end
 
