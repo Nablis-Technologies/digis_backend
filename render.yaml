@@ -70,6 +70,10 @@ services:
         sync: false
       - key: CHAPA_API_BASE_URL
         value: https://api.chapa.global
+      - key: CHAPA_CALLBACK_URL
+        value: https://digis-backend-preview.onrender.com/payments/chapa/callback
+      - key: CHAPA_RETURN_URL
+        value: https://digis-backend-preview.onrender.com/payments/chapa/callback
 
 databases:
   - name: digis-backend-preview-db

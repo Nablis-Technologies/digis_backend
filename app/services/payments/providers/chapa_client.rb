@@ -14,19 +14,28 @@ module Payments
       DEFAULT_API_BASE_URL = "https://api.chapa.global"
       MODES = %w[test live].freeze
 
-      def initialize(secret_key:, webhook_secret:, mode: "test", api_base_url: DEFAULT_API_BASE_URL, transport: nil)
+      def initialize(secret_key:, webhook_secret:, mode: "test", api_base_url: DEFAULT_API_BASE_URL,
+        callback_url: nil, return_url: nil, transport: nil)
         @secret_key = secret_key.to_s
         @webhook_secret = webhook_secret.to_s
         @mode = mode.to_s
+        @callback_url = callback_url.to_s.strip.presence
+        @return_url = return_url.to_s.strip.presence
         validate_configuration!
         @transport = transport || Core::HttpTransport.new(base_url: api_base_url)
+      end
+
+      def merchant_reference(subject_id:, idempotency_key:, attempt_number: nil)
+        Core::ProviderMerchantReference.call(
+          provider: "chapa", subject_id:, idempotency_key:, attempt_number:
+        )
       end
 
       # Hosted checkout owns payment-method selection. Chapa documents the
       # preference field as optional but does not publish its wire shape, and
       # the live V2 endpoint rejected the string array used by this adapter.
       def create(**request)
-        payload = payment_payload(request)
+        payload = payment_payload(request, include_redirects: true)
         map_result(post("/v2/payments/hosted", payload, idempotency_key: request[:idempotency_key]), checkout_url: true)
       end
 
@@ -40,14 +49,15 @@ module Payments
       end
 
       def verify(**request)
-        reference = request[:provider_reference].presence || request.fetch(:idempotency_key)
+        reference = request[:provider_reference].presence || request[:merchant_reference].presence ||
+          merchant_reference_for(request)
         map_result(get("/v2/payments/#{CGI.escape(reference.to_s)}/verify"))
       end
 
       def refund(**request)
         payload = {
           payment_reference: request.fetch(:provider_reference),
-          merchant_reference: request.fetch(:idempotency_key),
+          merchant_reference: merchant_reference_for(request),
           reason: request[:reason].to_s.strip.presence,
           meta: metadata(request)
         }.compact
@@ -81,14 +91,27 @@ module Payments
 
       Response = Data.define(:status, :body)
 
-      def payment_payload(request)
-        {
+      def payment_payload(request, include_redirects: false)
+        payload = {
           amount: integer_amount(request.fetch(:amount_minor)),
           currency: request.fetch(:currency).to_s.upcase,
-          merchant_reference: request.fetch(:idempotency_key),
+          merchant_reference: merchant_reference_for(request),
           customer: customer_payload(request),
           meta: metadata(request)
-        }.compact
+        }
+        payload.merge!(callback_url: @callback_url, return_url: @return_url) if include_redirects
+        payload.compact
+      end
+
+      def merchant_reference_for(request)
+        reference = request[:merchant_reference].to_s.strip.presence
+        return reference if reference && reference.length <= Core::ProviderMerchantReference::LENGTH
+
+        merchant_reference(
+          subject_id: request[:subject_id].presence || request[:payment_id].presence || request[:order_id].presence ||
+            request[:billing_purchase_id].presence || "payment",
+          idempotency_key: request.fetch(:idempotency_key), attempt_number: request[:attempt_number]
+        )
       end
 
       def customer_payload(request)
@@ -132,8 +155,11 @@ module Payments
       def map_result(response, checkout_url: false)
         return response if response.is_a?(Result)
         if response.status >= 500
-          log_http_failure(response, "provider_unavailable")
-          return Result.unknown(raw_status: "provider_unavailable")
+          failure_code = provider_failure_code(response)
+          log_http_failure(response, failure_code)
+          return Result.unknown(
+            failure_code:, raw_status: "provider_unavailable", request_id: provider_request_id(response)
+          )
         end
 
         data = response.body[:data].to_h
@@ -175,10 +201,24 @@ module Payments
 
       def log_http_failure(response, failure_code)
         message = response.body[:message].to_s.gsub(/\s+/, " ").truncate(200)
+        request_id = provider_request_id(response)
+        request_id = " request_id=#{request_id}" if request_id.present?
         Rails.logger.warn(
           "Chapa provider response status_code=#{response.status} " \
-          "failure_code=#{failure_code} message=#{message}"
+          "failure_code=#{failure_code}#{request_id} message=#{message}"
         )
+      end
+
+      def provider_failure_code(response)
+        failure_code_for("failure", response.body[:data].to_h, response.body)
+      end
+
+      def provider_request_id(response)
+        details = response.body.dig(:error, :details)
+        return unless details.respond_to?(:to_h)
+
+        attributes = details.to_h
+        attributes[:request_id].presence || attributes["request_id"].presence
       end
 
       def log_transport_failure(method:, error:)
