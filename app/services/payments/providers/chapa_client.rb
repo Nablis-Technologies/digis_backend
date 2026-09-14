@@ -347,6 +347,8 @@ module Payments
           end
 
           candidates << sec
+          candidates << hmac_signature(sec, sec)
+          candidates << Digest::SHA256.hexdigest(sec)
           candidates << Digest::SHA256.hexdigest("#{sec}#{raw}")
           candidates << Digest::SHA256.hexdigest("#{raw}#{sec}")
         end

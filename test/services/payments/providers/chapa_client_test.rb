@@ -368,6 +368,13 @@ module Payments
           payload: raw_body,
           headers: { "HTTP_X_CHAPA_SIGNATURE" => bin_sig }
         )
+
+        # 5. Self-HMAC signature (Chapa sends HMAC-SHA256 of secret key signed by itself in x-chapa-signature)
+        self_hmac_sig = OpenSSL::HMAC.hexdigest("SHA256", hex_secret, hex_secret)
+        assert hex_client.verify_webhook(
+          payload: raw_body,
+          headers: { "HTTP_X_CHAPA_SIGNATURE" => self_hmac_sig }
+        )
       end
 
       test "rejects a correctly signed webhook from the wrong environment" do
