@@ -87,8 +87,45 @@ module Payments
         candidates = webhook_signature_candidates(payload, canonical_payload)
         valid = candidates.any? { |candidate| secure_equal?(received_signature, candidate) }
 
+        raw_hmac = OpenSSL::HMAC.hexdigest("SHA256", @webhook_secret, payload.to_s)
+        stripped_hmac = OpenSSL::HMAC.hexdigest("SHA256", @webhook_secret, payload.to_s.strip)
+        newline_hmac = OpenSSL::HMAC.hexdigest("SHA256", @webhook_secret, "#{payload.to_s.strip}\n")
+        canon_hmac = canonical_payload.present? ? OpenSSL::HMAC.hexdigest("SHA256", @webhook_secret, canonical_payload) : ""
+        self_hmac = OpenSSL::HMAC.hexdigest("SHA256", @webhook_secret, @webhook_secret)
+
+        is_raw_hmac = secure_equal?(received_signature, raw_hmac)
+        is_stripped_hmac = secure_equal?(received_signature, stripped_hmac)
+        is_newline_hmac = secure_equal?(received_signature, newline_hmac)
+        is_canon_hmac = secure_equal?(received_signature, canon_hmac)
+        is_standard_hmac = is_raw_hmac || is_stripped_hmac || is_newline_hmac || is_canon_hmac
+        is_self_hmac = secure_equal?(received_signature, self_hmac)
+
+        match_label = if is_raw_hmac
+          "RAW_PAYLOAD_HMAC"
+        elsif is_stripped_hmac
+          "STRIPPED_PAYLOAD_HMAC"
+        elsif is_newline_hmac
+          "NEWLINE_PAYLOAD_HMAC"
+        elsif is_canon_hmac
+          "CANONICAL_PAYLOAD_HMAC"
+        elsif is_self_hmac
+          "OLD_SELF_HMAC"
+        else
+          "UNKNOWN_CANDIDATE"
+        end
+
+        Rails.logger.info(
+          "[CHAPA-WEBHOOK-SIGNATURE-AUDIT] " \
+          "match_label=#{match_label} " \
+          "is_standard_hmac=#{is_standard_hmac} " \
+          "is_self_hmac=#{is_self_hmac} " \
+          "received_sig=#{received_signature} " \
+          "expected_raw=#{raw_hmac} " \
+          "self_hmac=#{self_hmac}"
+        )
+
         unless valid
-          expected = OpenSSL::HMAC.hexdigest("SHA256", @webhook_secret, payload.to_s)
+          expected = raw_hmac
           log_webhook_signature_diagnostic(received_signature, expected, payload, received, parsed_payload)
           return false
         end
