@@ -52,6 +52,37 @@ module Orders
       assert_equal order.id, replay.value.id
     end
 
+    test "acquires checkout advisory before event and order locks" do
+      statements = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _start, _finish, _id, payload|
+        statements << payload[:sql]
+      end
+
+      result = Orders::CreateCheckout.call(
+        quote: @quote,
+        event: @event,
+        buyer: @buyer,
+        idempotency_key: "checkout-lock-order-#{SecureRandom.hex(4)}"
+      )
+
+      assert_predicate result, :success?, result.error&.message
+      event_lock_index = statements.index do |sql|
+        sql.match?(/FROM\s+"events_events".*FOR UPDATE/i)
+      end
+      advisory_index = statements.index { |sql| sql.include?("pg_advisory_xact_lock") }
+      order_lock_index = statements.index do |sql|
+        sql.match?(/FROM\s+"orders_orders".*FOR UPDATE/i)
+      end
+
+      assert_not_nil event_lock_index, "expected the event-domain lock"
+      assert_not_nil advisory_index, "expected the shared checkout advisory lock"
+      assert_not_nil order_lock_index, "expected an order idempotency lock"
+      assert_operator advisory_index, :<, event_lock_index
+      assert_operator advisory_index, :<, order_lock_index
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+    end
+
     test "rejects an expired quote without creating an order" do
       expired_quote = Orders::Quote.new(
         commercial_results: @quote.commercial_results,
@@ -98,6 +129,48 @@ module Orders
       assert_predicate result, :failure?
       assert_equal "event_cancelled", result.error.code
       assert_equal 0, Orders::Order.where(buyer_user: @buyer, event: @event).count
+    end
+
+    test "rejects a stale registration but preserves an exact existing-order replay" do
+      product, registration = create_ticket_registration
+      quote_result = Orders::BuildQuote.call(
+        event: @event,
+        buyer: @buyer,
+        items: [ { product:, registration_id: registration.id, quantity: 1 } ],
+        charge_currency: "ETB",
+        quoted_at: @quoted_at
+      )
+      assert_predicate quote_result, :success?, quote_result.error&.message
+      key = "ticket-registration-checkout-#{SecureRandom.hex(6)}"
+      created = Orders::CreateCheckout.call(
+        quote: quote_result.value,
+        event: @event,
+        buyer: @buyer,
+        idempotency_key: key
+      )
+      assert_predicate created, :success?, created.error&.message
+
+      created.value.update!(status: "expired", closed_reason: "checkout_expired")
+      registration.update!(status: "expired", next_action_snapshot: nil)
+
+      replay = Orders::CreateCheckout.call(
+        quote: quote_result.value,
+        event: @event,
+        buyer: @buyer,
+        idempotency_key: key
+      )
+      stale_request = Orders::CreateCheckout.call(
+        quote: quote_result.value,
+        event: @event,
+        buyer: @buyer,
+        idempotency_key: "new-stale-registration-#{SecureRandom.hex(6)}"
+      )
+
+      assert_predicate replay, :success?, replay.error&.message
+      assert_equal created.value.id, replay.value.id
+      assert_predicate stale_request, :failure?
+      assert_equal "registration_not_payable", stale_request.error.code
+      assert_equal 1, Orders::Order.where(buyer_user: @buyer, event: @event).count
     end
 
     test "snapshots cross-currency promotion bounds in the charge currency" do
@@ -264,6 +337,49 @@ module Orders
       )
       Catalog::ProductInventory.create!(event_product: product, capacity: 1)
       product
+    end
+
+    def create_ticket_registration
+      product_result = Catalog::Products::CreateDraft.call(
+        event: @event,
+        actor: core_users(:super_admin),
+        product_attributes: { name: "Stale checkout ticket #{SecureRandom.hex(4)}", type: "ticket" },
+        ticket_type_attributes: {
+          audience: "public", approval_mode: "automatic", date_selection: "fixed",
+          admissions_per_unit: 1
+        },
+        price_attributes: {
+          type: "base", currency: "ETB", amount_minor: 1_000, active_from: @quoted_at - 1.minute
+        },
+        inventory_configuration: { mode: "unlimited" }
+      )
+      assert_predicate product_result, :success?, product_result.error&.message
+      product = product_result.value
+      event_date = @event.event_dates.create!(
+        name: "Stale ticket date #{SecureRandom.hex(3)}",
+        starts_at: @quoted_at + 1.day,
+        ends_at: @quoted_at + 1.day + 2.hours,
+        status: "scheduled"
+      )
+      product.product_accesses.create!(event_date:, type: "venue")
+      activation = Catalog::Products::Activate.call(product:, actor: core_users(:super_admin))
+      assert_predicate activation, :success?, activation.error&.message
+      ticket_type = activation.value.ticket_type
+      registration = Ticketing::Registration.create!(
+        event: @event,
+        ticket_type:,
+        user: @buyer,
+        created_by: @buyer,
+        source: "self_service",
+        identity_digest: SecureRandom.hex(32),
+        package_quantity: 1,
+        admissions_per_unit_snapshot: 1,
+        party_size: 1,
+        status: "pending_payment",
+        next_action_snapshot: "requires_order",
+        submitted_at: @quoted_at
+      )
+      [ activation.value, registration ]
     end
 
     def build_quote

@@ -33,9 +33,9 @@ module Orders
 
       prepare_idempotency!
       ActiveRecord::Base.transaction do
+        CheckoutLock.acquire!(buyer_user_id: buyer.id, event_id: event.id)
         locked_event = Events::Event.lock.find(event.id)
         abort_with(checkout_error(:event_cancelled, code: "event_cancelled", status: :conflict)) if locked_event.status == "cancelled"
-        Core::Database::AdvisoryLock.acquire!("orders-checkout", buyer.id, event.id)
         replay = replay_or_conflict!
         return replay if replay
         return failure(checkout_error(:quote_expired, code: "quote_expired", status: :conflict)) if quote_expired?
@@ -186,6 +186,8 @@ module Orders
       registration = Ticketing::Registration.lock.find(registration_id)
       valid = registration.event_id == event.id && registration.user_id == buyer.id
       abort_with(checkout_error(:registration_scope_invalid, code: "registration_scope_invalid")) unless valid
+      abort_with(checkout_error(:registration_not_payable, code: "registration_not_payable", status: :conflict)) unless
+        registration.pending_payment?
       registration
     rescue ActiveRecord::RecordNotFound
       abort_with(checkout_error(:registration_scope_invalid, code: "registration_scope_invalid"))

@@ -56,6 +56,21 @@ module Orders
       assert_equal "event_cancelled", result.error.code
     end
 
+    test "rejects a ticket quote for a registration that is no longer payable" do
+      product, registration = create_ticket_registration(status: "expired")
+
+      result = Orders::BuildQuote.call(
+        event: @event,
+        buyer: @buyer,
+        items: [ { product:, registration_id: registration.id, quantity: 1 } ],
+        charge_currency: "ETB",
+        quoted_at: @quoted_at
+      )
+
+      assert_predicate result, :failure?
+      assert_equal "registration_not_payable", result.error.code
+    end
+
     test "fixed charge-currency override wins without using a base price" do
       product = create_product(name: "Override parking", price_minor: nil)
       Catalog::ProductPrice.create!(
@@ -223,6 +238,48 @@ module Orders
         )
       end
       product
+    end
+
+    def create_ticket_registration(status:)
+      product_result = Catalog::Products::CreateDraft.call(
+        event: @event,
+        actor: core_users(:super_admin),
+        product_attributes: { name: "Quote ticket #{SecureRandom.hex(4)}", type: "ticket" },
+        ticket_type_attributes: {
+          audience: "public", approval_mode: "automatic", date_selection: "fixed",
+          admissions_per_unit: 1
+        },
+        price_attributes: {
+          type: "base", currency: "ETB", amount_minor: 1_000, active_from: @quoted_at - 1.minute
+        },
+        inventory_configuration: { mode: "unlimited" }
+      )
+      assert_predicate product_result, :success?, product_result.error&.message
+      product = product_result.value
+      event_date = @event.event_dates.create!(
+        name: "Quote ticket date #{SecureRandom.hex(3)}",
+        starts_at: @quoted_at + 1.day,
+        ends_at: @quoted_at + 1.day + 2.hours,
+        status: "scheduled"
+      )
+      product.product_accesses.create!(event_date:, type: "venue")
+      activation = Catalog::Products::Activate.call(product:, actor: core_users(:super_admin))
+      assert_predicate activation, :success?, activation.error&.message
+      ticket_type = activation.value.ticket_type
+      registration = Ticketing::Registration.create!(
+        event: @event,
+        ticket_type:,
+        user: @buyer,
+        created_by: @buyer,
+        source: "self_service",
+        identity_digest: SecureRandom.hex(32),
+        package_quantity: 1,
+        admissions_per_unit_snapshot: 1,
+        party_size: 1,
+        status:,
+        submitted_at: @quoted_at
+      )
+      [ activation.value, registration ]
     end
   end
 end

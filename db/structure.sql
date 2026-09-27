@@ -9961,7 +9961,7 @@ CREATE UNIQUE INDEX idx_one_open_resale_listing_per_ticket ON public.marketplace
 -- Name: idx_one_order_item_per_registration; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_one_order_item_per_registration ON public.orders_order_items USING btree (registration_id) WHERE (registration_id IS NOT NULL);
+CREATE UNIQUE INDEX idx_one_order_item_per_registration ON public.orders_order_items USING btree (registration_id, order_id) WHERE (registration_id IS NOT NULL);
 
 
 --

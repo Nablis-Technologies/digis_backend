@@ -120,6 +120,9 @@ module Orders
       if registration && (registration.event_id != event.id || (buyer && registration.user_id != buyer.id))
         return checkout_error(:registration_scope_invalid, code: "registration_scope_invalid")
       end
+      if registration && !registration.pending_payment?
+        return checkout_error(:registration_not_payable, code: "registration_not_payable", status: :conflict)
+      end
       return checkout_error(:registration_required, code: "registration_required") if product.ticket? && registration.nil?
 
       ticket_type = product.ticket_type

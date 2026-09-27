@@ -21,6 +21,7 @@ en:
         quantity_invalid: "The checkout quantity must be a positive integer"
         quantity_outside_product_limit: "The checkout quantity is outside the product limits"
         registration_scope_invalid: "The ticket registration is not valid for this checkout"
+        registration_not_payable: "The ticket registration is no longer payable"
         registration_required: "A ticket registration is required for checkout"
         admissions_invalid: "The ticket admission quantity is invalid"
         event_dates_required: "Event dates are required for this product"
