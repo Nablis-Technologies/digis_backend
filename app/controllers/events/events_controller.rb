@@ -129,6 +129,15 @@ module Events
       ]
     end
 
+    # Core::Common allowlists only id/created_at/updated_at, so an organizer list
+    # sorted by "Event" or "Status" fell through Core::Pagination#order_by to
+    # `id` and appeared to ignore the click. These are the columns the organizer
+    # events table actually offers, and all three are plain columns on
+    # events_events - no joins, no computed values.
+    def allowed_order_columns
+      %w[id title status published_at created_at updated_at]
+    end
+
     def organizer_event_order(events)
       return apply_ordering(events) if params[:order_by].present?
 

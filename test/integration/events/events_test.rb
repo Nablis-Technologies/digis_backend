@@ -205,6 +205,98 @@ class EventsEventsTest < ActionDispatch::IntegrationTest
     assert_equal "missing_idempotency_key", JSON.parse(response.body)["code"]
   end
 
+  test "the missing Idempotency-Key response is the standard error envelope" do
+    # The envelope is not cosmetic. Envelope-aware clients (digis-web) only read
+    # `error` when `success` is exactly false; a bare `{ error:, code: }` hash
+    # makes them fall back to the HTTP status text and show "Bad Request".
+    event = events_events(:ready_listing)
+    post "/events/#{event.id}/publish", headers: admin_headers, as: :json
+
+    assert_response :bad_request
+    body = JSON.parse(response.body)
+    assert_equal false, body["success"]
+    assert_equal "missing_idempotency_key", body["code"]
+    assert_predicate body["error"], :present?
+  end
+
+  test "index exposes updated_at so the list can show when an event changed" do
+    # `updated_at` is sortable (`allowed_order_columns`), so a list that renders
+    # a sort control for it must be able to read it back. When it was absent the
+    # UI rendered "Invalid Date" on every row.
+    get "/events?page=1", headers: admin_headers, as: :json
+
+    assert_response :success
+    events = response.parsed_body.fetch("data")
+    assert_predicate events, :any?
+    events.each do |event|
+      assert_predicate event["updated_at"], :present?, "expected updated_at on event #{event['id']}"
+    end
+  end
+
+  test "index filters by an allowlisted ransack attribute" do
+    get "/events?page=1&q[status_eq]=draft", headers: admin_headers, as: :json
+
+    assert_response :success
+    statuses = response.parsed_body.fetch("data").map { |event| event.fetch("status") }.uniq
+    assert_equal [ "draft" ], statuses
+    assert_operator response.parsed_body.fetch("pagination").fetch("total_count"), :>, 0
+  end
+
+  test "index searches event titles case-insensitively" do
+    Events::Event.create!(
+      organization: @organization,
+      created_by: core_users(:super_admin),
+      title: "Unique Zambezi Festival",
+      slug: "unique-zambezi-#{SecureRandom.hex(4)}",
+      status: "draft",
+      visibility: "private",
+      timezone: "Africa/Addis_Ababa",
+      currency: "ETB"
+    )
+
+    get "/events?page=1&q[title_cont]=zambezi", headers: admin_headers, as: :json
+
+    assert_response :success
+    titles = response.parsed_body.fetch("data").map { |event| event.fetch("title") }
+    assert_equal [ "Unique Zambezi Festival" ], titles
+  end
+
+  test "index orders by an allowlisted column" do
+    2.times do |index|
+      Events::Event.create!(
+        organization: @organization,
+        created_by: core_users(:super_admin),
+        title: "Zebra Ordering #{index}",
+        slug: "zebra-ordering-#{index}-#{SecureRandom.hex(4)}",
+        status: "draft",
+        visibility: "private",
+        timezone: "Africa/Addis_Ababa",
+        currency: "ETB"
+      )
+    end
+
+    get "/events?page=1&q[title_cont]=Zebra Ordering&order_by=title&order_direction=asc",
+        headers: admin_headers, as: :json
+    assert_response :success
+    assert_equal [ "Zebra Ordering 0", "Zebra Ordering 1" ],
+                 response.parsed_body.fetch("data").map { |event| event.fetch("title") }
+
+    get "/events?page=1&q[title_cont]=Zebra Ordering&order_by=title&order_direction=desc",
+        headers: admin_headers, as: :json
+    assert_response :success
+    assert_equal [ "Zebra Ordering 1", "Zebra Ordering 0" ],
+                 response.parsed_body.fetch("data").map { |event| event.fetch("title") }
+  end
+
+  test "index falls back to id when the order column is not allowlisted" do
+    get "/events?page=1&order_by=created_by_id&order_direction=asc",
+        headers: admin_headers, as: :json
+
+    assert_response :success
+    ids = response.parsed_body.fetch("data").map { |event| event.fetch("id") }
+    assert_equal ids.sort, ids
+  end
+
   private
 
   def create_media(event:, type:, position:)
