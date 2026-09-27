@@ -97,6 +97,36 @@ module Orders
       assert_equal 1, Orders::Payment.current.where(order: @order).count
     end
 
+    test "acquires checkout advisory before order, event, and payment locks" do
+      statements = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _start, _finish, _id, payload|
+        statements << payload[:sql]
+      end
+
+      result = start(provider: "chapa", payment_method: "telebirr", key: "attempt-lock-order")
+
+      assert_predicate result, :success?, result.error&.message
+      advisory_indexes = statements.each_index.select { |index| statements[index].include?("pg_advisory_xact_lock") }
+      order_lock_indexes = statements.each_index.select do |index|
+        statements[index].match?(/FROM\s+"orders_orders".*FOR UPDATE/i)
+      end
+      event_lock_index = statements.index { |sql| sql.match?(/FROM\s+"events_events".*FOR UPDATE/i) }
+      payment_lock_indexes = statements.each_index.select do |index|
+        statements[index].match?(/FROM\s+"orders_payments".*FOR UPDATE/i)
+      end
+
+      assert_operator advisory_indexes.length, :>=, 2, "expected locks for attempt reservation and provider-result persistence"
+      assert_not_nil order_lock_indexes.first, "expected an order row lock"
+      assert_not_nil event_lock_index, "expected an event row lock"
+      assert_not_nil payment_lock_indexes.last, "expected the final payment row lock"
+      assert_operator advisory_indexes.first, :<, order_lock_indexes.first
+      assert_operator order_lock_indexes.first, :<, event_lock_index
+      assert_operator event_lock_index, :<, payment_lock_indexes.first
+      assert_operator advisory_indexes.last, :<, payment_lock_indexes.last
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+    end
+
     test "persists the buyer-safe hosted checkout URL returned by the provider" do
       @chapa.result = Payments::Providers::Result.unknown(
         provider_reference: "checkout-ref",

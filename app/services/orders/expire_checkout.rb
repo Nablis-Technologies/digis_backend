@@ -42,13 +42,17 @@ module Orders
     end
 
     def expire_order(order_id)
+      checkout_identity = Orders::Order.where(id: order_id).pick(:buyer_user_id, :event_id)
+      raise ActiveRecord::RecordNotFound unless checkout_identity
+
       ActiveRecord::Base.transaction do
+        CheckoutLock.acquire!(buyer_user_id: checkout_identity.first, event_id: checkout_identity.last)
         order = Orders::Order.lock.find(order_id)
         next false unless order.status.in?(%w[draft pending_payment]) && order.expires_at <= now
 
         payment = order.payments.current.lock.order(:id).first
         unless payment
-          release = Orders::ReleaseCheckout.call(order:, at: now)
+          release = Orders::ReleaseCheckout.call_locked(order:, at: now, payment_rows_locked: true)
           raise ExpiryFailure, release.error if release.failure?
           next true
         end

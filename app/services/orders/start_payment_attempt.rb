@@ -59,8 +59,12 @@ module Orders
     end
 
     def reserve_attempt!(adapter)
+      checkout_identity = Orders::Order.where(id: order.id).pick(:buyer_user_id, :event_id)
+      raise ActiveRecord::RecordNotFound unless checkout_identity
+
       state = {}
       ActiveRecord::Base.transaction do
+        CheckoutLock.acquire!(buyer_user_id: checkout_identity.first, event_id: checkout_identity.last)
         locked_order = Orders::Order.includes(:event).lock.find(order.id)
         event = Events::Event.lock.find(locked_order.event_id)
         validate_order!(locked_order, event)
@@ -196,20 +200,32 @@ module Orders
     end
 
     def persist_provider_result(payment_id, result)
-      payment = Orders::Payment.lock.find(payment_id)
-      status = payment_status_for(result)
-      payment.update!(
-        status:,
-        provider_reference: result.provider_reference,
-        failure_code: result.failure_code,
-        provider_fee_minor: result.provider_fee_minor,
-        provider_fee_currency: result.provider_fee_currency,
-        checkout_url: result.checkout_url || payment.checkout_url,
-        raw_status: result.raw_status.presence || result.status
-      )
-      success(payment.reload)
-    rescue ActiveRecord::RecordInvalid
-      recover_invalid_provider_result(payment:, result:)
+      order_id = Orders::Payment.where(id: payment_id).pick(:order_id)
+      raise ActiveRecord::RecordNotFound unless order_id
+
+      checkout_identity = Orders::Order.where(id: order_id).pick(:buyer_user_id, :event_id)
+      raise ActiveRecord::RecordNotFound unless checkout_identity
+
+      ActiveRecord::Base.transaction do
+        CheckoutLock.acquire!(buyer_user_id: checkout_identity.first, event_id: checkout_identity.last)
+        locked_order = Orders::Order.lock.find(order_id)
+        payment = Orders::Payment.lock.find_by!(id: payment_id, order_id: locked_order.id)
+        begin
+          status = payment_status_for(result)
+          payment.update!(
+            status:,
+            provider_reference: result.provider_reference,
+            failure_code: result.failure_code,
+            provider_fee_minor: result.provider_fee_minor,
+            provider_fee_currency: result.provider_fee_currency,
+            checkout_url: result.checkout_url || payment.checkout_url,
+            raw_status: result.raw_status.presence || result.status
+          )
+          success(payment.reload)
+        rescue ActiveRecord::RecordInvalid
+          recover_invalid_provider_result(payment:, result:)
+        end
+      end
     end
 
     def order_currency
