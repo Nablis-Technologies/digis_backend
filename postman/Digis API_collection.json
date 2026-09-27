@@ -15972,7 +15972,8 @@
               { "key": "Idempotency-Key", "value": "{{rsvpOtpRequestIdempotencyKey}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{ \"rsvp\": { \"ticket_type_id\": \"{{ticketTypeId}}\", \"phone\": \"+251911234567\" } }", "options": { "raw": { "language": "json" } } },
-            "url": "{{baseUrl}}/public/events/{{eventSlug}}/rsvp/request_otp"
+            "url": "{{baseUrl}}/public/events/{{eventSlug}}/rsvp/request_otp",
+            "description": "For access_code, invitation, or code_or_invitation ticket types, include rsvp.access_code and/or rsvp.invitation_token. The proof is checked before OTP delivery and must be sent again when submitting the RSVP."
           },
           "response": [
             { "name": "RSVP OTP challenge", "status": "Created", "code": 201, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": { \"challenge_id\": \"challenge_01HX\", \"status\": \"pending\", \"expires_at\": \"2026-09-09T12:10:00Z\" }\n}" }
@@ -16002,7 +16003,8 @@
               { "key": "Idempotency-Key", "value": "{{rsvpSubmitIdempotencyKey}}", "type": "text" }
             ],
             "body": { "mode": "raw", "raw": "{ \"rsvp\": { \"ticket_type_id\": \"{{ticketTypeId}}\", \"phone\": \"+251911234567\", \"verification_token\": \"{{rsvpVerificationToken}}\", \"package_quantity\": 1 } }", "options": { "raw": { "language": "json" } } },
-            "url": "{{baseUrl}}/public/events/{{eventSlug}}/rsvp"
+            "url": "{{baseUrl}}/public/events/{{eventSlug}}/rsvp",
+            "description": "For access_code, invitation, or code_or_invitation ticket types, include the same rsvp.access_code and/or rsvp.invitation_token used for the OTP request. The backend revalidates the proof during registration."
           },
           "response": [
             { "name": "Automatic RSVP confirmed", "status": "Created", "code": 201, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": {\n    \"registration\": { \"id\": \"registration_01HX\", \"status\": \"confirmed\" },\n    \"next_action\": { \"type\": \"confirmed\" },\n    \"tickets\": [{ \"id\": \"ticket_01HX\", \"status\": \"active\", \"credentials\": [{ \"qr_token\": \"opaque-static-token\" }] }]\n  }\n}" },
@@ -16019,7 +16021,7 @@
             ],
             "body": { "mode": "raw", "raw": "{ \"rsvp\": { \"ticket_type_id\": \"{{ticketTypeId}}\", \"package_quantity\": 1 } }", "options": { "raw": { "language": "json" } } },
             "url": "{{baseUrl}}/public/events/{{eventSlug}}/rsvp",
-            "description": "Authenticated attendees use the same public RSVP route with a bearer token and do not need a guest OTP."
+            "description": "Authenticated attendees use the same public RSVP route with a bearer token and do not need a guest OTP. For access_code, invitation, or code_or_invitation ticket types, include rsvp.access_code and/or rsvp.invitation_token."
           },
           "response": [
             { "name": "Authenticated RSVP confirmed", "status": "Created", "code": 201, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": { \"registration\": { \"status\": \"confirmed\" }, \"next_action\": { \"type\": \"confirmed\" }, \"tickets\": [{ \"status\": \"active\", \"credentials\": [{ \"qr_token\": \"opaque-static-token\" }] }] }\n}" }

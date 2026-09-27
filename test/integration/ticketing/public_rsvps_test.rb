@@ -110,6 +110,163 @@ module Ticketing
       assert Core::User.where(phone: [ "251911000072", "+251911000072" ]).exists?
     end
 
+    test "guest access-code RSVP checks proof before OTP and registration" do
+      gated_type = create_rsvp_ticket_type(audience: "access_code")
+      raw_code = "RSVP-CODE-#{SecureRandom.hex(4)}"
+      access_code = create_access_code(gated_type, raw_code)
+      phone = "+251911000076"
+
+      post "/public/events/#{@event.slug}/rsvp/request_otp",
+           params: { rsvp: { ticket_type_id: gated_type.id, phone: } },
+           headers: { "Idempotency-Key" => "public-rsvp-gated-code-missing" },
+           as: :json
+
+      assert_response :unprocessable_entity
+      assert_empty @delivered_codes
+      assert_empty Core::PhoneVerificationChallenge.where(purpose: "guest_rsvp")
+
+      verification_token = request_guest_rsvp_verification(
+        ticket_type: gated_type,
+        phone:,
+        proof: { access_code: raw_code },
+        suffix: "gated-code"
+      )
+
+      post "/public/events/#{@event.slug}/rsvp",
+           params: {
+             rsvp: {
+               ticket_type_id: gated_type.id, phone:, verification_token:, package_quantity: 1
+             }
+           },
+           headers: { "Idempotency-Key" => "public-rsvp-gated-code-submit-missing" },
+           as: :json
+
+      assert_response :unprocessable_entity
+      assert_empty Registration.where(ticket_type: gated_type)
+
+      post "/public/events/#{@event.slug}/rsvp",
+           params: {
+             rsvp: {
+               ticket_type_id: gated_type.id, phone:, verification_token:,
+               access_code: raw_code, package_quantity: 1
+             }
+           },
+           headers: { "Idempotency-Key" => "public-rsvp-gated-code-submit-valid" },
+           as: :json
+
+      assert_response :created
+      assert_equal "confirmed", response.parsed_body.dig("data", "next_action", "type")
+      registration = Registration.find_by!(ticket_type: gated_type)
+      assert_equal 1, access_code.reload.used_count
+      assert_equal access_code.id, registration.access_code_id
+    end
+
+    test "guest invitation RSVP checks proof before OTP and registration" do
+      gated_type = create_rsvp_ticket_type(audience: "invitation")
+      invitation_token = SecureRandom.hex(24)
+      invitation = create_invitation(gated_type, invitation_token)
+      phone = "+251911000077"
+
+      post "/public/events/#{@event.slug}/rsvp/request_otp",
+           params: { rsvp: { ticket_type_id: gated_type.id, phone: } },
+           headers: { "Idempotency-Key" => "public-rsvp-gated-invitation-missing" },
+           as: :json
+
+      assert_response :unprocessable_entity
+      assert_empty @delivered_codes
+      assert_empty Core::PhoneVerificationChallenge.where(purpose: "guest_rsvp")
+
+      verification_token = request_guest_rsvp_verification(
+        ticket_type: gated_type,
+        phone:,
+        proof: { invitation_token: },
+        suffix: "gated-invitation"
+      )
+
+      post "/public/events/#{@event.slug}/rsvp",
+           params: {
+             rsvp: {
+               ticket_type_id: gated_type.id, phone:, verification_token:, package_quantity: 1
+             }
+           },
+           headers: { "Idempotency-Key" => "public-rsvp-gated-invitation-submit-missing" },
+           as: :json
+
+      assert_response :unprocessable_entity
+      assert_empty Registration.where(ticket_type: gated_type)
+
+      post "/public/events/#{@event.slug}/rsvp",
+           params: {
+             rsvp: {
+               ticket_type_id: gated_type.id, phone:, verification_token:,
+               invitation_token:, package_quantity: 1
+             }
+           },
+           headers: { "Idempotency-Key" => "public-rsvp-gated-invitation-submit-valid" },
+           as: :json
+
+      assert_response :created
+      assert_equal "confirmed", response.parsed_body.dig("data", "next_action", "type")
+      registration = Registration.find_by!(ticket_type: gated_type)
+      assert_equal invitation.id, registration.invitation_id
+      assert_equal "accepted", invitation.reload.status
+      assert_equal registration.user_id, invitation.invited_user_id
+    end
+
+    test "bound invitation rejects a mismatched guest phone before creating an OTP identity" do
+      gated_type = create_rsvp_ticket_type(audience: "invitation")
+      invitation_token = SecureRandom.hex(24)
+      invitation = create_invitation(gated_type, invitation_token)
+      bound_phone = "+251911000078"
+      bound_identity = Core::PhoneIdentity::ResolveOrCreate.call(
+        phone: bound_phone, actor: nil, allow_actor_mismatch: true
+      )
+      assert_predicate bound_identity, :success?, bound_identity.error&.message
+      invitation.update!(invited_user: bound_identity.value.user)
+      users_before_request = Core::User.count
+      other_phone = "+251911000079"
+
+      post "/public/events/#{@event.slug}/rsvp/request_otp",
+           params: {
+             rsvp: { ticket_type_id: gated_type.id, phone: other_phone, invitation_token: }
+           },
+           headers: { "Idempotency-Key" => "public-rsvp-bound-invite-mismatch" },
+           as: :json
+
+      assert_response :unprocessable_entity
+      assert_empty @delivered_codes
+      assert_empty Core::PhoneVerificationChallenge.where(purpose: "guest_rsvp")
+      assert_equal users_before_request, Core::User.count
+
+      post "/public/events/#{@event.slug}/rsvp/request_otp",
+           params: {
+             rsvp: { ticket_type_id: gated_type.id, phone: bound_phone, invitation_token: }
+           },
+           headers: { "Idempotency-Key" => "public-rsvp-bound-invite-same-claimant" },
+           as: :json
+
+      assert_response :created
+      assert_equal 1, @delivered_codes.length
+      assert_equal "pending", invitation.reload.status
+    end
+
+    test "authenticated RSVP accepts a valid access code" do
+      gated_type = create_rsvp_ticket_type(audience: "access_code")
+      raw_code = "RSVP-AUTH-CODE-#{SecureRandom.hex(4)}"
+      create_access_code(gated_type, raw_code)
+
+      post "/public/events/#{@event.slug}/rsvp",
+           params: {
+             rsvp: { ticket_type_id: gated_type.id, access_code: raw_code, package_quantity: 1 }
+           },
+           headers: user_headers.merge("Idempotency-Key" => "public-rsvp-auth-gated-code"),
+           as: :json
+
+      assert_response :created
+      assert_equal "confirmed", response.parsed_body.dig("data", "next_action", "type")
+      assert_equal 1, Registration.where(ticket_type: gated_type).count
+    end
+
     test "manual RSVP returns an approval action without a ticket" do
       manual_type = create_rsvp_ticket_type(approval_mode: "manual")
 
@@ -211,13 +368,13 @@ module Ticketing
 
     private
 
-    def create_rsvp_ticket_type(approval_mode: "automatic", amount_minor: 0)
+    def create_rsvp_ticket_type(approval_mode: "automatic", amount_minor: 0, audience: "public")
       product = Catalog::Products::CreateDraft.call(
         event: @event,
         actor: core_users(:super_admin),
         product_attributes: { name: "RSVP #{SecureRandom.hex(4)}", type: "ticket" },
         ticket_type_attributes: {
-          audience: "public", approval_mode:, date_selection: "fixed", admissions_per_unit: 1
+          audience:, approval_mode:, date_selection: "fixed", admissions_per_unit: 1
         },
         price_attributes: { type: "base", currency: "ETB", amount_minor:, active_from: 1.minute.ago },
         inventory_configuration: { mode: "unlimited" }
@@ -233,6 +390,52 @@ module Ticketing
       activated = Catalog::Products::Activate.call(product: product.value, actor: core_users(:super_admin))
       assert_predicate activated, :success?, activated.error&.message
       activated.value.ticket_type
+    end
+
+    def request_guest_rsvp_verification(ticket_type:, phone:, proof:, suffix:)
+      post "/public/events/#{@event.slug}/rsvp/request_otp",
+           params: { rsvp: { ticket_type_id: ticket_type.id, phone: }.merge(proof) },
+           headers: { "Idempotency-Key" => "public-rsvp-otp-#{suffix}" },
+           as: :json
+
+      assert_response :created
+      challenge_id = response.parsed_body.dig("data", "challenge_id")
+
+      post "/phone_verifications/#{challenge_id}/verify",
+           params: { code: @delivered_codes.last.fetch(:code) },
+           headers: { "Idempotency-Key" => "public-rsvp-verify-#{suffix}" },
+           as: :json
+
+      assert_response :success
+      response.parsed_body.dig("data", "verification_token")
+    end
+
+    def create_access_code(ticket_type, raw_code)
+      Ticketing::AccessCode.create!(
+        ticket_type:,
+        code_digest: Ticketing::AccessCode.code_digest_for(
+          event_id: @event.id, code: raw_code
+        ),
+        max_uses: 5,
+        used_count: 0,
+        max_quantity_per_use: 1,
+        active: true
+      )
+    end
+
+    def create_invitation(ticket_type, raw_token)
+      event_id = @event.id
+      email = "rsvp-#{SecureRandom.hex(4)}@example.com"
+      Ticketing::Invitation.create!(
+        ticket_type:,
+        created_by: core_users(:super_admin),
+        email:,
+        contact_digest: Ticketing::Invitation.contact_digest_for(event_id:, contact: email),
+        token: raw_token,
+        token_digest: Ticketing::Invitation.token_digest_for(event_id:, token: raw_token),
+        allowed_quantity: 1,
+        status: "pending"
+      )
     end
   end
 end

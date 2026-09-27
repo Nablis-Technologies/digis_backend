@@ -23,6 +23,7 @@ module Ticketing
         event:,
         ticket_type:,
         phone: rsvp_payload.require(:phone),
+        audience_proof:,
         idempotency_key:
       )
       return render_service_result(result) if result.failure?
@@ -47,6 +48,7 @@ module Ticketing
         actor: current_user,
         phone: rsvp_payload[:phone],
         verification_token: rsvp_payload[:verification_token],
+        audience_proof:,
         submission: registration_submission,
         idempotency_key:
       )
@@ -79,6 +81,14 @@ module Ticketing
 
     def rsvp_payload
       params.require(:rsvp)
+    end
+
+    def audience_proof
+      proof_params = rsvp_payload.permit(:access_code, :invitation_token)
+      {
+        access_code: proof_params[:access_code],
+        invitation: proof_params[:invitation_token]
+      }
     end
 
     def public_event

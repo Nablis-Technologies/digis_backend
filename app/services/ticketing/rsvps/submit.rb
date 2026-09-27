@@ -12,7 +12,7 @@ module Ticketing
       Result = Data.define(:registration, :tickets, :next_action, :status)
 
       def initialize(event:, ticket_type:, actor:, submission:, idempotency_key:, phone: nil,
-        verification_token: nil)
+        verification_token: nil, audience_proof: {})
         @event = event
         @ticket_type = ticket_type
         @actor = actor
@@ -20,6 +20,7 @@ module Ticketing
         @raw_idempotency_key = idempotency_key
         @phone = phone
         @verification_token = verification_token
+        @audience_proof = audience_proof.to_h.symbolize_keys.slice(:access_code, :invitation)
       end
 
       def call
@@ -43,7 +44,7 @@ module Ticketing
             actor: @actor,
             phone: canonical_phone(guest_identity),
             submission: @submission,
-            audience_proof: {},
+            audience_proof:,
             idempotency_key: key.to_s,
             guest: guest_request?,
             phone_confirmation: guest_request?
@@ -76,7 +77,9 @@ module Ticketing
 
         build_automatic_result(registration, replayed_confirmation:)
       rescue Ticketing::Registrations::Support::Halt => error
-        error.result
+        return error.result if error.result.error.is_a?(Core::BusinessError)
+
+        failure(rsvp_error("rsvp_registration_failed", errors: { base: [ error.result.error.message ] }))
       rescue ArgumentError => error
         failure(rsvp_error("rsvp_registration_failed", errors: { base: [ error.message ] }))
       rescue ActiveRecord::RecordInvalid => error
@@ -85,7 +88,8 @@ module Ticketing
 
       private
 
-      attr_reader :event, :ticket_type, :actor, :submission, :phone, :verification_token
+      attr_reader :event, :ticket_type, :actor, :submission, :phone, :verification_token,
+                  :audience_proof
 
       def guest_request?
         actor.blank?

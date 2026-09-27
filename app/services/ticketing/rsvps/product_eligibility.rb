@@ -3,7 +3,8 @@
 module Ticketing
   module Rsvps
     # Classifies a ticket product once so OTP and submission enforce the same
-    # public, sellable, free-product boundary.
+    # public-event, sellable, free-product boundary. Audience proof is checked
+    # separately by Ticketing::Audience::Authorize.
     module ProductEligibility
       module_function
 
@@ -19,8 +20,8 @@ module Ticketing
 
       def public_ticket?(event:, ticket_type:, product: ticket_type.event_product)
         event.status == "published" && event.visibility == "public" &&
-          product.event_id == event.id && product.status == "active" &&
-          product.ticket? && ticket_type.audience == "public"
+          product.event_id == event.id && product.status == "active" && product.ticket? &&
+          Ticketing::TicketType::AUDIENCES.include?(ticket_type.audience)
       end
     end
   end

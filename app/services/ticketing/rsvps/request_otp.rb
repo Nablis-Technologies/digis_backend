@@ -2,17 +2,18 @@
 
 module Ticketing
   module Rsvps
-    # Starts the guest RSVP phone-proof flow only for a public, active, free
-    # ticket product. Existing accounts are directed to authenticated RSVP
-    # instead of receiving an unnecessary guest OTP.
+    # Starts the guest RSVP phone-proof flow only after event, product, price,
+    # and audience authorization pass. Existing accounts are directed to
+    # authenticated RSVP instead of receiving an unnecessary guest OTP.
     class RequestOtp < Core::BaseService
       Result = Data.define(:challenge)
 
-      def initialize(event:, ticket_type:, phone:, idempotency_key:)
+      def initialize(event:, ticket_type:, phone:, idempotency_key:, audience_proof: {})
         @event = event
         @ticket_type = ticket_type
         @phone = phone
         @idempotency_key = idempotency_key
+        @audience_proof = audience_proof.to_h.symbolize_keys.slice(:access_code, :invitation)
       end
 
       def call
@@ -38,7 +39,7 @@ module Ticketing
 
       private
 
-      attr_reader :event, :ticket_type, :phone, :idempotency_key
+      attr_reader :event, :ticket_type, :phone, :idempotency_key, :audience_proof
 
       def validate_product
         current_ticket_type = loaded_ticket_type
@@ -46,6 +47,13 @@ module Ticketing
         return rsvp_error("rsvp_product_not_found", status: :not_found) if
           classification.in?(%i[not_public not_sellable])
         return rsvp_error("rsvp_paid_product_requires_checkout") if classification == :paid
+
+        audience = Ticketing::Audience::Authorize.call(
+          ticket_type: current_ticket_type,
+          phone:,
+          **audience_proof
+        )
+        return audience_error(audience.error) if audience.failure?
 
         nil
       end
@@ -56,6 +64,13 @@ module Ticketing
           .find(ticket_type.id)
       end
 
+      def audience_error(error)
+        Core::BusinessError.new(
+          error.message,
+          code: "rsvp_audience_unauthorized",
+          status: :unprocessable_entity
+        )
+      end
 
       def rsvp_error(code, status: :unprocessable_entity, errors: nil)
         Core::BusinessError.new(
