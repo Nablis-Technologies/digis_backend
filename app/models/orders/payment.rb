@@ -8,6 +8,7 @@ module Orders
     self.table_name = "orders_payments"
 
     STATUSES = %w[created processing succeeded failed cancelled unknown timeout reversed].freeze
+    RELEASE_BLOCKING_STATUSES = %w[created processing succeeded unknown timeout].freeze
     PROVIDERS = Commercial::FeeComponent::PROVIDERS.freeze
     PAYMENT_METHODS = Commercial::FeeComponent::PAYMENT_METHODS.freeze
     SNAPSHOT_ATTRIBUTES = %w[

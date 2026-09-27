@@ -229,9 +229,8 @@ Rails.application.routes.draw do
   end
 
   # Workflow endpoints delegate all state transitions to idempotent commands.
-  resources :registrations, only: :show, controller: "ticketing/registrations" do
-    post :release, on: :member
-  end
+  resources :registrations, only: :show, controller: "ticketing/registrations"
+  post "registrations/:id/release", to: "orders/registration_checkouts#create"
 
   resources :registrations, only: [] do
     member do

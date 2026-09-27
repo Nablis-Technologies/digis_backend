@@ -320,6 +320,11 @@ module Ticketing
       registration = create_registration
       headers = submission_headers("registration-release-1")
 
+      assert_recognizes(
+        { controller: "orders/registration_checkouts", action: "create", id: registration.id },
+        { path: "/registrations/#{registration.id}/release", method: :post }
+      )
+
       post "/registrations/#{registration.id}/release", headers:, as: :json
 
       assert_response :success

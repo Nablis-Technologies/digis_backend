@@ -3,8 +3,7 @@
 module Ticketing
   # Attendee-facing registration submission and privacy-scoped retrieval.
   class RegistrationsController < Ticketing::ApplicationController
-    before_action :ensure_idempotency_key_present, only: %i[create release]
-    before_action :load_registration, only: :release
+    before_action :ensure_idempotency_key_present, only: :create
 
     def create
       ticket_type = Ticketing::TicketType.includes(event_product: :prices).find(params[:ticket_type_id])
@@ -40,24 +39,7 @@ module Ticketing
       render_success(data: registration, serializer_options: { serializer: Ticketing::RegistrationSerializer })
     end
 
-    def release
-      authorize @registration, :release?
-      result = Ticketing::Registrations::ReleasePending.call(
-        registration: @registration,
-        buyer: current_user,
-        idempotency_key:
-      )
-      render_service_result(
-        result,
-        serializer_options: { serializer: Ticketing::RegistrationSerializer }
-      )
-    end
-
     private
-
-    def load_registration
-      @registration = Ticketing::Registration.find(params[:id])
-    end
 
     def registration_submission(answers, consents)
       Ticketing::RegistrationSubmission.new(
