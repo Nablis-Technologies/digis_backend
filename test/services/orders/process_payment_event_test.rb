@@ -70,6 +70,66 @@ module Orders
       ).count
     end
 
+    test "acquires checkout advisory before mutating an event payment" do
+      @payment.update!(provider_reference: nil)
+      event = record_event(
+        event_id: "evt-checkout-lock-order",
+        event_type: "payment.succeeded",
+        payload: {
+          "status" => "paid",
+          "provider_reference" => "verified-reference",
+          "merchant_reference" => @payment.provider_merchant_reference
+        }
+      )
+      statements = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _start, _finish, _id, payload|
+        statements << payload[:sql]
+      end
+
+      result = Orders::ProcessPaymentEvent.call(event:)
+
+      assert_predicate result, :success?, result.error&.message
+      advisory_index = statements.index { |sql| sql.include?("pg_advisory_xact_lock") }
+      order_lock_index = statements.index { |sql| sql.match?(/FROM\s+"orders_orders".*FOR UPDATE/i) }
+      payment_write_index = statements.index do |sql|
+        sql.match?(/(?:UPDATE\s+"orders_payments"|FROM\s+"orders_payments".*FOR UPDATE)/i)
+      end
+
+      assert_not_nil advisory_index, "expected the shared checkout advisory lock"
+      assert_not_nil order_lock_index, "expected an order row lock"
+      assert_not_nil payment_write_index, "expected an authoritative payment write/lock"
+      assert_operator advisory_index, :<, order_lock_index
+      assert_operator advisory_index, :<, payment_write_index
+      assert_equal "verified-reference", @payment.reload.provider_reference
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+    end
+
+    test "direct payment acceptance acquires checkout advisory before order and payment locks" do
+      statements = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _start, _finish, _id, payload|
+        statements << payload[:sql]
+      end
+
+      result = Orders::AcceptPayment.call(payment: @payment)
+
+      assert_predicate result, :success?, result.error&.message
+      advisory_index = statements.index { |sql| sql.include?("pg_advisory_xact_lock") }
+      order_lock_index = statements.index { |sql| sql.match?(/FROM\s+"orders_orders".*FOR UPDATE/i) }
+      event_lock_index = statements.index { |sql| sql.match?(/FROM\s+"events_events".*FOR UPDATE/i) }
+      payment_lock_index = statements.index { |sql| sql.match?(/FROM\s+"orders_payments".*FOR UPDATE/i) }
+
+      assert_not_nil advisory_index, "expected the shared checkout advisory lock"
+      assert_not_nil order_lock_index, "expected an order row lock"
+      assert_not_nil event_lock_index, "expected an event row lock"
+      assert_not_nil payment_lock_index, "expected a payment row lock"
+      assert_operator advisory_index, :<, order_lock_index
+      assert_operator order_lock_index, :<, event_lock_index
+      assert_operator event_lock_index, :<, payment_lock_index
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+    end
+
     test "locates a webhook by the persisted provider merchant reference" do
       @payment.update!(provider_reference: nil)
       event = record_event(event_id: "evt-merchant-ref", event_type: "payment.succeeded", payload: {
@@ -94,12 +154,25 @@ module Orders
           "chapa_reference" => "chapa-provider-reference"
         }
       )
+      statements = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _start, _finish, _id, payload|
+        statements << payload[:sql]
+      end
 
       result = Orders::ProcessPaymentEvent.call(event:)
 
       assert_predicate result, :success?, result.error&.message
       assert_equal "chapa-provider-reference", @payment.reload.provider_reference
       assert @payment.accepted?
+      %w[provider_merchant_reference provider_reference idempotency_key].each do |column|
+        query_count = statements.count do |sql|
+          sql.match?(/\ASELECT\b/i) && sql.include?('FROM "orders_payments"') &&
+            sql.include?(%Q("orders_payments"."#{column}"))
+        end
+        assert_equal 1, query_count, "expected one bounded lookup for #{column}"
+      end
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
     end
 
     test "accepts a billing payment without fulfilling an event order" do

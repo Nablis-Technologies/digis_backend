@@ -16,6 +16,7 @@ module Orders
     def call
       outcome = nil
       ActiveRecord::Base.transaction do
+        CheckoutLock.acquire_for_order!(order_id: @order.id)
         order = Orders::Order.lock.find(@order.id)
         if order.status == "fulfilled" &&
           (order.sales_channel != "resale" || resale_sale_exists?(order))

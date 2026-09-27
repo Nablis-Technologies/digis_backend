@@ -18,6 +18,7 @@ module Orders
 
       verification = verify_provider(candidate)
       ActiveRecord::Base.transaction do
+        CheckoutLock.acquire_for_order!(order_id: candidate.order_id)
         order = Orders::Order.lock.find(candidate.order_id)
         payment = Orders::Payment.lock.find_by!(id: candidate.id, order_id: order.id)
         return success(payment) unless payment.current? && due?(payment)
@@ -29,7 +30,7 @@ module Orders
           return success(payment.reload)
         end
 
-        release = Orders::ReleaseCheckout.call(order:, at: now)
+        release = Orders::ReleaseCheckout.call_locked(order:, at: now, payment_rows_locked: true)
         raise GraceFailure, release.error if release.failure?
         success(payment.reload)
       end

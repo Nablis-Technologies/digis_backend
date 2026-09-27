@@ -26,8 +26,12 @@ module Marketplace
     end
 
     def call
+      ticket_type_id = ResaleListing.where(id: @listing.id).pick(:ticket_type_id)
+      raise ActiveRecord::RecordNotFound unless ticket_type_id
+
       outcome = nil
       ActiveRecord::Base.transaction do
+        Orders::CheckoutLock.acquire_for_order!(order_id: @order.id, ticket_type_ids: [ ticket_type_id ])
         listing = ResaleListing.lock.find(@listing.id)
         existing = ResaleSale.lock.find_by(resale_listing_id: listing.id)
         if existing

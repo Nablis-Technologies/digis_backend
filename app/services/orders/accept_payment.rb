@@ -15,8 +15,11 @@ module Orders
     def call
       return failure(payment_error(:event_payment_required, status: :unprocessable_entity)) if @payment.billing_payment?
 
+      order_id = Orders::Payment.where(id: @payment.id).pick(:order_id)
+      raise ActiveRecord::RecordNotFound unless order_id
+
       ActiveRecord::Base.transaction do
-        order_id = Orders::Payment.where(id: @payment.id).pick(:order_id)
+        CheckoutLock.acquire_for_order!(order_id:)
         order = Orders::Order.includes(:event).lock.find(order_id)
         event = Events::Event.lock.find(order.event_id)
         payment = Orders::Payment.lock.find(@payment.id)

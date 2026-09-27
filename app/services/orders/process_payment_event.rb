@@ -23,6 +23,7 @@ module Orders
         payment = locate_payment(event)
         return finish_ignored!(event) unless payment
         event.update!(payment_id: payment.id) if event.payment_id.nil?
+        acquire_event_checkout_lock!(payment)
         record_provider_reference!(payment, event)
 
         if success_event?(event)
@@ -56,14 +57,24 @@ module Orders
       # the provider's own chapa_reference.
       references = locked_event.payload.values_at(
         "provider_reference", "chapa_reference", "merchant_reference", "tx_ref", "reference"
-      ).filter_map(&:presence)
+      ).filter_map(&:presence).uniq
+      return if references.empty?
+
+      matches_by_column = %i[provider_merchant_reference provider_reference idempotency_key].map do |column|
+        Orders::Payment.where(provider: locked_event.provider).where(column => references)
+          .index_by { |candidate| candidate.public_send(column) }
+      end
       references.each do |reference|
-        payment = Orders::Payment.find_by(provider: locked_event.provider, provider_merchant_reference: reference) ||
-          Orders::Payment.find_by(provider: locked_event.provider, provider_reference: reference) ||
-          Orders::Payment.find_by(provider: locked_event.provider, idempotency_key: reference)
+        payment = matches_by_column.filter_map { |matches| matches[reference] }.first
         return payment if payment
       end
       nil
+    end
+
+    def acquire_event_checkout_lock!(payment)
+      return if payment.billing_payment?
+
+      Orders::CheckoutLock.acquire_for_order!(order_id: payment.order_id)
     end
 
     def record_provider_reference!(payment, locked_event)
