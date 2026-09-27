@@ -76,6 +76,79 @@ module Ticketing
         assert_equal "registration_not_approvable", result.error.code
       end
 
+      test "reconsideration re-acquires the registration's access-code use" do
+        ticket_type = create_ticket_type(approval_mode: "manual", audience: "access_code")
+        access_code = create_access_code(ticket_type, max_uses: 5, used_count: 0)
+        registration = create_registration(ticket_type:, status: "rejected", rejected_at: Time.current)
+        registration.update!(access_code:)
+
+        result = Reconsider.call(
+          registration:, actor: @manager, decision: "approve", reason: "Review changed",
+          idempotency_key: "reconsider-access-code"
+        )
+
+        assert_predicate result, :success?, result.error&.message
+        assert_equal "pending_payment", registration.reload.status
+        assert_equal 1, access_code.reload.used_count
+      end
+
+      test "reconsideration remains rejected if its access code is exhausted" do
+        ticket_type = create_ticket_type(approval_mode: "manual", audience: "access_code")
+        access_code = create_access_code(ticket_type, max_uses: 1, used_count: 1)
+        registration = create_registration(ticket_type:, status: "rejected", rejected_at: Time.current)
+        registration.update!(access_code:)
+
+        result = Reconsider.call(
+          registration:, actor: @manager, decision: "approve", reason: "Review changed",
+          idempotency_key: "reconsider-exhausted-access-code"
+        )
+
+        assert_predicate result, :failure?
+        assert_equal "rejected", registration.reload.status
+        assert_equal 1, access_code.reload.used_count
+        assert_nil registration.approved_at
+        assert_not Core::AuditLog.exists?(action: "ticketing.registration.reconsidered", auditable_id: registration.id)
+      end
+
+      test "reconsideration remains rejected if its invitation expired" do
+        ticket_type = create_ticket_type(approval_mode: "manual", audience: "invitation")
+        invitation = create_invitation(ticket_type, expires_at: 1.minute.ago)
+        registration = create_registration(ticket_type:, status: "rejected", rejected_at: Time.current)
+        registration.update!(invitation:)
+
+        result = Reconsider.call(
+          registration:, actor: @manager, decision: "approve", reason: "Review changed",
+          idempotency_key: "reconsider-expired-invitation"
+        )
+
+        assert_predicate result, :failure?
+        assert_equal "rejected", registration.reload.status
+        assert_equal "pending", invitation.reload.status
+        assert_nil registration.approved_at
+      end
+
+      test "reconsidering rejection as rejection does not return proof twice" do
+        ticket_type = create_ticket_type(approval_mode: "manual", audience: "access_code")
+        access_code = create_access_code(ticket_type, max_uses: 5, used_count: 1)
+        registration = create_registration(ticket_type:, status: "pending_approval")
+        registration.update!(access_code:)
+
+        rejected = Reject.call(
+          registration:, actor: @manager, reason: "Initial rejection", idempotency_key: "reject-before-reconsider"
+        )
+        assert_predicate rejected, :success?, rejected.error&.message
+        assert_equal 0, access_code.reload.used_count
+
+        reconsidered = Reconsider.call(
+          registration:, actor: @manager, decision: "reject", reason: "Still rejected",
+          idempotency_key: "reconsider-as-reject"
+        )
+
+        assert_predicate reconsidered, :success?, reconsidered.error&.message
+        assert_equal "rejected", registration.reload.status
+        assert_equal 0, access_code.reload.used_count
+      end
+
       test "does not approve a registration after event cancellation" do
         ticket_type = create_ticket_type(approval_mode: "manual")
         registration = create_registration(ticket_type:, status: "pending_approval")
@@ -90,13 +163,13 @@ module Ticketing
 
       private
 
-      def create_ticket_type(approval_mode:)
+      def create_ticket_type(approval_mode:, audience: "public")
         product = Catalog::Products::CreateDraft.call(
           event: @event,
           actor: @manager,
           product_attributes: { name: "Decision ticket #{SecureRandom.hex(4)}", type: "ticket" },
           ticket_type_attributes: {
-            audience: "public", approval_mode:, date_selection: "fixed", admissions_per_unit: 1
+            audience:, approval_mode:, date_selection: "fixed", admissions_per_unit: 1
           },
           price_attributes: { currency: "ETB", amount_minor: 1, active_from: Time.current },
           inventory_configuration: { mode: "unlimited" }
@@ -119,6 +192,41 @@ module Ticketing
           status:,
           rejected_at:,
           submitted_at: Time.current
+        )
+      end
+
+      def create_access_code(ticket_type, max_uses:, used_count:)
+        raw_code = "DECISION-CODE-#{SecureRandom.hex(4)}"
+        Ticketing::AccessCode.create!(
+          ticket_type:,
+          code_digest: Ticketing::AccessCode.code_digest_for(
+            event_id: @event.id, code: raw_code
+          ),
+          max_uses:,
+          used_count:,
+          max_quantity_per_use: 1,
+          active: true
+        )
+      end
+
+      def create_invitation(ticket_type, expires_at:)
+        email = "decision-invitation-#{SecureRandom.hex(4)}@example.com"
+        raw_token = SecureRandom.hex(24)
+        Ticketing::Invitation.create!(
+          ticket_type:,
+          created_by: @manager,
+          invited_user: @attendee,
+          email:,
+          contact_digest: Ticketing::Invitation.contact_digest_for(
+            event_id: @event.id, contact: email
+          ),
+          token: raw_token,
+          token_digest: Ticketing::Invitation.token_digest_for(
+            event_id: @event.id, token: raw_token
+          ),
+          allowed_quantity: 1,
+          status: "pending",
+          expires_at:
         )
       end
     end

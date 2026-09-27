@@ -33,6 +33,11 @@ module Ticketing
           previous_status = locked.status
           now = Time.current
           if decision == "approve"
+            unwrap(Ticketing::Registrations::AudienceProof::Reacquire.call(
+              registration: locked,
+              transition_key: audit_key,
+              at: now
+            ))
             locked.update!(
               status: "pending_payment",
               approved_at: now,
