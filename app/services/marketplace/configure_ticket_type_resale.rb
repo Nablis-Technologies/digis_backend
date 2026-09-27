@@ -103,13 +103,32 @@ module Marketplace
     # writes are harmless because CancelListing treats cancellation as a
     # terminal idempotent transition.
     def cancel_open_listings!(ticket_type)
-      ResaleListing.where(ticket_type_id: ticket_type.id, status: %w[active reserved]).lock.find_each do |listing|
+      listing_ids = ResaleListing.where(ticket_type_id: ticket_type.id, status: %w[active reserved])
+        .order(:id)
+        .pluck(:id)
+      reserved_order_ids = ResaleListing.where(id: listing_ids, status: "reserved")
+        .order(:id)
+        .pluck(:reserved_order_id)
+      checkout_identities = Orders::Order.where(id: reserved_order_ids)
+        .order(:id)
+        .pluck(:buyer_user_id, :event_id)
+      Orders::CheckoutLock.acquire_all!(checkout_identities)
+
+      listing_ids.each do |listing_id|
+        listing = ResaleListing.find(listing_id)
+        next unless listing.open?
+
         result = CancelListing.call(
           listing:,
           reason: "resale_policy_disabled",
           idempotency_key: "resale-policy-disabled-#{ticket_type.id}-#{listing.id}"
         )
-        raise result.error if result.failure?
+        next if result.success?
+
+        current_status = ResaleListing.where(id: listing.id).pick(:status)
+        next if current_status.in?(%w[sold cancelled expired])
+
+        raise result.error
       end
     end
 

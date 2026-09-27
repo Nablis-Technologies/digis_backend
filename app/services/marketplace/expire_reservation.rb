@@ -15,17 +15,34 @@ module Marketplace
     end
 
     def call
+      ticket_type_id = ResaleListing.where(id: @listing.id).pick(:ticket_type_id)
+      return failure(error(:reservation_record_not_found, :not_found)) unless ticket_type_id
+      reservation_identity = reserved_checkout_identity
+      return failure(error(:reservation_record_not_found, :not_found)) if
+        reservation_identity && reservation_identity[:buyer_user_id].blank?
+
       outcome = nil
       ActiveRecord::Base.transaction do
+        locked_ticket_type = Ticketing::TicketType.lock.find(ticket_type_id)
+        if reservation_identity
+          Orders::CheckoutLock.acquire!(
+            buyer_user_id: reservation_identity.fetch(:buyer_user_id),
+            event_id: reservation_identity.fetch(:event_id)
+          )
+        end
         listing = ResaleListing.lock.find(@listing.id)
+        abort_with(error(:reservation_not_open, :conflict)) unless listing.ticket_type_id == locked_ticket_type.id
         if listing.status.in?(%w[active expired cancelled sold]) && listing.reserved_order_id.nil?
           outcome = success(listing)
           next
         end
         abort_with(error(:reservation_not_open, :conflict)) unless listing.status == "reserved"
+        abort_with(error(:reservation_not_open, :conflict)) unless
+          listing.reserved_order_id == reservation_identity&.fetch(:order_id)
 
         order = Orders::Order.lock.find(listing.reserved_order_id)
-        current_payment = order.payments.where(superseded_at: nil).lock.order(:id).last
+        current_payments = order.payments.where(superseded_at: nil).lock.order(:id).to_a
+        current_payment = current_payments.last
         if order.paid? || current_payment&.accepted?
           outcome = failure(error(:reservation_payment_accepted, :conflict))
           next
@@ -61,11 +78,25 @@ module Marketplace
 
     attr_reader :now
 
+    def reserved_checkout_identity
+      order_id = ResaleListing.where(id: @listing.id, status: "reserved").pick(:reserved_order_id)
+      return unless order_id
+
+      identity = Orders::Order.where(id: order_id).pick(:buyer_user_id, :event_id)
+      {
+        order_id:,
+        buyer_user_id: identity&.first,
+        event_id: identity&.last
+      }
+    end
+
     def release_order!(order)
       return success(order) if order.status == "expired"
       return failure(error(:reservation_not_releasable, :conflict)) unless order.status.in?(%w[draft pending_payment])
 
-      Orders::ReleaseCheckout.call(order:, reason: RELEASE_REASON, at: now)
+      Orders::ReleaseCheckout.call_locked(
+        order:, reason: RELEASE_REASON, at: now, payment_rows_locked: true
+      )
     end
 
     def load_ticket(listing)

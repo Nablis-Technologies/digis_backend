@@ -59,6 +59,10 @@ module Marketplace
       prepare_keys
       outcome = nil
       ActiveRecord::Base.transaction do
+        ticket_type = Ticketing::TicketType.lock.find(@listing.ticket_type_id)
+        Orders::CheckoutLock.acquire!(
+          buyer_user_id: @buyer.id, event_id: ticket_type.event_product.event_id
+        )
         listing = ResaleListing.lock.find(@listing.id)
         existing = Orders::Order.lock.find_by(idempotency_key_digest: @order_key_digest)
         if existing
@@ -74,7 +78,6 @@ module Marketplace
 
         ticket = load_ticket(listing)
         verify_reservation_eligibility!(listing, ticket)
-        Core::Database::AdvisoryLock.acquire!("orders-checkout", @buyer.id, ticket.event_id)
         reject_existing_checkout!(ticket)
 
         registration = create_buyer_registration!(ticket)

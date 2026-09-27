@@ -61,6 +61,41 @@ module Marketplace
       assert_equal allocation_count, Ticketing::PurchaseLimitAllocation.where(user_id: @buyer.id).count
     end
 
+    test "acquires checkout advisory lock before locking the listing or an order" do
+      statements = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _start, _finish, _id, payload|
+        statements << payload[:sql]
+      end
+
+      result = ReserveListing.call(
+        listing: @listing,
+        buyer: @buyer,
+        idempotency_key: "reserve-listing-lock-order-#{SecureRandom.hex(4)}"
+      )
+
+      assert_predicate result, :success?, result.error&.message
+      ticket_type_lock_index = statements.index do |sql|
+        sql.match?(/FROM\s+"ticketing_ticket_types".*FOR UPDATE/i)
+      end
+      advisory_index = statements.index { |sql| sql.include?("pg_advisory_xact_lock") }
+      listing_lock_index = statements.index do |sql|
+        sql.match?(/FROM\s+"marketplace_resale_listings".*FOR UPDATE/i)
+      end
+      order_lock_index = statements.index do |sql|
+        sql.match?(/FROM\s+"orders_orders".*FOR UPDATE/i)
+      end
+
+      assert_not_nil ticket_type_lock_index, "expected a ticket-type policy lock"
+      assert_not_nil advisory_index, "expected the shared checkout advisory lock"
+      assert_not_nil listing_lock_index, "expected a listing row lock"
+      assert_not_nil order_lock_index, "expected the idempotent order row lock"
+      assert_operator ticket_type_lock_index, :<, advisory_index
+      assert_operator advisory_index, :<, listing_lock_index
+      assert_operator advisory_index, :<, order_lock_index
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+    end
+
     test "rolls back the reservation when the publication fails" do
       key = "reserve-listing-rollback-#{SecureRandom.hex(8)}"
       failure = Core::BaseService::Result.failure(
