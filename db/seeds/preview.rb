@@ -9,8 +9,13 @@
 #   DIGIS_SEED_PROFILE=preview bin/rails db:seed
 #
 # Auth for API tests:
-#   POST /core/auth/login  { phone: "+251911000001", password: "password123" }
+#   POST /auth/login  { identifier: "+251911000001", password: "password123" }
 #   → use the returned token as  Authorization: Bearer <token>
+#
+# Note the two easy mistakes: the route is `/auth/login`, NOT `/core/auth/login`,
+# and the credential field is `identifier` (which accepts phone OR email), NOT
+# `phone`. Sending `phone` fails as 401 `invalid_credentials`, which reads like a
+# bad password rather than a bad field name.
 # ─────────────────────────────────────────────────────────────────────────────
 
 require "base64"

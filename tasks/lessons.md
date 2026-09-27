@@ -169,6 +169,11 @@
   successful unrelated endpoint does not validate the target operation; retain
   the provider request ID when a structured error supplies one.
 
+- Every implementation must include focused regression coverage and run the
+  relevant tests in the same task. Follow red/green verification, and keep the
+  tracker status explicitly unverified until behavioral tests pass; static
+  checks alone do not establish that a bug fix works.
+
 - Provider reference constraints are separate from client idempotency
   constraints. Keep the full client key for local replay and the native
   `Idempotency-Key` header, but derive and persist a provider-safe reference
