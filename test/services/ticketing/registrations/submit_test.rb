@@ -415,6 +415,153 @@ module Ticketing
         assert_equal first.send(:request_digest, identity, @ticket_type), equivalent.send(:request_digest, identity, @ticket_type)
       end
 
+      test "consumes an access-code use and exact replay does not consume it again" do
+        @ticket_type.update!(audience: "access_code")
+        raw_code = "REG-CODE-#{SecureRandom.hex(4)}"
+        access_code = create_access_code(@ticket_type, raw_code, max_uses: 1, max_quantity_per_use: 1)
+        request = {
+          audience_proof: { access_code: raw_code },
+          idempotency_key: "registration-access-code-replay"
+        }
+
+        first = submit(**request)
+
+        assert_predicate first, :success?, first.error&.message
+        registration = first.value.registration
+        assert_equal access_code.id, registration.access_code_id
+        assert_equal 1, access_code.reload.used_count
+
+        replay = submit(**request)
+
+        assert_predicate replay, :success?, replay.error&.message
+        assert_equal registration.id, replay.value.registration.id
+        assert_equal 1, access_code.reload.used_count
+
+        active_replay = submit(**request.merge(idempotency_key: "registration-access-code-active-replay"))
+
+        assert_predicate active_replay, :success?, active_replay.error&.message
+        assert_equal registration.id, active_replay.value.registration.id
+        assert_equal 1, access_code.reload.used_count
+        assert_equal 1, Registration.where(ticket_type: @ticket_type).count
+      end
+
+      test "rejects an exhausted access code without creating another registration" do
+        @ticket_type.update!(audience: "access_code")
+        raw_code = "REG-CODE-#{SecureRandom.hex(4)}"
+        access_code = create_access_code(@ticket_type, raw_code, max_uses: 1, max_quantity_per_use: 1)
+
+        first = submit(
+          audience_proof: { access_code: raw_code },
+          idempotency_key: "registration-access-code-first"
+        )
+        second = submit(
+          actor: core_users(:support),
+          audience_proof: { access_code: raw_code },
+          idempotency_key: "registration-access-code-exhausted"
+        )
+
+        assert_predicate first, :success?, first.error&.message
+        assert_predicate second, :failure?
+        assert_equal 1, access_code.reload.used_count
+        assert_equal 1, Registration.where(ticket_type: @ticket_type).count
+      end
+
+      test "enforces the access-code per-use quantity limit inside registration" do
+        @ticket_type.update!(audience: "access_code")
+        raw_code = "REG-CODE-#{SecureRandom.hex(4)}"
+        access_code = create_access_code(@ticket_type, raw_code, max_uses: 5, max_quantity_per_use: 1)
+
+        result = submit(
+          package_quantity: 2,
+          audience_proof: { access_code: raw_code },
+          idempotency_key: "registration-access-code-quantity"
+        )
+
+        assert_predicate result, :failure?
+        assert_equal 0, access_code.reload.used_count
+        assert_empty Registration.where(ticket_type: @ticket_type)
+      end
+
+      test "rolls back access-code consumption when registration validation fails" do
+        @ticket_type.update!(audience: "access_code")
+        raw_code = "REG-CODE-#{SecureRandom.hex(4)}"
+        access_code = create_access_code(@ticket_type, raw_code, max_uses: 5, max_quantity_per_use: 1)
+
+        result = submit(
+          answers: [],
+          audience_proof: { access_code: raw_code },
+          idempotency_key: "registration-access-code-rollback"
+        )
+
+        assert_predicate result, :failure?
+        assert_equal 0, access_code.reload.used_count
+        assert_empty Registration.where(ticket_type: @ticket_type)
+      end
+
+      test "claims an invitation and exact replay does not claim it again" do
+        @ticket_type.update!(audience: "invitation")
+        raw_token = SecureRandom.hex(24)
+        invitation = create_invitation(@ticket_type, raw_token, allowed_quantity: 2)
+        request = {
+          package_quantity: 2,
+          audience_proof: { invitation: raw_token },
+          idempotency_key: "registration-invitation-replay"
+        }
+
+        first = submit(**request)
+
+        assert_predicate first, :success?, first.error&.message
+        registration = first.value.registration
+        assert_equal invitation.id, registration.invitation_id
+        assert_equal "accepted", invitation.reload.status
+        assert_equal @actor.id, invitation.invited_user_id
+
+        replay = submit(**request)
+
+        assert_predicate replay, :success?, replay.error&.message
+        assert_equal registration.id, replay.value.registration.id
+
+        active_replay = submit(**request.merge(idempotency_key: "registration-invitation-active-replay"))
+
+        assert_predicate active_replay, :success?, active_replay.error&.message
+        assert_equal registration.id, active_replay.value.registration.id
+        assert_equal 1, Registration.where(ticket_type: @ticket_type).count
+      end
+
+      test "rejects quantity above an invitation allowance without claiming it" do
+        @ticket_type.update!(audience: "invitation")
+        raw_token = SecureRandom.hex(24)
+        invitation = create_invitation(@ticket_type, raw_token, allowed_quantity: 1)
+
+        result = submit(
+          package_quantity: 2,
+          audience_proof: { invitation: raw_token },
+          idempotency_key: "registration-invitation-quantity"
+        )
+
+        assert_predicate result, :failure?
+        assert_equal "pending", invitation.reload.status
+        assert_nil invitation.invited_user_id
+        assert_empty Registration.where(ticket_type: @ticket_type)
+      end
+
+      test "rolls back invitation claim when registration validation fails" do
+        @ticket_type.update!(audience: "invitation")
+        raw_token = SecureRandom.hex(24)
+        invitation = create_invitation(@ticket_type, raw_token, allowed_quantity: 1)
+
+        result = submit(
+          answers: [],
+          audience_proof: { invitation: raw_token },
+          idempotency_key: "registration-invitation-rollback"
+        )
+
+        assert_predicate result, :failure?
+        assert_equal "pending", invitation.reload.status
+        assert_nil invitation.invited_user_id
+        assert_empty Registration.where(ticket_type: @ticket_type)
+      end
+
       test "returns a deferred confirmation action for automatic free registrations" do
         create_price(amount_minor: 0)
 
@@ -540,6 +687,34 @@ module Ticketing
           currency: "ETB",
           amount_minor:,
           active_from: 1.minute.ago
+        )
+      end
+
+      def create_access_code(ticket_type, raw_code, max_uses:, max_quantity_per_use:)
+        Ticketing::AccessCode.create!(
+          ticket_type:,
+          code_digest: Ticketing::AccessCode.code_digest_for(
+            event_id: @event.id, code: raw_code
+          ),
+          max_uses:,
+          used_count: 0,
+          max_quantity_per_use:,
+          active: true
+        )
+      end
+
+      def create_invitation(ticket_type, raw_token, allowed_quantity:)
+        event_id = @event.id
+        email = "registration-invitation-#{SecureRandom.hex(4)}@example.com"
+        Ticketing::Invitation.create!(
+          ticket_type:,
+          created_by: core_users(:super_admin),
+          email:,
+          contact_digest: Ticketing::Invitation.contact_digest_for(event_id:, contact: email),
+          token: raw_token,
+          token_digest: Ticketing::Invitation.token_digest_for(event_id:, token: raw_token),
+          allowed_quantity:,
+          status: "pending"
         )
       end
 

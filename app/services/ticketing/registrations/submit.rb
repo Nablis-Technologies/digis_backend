@@ -47,21 +47,31 @@ module Ticketing
         locked_ticket_type = nil
         registration = Registration.transaction do
           locked_ticket_type = locked_ticket_type!
-          unwrap(Ticketing::Audience::Authorize.call(
-            ticket_type: locked_ticket_type,
-            user: identity.user,
-            **audience_proof
-          ))
           idempotency_request_digest = request_digest(identity, locked_ticket_type)
-          idempotent_registration(idempotency_key_digest, idempotency_request_digest) ||
-            active_registration_or_conflict(identity, locked_ticket_type, idempotency_request_digest) ||
+          existing_registration = idempotent_registration(idempotency_key_digest, idempotency_request_digest) ||
+            active_registration_or_conflict(identity, locked_ticket_type, idempotency_request_digest)
+          if existing_registration
+            existing_registration
+          else
+            audience = unwrap_audience(Ticketing::Audience::Authorize.call(
+              ticket_type: locked_ticket_type,
+              user: identity.user,
+              **audience_proof
+            ))
+            access_code, invitation = consume_audience_proof!(
+              locked_ticket_type, identity.user, audience
+            )
+
             create_with_current_forms!(
               identity,
               idempotency_key_digest,
               idempotency_request_digest,
               next_action_snapshot(locked_ticket_type),
-              locked_ticket_type
+              locked_ticket_type,
+              access_code:,
+              invitation:
             )
+          end
         end
 
         success(RegistrationNextAction.for(registration))
@@ -130,7 +140,8 @@ module Ticketing
         )
       end
 
-      def create_with_current_forms!(identity, idempotency_key_digest, idempotency_request_digest, next_action_snapshot, locked_ticket_type)
+      def create_with_current_forms!(identity, idempotency_key_digest, idempotency_request_digest,
+        next_action_snapshot, locked_ticket_type, access_code:, invitation:)
         schema = unwrap(Ticketing::Forms::ApplicableSchema.call(
           event: locked_ticket_type.event,
           ticket_type: locked_ticket_type
@@ -144,6 +155,8 @@ module Ticketing
           event: locked_ticket_type.event,
           ticket_type: locked_ticket_type,
           user: identity.user,
+          access_code:,
+          invitation:,
           created_by: actor || identity.user,
           source: "self_service",
           issuance_idempotency_key: idempotency_key_digest,
@@ -166,6 +179,40 @@ module Ticketing
           actor: identity.user
         ))
         registration
+      end
+
+      def consume_audience_proof!(locked_ticket_type, user, authorization)
+        access_code = invitation = nil
+        if authorization[:access_code]
+          access_code = unwrap_audience(Ticketing::AccessCodes::Consume.call(
+            ticket_type: locked_ticket_type,
+            raw_code: audience_proof[:access_code],
+            quantity: submission.package_quantity
+          ))
+        elsif authorization[:invitation]
+          invitation = unwrap_audience(Ticketing::Invitations::Claim.call(
+            ticket_type: locked_ticket_type,
+            raw_token: audience_proof[:invitation],
+            user:,
+            quantity: submission.package_quantity
+          ))
+        end
+        [ access_code, invitation ]
+      end
+
+      def unwrap_audience(result)
+        return result.value if result.success?
+
+        error = if result.error.is_a?(Core::BusinessError)
+          result.error
+        else
+          Core::BusinessError.new(
+            result.error.message,
+            code: "audience_proof_invalid",
+            status: :unprocessable_entity
+          )
+        end
+        raise Halt, failure(error)
       end
 
       def existing_active_registration(identity, locked_ticket_type)
