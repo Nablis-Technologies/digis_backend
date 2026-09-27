@@ -27,6 +27,17 @@ module Ticketing
         assert_equal 2, result.value.used_count
       end
 
+      test "rejects a non-access-code object even when its id matches a code" do
+        impostor = Struct.new(:id).new(@code.id)
+
+        result = Ticketing::AccessCodes::Consume.new(
+          ticket_type: @ticket_type, access_code: impostor
+        ).call
+
+        assert_predicate result, :failure?
+        assert_equal 0, @code.reload.used_count
+      end
+
       test "invalid code fails" do
         result = Ticketing::AccessCodes::Consume.new(
           ticket_type: @ticket_type, raw_code: "nope"
@@ -39,6 +50,15 @@ module Ticketing
         result = Ticketing::AccessCodes::Consume.new(
           ticket_type: @ticket_type, raw_code: @raw, quantity: 3
         ).call
+        assert result.failure?
+        assert_equal 0, @code.reload.used_count
+      end
+
+      test "nonpositive quantity fails without changing the usage count" do
+        result = Ticketing::AccessCodes::Consume.new(
+          ticket_type: @ticket_type, raw_code: @raw, quantity: 0
+        ).call
+
         assert result.failure?
         assert_equal 0, @code.reload.used_count
       end

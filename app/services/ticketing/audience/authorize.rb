@@ -6,11 +6,12 @@ module Ticketing
     # mutate access codes or invitations; the mutating consume/claim services
     # handle deduction and acceptance.
     class Authorize < Core::BaseService
-      def initialize(ticket_type:, access_code: nil, invitation: nil, user: nil)
+      def initialize(ticket_type:, access_code: nil, invitation: nil, user: nil, phone: nil)
         @ticket_type = ticket_type
         @access_code = access_code
         @invitation = invitation
         @user = user
+        @phone = phone
       end
 
       def call
@@ -60,8 +61,19 @@ module Ticketing
         return failure_i18n("ticketing.invitation.errors.invalid") if invitation.blank?
         return failure_i18n("ticketing.invitation.errors.not_pending") unless invitation.status == "pending"
         return failure_i18n("ticketing.invitation.errors.expired") if invitation.expires_at.present? && invitation.expires_at <= Time.current
+        return failure_i18n("ticketing.invitation.errors.bound_to_another_user") unless claimant_matches?(invitation)
 
         success(authorized: true, reason: "invitation", invitation: invitation)
+      end
+
+      def claimant_matches?(invitation)
+        return true if invitation.invited_user_id.blank?
+        return @user.id == invitation.invited_user_id if @user.present?
+        return false if @phone.blank?
+
+        invited_phone = Core::User.where(id: invitation.invited_user_id).pick(:phone)
+        Core::PhoneIdentity::ResolveOrCreate.normalize(invited_phone) ==
+          Core::PhoneIdentity::ResolveOrCreate.normalize(@phone)
       end
 
       def authorize_code_or_invitation

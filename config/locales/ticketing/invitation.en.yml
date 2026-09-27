@@ -9,3 +9,6 @@ en:
         invalid: "invalid invitation"
         not_pending: "invitation not pending"
         expired: "invitation expired"
+        quantity_invalid: "quantity must be a positive integer"
+        quantity_exceeded: "quantity exceeds the invitation allowance"
+        bound_to_another_user: "invitation is bound to another user"
