@@ -23,3 +23,5 @@ en:
         complimentary_unauthorized: "Only an authorized event manager may issue complimentary tickets"
         complimentary_reason_invalid: "A valid complimentary issuance reason is required"
         package_quantity_invalid: "Package quantity must be positive"
+        audience_proof_release_inconsistent: "Audience proof usage cannot be safely restored"
+        audience_proof_unavailable: "The audience proof is no longer available for this registration"
