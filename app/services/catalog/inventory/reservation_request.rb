@@ -5,22 +5,15 @@ require "json"
 
 module Catalog
   module Inventory
-    # Value object that captures the parameters for a single reserve call.
-    # Produces a deterministic SHA-256 fingerprint over the canonical payload
-    # (sorted keys, normalized dates) used for idempotency replay detection.
-    # Dispatches owner_attributes to registration_id or order_item_id based
-    # on the owner's class name.
+    # Adds reservation lifecycle metadata and idempotency identity to a shared
+    # capacity line. Read-only checks use Line directly.
     class ReservationRequest
-      attr_reader :product, :event_date_ids, :venue_event_date_ids, :package_quantity,
-                  :admissions_per_unit, :owner, :expires_at
+      attr_reader :line, :owner, :expires_at
 
-      def initialize(product:, event_date_ids:, venue_event_date_ids: event_date_ids,
-        package_quantity:, admissions_per_unit:, owner:, expires_at:)
-        @product = product
-        @event_date_ids = Array(event_date_ids).compact.map(&:to_s).uniq.sort
-        @venue_event_date_ids = Array(venue_event_date_ids).compact.map(&:to_s).uniq.sort
-        @package_quantity = package_quantity
-        @admissions_per_unit = admissions_per_unit
+      def initialize(line:, owner:, expires_at:)
+        raise ArgumentError, "line must be a Catalog::Inventory::Line" unless line.is_a?(Line)
+
+        @line = line
         @owner = owner
         @expires_at = expires_at
       end
@@ -32,7 +25,7 @@ module Catalog
       def owner_attributes
         return {} if owner.nil?
 
-        if owner_type.to_s.end_with?("OrderItem")
+        if owner.class.name.to_s.end_with?("OrderItem")
           { order_item_id: owner.id }
         else
           { registration_id: owner.id }
@@ -43,19 +36,15 @@ module Catalog
 
       def canonical_payload
         {
-          product_id: product.id.to_s,
-          event_date_ids:,
-          venue_event_date_ids:,
-          package_quantity:,
-          admissions_per_unit:,
-          owner_type:,
+          product_id: line.product.id.to_s,
+          event_date_ids: line.event_date_ids,
+          venue_event_date_ids: line.venue_event_date_ids,
+          package_quantity: line.package_quantity,
+          admissions_per_unit: line.admissions_per_unit,
+          owner_type: owner&.class&.name,
           owner_id: owner&.id&.to_s,
           expires_at: expires_at&.utc&.iso8601(6)
         }
-      end
-
-      def owner_type
-        owner&.class&.name
       end
     end
   end

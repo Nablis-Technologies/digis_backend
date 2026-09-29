@@ -10,12 +10,15 @@ module Catalog
         package_quantity:, admissions_per_unit:, owner: nil, reservation_group_id:, expires_at:)
         @product = product
         @reservation_group_id = reservation_group_id
-        @request = ReservationRequest.new(
+        @line = Line.new(
           product:,
           event_date_ids:,
           venue_event_date_ids:,
           package_quantity:,
-          admissions_per_unit:,
+          admissions_per_unit:
+        )
+        @request = ReservationRequest.new(
+          line: @line,
           owner:,
           expires_at:
         )
@@ -25,23 +28,19 @@ module Catalog
         ActiveRecord::Base.transaction do
           validate_product_active!
           validate_sales_window!
-          validate_dates_belong_to_event!
-          validate_request_values!
-
-          requested_inventories = resolve_requested_inventories!
+          plan = Capacity.plan!(@line)
           group = ReservationGroupLock.acquire!(
             @reservation_group_id,
-            inventory_ids: requested_inventories.map(&:id),
-            event_date_ids: @request.venue_event_date_ids
+            inventory_ids: plan.inventory_ids,
+            event_date_ids: @line.venue_event_date_ids
           )
 
           replay = replay_result(group)
           return replay if replay
 
-          inventories = select_requested_inventories(group, requested_inventories)
+          inventories = select_requested_inventories(group, plan.inventory_ids)
           dates = select_requested_dates(group)
-          validate_product_capacity!(inventories)
-          validate_venue_capacity!(dates)
+          validate_capacity!(group, plan)
 
           reservations = create_inventory_reservations!(inventories)
           reservations.concat(create_venue_reservations!(dates))
@@ -60,64 +59,17 @@ module Catalog
       end
 
       def validate_sales_window!
-        now = Time.current
-        raise Core::Error, I18n.t("catalog.inventory.errors.sales_not_started") if @product.sales_start_at.present? && now < @product.sales_start_at
-        raise Core::Error, I18n.t("catalog.inventory.errors.sales_ended") if @product.sales_end_at.present? && now > @product.sales_end_at
+        error_key = Catalog::Products::SalesWindow.error_key(@product)
+        raise Core::Error, I18n.t("catalog.inventory.errors.#{error_key}") if error_key
       end
 
-      def validate_dates_belong_to_event!
-        requested_ids = (@request.event_date_ids + @request.venue_event_date_ids).uniq
-        return if requested_ids.empty?
-        unless (@request.venue_event_date_ids - @request.event_date_ids).empty?
-          raise Core::Error, I18n.t("catalog.inventory.errors.venue_dates_required")
-        end
-
-        event_date_ids = Events::EventDate
-          .where(event_id: @product.event_id, id: requested_ids)
-          .pluck(:id)
-          .map(&:to_s)
-        missing = requested_ids - event_date_ids
-        return if missing.empty?
-
-        raise Core::Error, I18n.t("catalog.inventory.errors.event_dates_event_mismatch", dates: missing.join(", "))
-      end
-
-      def validate_request_values!
-        unless @request.package_quantity.is_a?(Integer) && @request.package_quantity.positive?
-          raise Core::Error, I18n.t("catalog.inventory.errors.package_quantity_positive")
-        end
-        unless @request.admissions_per_unit.is_a?(Integer) && @request.admissions_per_unit.positive?
-          raise Core::Error, I18n.t("catalog.inventory.errors.admissions_per_unit_positive")
-        end
-      end
-
-      def resolve_requested_inventories!
-        scope = Catalog::ProductInventory.where(event_product_id: @product.id)
-        global = scope.find_by(event_date_id: nil)
-        dated = scope.where(event_date_id: @request.event_date_ids).to_a
-        dated_ids = dated.map { |inventory| inventory.event_date_id.to_s }
-        missing_date_ids = @request.event_date_ids - dated_ids
-
-        case @product.inventory_mode
-        when "unlimited"
-          []
-        when "event_wide"
-          raise_missing_inventory! unless global
-          [ global ]
-        when "per_date"
-          raise_missing_inventory! if @request.event_date_ids.empty? || missing_date_ids.any?
-          dated
-        when "event_wide_and_per_date"
-          raise_missing_inventory! unless global
-          raise_missing_inventory! if @request.event_date_ids.empty? || missing_date_ids.any?
-          [ global, *dated ]
-        else
-          raise Core::Error, I18n.t("catalog.inventory.errors.unsupported_inventory_mode", mode: @product.inventory_mode)
-        end
-      end
-
-      def raise_missing_inventory!
-        raise Core::Error, I18n.t("catalog.inventory.errors.no_inventory_for_requested_dates")
+      def validate_capacity!(group, plan)
+        violation = Capacity.violation(
+          plan:,
+          inventory_rows: group.inventories,
+          event_date_rows: group.event_dates
+        )
+        Capacity.raise_on_violation!(violation, product: @product)
       end
 
       def replay_result(group)
@@ -137,44 +89,23 @@ module Catalog
         end
       end
 
-      def select_requested_inventories(group, requested)
-        requested_ids = requested.map(&:id)
+      def select_requested_inventories(group, requested_ids)
         group.inventories.select { |inventory| requested_ids.include?(inventory.id) }
       end
 
       def select_requested_dates(group)
-        group.event_dates.select { |date| @request.venue_event_date_ids.include?(date.id.to_s) }
-      end
-
-      def validate_product_capacity!(inventories)
-        exceeded = inventories.any? do |inventory|
-          inventory.held_count + inventory.sold_count + @request.package_quantity > inventory.capacity
-        end
-        return unless exceeded
-
-        raise Core::Error, I18n.t("catalog.inventory.errors.capacity_exceeded", product_name: @product.name)
-      end
-
-      def validate_venue_capacity!(dates)
-        people = venue_quantity
-        exceeded = dates.any? do |date|
-          date.venue_capacity.present? &&
-            date.held_venue_count + date.issued_venue_count + people > date.venue_capacity
-        end
-        return unless exceeded
-
-        raise Core::Error, I18n.t("catalog.inventory.errors.venue_capacity_exceeded")
+        group.event_dates.select { |date| @line.venue_event_date_ids.include?(date.id.to_s) }
       end
 
       def create_inventory_reservations!(inventories)
         inventories.map do |inventory|
-          inventory.update!(held_count: inventory.held_count + @request.package_quantity)
+          inventory.update!(held_count: inventory.held_count + @line.package_quantity)
           Catalog::InventoryReservation.create!(
             {
               product_inventory: inventory,
               reservation_group_id: @reservation_group_id,
-              quantity: @request.package_quantity,
-              admissions_per_unit: @request.admissions_per_unit,
+              quantity: @line.package_quantity,
+              admissions_per_unit: @line.admissions_per_unit,
               status: "held",
               expires_at: @request.expires_at,
               request_fingerprint: @request.fingerprint
@@ -201,7 +132,7 @@ module Catalog
       end
 
       def venue_quantity
-        @request.package_quantity * @request.admissions_per_unit
+        Capacity.venue_quantity(@line)
       end
     end
   end

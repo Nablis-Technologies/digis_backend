@@ -51,17 +51,10 @@ module Catalog
           .distinct
           .pluck(:event_date_id)
 
-        inventories = Catalog::ProductInventory
-          .includes(:event_product)
-          .where(id: (Array(inventory_ids) + existing_inventory_ids).uniq)
-          .order(:id)
-          .lock
-          .to_a
-        event_dates = Events::EventDate
-          .where(id: (Array(event_date_ids) + existing_date_ids).uniq)
-          .order(:id)
-          .lock
-          .to_a
+        capacity_rows = Catalog::Inventory::CapacityLock.acquire!(
+          inventory_ids: Array(inventory_ids) + existing_inventory_ids,
+          event_date_ids: Array(event_date_ids) + existing_date_ids
+        )
         inventory_reservations = Catalog::InventoryReservation
           .by_group(reservation_group_id)
           .order(:id)
@@ -74,8 +67,8 @@ module Catalog
           .to_a
 
         Group.new(
-          inventories:,
-          event_dates:,
+          inventories: capacity_rows.inventories,
+          event_dates: capacity_rows.event_dates,
           inventory_reservations:,
           venue_reservations:
         )

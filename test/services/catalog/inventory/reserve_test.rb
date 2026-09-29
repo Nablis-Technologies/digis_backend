@@ -189,35 +189,46 @@ module Catalog
         product = create_product(mode: "unlimited")
         owner_one = Struct.new(:id).new(SecureRandom.uuid)
         owner_two = Struct.new(:id).new(SecureRandom.uuid)
-
-        first = ReservationRequest.new(
-          product:,
-          event_date_ids: [ @date_two.id, @date_one.id, @date_one.id ],
-          package_quantity: 2,
-          admissions_per_unit: 3,
-          owner: owner_one,
-          expires_at: @expires_at
+        first_line = Line.new(
+          product:, event_date_ids: [ @date_two.id, @date_one.id, @date_one.id ],
+          package_quantity: 2, admissions_per_unit: 3
         )
-        reordered = ReservationRequest.new(
-          product:,
-          event_date_ids: [ @date_one.id, @date_two.id ],
-          package_quantity: 2,
-          admissions_per_unit: 3,
-          owner: owner_one,
-          expires_at: @expires_at
+        reordered_line = Line.new(
+          product:, event_date_ids: [ @date_one.id, @date_two.id ],
+          package_quantity: 2, admissions_per_unit: 3
         )
-        other_owner = ReservationRequest.new(
-          product:,
-          event_date_ids: [ @date_one.id, @date_two.id ],
-          package_quantity: 2,
-          admissions_per_unit: 3,
-          owner: owner_two,
-          expires_at: @expires_at
-        )
+        first = ReservationRequest.new(line: first_line, owner: owner_one, expires_at: @expires_at)
+        reordered = ReservationRequest.new(line: reordered_line, owner: owner_one, expires_at: @expires_at)
+        other_owner = ReservationRequest.new(line: reordered_line, owner: owner_two, expires_at: @expires_at)
 
         assert_equal first.fingerprint, reordered.fingerprint
         refute_equal first.fingerprint, other_owner.fingerprint
         assert_equal 64, first.fingerprint.length
+      end
+
+      test "capacity has a shared plan entry point for validated inventory lines" do
+        assert_respond_to Capacity, :plan!
+
+        product = create_product(mode: "event_wide")
+        inventory = create_inventory(product:, capacity: 10)
+        line = Line.new(
+          product:,
+          event_date_ids: [],
+          package_quantity: 1,
+          admissions_per_unit: 1
+        )
+        plan = Capacity.plan!(line)
+
+        assert_equal line, plan.line
+        assert_equal [ inventory.id.to_s ], plan.inventory_ids
+        assert plan.inventory_ids.all? { |id| id.is_a?(String) }
+      end
+
+      test "availability returns a typed error for a malformed line" do
+        result = CheckAvailability.call(lines: [ Object.new ])
+
+        assert_predicate result, :failure?
+        assert_equal "invalid_capacity_request", result.error.code
       end
 
       test "capacity failure leaves product and venue counters unchanged" do
@@ -232,6 +243,76 @@ module Catalog
 
         assert result.failure?
         assert_equal 0, inventory.reload.held_count
+        assert_equal 0, @date_one.reload.held_venue_count
+      end
+
+      test "unknown capacity violations fail closed for reservations and availability" do
+        product = create_product(mode: "unlimited")
+        assert_respond_to Capacity, :raise_on_violation!
+        assert_respond_to Capacity, :capacity_exhausted?
+
+        reserve_error = assert_raises(Core::BusinessError) do
+          Capacity.raise_on_violation!(:future_capacity_violation, product:)
+        end
+        availability_error = assert_raises(Core::BusinessError) do
+          Capacity.capacity_exhausted?(:future_capacity_violation)
+        end
+
+        assert_equal "inventory_validation_failed", reserve_error.code
+        assert_equal "inventory_validation_failed", availability_error.code
+      end
+
+      test "sales end is exclusive at the exact cutoff" do
+        cutoff = Time.current.change(usec: 0)
+        product = create_product(mode: "unlimited")
+        product.update!(sales_end_at: cutoff)
+
+        travel_to(cutoff) do
+          result = reserve(product:, event_date_ids: [ @date_one.id ], quantity: 1)
+
+          assert result.failure?
+          assert_equal I18n.t("catalog.inventory.errors.sales_ended"), result.error.message
+          assert_empty Catalog::VenueCapacityReservation.where(event_product: product)
+        end
+      end
+
+      test "read-only availability agrees with Reserve at the same capacity boundary" do
+        product = create_product(mode: "event_wide")
+        inventory = create_inventory(product:, capacity: 1)
+        line = Line.new(
+          product:,
+          event_date_ids: [],
+          package_quantity: 2,
+          admissions_per_unit: 1
+        )
+
+        availability = CheckAvailability.call(lines: [ line ])
+        reservation = reserve(product:, quantity: 2)
+
+        assert_predicate availability, :success?, availability.error&.message
+        assert_equal [ product.id.to_s ], availability.value.unavailable_product_ids
+        assert_predicate reservation, :failure?
+        assert_match "capacity", reservation.error.message
+        assert_equal 0, inventory.reload.held_count
+      end
+
+      test "read-only availability and Reserve agree on venue capacity" do
+        product = create_product(mode: "unlimited")
+        @date_one.update!(venue_capacity: 1)
+        line = Line.new(
+          product:,
+          event_date_ids: [ @date_one.id ],
+          venue_event_date_ids: [ @date_one.id ],
+          package_quantity: 1,
+          admissions_per_unit: 2
+        )
+
+        availability = CheckAvailability.call(lines: [ line ])
+        reservation = reserve(product:, event_date_ids: [ @date_one.id ], quantity: 1, admissions: 2)
+
+        assert_predicate availability, :success?, availability.error&.message
+        assert_equal [ product.id.to_s ], availability.value.unavailable_product_ids
+        assert_predicate reservation, :failure?
         assert_equal 0, @date_one.reload.held_venue_count
       end
 
@@ -250,6 +331,7 @@ module Catalog
           expires_at: @expires_at
         )
       end
+
 
       def result_group(_result)
         @last_group_id
