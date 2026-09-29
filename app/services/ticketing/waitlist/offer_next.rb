@@ -20,12 +20,12 @@ require "securerandom"
       def call
         Core::IdempotencyKey.new(idempotency_key)
         offered = Ticketing::Registration.transaction do
-          event_id = Ticketing::TicketType.joins(:event_product).where(id: @ticket_type.id).pick(:event_id)
-          event = Events::Event.lock.find(event_id)
-          halt(waitlist_error("event_cancelled")) if event.status == "cancelled"
           ticket_type = Ticketing::TicketType.lock
-            .includes(event_product: :inventories)
+            .includes(event_product: :event)
             .find(@ticket_type.id)
+          event = Events::Event.lock.find(ticket_type.event_product.event_id)
+          ticket_type.event_product.association(:event).target = event
+          halt(waitlist_error("event_cancelled")) if event.status == "cancelled"
           halt(waitlist_error("waitlist_disabled")) unless ticket_type.waitlist_enabled?
 
           product = ticket_type.event_product
@@ -61,7 +61,7 @@ require "securerandom"
               waitlisted_at: nil,
               offered_at: now,
               offer_expires_at: expiry,
-              next_action_snapshot: free_product?(candidate) ? "requires_confirmation" : "requires_order"
+              next_action_snapshot: "requires_order"
             )
             unwrap(Core::Outbox::Publish.call(
               topic: "ticketing",

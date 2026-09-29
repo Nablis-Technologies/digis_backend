@@ -8,10 +8,11 @@
       class AcceptOffer < Core::BaseService
       include Support
 
-      def initialize(registration:, actor:, idempotency_key:)
+      def initialize(registration:, actor:, idempotency_key:, transfer_hold: false)
         @registration = registration
         @actor = actor
         @idempotency_key = idempotency_key
+        @transfer_hold = transfer_hold == true
       end
 
       def call
@@ -28,22 +29,15 @@
           halt(waitlist_error("registration_not_offered")) unless locked.status == "offered"
           halt(waitlist_error("offer_expired")) if locked.offer_expires_at <= Time.current
           halt(waitlist_error("required_buyer_consent_missing")) unless required_buyer_consents_complete?(locked)
+          release_offer_inventory!(locked) if @transfer_hold
 
-          if free_product?(locked)
-            unwrap(Ticketing::Registrations::ConfirmFree.call(
-              registration: locked,
-              actor:,
-              idempotency_key: "#{idempotency_key}:confirmation"
-            ))
-          else
-            locked.update!(
-              status: "pending_payment",
-              waitlisted_at: nil,
-              offered_at: nil,
-              offer_expires_at: nil,
-              next_action_snapshot: "requires_order"
-            )
-          end
+          locked.update!(
+            status: "pending_payment",
+            waitlisted_at: nil,
+            offered_at: nil,
+            offer_expires_at: nil,
+            next_action_snapshot: "requires_order"
+          )
           waitlist_audit!(
             action: "offer_accepted",
             audit_key:,
@@ -67,6 +61,23 @@
 
       def halt(error)
         fail Ticketing::Registrations::Support::Halt, Core::BaseService::Result.failure(error)
+      end
+
+      def release_offer_inventory!(locked)
+        group_ids = Catalog::InventoryReservation
+          .where(registration_id: locked.id, status: %w[held processing])
+          .distinct
+          .pluck(:reservation_group_id)
+        group_ids.concat(
+          Catalog::VenueCapacityReservation
+            .where(registration_id: locked.id, status: %w[held processing])
+            .distinct
+            .pluck(:reservation_group_id)
+        )
+        group_ids.uniq.sort.each do |group_id|
+          result = Catalog::Inventory::Release.call(reservation_group_id: group_id)
+          halt(result.error) if result.failure?
+        end
       end
       end
     end

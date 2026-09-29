@@ -21,35 +21,7 @@ module Ticketing
       render_result(result)
     end
 
-    def enqueue
-      registration = load_registration
-      authorize registration, :enqueue_waitlist?
-      result = Ticketing::Waitlist::Enqueue.call(
-        registration:,
-        actor: current_user,
-        idempotency_key:
-      )
-      render_result(result)
-    end
-
-    def accept
-      registration = load_registration
-      authorize registration, :accept_waitlist_offer?
-      result = Ticketing::Waitlist::AcceptOffer.call(
-        registration:,
-        actor: current_user,
-        idempotency_key:
-      )
-      render_result(result)
-    end
-
     private
-
-    def load_registration
-      Ticketing::Registration
-        .includes(:event, :user, :consent_requirements, ticket_type: :event_product)
-        .find(params[:id])
-    end
 
     def render_result(result)
       render_service_result(

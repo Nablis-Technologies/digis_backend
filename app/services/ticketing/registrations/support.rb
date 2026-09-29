@@ -112,10 +112,6 @@
           .exists?
       end
 
-      def free_product?(registration)
-        registration.ticket_type.event_product.free?
-      end
-
       def workflow_error(code)
         Core::BusinessError.new(
           I18n.t("ticketing.registration_workflows.errors.#{code}"),

@@ -52,17 +52,19 @@ module Ticketing
         assert_equal expired_at.iso8601, event.payload.fetch("offer_expires_at")
       end
 
-      test "free offer acceptance confirms while paid offer acceptance returns to payment" do
+      test "offer acceptance defers the price decision until the buyer selects a currency" do
         free_type = create_ticket_type(capacity: 1, amount_minor: 0)
         free_registration = create_waitlisted_registration(ticket_type: free_type)
         assert_predicate OfferNext.call(ticket_type: free_type, idempotency_key: "offer-free"), :success?
+        assert_equal "requires_order", free_registration.reload.next_action_snapshot
         free_result = AcceptOffer.call(
           registration: free_registration, actor: @attendee, idempotency_key: "accept-free"
         )
 
         assert_predicate free_result, :success?
-        assert_equal "confirmed", free_registration.reload.status
-        assert_equal "committed", Catalog::InventoryReservation.find_by!(registration_id: free_registration.id).status
+        assert_equal "pending_payment", free_registration.reload.status
+        assert_equal "requires_order", free_registration.next_action_snapshot
+        assert_equal "held", Catalog::InventoryReservation.find_by!(registration_id: free_registration.id).status
 
         paid_type = create_ticket_type(capacity: 1, amount_minor: 1)
         paid_registration = create_waitlisted_registration(ticket_type: paid_type)
