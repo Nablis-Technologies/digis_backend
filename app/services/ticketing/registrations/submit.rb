@@ -305,16 +305,9 @@ module Ticketing
         submission.to_h.merge(admissions_per_unit: locked_ticket_type.admissions_per_unit)
       end
 
-      def automatic_free?(locked_ticket_type)
-        return false unless locked_ticket_type.approval_mode == "automatic"
-
-        prices = locked_ticket_type.event_product.prices.active_at(Time.current)
-        prices.exists? && prices.where.not(amount_minor: 0).none?
-      end
-
       def next_action_snapshot(locked_ticket_type)
         status = locked_ticket_type.approval_mode == "manual" ? "pending_approval" : "pending_payment"
-        RegistrationNextAction.type_for(status, free: automatic_free?(locked_ticket_type))
+        RegistrationNextAction.type_for(status)
       end
 
       def locked_ticket_type!

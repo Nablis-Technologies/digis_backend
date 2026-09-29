@@ -34,7 +34,7 @@ module Ticketing
 
       assert_response :created
       data = response.parsed_body.fetch("data")
-      assert_equal "requires_confirmation", data.dig("next_action", "type")
+      assert_equal "requires_order", data.dig("next_action", "type")
       assert_equal "pending_payment", data.dig("registration", "status")
       assert_not data.fetch("registration").key?("identity_digest")
     end

@@ -562,14 +562,14 @@ module Ticketing
         assert_empty Registration.where(ticket_type: @ticket_type)
       end
 
-      test "returns a deferred confirmation action for automatic free registrations" do
+      test "defers free confirmation until checkout resolves the selected currency" do
         create_price(amount_minor: 0)
 
         result = submit
 
         assert_predicate result, :success?
         assert_equal "pending_payment", result.value.registration.status
-        assert_equal "requires_confirmation", result.value.type
+        assert_equal "requires_order", result.value.type
       end
 
       test "persists the automatic next action when the product price later changes" do
@@ -577,13 +577,28 @@ module Ticketing
         first = submit
 
         assert_predicate first, :success?
-        assert_equal "requires_confirmation", first.value.type
+        assert_equal "requires_order", first.value.type
 
         price.update!(amount_minor: 1_000)
         replay = submit
 
         assert_predicate replay, :success?
-        assert_equal "requires_confirmation", replay.value.type
+        assert_equal "requires_order", replay.value.type
+      end
+
+      test "keeps the registration handoff currency-neutral for mixed free and paid prices" do
+        create_price(amount_minor: 0)
+        @ticket_type.event_product.prices.create!(
+          type: "override",
+          currency: "USD",
+          amount_minor: 1_500,
+          active_from: 1.minute.ago
+        )
+
+        result = submit
+
+        assert_predicate result, :success?
+        assert_equal "requires_order", result.value.type
       end
 
       test "returns an order action for automatic paid registrations" do
