@@ -1070,6 +1070,56 @@ unless chapa_rsvp_product.status == "active"
   raise result.error.message unless result.success?
 end
 
+# Dedicated, free sold-out offer for public waitlist smoke tests. It is separate
+# from the purchasable fixtures so test enrollment never needs a payment.
+chapa_waitlist_product = Catalog::EventProduct.find_by(
+  event: chapa_event, name: "Chapa Test Sold-Out Waitlist", type: "ticket"
+)
+unless chapa_waitlist_product
+  result = Catalog::Products::CreateDraft.call(
+    event: chapa_event,
+    actor: organizer,
+    product_attributes: {
+      name: "Chapa Test Sold-Out Waitlist",
+      description: "Free, intentionally sold-out offer for public waitlist smoke tests.",
+      type: "ticket",
+      min_per_order: 1,
+      max_per_order: 1,
+      sales_start_at: Time.zone.parse("2026-01-01 00:00")
+    },
+    ticket_type_attributes: {
+      approval_mode: "automatic",
+      audience: "public",
+      date_selection: "fixed",
+      admissions_per_unit: 1,
+      waitlist_enabled: true,
+      transferable: false,
+      delegation_enabled: false,
+      resale_enabled: false
+    },
+    inventory_configuration: { mode: "event_wide", capacity: 1 },
+    price_attributes: {
+      type: "override",
+      currency: "ETB",
+      amount_minor: 0,
+      active_from: Time.zone.parse("2026-01-01 00:00")
+    }
+  )
+  raise result.error.message unless result.success?
+
+  chapa_waitlist_product = result.value
+end
+
+chapa_waitlist_product.ticket_type.update!(waitlist_enabled: true) unless
+  chapa_waitlist_product.ticket_type.waitlist_enabled?
+unless chapa_waitlist_product.status == "active"
+  result = Catalog::Products::Activate.call(product: chapa_waitlist_product, actor: organizer)
+  raise result.error.message unless result.success?
+end
+
+waitlist_inventory = chapa_waitlist_product.inventories.find_by!(event_date_id: nil)
+waitlist_inventory.update!(sold_count: 1) if waitlist_inventory.sold_count.zero?
+
 chapa_event_date = chapa_event.event_dates.find_by!(source_key: "chapa-test-date-v1")
 chapa_main_zone = Events::AccessZone.find_or_create_by!(event: chapa_event, code: "MAIN") do |zone|
   zone.name = "Main Gate"
@@ -1108,8 +1158,24 @@ unless chapa_rsvp_product.product_accesses.exists?(event_date: chapa_event_date,
   access.product_access_zones.create!(access_zone: chapa_main_zone)
 end
 
+unless chapa_waitlist_product.product_accesses.exists?(event_date: chapa_event_date, type: "venue")
+  access = chapa_waitlist_product.product_accesses.create!(
+    event_date: chapa_event_date,
+    type: "venue",
+    usage_limit: 1
+  )
+  access.product_access_zones.create!(access_zone: chapa_main_zone)
+end
+
 unless chapa_rsvp_product.product_date_allocations.exists?(event_date: chapa_event_date)
   chapa_rsvp_product.product_date_allocations.create!(
+    event_date: chapa_event_date,
+    allocation_basis_points: 10_000
+  )
+end
+
+unless chapa_waitlist_product.product_date_allocations.exists?(event_date: chapa_event_date)
+  chapa_waitlist_product.product_date_allocations.create!(
     event_date: chapa_event_date,
     allocation_basis_points: 10_000
   )
