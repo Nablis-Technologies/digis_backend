@@ -1575,7 +1575,7 @@
                     }
                   ],
                   "cookie": [],
-                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"evt_01HXPublicExample\",\n    \"slug\": \"summer-music-festival\",\n    \"title\": \"Summer Music Festival\",\n    \"description\": \"A three-day open-air music festival featuring local and international acts.\",\n    \"visibility\": \"public\",\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"currency\": \"ETB\",\n    \"published_at\": \"2026-07-20T10:00:00.000Z\",\n    \"created_at\": \"2026-06-01T08:30:00.000Z\",\n    \"categories\": [\n      {\n        \"id\": \"cat_01HXMusic\",\n        \"name\": \"Music\",\n        \"description\": \"Live and recorded music events\",\n        \"slug\": \"music\"\n      }\n    ],\n    \"event_dates\": [\n      {\n        \"id\": \"evtd_01HXDay1\",\n        \"name\": \"Festival Day 1\",\n        \"doors_at\": \"2026-08-01T14:00:00.000Z\",\n        \"starts_at\": \"2026-08-01T16:00:00.000Z\",\n        \"ends_at\": \"2026-08-01T23:00:00.000Z\",\n        \"status\": \"scheduled\",\n        \"venue\": {\n          \"id\": \"venue_01HXMain\",\n          \"name\": \"Main Hall\",\n          \"city\": \"Addis Ababa\"\n        }\n      }\n    ],\n    \"event_media\": [\n      {\n        \"id\": \"evtm_01HXCover\",\n        \"type\": \"image\",\n        \"position\": 0,\n        \"alt_text\": \"Crowd at the main stage\",\n        \"caption\": \"Opening night\",\n        \"file\": {\n          \"thumbnail\": \"https://example.test/thumbnail.jpg\",\n          \"medium\": \"https://example.test/medium.jpg\"\n        }\n      }\n    ],\n    \"event_organizations\": [\n      {\n        \"id\": \"evto_01HXHost\",\n        \"type\": \"host\",\n        \"role\": \"organizer\",\n        \"status\": \"active\",\n        \"organization\": {\n          \"id\": \"org_01HXPromoter\",\n          \"name\": \"Example Promoter\",\n          \"slug\": \"example-promoter\"\n        }\n      }\n    ],\n    \"event_setting\": {\n      \"id\": \"setting_01HXExample\",\n      \"config\": {\n        \"allow_waitlist\": true,\n        \"public_guest_limit\": 100\n      }\n    },\n    \"organization\": {\n      \"id\": \"org_01HXPromoter\",\n      \"name\": \"Example Promoter\",\n      \"slug\": \"example-promoter\"\n    }\n  }\n}"
+                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"evt_01HXPublicExample\",\n    \"slug\": \"summer-music-festival\",\n    \"title\": \"Summer Music Festival\",\n    \"description\": \"A three-day open-air music festival featuring local and international acts.\",\n    \"visibility\": \"public\",\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"currency\": \"ETB\",\n    \"published_at\": \"2026-07-20T10:00:00.000Z\",\n    \"created_at\": \"2026-06-01T08:30:00.000Z\",\n    \"categories\": [\n      {\n        \"id\": \"cat_01HXMusic\",\n        \"name\": \"Music\",\n        \"description\": \"Live and recorded music events\",\n        \"slug\": \"music\"\n      }\n    ],\n    \"event_dates\": [\n      {\n        \"id\": \"evtd_01HXDay1\",\n        \"name\": \"Festival Day 1\",\n        \"doors_at\": \"2026-08-01T14:00:00.000Z\",\n        \"starts_at\": \"2026-08-01T16:00:00.000Z\",\n        \"ends_at\": \"2026-08-01T23:00:00.000Z\",\n        \"status\": \"scheduled\",\n        \"venue\": {\n          \"id\": \"venue_01HXMain\",\n          \"name\": \"Main Hall\",\n          \"city\": \"Addis Ababa\"\n        }\n      }\n    ],\n    \"event_media\": [\n      {\n        \"id\": \"evtm_01HXCover\",\n        \"type\": \"image\",\n        \"position\": 0,\n        \"alt_text\": \"Crowd at the main stage\",\n        \"caption\": \"Opening night\",\n        \"file\": {\n          \"thumbnail\": \"https://example.test/thumbnail.jpg\",\n          \"medium\": \"https://example.test/medium.jpg\"\n        }\n      }\n    ],\n    \"event_organizations\": [\n      {\n        \"id\": \"evto_01HXHost\",\n        \"type\": \"host\",\n        \"role\": \"organizer\",\n        \"status\": \"active\",\n        \"organization\": {\n          \"id\": \"org_01HXPromoter\",\n          \"name\": \"Example Promoter\",\n          \"slug\": \"example-promoter\"\n        }\n      }\n    ],\n    \"event_setting\": {\n      \"id\": \"setting_01HXExample\",\n      \"config\": {\n        \"public_guest_limit\": 100\n      }\n    },\n    \"organization\": {\n      \"id\": \"org_01HXPromoter\",\n      \"name\": \"Example Promoter\",\n      \"slug\": \"example-promoter\"\n    }\n  }\n}"
                 }
               ],
               "event": [
@@ -4857,46 +4857,6 @@
                         "url": "{{baseUrl}}/registrations/{{registrationId}}/reconsider"
                       },
                       "description": "Replace a rejected registration's effective decision through an audited manager-only reconsideration."
-                    },
-                    {
-                      "name": "Enqueue Registration On Waitlist",
-                      "request": {
-                        "method": "POST",
-                        "header": [
-                          {
-                            "key": "Authorization",
-                            "value": "Bearer {{accessToken}}",
-                            "type": "text"
-                          },
-                          {
-                            "key": "Idempotency-Key",
-                            "value": "{{idempotencyKey}}",
-                            "type": "text"
-                          }
-                        ],
-                        "url": "{{baseUrl}}/registrations/{{registrationId}}/enqueue_waitlist"
-                      },
-                      "description": "Keep the registration as the queue entry when waitlisting is enabled. Registrants may enqueue their own registration; organizers may enqueue within their event scope."
-                    },
-                    {
-                      "name": "Accept Waitlist Offer",
-                      "request": {
-                        "method": "POST",
-                        "header": [
-                          {
-                            "key": "Authorization",
-                            "value": "Bearer {{accessToken}}",
-                            "type": "text"
-                          },
-                          {
-                            "key": "Idempotency-Key",
-                            "value": "{{idempotencyKey}}",
-                            "type": "text"
-                          }
-                        ],
-                        "url": "{{baseUrl}}/registrations/{{registrationId}}/accept_waitlist_offer"
-                      },
-                      "description": "Accept an active offer as the verified registrant. Free offers confirm immediately; paid offers return to the ordinary payment-order action."
                     },
                     {
                       "name": "Offer Next Waitlisted Registration",
@@ -15964,67 +15924,152 @@
           "response": [{ "name": "Guest claimed", "status": "OK", "code": 200, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": { \"access_token\": \"jwt-access-token\", \"refresh_token\": \"opaque-refresh-token\", \"user\": { \"id\": \"user_01HX\", \"verified_at\": \"2026-09-08T12:12:00Z\" } }\n}" }]
         },
         {
-          "name": "Request RSVP Guest OTP",
+          "name": "Request Guest Admission OTP",
           "request": {
             "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json", "type": "text" },
-              { "key": "Idempotency-Key", "value": "{{rsvpOtpRequestIdempotencyKey}}", "type": "text" }
+              { "key": "Idempotency-Key", "value": "{{admissionOtpRequestIdempotencyKey}}", "type": "text" }
             ],
-            "body": { "mode": "raw", "raw": "{ \"rsvp\": { \"ticket_type_id\": \"{{ticketTypeId}}\", \"phone\": \"+251911234567\" } }", "options": { "raw": { "language": "json" } } },
-            "url": "{{baseUrl}}/public/events/{{eventSlug}}/rsvp/request_otp",
-            "description": "For access_code, invitation, or code_or_invitation ticket types, include rsvp.access_code and/or rsvp.invitation_token. The proof is checked before OTP delivery and must be sent again when submitting the RSVP."
+            "body": { "mode": "raw", "raw": "{\n  \"admission_selection\": {\n    \"charge_currency\": \"ETB\",\n    \"phone\": \"+251911234567\",\n    \"items\": [{\n      \"event_product_id\": \"{{eventProductId}}\",\n      \"quantity\": 1,\n      \"answers\": [],\n      \"consents\": [],\n      \"audience_proof\": {}\n    }]\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/public/events/{{eventSlug}}/admission_selections/request_otp",
+            "description": "Request this for a guest zero-total selection only. For access_code/invitation offers, provide the per-item audience_proof; authorization is checked without consuming the proof."
           },
           "response": [
-            { "name": "RSVP OTP challenge", "status": "Created", "code": 201, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": { \"challenge_id\": \"challenge_01HX\", \"status\": \"pending\", \"expires_at\": \"2026-09-09T12:10:00Z\" }\n}" }
+            { "name": "Admission OTP challenge", "status": "Created", "code": 201, "_postman_previewlanguage": "json", "header": [{ "key": "Cache-Control", "value": "no-store" }], "body": "{\n  \"success\": true,\n  \"data\": { \"challenge_id\": \"challenge_01HX\", \"status\": \"pending\", \"expires_at\": \"2026-09-28T12:10:00Z\" }\n}" },
+            { "name": "Paid selection does not need OTP", "status": "Unprocessable Entity", "code": 422, "_postman_previewlanguage": "json", "body": "{\n  \"success\": false,\n  \"code\": \"phone_verification_not_required\"\n}" }
           ]
         },
         {
-          "name": "Verify RSVP Guest OTP",
+          "name": "Create Guest Admission Selection",
           "request": {
             "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json", "type": "text" },
-              { "key": "Idempotency-Key", "value": "{{rsvpOtpVerifyIdempotencyKey}}", "type": "text" }
+              { "key": "Idempotency-Key", "value": "{{guestAdmissionIdempotencyKey}}", "type": "text" }
             ],
-            "body": { "mode": "raw", "raw": "{ \"code\": \"123456\" }", "options": { "raw": { "language": "json" } } },
-            "url": "{{baseUrl}}/phone_verifications/{{rsvpChallengeId}}/verify"
+            "body": { "mode": "raw", "raw": "{\n  \"admission_selection\": {\n    \"charge_currency\": \"ETB\",\n    \"phone\": \"+251911234567\",\n    \"verification_token\": \"{{admissionVerificationToken}}\",\n    \"items\": [{\n      \"event_product_id\": \"{{freeEventProductId}}\",\n      \"quantity\": 1,\n      \"answers\": [],\n      \"consents\": [],\n      \"audience_proof\": {}\n    }]\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/public/events/{{eventSlug}}/admission_selections",
+            "description": "A purpose-bound guest_admission verification token is required before a zero-total ticket is issued. A paid guest selection follows the existing checkout and post-payment claim flow."
           },
           "response": [
-            { "name": "RSVP verification proof", "status": "OK", "code": 200, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": { \"verification_token\": \"opaque-rsvp-verification-proof\", \"expires_at\": \"2026-09-09T12:15:00Z\" }\n}" }
+            { "name": "Zero-total selection issuing", "status": "Created", "code": 201, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": {\n    \"order\": { \"id\": \"order_01HX\", \"status\": \"fulfilled\", \"charge_currency\": \"ETB\", \"total_minor\": 0 },\n    \"next_action\": { \"type\": \"issuing\", \"order_id\": \"order_01HX\" }\n  }\n}" },
+            { "name": "OTP required without proof", "status": "Unprocessable Entity", "code": 422, "_postman_previewlanguage": "json", "body": "{\n  \"success\": false,\n  \"code\": \"phone_verification_required\"\n}" }
           ]
         },
         {
-          "name": "Submit Guest RSVP",
+          "name": "Create Guest Paid Admission Selection",
           "request": {
             "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json", "type": "text" },
-              { "key": "Idempotency-Key", "value": "{{rsvpSubmitIdempotencyKey}}", "type": "text" }
+              { "key": "Idempotency-Key", "value": "{{guestPaidAdmissionIdempotencyKey}}", "type": "text" }
             ],
-            "body": { "mode": "raw", "raw": "{ \"rsvp\": { \"ticket_type_id\": \"{{ticketTypeId}}\", \"phone\": \"+251911234567\", \"verification_token\": \"{{rsvpVerificationToken}}\", \"package_quantity\": 1 } }", "options": { "raw": { "language": "json" } } },
-            "url": "{{baseUrl}}/public/events/{{eventSlug}}/rsvp",
-            "description": "For access_code, invitation, or code_or_invitation ticket types, include the same rsvp.access_code and/or rsvp.invitation_token used for the OTP request. The backend revalidates the proof during registration."
+            "body": { "mode": "raw", "raw": "{\n  \"admission_selection\": {\n    \"charge_currency\": \"ETB\",\n    \"phone\": \"+251911234567\",\n    \"phone_confirmation\": true,\n    \"full_name\": \"Guest Buyer\",\n    \"items\": [{\n      \"event_product_id\": \"{{paidEventProductId}}\",\n      \"quantity\": 1,\n      \"answers\": [],\n      \"consents\": [],\n      \"audience_proof\": {}\n    }]\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/public/events/{{eventSlug}}/admission_selections",
+            "description": "Positive-total guests follow the existing phone-bound checkout and post-payment claim flow. No ticket is issued before payment."
           },
           "response": [
-            { "name": "Automatic RSVP confirmed", "status": "Created", "code": 201, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": {\n    \"registration\": { \"id\": \"registration_01HX\", \"status\": \"confirmed\" },\n    \"next_action\": { \"type\": \"confirmed\" },\n    \"tickets\": [{ \"id\": \"ticket_01HX\", \"status\": \"active\", \"credentials\": [{ \"qr_token\": \"opaque-static-token\" }] }]\n  }\n}" },
-            { "name": "Manual RSVP awaiting approval", "status": "Accepted", "code": 202, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": {\n    \"registration\": { \"id\": \"registration_01HX\", \"status\": \"pending_approval\" },\n    \"next_action\": { \"type\": \"awaiting_approval\" },\n    \"tickets\": []\n  }\n}" }
+            { "name": "Guest checkout token", "status": "Created", "code": 201, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": {\n    \"order\": { \"id\": \"order_01HX\", \"status\": \"pending_payment\", \"total_minor\": 1515 },\n    \"guest_order_token\": \"opaque-order-bound-token\",\n    \"next_action\": { \"type\": \"checkout_required\", \"order_id\": \"order_01HX\", \"amount_minor\": 1515 }\n  }\n}" }
           ]
         },
         {
-          "name": "Submit Authenticated RSVP",
+          "name": "Start Guest Admission Payment",
           "request": {
             "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json", "type": "text" },
-              { "key": "Idempotency-Key", "value": "{{rsvpAuthenticatedIdempotencyKey}}", "type": "text" }
+              { "key": "Idempotency-Key", "value": "{{guestAdmissionPaymentIdempotencyKey}}", "type": "text" }
             ],
-            "body": { "mode": "raw", "raw": "{ \"rsvp\": { \"ticket_type_id\": \"{{ticketTypeId}}\", \"package_quantity\": 1 } }", "options": { "raw": { "language": "json" } } },
-            "url": "{{baseUrl}}/public/events/{{eventSlug}}/rsvp",
-            "description": "Authenticated attendees use the same public RSVP route with a bearer token and do not need a guest OTP. For access_code, invitation, or code_or_invitation ticket types, include rsvp.access_code and/or rsvp.invitation_token."
+            "body": { "mode": "raw", "raw": "{\n  \"payment_attempt\": {\n    \"phone\": \"+251911234567\",\n    \"order_access_token\": \"{{guestOrderAccessToken}}\",\n    \"provider\": \"chapa\",\n    \"payment_method\": \"telebirr\"\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/guest/orders/{{orderId}}/payment_attempts",
+            "description": "Use the order_access_token returned by a positive-total guest admission selection. It is scoped to one order, buyer, and canonical phone."
           },
           "response": [
-            { "name": "Authenticated RSVP confirmed", "status": "Created", "code": 201, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": { \"registration\": { \"status\": \"confirmed\" }, \"next_action\": { \"type\": \"confirmed\" }, \"tickets\": [{ \"status\": \"active\", \"credentials\": [{ \"qr_token\": \"opaque-static-token\" }] }] }\n}" }
+            { "name": "Guest admission payment attempt", "status": "Created", "code": 201, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": { \"id\": \"payment_01HX\", \"status\": \"processing\", \"checkout_url\": \"https://checkout.example.test/tx\" }\n}" }
+          ]
+        },
+        {
+          "name": "Refresh Guest Admission Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{guestAdmissionRefreshIdempotencyKey}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{ \"payment_refresh\": { \"phone\": \"+251911234567\", \"order_access_token\": \"{{guestOrderAccessToken}}\" } }", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/guest/payments/{{paymentId}}/refresh",
+            "description": "Refresh a guest admission payment with the same order_access_token returned by selection creation."
+          },
+          "response": [
+            { "name": "Guest admission refresh", "status": "OK", "code": 200, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": { \"state\": \"pending\", \"tickets\": [] }\n}" }
+          ]
+        },
+        {
+          "name": "Create Authenticated Mixed Admission Selection",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{mixedAdmissionIdempotencyKey}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"admission_selection\": {\n    \"charge_currency\": \"ETB\",\n    \"items\": [\n      { \"event_product_id\": \"{{freeEventProductId}}\", \"quantity\": 1, \"answers\": [], \"consents\": [], \"audience_proof\": {} },\n      { \"event_product_id\": \"{{paidEventProductId}}\", \"quantity\": 1, \"answers\": [], \"consents\": [], \"audience_proof\": {} }\n    ]\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/public/events/{{eventSlug}}/admission_selections",
+            "description": "One order covers all automatic ticket lines, including a zero-priced line. No ticket is issued until the positive total is paid."
+          },
+          "response": [
+            { "name": "One pending checkout", "status": "Created", "code": 201, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": {\n    \"order\": { \"id\": \"order_01HX\", \"status\": \"pending_payment\", \"charge_currency\": \"ETB\", \"total_minor\": 1515 },\n    \"next_action\": { \"type\": \"checkout_required\", \"order_id\": \"order_01HX\", \"charge_currency\": \"ETB\", \"amount_minor\": 1515 }\n  }\n}" }
+          ]
+        },
+        {
+          "name": "Continue Approved or Offered Registration",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{registrationContinuationIdempotencyKey}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"admission_selection\": {\n    \"charge_currency\": \"ETB\",\n    \"items\": [{\n      \"event_product_id\": \"{{eventProductId}}\",\n      \"registration_id\": \"{{registrationId}}\",\n      \"quantity\": 1,\n      \"answers\": [],\n      \"consents\": [],\n      \"audience_proof\": {}\n    }]\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/public/events/{{eventSlug}}/admission_selections",
+            "description": "Resume an approved manual registration or accept an offered waitlist registration. The backend revalidates price and capacity, transfers any offer hold, and returns checkout_required or a zero-total fulfillment action."
+          },
+          "response": [
+            { "name": "Continuation result", "status": "Created", "code": 201, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": { \"order\": { \"id\": \"order_01HX\", \"status\": \"pending_payment\" }, \"next_action\": { \"type\": \"checkout_required\", \"order_id\": \"order_01HX\" } }\n}" }
+          ]
+        },
+        {
+          "name": "Request Guest Waitlist OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{waitlistOtpIdempotencyKey}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{ \"waitlist\": { \"phone\": \"+251911234567\", \"quantity\": 1, \"access_code\": \"{{accessCode}}\" } }", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/public/events/{{eventSlug}}/admission_offers/{{eventProductId}}/waitlist/request_otp",
+            "description": "OTP requests are accepted only when this ticket offer is currently sold out, waitlist_enabled, and its audience proof is valid. The access code is checked but not consumed."
+          },
+          "response": [
+            { "name": "Waitlist OTP challenge", "status": "Created", "code": 201, "_postman_previewlanguage": "json", "header": [{ "key": "Cache-Control", "value": "no-store" }], "body": "{\n  \"success\": true,\n  \"data\": { \"challenge_id\": \"challenge_01HX\", \"status\": \"pending\", \"expires_at\": \"2026-09-28T12:10:00Z\" }\n}" }
+          ]
+        },
+        {
+          "name": "Join Public Waitlist",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{waitlistJoinIdempotencyKey}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"waitlist\": {\n    \"phone\": \"+251911234567\",\n    \"verification_token\": \"{{admissionVerificationToken}}\",\n    \"quantity\": 1,\n    \"access_code\": \"{{accessCode}}\"\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/public/events/{{eventSlug}}/admission_offers/{{eventProductId}}/waitlist",
+            "description": "Enrollment rechecks sold-out inventory under lock, consumes/claims audience proof atomically with registration creation, and honors manual approval before queueing."
+          },
+          "response": [
+            { "name": "Waitlisted registration", "status": "Created", "code": 201, "_postman_previewlanguage": "json", "header": [{ "key": "Cache-Control", "value": "no-store" }], "body": "{\n  \"success\": true,\n  \"data\": { \"registration\": { \"id\": \"registration_01HX\", \"status\": \"waitlisted\" }, \"next_action\": { \"type\": \"waitlisted\" } }\n}" },
+            { "name": "Offer still available", "status": "Unprocessable Entity", "code": 422, "_postman_previewlanguage": "json", "body": "{\n  \"success\": false,\n  \"code\": \"waitlist_not_sold_out\"\n}" }
           ]
         }
       ]
