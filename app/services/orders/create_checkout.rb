@@ -354,6 +354,8 @@ module Orders
           idempotency_key: key
         )
         abort_with(purchase_limit_error(result.error)) if result.failure?
+        next if result.value.empty?
+
         { registration: record[:registration], key: }
       end
     end

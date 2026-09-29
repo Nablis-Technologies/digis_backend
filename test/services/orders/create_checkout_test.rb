@@ -285,6 +285,33 @@ module Orders
       assert_equal 0, Finance::LedgerEntry.where(order:).count
     end
 
+    test "fulfills a zero-total ticket checkout when the ticket has no per-user limit" do
+      product, registration = create_ticket_registration
+      product.prices.update_all(amount_minor: 0)
+      registration.ticket_type.update!(max_packages_per_user: nil)
+      quote_result = Orders::BuildQuote.call(
+        event: @event,
+        buyer: @buyer,
+        items: [ { product:, registration_id: registration.id, quantity: 1 } ],
+        charge_currency: "ETB",
+        quoted_at: @quoted_at
+      )
+      assert_predicate quote_result, :success?, quote_result.error&.message
+
+      result = Orders::CreateCheckout.call(
+        quote: quote_result.value,
+        event: @event,
+        buyer: @buyer,
+        idempotency_key: "free-ticket-without-limit-#{SecureRandom.hex(6)}"
+      )
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "paid", result.value.status
+      assert_equal 0, result.value.total_minor
+      assert_empty Ticketing::PurchaseLimitAllocation.where(registration:)
+      assert_equal 0, Orders::Payment.where(order: result.value).count
+    end
+
     private
 
     def create_checkout_terms
