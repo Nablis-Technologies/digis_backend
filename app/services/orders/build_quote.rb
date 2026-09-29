@@ -15,7 +15,8 @@ module Orders
       event:, items:, charge_currency:, buyer: nil, settlement_currency: nil,
       sales_channel: "online", provider: nil, payment_method: nil,
       organizer_payer_selections: {}, promotion: nil, promotion_code: nil,
-      promotion_quote: nil, quoted_at: nil, expires_at: nil
+      promotion_quote: nil, quoted_at: nil, expires_at: nil,
+      require_registrations: true
     )
       @event = event
       @buyer = buyer
@@ -29,6 +30,7 @@ module Orders
       @promotion = promotion
       @promotion_code = promotion_code
       @promotion_quote = promotion_quote
+      @require_registrations = require_registrations != false
       @quoted_at = (quoted_at || Time.current).to_time.utc.change(usec: 0)
       @expires_at = (expires_at || @quoted_at + HOLD_DURATION).to_time.utc.change(usec: 0)
     rescue NoMethodError, ArgumentError => error
@@ -123,7 +125,9 @@ module Orders
       if registration && !registration.pending_payment?
         return checkout_error(:registration_not_payable, code: "registration_not_payable", status: :conflict)
       end
-      return checkout_error(:registration_required, code: "registration_required") if product.ticket? && registration.nil?
+      if product.ticket? && registration.nil? && @require_registrations
+        return checkout_error(:registration_required, code: "registration_required")
+      end
 
       ticket_type = product.ticket_type
       admissions = if product.ticket?

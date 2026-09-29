@@ -71,6 +71,60 @@ module Orders
       assert_equal "registration_not_payable", result.error.code
     end
 
+    test "can preflight a ticket quote without constructing a registration" do
+      product, persisted_registration = create_ticket_registration(status: "pending_payment")
+      registrations_before = Ticketing::Registration.count
+
+      result = Orders::BuildQuote.call(
+        event: @event,
+        buyer: @buyer,
+        items: [ { product:, quantity: 1 } ],
+        charge_currency: "ETB",
+        quoted_at: @quoted_at,
+        require_registrations: false
+      )
+
+      assert_predicate result, :success?, result.error&.message
+      assert_nil result.value.items.sole.registration_id
+      assert_equal product.ticket_type.admissions_per_unit, result.value.items.sole.admissions_per_unit
+      assert_equal registrations_before, Ticketing::Registration.count
+      assert_predicate persisted_registration, :persisted?
+    end
+
+    test "requires a persisted registration for ticket checkout quotes by default" do
+      product, = create_ticket_registration(status: "pending_payment")
+
+      result = Orders::BuildQuote.call(
+        event: @event,
+        buyer: @buyer,
+        items: [ { product:, quantity: 1 } ],
+        charge_currency: "ETB",
+        quoted_at: @quoted_at
+      )
+
+      assert_predicate result, :failure?
+      assert_equal "registration_required", result.error.code
+    end
+
+    test "quote-only mode preserves the selected date without a registration" do
+      product, = create_ticket_registration(status: "pending_payment")
+      product.ticket_type.update!(date_selection: "choose_one")
+      selected_date_id = product.product_accesses.sole.event_date_id
+
+      result = Orders::BuildQuote.call(
+        event: @event,
+        buyer: @buyer,
+        items: [ { product:, quantity: 1, event_date_ids: [ selected_date_id ] } ],
+        charge_currency: "ETB",
+        quoted_at: @quoted_at,
+        require_registrations: false
+      )
+
+      assert_predicate result, :success?, result.error&.message
+      assert_nil result.value.items.sole.registration_id
+      assert_equal [ selected_date_id.to_s ], result.value.items.sole.event_date_ids.map(&:to_s)
+    end
+
     test "fixed charge-currency override wins without using a base price" do
       product = create_product(name: "Override parking", price_minor: nil)
       Catalog::ProductPrice.create!(
