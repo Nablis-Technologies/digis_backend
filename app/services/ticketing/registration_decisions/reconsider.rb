@@ -44,16 +44,8 @@ module Ticketing
               rejected_at: nil,
               reviewed_by: actor,
               decision_reason: reason,
-              next_action_snapshot: free_product?(locked) ? "requires_confirmation" : "requires_order"
+              next_action_snapshot: "requires_order"
             )
-            if free_product?(locked)
-              unwrap(reserve_capacity!(locked, idempotency_key: "#{idempotency_key}:approval"))
-              unwrap(Ticketing::Registrations::ConfirmFree.call(
-                registration: locked,
-                actor:,
-                idempotency_key: "#{idempotency_key}:confirmation"
-              ))
-            end
           else
             locked.update!(
               status: "rejected",

@@ -26,6 +26,19 @@ module Ticketing
         assert_equal "requires_order", registration.next_action_snapshot
       end
 
+      test "approval defers free versus paid fulfillment until currency selection" do
+        ticket_type = create_ticket_type(approval_mode: "manual", amount_minor: 0)
+        registration = create_registration(ticket_type:, status: "pending_approval")
+
+        result = Approve.call(registration:, actor: @manager, idempotency_key: "approve-free-manual")
+
+        assert_predicate result, :success?
+        assert_equal "pending_payment", registration.reload.status
+        assert_equal "requires_order", registration.next_action_snapshot
+        assert_empty Ticketing::Ticket.where(registration_id: registration.id)
+        assert_empty Catalog::InventoryReservation.where(registration_id: registration.id)
+      end
+
       test "automatic approval does not require a reviewer" do
         ticket_type = create_ticket_type(approval_mode: "automatic")
         registration = create_registration(ticket_type:, status: "pending_payment")
@@ -64,6 +77,22 @@ module Ticketing
         assert_not_nil registration.approved_at
         assert_nil registration.rejected_at
         assert_equal @manager, registration.reviewed_by
+      end
+
+      test "reconsidered free registration remains pending until a currency is selected" do
+        ticket_type = create_ticket_type(approval_mode: "manual", amount_minor: 0)
+        registration = create_registration(ticket_type:, status: "rejected", rejected_at: Time.current)
+
+        result = Reconsider.call(
+          registration:, actor: @manager, decision: "approve", reason: "Review changed",
+          idempotency_key: "reconsider-free-currency"
+        )
+
+        assert_predicate result, :success?
+        assert_equal "pending_payment", registration.reload.status
+        assert_equal "requires_order", registration.next_action_snapshot
+        assert_empty Ticketing::Ticket.where(registration_id: registration.id)
+        assert_empty Catalog::InventoryReservation.where(registration_id: registration.id)
       end
 
       test "a rejected registration cannot be approved without reconsideration" do
@@ -163,7 +192,7 @@ module Ticketing
 
       private
 
-      def create_ticket_type(approval_mode:, audience: "public")
+      def create_ticket_type(approval_mode:, audience: "public", amount_minor: 1)
         product = Catalog::Products::CreateDraft.call(
           event: @event,
           actor: @manager,
@@ -171,7 +200,7 @@ module Ticketing
           ticket_type_attributes: {
             audience:, approval_mode:, date_selection: "fixed", admissions_per_unit: 1
           },
-          price_attributes: { currency: "ETB", amount_minor: 1, active_from: Time.current },
+          price_attributes: { currency: "ETB", amount_minor:, active_from: Time.current },
           inventory_configuration: { mode: "unlimited" }
         ).value
         assert_predicate Catalog::Products::Activate.call(product:, actor: @manager), :success?
