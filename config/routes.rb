@@ -118,10 +118,14 @@ Rails.application.routes.draw do
       to: "ticketing/public_consent_requirements#index"
   get "public/events/:event_slug/ticket_types/:ticket_type_id/registration_schema",
       to: "ticketing/public_registration_schemas#show"
-  post "public/events/:event_slug/rsvp/request_otp",
-       to: "ticketing/public_rsvps#request_otp"
-  post "public/events/:event_slug/rsvp",
-       to: "ticketing/public_rsvps#create"
+  post "public/events/:event_slug/admission_selections/request_otp",
+       to: "orders/admission_selections#request_otp"
+  post "public/events/:event_slug/admission_selections",
+       to: "orders/admission_selections#create"
+  post "public/events/:event_slug/admission_offers/:event_product_id/waitlist/request_otp",
+       to: "ticketing/public_waitlists#request_otp"
+  post "public/events/:event_slug/admission_offers/:event_product_id/waitlist",
+       to: "ticketing/public_waitlists#create"
   post "guest/ticket_types/:ticket_type_id/registrations",
        to: "ticketing/guest_registrations#create"
 
@@ -237,8 +241,6 @@ Rails.application.routes.draw do
       post :approve, controller: "ticketing/registration_decisions"
       post :reject, controller: "ticketing/registration_decisions"
       post :reconsider, controller: "ticketing/registration_decisions"
-      post :enqueue_waitlist, controller: "ticketing/waitlist_offers", action: :enqueue
-      post :accept_waitlist_offer, controller: "ticketing/waitlist_offers", action: :accept
     end
   end
 
