@@ -10,6 +10,7 @@ module Orders
       @event = events_events(:ready_listing)
       @buyer = core_users(:attendee)
       @now = Time.current.change(usec: 0)
+      @previous_payment_adapters = Payments::Providers::Registry.instance_variable_get(:@adapters)&.dup
       Orders::Order.where(event: @event, buyer_user: @buyer).active_checkouts.update_all(
         status: "cancelled", closed_reason: "test_cleanup"
       )
@@ -59,6 +60,82 @@ module Orders
       assert_predicate result, :success?, result.error&.message
       assert_equal payment.settlement_grace_expires_at, @reservation.reload.expires_at
       assert_equal @order.expires_at + 15.minutes, payment.settlement_grace_expires_at
+    end
+
+    test "reconciles a payment when its settlement grace already elapsed" do
+      payment = create_payment(grace_minutes: 3)
+      adapter = register_verification(Payments::Providers::Result.failure(
+        failure_code: "declined", raw_status: "declined"
+      ))
+
+      result = nil
+      assert_no_enqueued_jobs only: Orders::ExpireSettlementGraceJob do
+        result = ExpireCheckout.call(now: payment.settlement_grace_expires_at)
+      end
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal 1, result.value
+      assert_equal 1, adapter.requests_for("orders-payment-verification-#{payment.id}").length
+      assert_equal "expired", @order.reload.status
+      assert_equal "failed", payment.reload.status
+      assert @reservation.reload.released?
+      assert_equal 0, @inventory.reload.held_count
+    end
+
+    test "releases stale checkout holds after a verified late success is reversed" do
+      payment = create_payment(grace_minutes: 3)
+      adapter = register_verification(Payments::Providers::Result.success(
+        provider_reference: payment.provider_reference,
+        raw_status: "paid"
+      ))
+      late_at = payment.settlement_grace_expires_at + 1.second
+
+      result = ExpireCheckout.call(now: late_at)
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal 1, result.value
+      assert_equal 1, adapter.requests_for("orders-payment-verification-#{payment.id}").length
+      assert_equal "expired", @order.reload.status
+      assert_equal "succeeded", payment.reload.status
+      assert_nil payment.accepted_at
+      assert_equal 1, Orders::Refund.where(payment:).count
+      assert @reservation.reload.released?
+      assert_equal "expired", @registration.reload.status
+      assert_equal 0, @inventory.reload.held_count
+    end
+
+    test "continues the sweep after one elapsed-grace checkout cannot be released" do
+      payment = create_payment(grace_minutes: 3)
+      following_order = Orders::Order.create!(
+        order_attributes.merge(
+          buyer_user: core_users(:support),
+          status: "pending_payment",
+          idempotency_key_digest: SecureRandom.hex(32),
+          creation_request_digest: SecureRandom.hex(32)
+        )
+      )
+      @inventory.update!(held_count: 0)
+      adapter = register_verification(Payments::Providers::Result.unknown(raw_status: "pending"))
+
+      sweep = -> { ExpireCheckout.call(now: payment.settlement_grace_expires_at) }
+      # Each order is processed under its own advisory/row-lock transaction;
+      # this bounded per-candidate write fanout is intentional for the sweep.
+      result = ENV["N_PLUS_ONE"] == "1" ? Prosopite.pause(&sweep) : sweep.call
+
+      assert_predicate result, :failure?
+      assert_equal "expired", following_order.reload.status
+      assert_equal "checkout_expiry_failed", result.error.code
+      assert_equal 1, result.error.errors.fetch(:failure_count)
+      assert_equal [ { order_id: @order.id, code: "settlement_grace_failed" } ],
+        result.error.errors.fetch(:failed_candidates)
+      assert_equal "pending_payment", @order.reload.status
+      assert_equal "processing", payment.reload.status
+      assert @reservation.reload.held?
+      assert_equal 1, adapter.requests_for("orders-payment-verification-#{payment.id}").length
+    end
+
+    teardown do
+      Payments::Providers::Registry.instance_variable_set(:@adapters, @previous_payment_adapters)
     end
 
     private
@@ -192,6 +269,12 @@ module Orders
         settlement_grace_minutes: grace_minutes,
         settlement_grace_expires_at: @order.expires_at + grace_minutes.minutes
       )
+    end
+
+    def register_verification(result)
+      adapter = Payments::Providers::FakePaymentProvider.new(outcomes: { verify: [ result ] })
+      Payments::Providers::Registry.register("chapa", adapter)
+      adapter
     end
 
     def order_attributes
