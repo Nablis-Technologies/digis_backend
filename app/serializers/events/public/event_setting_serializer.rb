@@ -5,7 +5,7 @@ module Events
     # Exposes only settings intentionally safe for public discovery. Private
     # access codes and organizer configuration never cross this boundary.
     class EventSettingSerializer < ActiveModel::Serializer
-      PUBLIC_CONFIG_KEYS = %w[allow_waitlist public_guest_limit].freeze
+      PUBLIC_CONFIG_KEYS = %w[public_guest_limit].freeze
 
       attributes :id, :config
 

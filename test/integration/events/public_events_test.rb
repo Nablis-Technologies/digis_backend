@@ -14,7 +14,9 @@ class EventsPublicEventsTest < ActionDispatch::IntegrationTest
     )
     make_publishable(@event)
     @event.event_dates.first.update!(venue: events_venues(:grand_palace), name: "Main show")
-    @event.event_setting.update!(config: { allow_waitlist: true, public_guest_limit: 10, internal_flag: true })
+    @event.event_setting.update!(config: {
+      event_type: "rsvp", allow_waitlist: true, public_guest_limit: 10, internal_flag: true
+    })
     Events::Publish.call(event: @event, actor: core_users(:super_admin),
                          idempotency_key: SecureRandom.uuid)
   end
@@ -26,6 +28,8 @@ class EventsPublicEventsTest < ActionDispatch::IntegrationTest
     event = bodies.find { |item| item["id"] == @event.id }
     assert event
     assert_equal "10", event.dig("event_setting", "config", "public_guest_limit").to_s
+    refute event.dig("event_setting", "config").key?("event_type")
+    refute event.dig("event_setting", "config").key?("allow_waitlist")
     assert_equal "Main show", event.dig("event_dates", 0, "name")
     assert_equal "Grand Palace", event.dig("event_dates", 0, "venue", "name")
     assert_equal "Addis Ababa", event.dig("event_dates", 0, "venue", "city")
@@ -75,7 +79,8 @@ class EventsPublicEventsTest < ActionDispatch::IntegrationTest
     assert_equal "Addis Ababa", body.dig("event_dates", 0, "venue", "city")
     assert body.dig("event_media", 0, "file", "medium").present?
     assert_equal @event.organization.name, body.dig("organization", "name")
-    assert_equal true, body.dig("event_setting", "config", "allow_waitlist")
+    refute body.dig("event_setting", "config").key?("event_type")
+    refute body.dig("event_setting", "config").key?("allow_waitlist")
     refute body.dig("event_setting", "config").key?("internal_flag")
     refute_includes body.keys, "cancelled_at"
     refute_includes body.keys, "internal_notes"
@@ -84,6 +89,25 @@ class EventsPublicEventsTest < ActionDispatch::IntegrationTest
   test "private event is not directly lookupable by unauthenticated user" do
     get "/public/events/#{events_events(:draft_concert).slug}", as: :json
     assert_response :not_found
+  end
+
+  test "old RSVP routes are retired and admission selection is routed" do
+    [
+      "/public/events/#{@event.slug}/rsvp",
+      "/public/events/#{@event.slug}/rsvp/request_otp",
+      "/registrations/#{SecureRandom.uuid}/enqueue_waitlist",
+      "/registrations/#{SecureRandom.uuid}/accept_waitlist_offer"
+    ].each do |path|
+      assert_raises(ActionController::RoutingError) do
+        Rails.application.routes.recognize_path(path, method: :post)
+      end
+    end
+
+    route = Rails.application.routes.recognize_path(
+      "/public/events/#{@event.slug}/admission_selections", method: :post
+    )
+    assert_equal "orders/admission_selections", route.fetch(:controller)
+    assert_equal "create", route.fetch(:action)
   end
 
   private
