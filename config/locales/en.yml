@@ -39,6 +39,9 @@ en:
       unauthorized: "You are not authorized to perform this action"
 
   core:
+    phone_identity:
+      errors:
+        guest_requires_authentication: "This phone already belongs to an account; sign in to continue"
     retention:
       errors:
         unauthorized: "Only platform administrators may manage retention controls"

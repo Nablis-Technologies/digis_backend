@@ -38,6 +38,55 @@ module Core
         assert_equal "verification_already_used", replay.error.code
       end
 
+      test "accepts a guest proof only for its verified challenge and phone identity" do
+        token = guest_admission_proof
+
+        assert Verify.valid_proof?(
+          token:,
+          phone: "0911000051",
+          user_id: @user.id,
+          purpose: "guest_admission"
+        )
+      end
+
+      test "rejects guest proofs with a changed phone, user, or purpose" do
+        token = guest_admission_proof
+        other_user = Core::User.create!(phone: "+251911000052")
+
+        assert_not Verify.valid_proof?(
+          token:, phone: "+251911000052", user_id: @user.id, purpose: "guest_admission"
+        )
+        assert_not Verify.valid_proof?(
+          token:, phone: @user.phone, user_id: other_user.id, purpose: "guest_admission"
+        )
+        assert_not Verify.valid_proof?(
+          token:, phone: @user.phone, user_id: @user.id, purpose: "guest_claim"
+        )
+        assert_not Verify.valid_proof?(
+          token: "tampered", phone: @user.phone, user_id: @user.id, purpose: "guest_admission"
+        )
+      end
+
+      test "rejects a signed proof after its challenge is no longer verified" do
+        token = guest_admission_proof
+        challenge = PhoneVerificationChallenge.find(@delivered_codes.last.fetch(:challenge_id))
+        challenge.update_columns(status: "pending", verified_at: nil)
+
+        assert_not Verify.valid_proof?(
+          token:, phone: @user.phone, user_id: @user.id, purpose: "guest_admission"
+        )
+      end
+
+      test "rejects a proof after its verified challenge expires" do
+        token = guest_admission_proof
+        challenge = PhoneVerificationChallenge.find(@delivered_codes.last.fetch(:challenge_id))
+        challenge.update_column(:expires_at, 1.second.ago)
+
+        assert_not Verify.valid_proof?(
+          token:, phone: @user.phone, user_id: @user.id, purpose: "guest_admission"
+        )
+      end
+
       test "replaying the request key returns the same challenge without redelivery" do
         first = Request.call(
           user: @user,
@@ -127,6 +176,18 @@ module Core
 
         assert_predicate result, :failure?
         assert_equal "attempts_exhausted", result.error.code
+      end
+
+      private
+
+      def guest_admission_proof
+        challenge = Request.call(
+          user: @user,
+          phone: @user.phone,
+          purpose: "guest_admission",
+          idempotency_key: "guest-proof-#{SecureRandom.hex(5)}"
+        ).value
+        Verify.call(challenge:, code: @delivered_codes.last.fetch(:code)).value.token
       end
     end
   end

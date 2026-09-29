@@ -67,6 +67,22 @@ module Core
         nil
       end
 
+      def self.valid_proof?(token:, phone:, user_id:, purpose:)
+        proof = verify_proof(token)
+        normalized_phone = Core::PhoneIdentity::ResolveOrCreate.normalize(phone)
+        return false if normalized_phone.blank?
+
+        expected_digest = Core::PhoneIdentity::ResolveOrCreate.digest_for(normalized_phone)
+        return false unless proof_matches?(proof, phone_digest: expected_digest, user_id:, purpose:)
+
+        challenge = PhoneVerificationChallenge.find_by(
+          id: proof[:challenge_id], user_id:, purpose:, status: "verified"
+        )
+        challenge&.expires_at&.future? &&
+          same_digest?(proof[:phone_digest], challenge.phone_digest) &&
+          same_digest?(challenge.phone_digest, expected_digest)
+      end
+
       private
 
       attr_reader :challenge, :code
@@ -103,6 +119,22 @@ module Core
           expires_at: PROOF_TTL.from_now
         )
       end
+
+      def self.proof_matches?(proof, phone_digest:, user_id:, purpose:)
+        return false unless proof && user_id.present? && purpose.present?
+
+        proof[:purpose] == purpose.to_s &&
+          proof[:user_id] == user_id.to_s &&
+          same_digest?(proof[:phone_digest], phone_digest)
+      end
+      private_class_method :proof_matches?
+
+      def self.same_digest?(actual, expected)
+        actual.present? && expected.present? && ActiveSupport::SecurityUtils.secure_compare(actual, expected)
+      rescue ArgumentError
+        false
+      end
+      private_class_method :same_digest?
 
       def self.verifier
         @verifier ||= ActiveSupport::MessageVerifier.new(
