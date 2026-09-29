@@ -13,19 +13,21 @@ module Orders
 
     def create
       order = Orders::Order.includes(:event).find(params.require(:order_id))
-      event = Events::Event.publicly_visible.find(order.event_id)
+      Events::Event.publicly_visible.find(order.event_id)
       payment_params = params.require(:payment_attempt).permit(
-        :provider, :payment_method, :commercial_signature, :phone, :quote_token
+        :provider, :payment_method, :commercial_signature, :phone, :quote_token, :order_access_token
       )
-      decoded = Orders::GuestQuoteToken.decode(
-        token: payment_params.fetch(:quote_token), event:, phone: payment_params.fetch(:phone)
+      access = Orders::ResolveGuestOrderAccess.call(
+        order:,
+        phone: payment_params.require(:phone),
+        quote_token: payment_params[:quote_token],
+        order_access_token: payment_params[:order_access_token]
       )
-      return render_service_result(decoded) if decoded.failure?
-      return render_guest_order_mismatch unless decoded.value.buyer.id == order.buyer_user_id
+      return render_service_result(access) if access.failure?
 
       result = Orders::StartPaymentAttempt.call(
         order:,
-        buyer: decoded.value.buyer,
+        buyer: access.value,
         provider: payment_params.require(:provider),
         payment_method: payment_params.require(:payment_method),
         commercial_signature: payment_params[:commercial_signature],
@@ -41,13 +43,5 @@ module Orders
     end
 
     private
-
-    def render_guest_order_mismatch
-      render_error(
-        I18n.t("orders.payments.errors.payment_order_not_owned"),
-        status: :forbidden,
-        code: "payment_order_not_owned"
-      )
-    end
   end
 end

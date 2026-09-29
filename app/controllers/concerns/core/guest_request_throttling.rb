@@ -32,7 +32,8 @@ module Core
 
     def guest_throttle_identifier
       params[:phone].presence ||
-        params.dig(:rsvp, :phone).presence ||
+        params.dig(:admission_selection, :phone).presence ||
+        params.dig(:waitlist, :phone).presence ||
         params.dig(:order, :phone).presence ||
         params.dig(:payment_attempt, :phone).presence ||
         params.dig(:payment_refresh, :phone).presence ||

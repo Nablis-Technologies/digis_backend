@@ -14,16 +14,18 @@ module Orders
 
     def create
       payment = Orders::Payment.includes(order: :event).find(params.require(:payment_id))
-      event = Events::Event.publicly_visible.find(payment.order.event_id)
-      refresh_params = params.require(:payment_refresh).permit(:phone, :quote_token)
-      decoded = Orders::GuestQuoteToken.decode(
-        token: refresh_params.fetch(:quote_token), event:, phone: refresh_params.fetch(:phone)
+      Events::Event.publicly_visible.find(payment.order.event_id)
+      refresh_params = params.require(:payment_refresh).permit(:phone, :quote_token, :order_access_token)
+      access = Orders::ResolveGuestOrderAccess.call(
+        order: payment.order,
+        phone: refresh_params.require(:phone),
+        quote_token: refresh_params[:quote_token],
+        order_access_token: refresh_params[:order_access_token]
       )
-      return render_service_result(decoded) if decoded.failure?
-      return render_guest_order_mismatch unless decoded.value.buyer.id == payment.order.buyer_user_id
+      return render_service_result(access) if access.failure?
 
       result = Orders::PaymentRefresh.call(
-        payment:, buyer: decoded.value.buyer, idempotency_key:
+        payment:, buyer: access.value, idempotency_key:
       )
       render_service_result(
         result,
@@ -38,14 +40,6 @@ module Orders
     end
 
     private
-
-    def render_guest_order_mismatch
-      render_error(
-        I18n.t("orders.payments.errors.payment_order_not_owned"),
-        status: :forbidden,
-        code: "payment_order_not_owned"
-      )
-    end
 
     def set_no_store
       response.set_header("Cache-Control", "no-store")
