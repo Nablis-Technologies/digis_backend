@@ -23,15 +23,10 @@ module Catalog
       attr_reader :products, :at
 
       def available?(product)
-        return false unless sales_window_open?(product)
+        return false unless Catalog::Products::SalesWindow.open?(product, at:)
         return true if product.inventory_mode == "unlimited"
 
         product.inventories.any?(&:available?)
-      end
-
-      def sales_window_open?(product)
-        (product.sales_start_at.blank? || product.sales_start_at <= at) &&
-          (product.sales_end_at.blank? || product.sales_end_at > at)
       end
     end
   end

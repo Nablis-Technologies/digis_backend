@@ -22,6 +22,12 @@ module Catalog
         assert_equal({ product.id => false }, ProductAvailability.for(products: [ product ], at: @at))
       end
 
+      test "sales end is exclusive at the exact cutoff" do
+        product = create_product(inventory_mode: "unlimited", sales_end_at: @at)
+
+        assert_equal({ product.id => false }, ProductAvailability.for(products: [ product ], at: @at))
+      end
+
       test "returns true when an inventory pool has capacity" do
         product = create_product(inventory_mode: "event_wide")
         product.inventories.create!(capacity: 3, held_count: 1, sold_count: 1)
@@ -40,7 +46,7 @@ module Catalog
 
       private
 
-      def create_product(inventory_mode:, sales_start_at: nil)
+      def create_product(inventory_mode:, sales_start_at: nil, sales_end_at: nil)
         Catalog::EventProduct.create!(
           event: @event,
           name: "Availability #{SecureRandom.hex(4)}",
@@ -48,6 +54,7 @@ module Catalog
           status: "active",
           inventory_mode:,
           sales_start_at:,
+          sales_end_at:,
           schedule_change_refund_policy: "full_or_partial"
         )
       end
