@@ -13,6 +13,9 @@ module Orders
       event = Events::Event.publicly_visible.find(params.require(:event_id))
       return render_invalid_phone_confirmation unless phone_confirmed?
 
+      promotion_result = Orders::PromotionContext.call(event:, raw_code: params[:promotion_code])
+      return render_service_result(promotion_result) if promotion_result.failure?
+
       identity = Core::PhoneIdentity::ResolveOrCreate.call(
         phone: params.require(:phone), actor: nil, allow_actor_mismatch: true
       )
@@ -26,6 +29,7 @@ module Orders
         charge_currency: params.require(:charge_currency),
         provider: params[:provider],
         payment_method: params[:payment_method],
+        promotion: promotion_result.value.promotion,
         promotion_code: params[:promotion_code]
       )
       return render_service_result(result) if result.failure?
