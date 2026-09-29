@@ -441,6 +441,7 @@ module Orders
 
     def accept_zero_total!(order, item_records)
       order.update!(status: "paid", paid_at: now)
+      confirm_free_order_registrations!(order, item_records)
       commit_inventory!(item_records)
       commit_purchase_limits!
       apply_promotion!(order)
@@ -449,6 +450,25 @@ module Orders
         order:, payment: nil, idempotency_key: "orders-free-fulfilled-#{order.id}"
       )
       abort_with(result.error) if result.failure?
+      order.reload
+    end
+
+    def confirm_free_order_registrations!(order, item_records)
+      item_records.each do |record|
+        registration = record[:registration]
+        next unless registration
+
+        result = Ticketing::Registrations::ConfirmFreeOrder.call(
+          registration:,
+          order_id: order.id,
+          actor: buyer,
+          idempotency_key: "orders-zero-total-registration-#{order.id}-#{registration.id}",
+          at: now
+        )
+        abort_with(result.error) if result.failure?
+
+        record[:registration] = result.value
+      end
     end
 
     def commit_inventory!(item_records)

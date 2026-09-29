@@ -151,6 +151,95 @@ module Orders
       assert_equal "no-store", response.headers.fetch("Cache-Control")
     end
 
+    test "fresh authenticated buyer can check out an access-code admission" do
+      buyer = Core::User.create!(
+        email: "admission-buyer-#{SecureRandom.hex(4)}@example.test",
+        phone: "+2519#{SecureRandom.random_number(100_000_000).to_s.rjust(8, "0")}",
+        verified_at: Time.current,
+        password: "password123"
+      )
+      token = Core::TokenService.issue(Core::TokenService.access_token_payload(buyer))
+      product = create_ticket_product(name: "Gated paid admission", amount_minor: 1_500, audience: "access_code")
+      raw_code = "COMPOSABLE-#{SecureRandom.hex(4)}".upcase
+      created_code = Ticketing::AccessCodes::Create.call(
+        ticket_type: product.ticket_type,
+        actor: @actor,
+        attributes: { code: raw_code, max_uses: 1 },
+        idempotency_key: "composable-access-code-#{SecureRandom.hex(4)}"
+      )
+      assert_predicate created_code, :success?, created_code.error&.message
+      payload = selection_payload(product)
+      payload.dig(:admission_selection, :items).first[:audience_proof] = {
+        access_code: created_code.value.plaintext
+      }
+      headers = { "Authorization" => "Bearer #{token}", "Idempotency-Key" => "fresh-buyer-gated-admission" }
+
+      post selection_path, params: payload, headers:, as: :json
+
+      assert_response :created
+      data = response.parsed_body.fetch("data")
+      assert_equal "checkout_required", data.dig("next_action", "type")
+      order_id = data.dig("order", "id")
+      registration = Ticketing::Registration.find(data.fetch("registrations").sole.fetch("id"))
+      assert_equal buyer.id, registration.user_id
+      assert_equal created_code.value.record.id, registration.access_code_id
+      assert_equal 1, created_code.value.record.reload.used_count
+
+      post selection_path, params: payload, headers:, as: :json
+
+      assert_response :created
+      assert_equal order_id, response.parsed_body.dig("data", "order", "id")
+      assert_equal 1, created_code.value.record.reload.used_count
+
+      order = complete_paid_order(
+        order_id:,
+        headers:,
+        idempotency_key: "fresh-buyer-gated-admission-payment"
+      )
+      assert_equal "confirmed", registration.reload.status
+      assert_equal 1, Ticketing::Ticket.where(order_item_id: order.order_items.select(:id)).count
+    end
+
+    test "invitation proof can be redeemed through composable admission selection" do
+      product = create_ticket_product(name: "Invited admission", amount_minor: 1_500, audience: "invitation")
+      invitation = Ticketing::Invitations::Create.call(
+        ticket_type: product.ticket_type,
+        actor: @actor,
+        attributes: { email: "invited-#{SecureRandom.hex(4)}@example.test", allowed_quantity: 1 },
+        idempotency_key: "composable-invitation-#{SecureRandom.hex(4)}"
+      )
+      assert_predicate invitation, :success?, invitation.error&.message
+      payload = selection_payload(product)
+      payload.dig(:admission_selection, :items).first[:audience_proof] = {
+        invitation_token: invitation.value.token
+      }
+      headers = user_headers.merge("Idempotency-Key" => "invited-admission-selection")
+
+      post selection_path, params: payload, headers:, as: :json
+
+      assert_response :created
+      data = response.parsed_body.fetch("data")
+      assert_equal "checkout_required", data.dig("next_action", "type")
+      registration = Ticketing::Registration.find(data.fetch("registrations").sole.fetch("id"))
+      assert_equal invitation.value.record.id, registration.invitation_id
+      assert_equal "accepted", invitation.value.record.reload.status
+      refute_includes response.body, invitation.value.token
+
+      post selection_path, params: payload, headers:, as: :json
+
+      assert_response :created
+      assert_equal data.dig("order", "id"), response.parsed_body.dig("data", "order", "id")
+      assert_equal "accepted", invitation.value.record.reload.status
+
+      order = complete_paid_order(
+        order_id: data.dig("order", "id"),
+        headers:,
+        idempotency_key: "invited-admission-payment"
+      )
+      assert_equal "confirmed", registration.reload.status
+      assert_equal 1, Ticketing::Ticket.where(order_item_id: order.order_items.select(:id)).count
+    end
+
     test "mixed free and paid admission lines issue together exactly once after payment" do
       free_product = create_ticket_product(name: "Paid-order free line", amount_minor: 0)
       paid_product = create_ticket_product(name: "Paid-order paid line", amount_minor: 1_500)
@@ -243,6 +332,8 @@ module Orders
       assert_response :created
       data = response.parsed_body.fetch("data")
       assert_equal "issuing", data.dig("next_action", "type")
+      assert_equal "fulfilled", data.dig("order", "status")
+      assert_equal [ "confirmed" ], data.fetch("registrations").map { |registration| registration.fetch("status") }
       order = Orders::Order.find(data.dig("order", "id"))
       assert_equal 0, order.total_minor
       assert_includes %w[paid fulfilled], order.status
@@ -460,14 +551,14 @@ module Orders
 
     def create_ticket_product(
       name:, amount_minor:, inventory_mode: "unlimited", capacity: nil,
-      waitlist_enabled: false, approval_mode: "automatic", date_selection: "fixed"
+      waitlist_enabled: false, approval_mode: "automatic", date_selection: "fixed", audience: "public"
     )
       result = Catalog::Products::CreateDraft.call(
         event: @event,
         actor: @actor,
         product_attributes: { name:, type: "ticket" },
         ticket_type_attributes: {
-          audience: "public", approval_mode:, date_selection:,
+          audience:, approval_mode:, date_selection:,
           admissions_per_unit: 1, waitlist_enabled:
         },
         price_attributes: { type: "base", currency: "ETB", amount_minor:, active_from: 1.minute.ago },
@@ -479,6 +570,33 @@ module Orders
       activated = Catalog::Products::Activate.call(product: result.value, actor: @actor)
       assert_predicate activated, :success?, activated.error&.message
       activated.value
+    end
+
+    def complete_paid_order(order_id:, headers:, idempotency_key:)
+      Payments::Providers::Registry.register(
+        "chapa",
+        Payments::Providers::FakePaymentProvider.new(
+          outcomes: {
+            create: [ Payments::Providers::Result.success(provider_reference: "admission-#{order_id}") ]
+          }
+        )
+      )
+      post "/orders/#{order_id}/payment_attempts",
+           params: { payment_attempt: { provider: "chapa", payment_method: "telebirr" } },
+           headers: headers.merge("Idempotency-Key" => idempotency_key),
+           as: :json
+      assert_response :created
+      payment = Orders::Payment.find(response.parsed_body.dig("data", "id"))
+
+      accepted = with_per_item_write_fanout_paused { Orders::AcceptPayment.call(payment:) }
+      assert_predicate accepted, :success?, accepted.error&.message
+
+      order = Orders::Order.find(order_id)
+      fulfillment = Core::OutboxEvent.find_by!(aggregate: order, event_type: "orders.payment.fulfilled")
+      dispatch = with_per_item_write_fanout_paused { Core::Outbox::Dispatch.call(event_id: fulfillment.id) }
+      assert_predicate dispatch, :success?, dispatch.error&.message
+      assert_equal "fulfilled", order.reload.status
+      order
     end
 
     def create_checkout_terms

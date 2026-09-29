@@ -79,7 +79,7 @@ module Orders
           abort_with(dispatch.error) if dispatch.failure?
           order = dispatch.value
           record_order_request!(order)
-          result = success(result_for_order(order, registrations))
+          result = success(result_for_order(order))
         end
         result
       rescue Abort => error
@@ -356,7 +356,8 @@ module Orders
         )
       end
 
-      def result_for_order(order, registrations = order.order_items.includes(:registration).filter_map(&:registration))
+      def result_for_order(order)
+        registrations = order.order_items.includes(:registration).filter_map(&:registration)
         action = if order.status == "pending_payment"
           "checkout_required"
         elsif order.status.in?(%w[paid fulfilled]) && issued_ticket_count(order) < expected_ticket_count(order)

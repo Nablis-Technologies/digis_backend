@@ -233,7 +233,7 @@ module Orders
 
       assert_predicate result, :success?, result.error&.message
       order = result.value
-      assert_equal "paid", order.status
+      assert_equal "fulfilled", order.status
       assert order.paid_at.present?
       assert_equal "committed", Catalog::InventoryReservation.where(order_item_id: order.order_items.first.id).pick(:status)
       assert_equal 1, @product.inventories.reload.first.sold_count
@@ -306,7 +306,7 @@ module Orders
       )
 
       assert_predicate result, :success?, result.error&.message
-      assert_equal "paid", result.value.status
+      assert_equal "fulfilled", result.value.status
       assert_equal 0, result.value.total_minor
       assert_empty Ticketing::PurchaseLimitAllocation.where(registration:)
       assert_equal 0, Orders::Payment.where(order: result.value).count

@@ -61,11 +61,38 @@ module Orders
 
         assert_predicate result, :success?, error_detail(result)
         order = result.value.order
-        assert_equal "paid", order.status
+        assert_equal "fulfilled", order.status
         assert_equal 0, order.total_minor
         assert_equal 0, Orders::Payment.where(order:).count
+        assert_equal [ "confirmed" ], result.value.registrations.map(&:status)
+        assert_equal [ "confirmed" ], Ticketing::Registration
+          .where(id: result.value.registrations.map(&:id))
+          .pluck(:status)
+        registration = result.value.registrations.sole
+        confirmation_audits = Core::AuditLog.where(
+          action: "ticketing.registration.free_order_confirmed",
+          auditable_type: "Ticketing::Registration",
+          auditable_id: registration.id
+        )
+        assert_equal 1, confirmation_audits.count
+        assert_equal [ "pending_payment", "confirmed" ], confirmation_audits.sole.audited_changes.fetch("status")
+        assert_empty Core::OutboxEvent.where(
+          aggregate_type: "Ticketing::Registration",
+          aggregate_id: registration.id,
+          event_type: "ticketing.registration.issuance_ready"
+        )
         outbox = Core::OutboxEvent.find_by!(aggregate: order, event_type: "orders.payment.fulfilled")
         assert_equal "issuing", result.value.next_action
+
+        replay_before_issuance = call_selection(
+          items: [ { event_product_id: free_product.id, quantity: 1, answers: [], consents: [] } ],
+          currency: "ETB",
+          key:
+        )
+        assert_predicate replay_before_issuance, :success?, error_detail(replay_before_issuance)
+        assert_equal "issuing", replay_before_issuance.value.next_action
+        assert_equal [ "confirmed" ], replay_before_issuance.value.registrations.map(&:status)
+        assert_equal 1, confirmation_audits.count
 
         dispatch = Core::Outbox::Dispatch.call(event_id: outbox.id)
 
@@ -78,6 +105,32 @@ module Orders
         )
         assert_predicate replay, :success?, error_detail(replay)
         assert_equal "confirmed", replay.value.next_action
+      end
+
+      test "confirms every registration in a zero-total multi-product selection" do
+        products = [
+          create_ticket_product(name: "Free GA #{SecureRandom.hex(3)}", etb_minor: 0),
+          create_ticket_product(name: "Free VIP #{SecureRandom.hex(3)}", etb_minor: 0)
+        ]
+        items = products.map do |product|
+          { event_product_id: product.id, quantity: 1, answers: [], consents: [] }
+        end
+
+        result = call_selection(items:, key: "zero-total-basket-#{SecureRandom.hex(5)}")
+
+        assert_predicate result, :success?, error_detail(result)
+        order = result.value.order
+        assert_equal 0, order.total_minor
+        assert_equal "fulfilled", order.reload.status
+        assert_equal 2, result.value.registrations.size
+        assert_equal [ "confirmed", "confirmed" ], result.value.registrations.map(&:status).sort
+        assert_equal 2, Ticketing::Registration.where(id: result.value.registrations.map(&:id), status: "confirmed").count
+
+        outbox = Core::OutboxEvent.find_by!(aggregate: order, event_type: "orders.payment.fulfilled")
+        dispatch = Core::Outbox::Dispatch.call(event_id: outbox.id)
+
+        assert_predicate dispatch, :success?, dispatch.error&.message
+        assert_equal 2, Ticketing::Ticket.where(order_item_id: order.order_items.select(:id)).count
       end
 
       test "a valid promotion that reduces the final total to zero uses no-provider fulfillment" do
@@ -108,7 +161,7 @@ module Orders
         order = result.value.order
         assert_equal 0, order.total_minor
         assert_equal 1_500, order.discount_minor
-        assert_equal "paid", order.status
+        assert_equal "fulfilled", order.status
         assert_empty Orders::Payment.where(order:)
         assert_equal "issuing", result.value.next_action
       end
@@ -296,7 +349,7 @@ module Orders
         )
 
         assert_predicate checkout, :success?, error_detail(checkout)
-        assert_equal "paid", checkout.value.order.status
+        assert_equal "fulfilled", checkout.value.order.status
         assert_equal 0, checkout.value.order.total_minor
         assert_equal "issuing", checkout.value.next_action
         assert_equal 0, Orders::Payment.where(order: checkout.value.order).count
