@@ -4,7 +4,7 @@ module Events
   class EventPolicy < Core::ApplicationPolicy
     ORGANIZER_FIELDS = %i[
       id title slug description status visibility timezone currency version
-      published_at cancelled_at created_at organization categories event_dates event_media
+      published_at cancelled_at created_at organization_id organization categories event_dates event_media
     ].freeze
 
     def index?
@@ -81,27 +81,49 @@ module Events
         admin: { fields: :all, include: [] }
       },
       complete: {
-        default: { fields: %i[id title slug description status visibility timezone currency version published_at completed_at created_at updated_at], include: [] },
+        default: { fields: %i[id title slug description status visibility timezone currency version organization_id published_at completed_at created_at updated_at], include: [] },
         admin: { fields: :all, include: [] }
       }
     }
 
     class Scope < Core::ApplicationPolicy::Scope
       def resolve
-        return scope.all if user&.has_role?("SUPER_ADMIN") || user&.has_role?("ADMIN") || user&.has_role?("CORE_ADMIN")
+        return scope.all if platform_admin?
 
-        scope.where(
-          organization_id: owned_organization_ids
-        ).or(scope.where(visibility: "public", status: "published"))
+        assigned_event_ids = Events::EventStaffAssignment
+          .where(user:, status: "active")
+          .select(:event_id)
+
+        scope.where(organization_id: owned_organization_ids)
+          .or(scope.where(id: assigned_event_ids))
+          .or(scope.where(visibility: "public", status: "published"))
+      end
+
+      def resolve_organizer_index
+        return scope.none unless user
+        return scope.all if platform_admin?
+
+        managed_organization_ids = Organizations::Membership
+          .where(user:, status: "active", role: %w[owner admin])
+          .select(:organization_id)
+        assigned_event_ids = Events::EventStaffAssignment
+          .where(user:, status: "active")
+          .select(:event_id)
+
+        scope.where(organization_id: managed_organization_ids).or(scope.where(id: assigned_event_ids))
       end
 
       private
 
       def owned_organization_ids
         Organizations::Membership
-          .where(user: user, status: "active")
+          .where(user:, status: "active")
           .where(role: %w[owner admin manager])
           .pluck(:organization_id)
+      end
+
+      def platform_admin?
+        user&.has_role?("SUPER_ADMIN") || user&.has_role?("ADMIN") || user&.has_role?("CORE_ADMIN")
       end
     end
 

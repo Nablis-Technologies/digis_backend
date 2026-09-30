@@ -15,7 +15,9 @@ module Events
     def index
       @clazz = Events::Event
       authorize @clazz.new, :index?
-      events = policy_scope(@clazz).includes(organizer_eager_load)
+      scoped_events = policy_scope(@clazz)
+      organizer_events = Events::EventPolicy::Scope.new(current_user, @clazz).resolve_organizer_index
+      events = scoped_events.where(id: organizer_events.select(:id)).includes(organizer_eager_load)
       events = filter_records(events)
       events = organizer_event_order(events)
       total_count = events.count if paginated_request?

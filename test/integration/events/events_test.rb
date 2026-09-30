@@ -34,6 +34,7 @@ class EventsEventsTest < ActionDispatch::IntegrationTest
     assert_response :created
     body = JSON.parse(response.body).dig("data")
     assert_equal "New Year Concert", body["title"]
+    assert_equal @organization.id, body["organization_id"]
     assert_equal "draft", body["status"]
     assert Events::Event.exists?(body["id"])
     assert_equal "Event created successfully", JSON.parse(response.body)["message"]
@@ -113,6 +114,7 @@ class EventsEventsTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     list_event = response.parsed_body.fetch("data").find { |item| item.fetch("id") == event.id }
+    assert_equal event.organization_id, list_event["organization_id"]
     assert_equal event.organization.name, list_event.dig("organization", "name")
     assert_equal "Music", list_event.dig("categories", 0, "name")
     assert_equal "Grand Palace", list_event.dig("event_dates", 0, "venue", "name")
@@ -124,8 +126,40 @@ class EventsEventsTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     detail = response.parsed_body.fetch("data")
+    assert_equal event.organization_id, detail["organization_id"]
     assert_equal 2, detail.fetch("event_media").length
     assert_equal "gallery", detail.dig("event_media", 1, "type")
+  end
+
+  test "organizer event index excludes unrelated public events" do
+    user = create_event_list_user
+    organization = create_event_list_organization("Managed")
+    organization.memberships.create!(user:, role: :owner, status: :active)
+    create_event_list_event(organization:, user:, status: "draft", visibility: "private")
+
+    unrelated_organization = create_event_list_organization("Unrelated")
+    unrelated_public_event = create_event_list_event(
+      organization: unrelated_organization, user:, status: "published", visibility: "public"
+    )
+
+    get "/events", headers: headers_for(user), as: :json
+
+    assert_response :success
+    event_ids = response.parsed_body.fetch("data").map { |event| event.fetch("id") }
+    assert_not_includes event_ids, unrelated_public_event.id
+  end
+
+  test "organizer event index includes an event with an active staff assignment" do
+    user = create_event_list_user
+    organization = create_event_list_organization("Assigned")
+    event = create_event_list_event(organization:, user:, status: "draft", visibility: "private")
+    Events::EventStaffAssignment.create!(event:, user:, organization:, role: "staff", status: "active")
+
+    get "/events", headers: headers_for(user), as: :json
+
+    assert_response :success
+    event_ids = response.parsed_body.fetch("data").map { |item| item.fetch("id") }
+    assert_includes event_ids, event.id
   end
 
   test "event list responses are bounded and expose pagination metadata" do
@@ -310,5 +344,30 @@ class EventsEventsTest < ActionDispatch::IntegrationTest
     )
     media.save!
     media
+  end
+
+  def create_event_list_user
+    Core::User.create!(phone: "+251915#{format("%06d", SecureRandom.random_number(1_000_000))}")
+  end
+
+  def create_event_list_organization(label)
+    Organizations::Organization.create!(
+      name: "#{label} Event List Org #{SecureRandom.hex(4)}",
+      organizer_type: "individual",
+      category: "conference"
+    )
+  end
+
+  def create_event_list_event(organization:, user:, status:, visibility:)
+    Events::Event.create!(
+      organization:, created_by: user,
+      title: "#{status} #{SecureRandom.hex(4)}",
+      slug: "#{status}-#{SecureRandom.hex(6)}",
+      status:, visibility:, timezone: "Africa/Addis_Ababa", currency: "ETB"
+    )
+  end
+
+  def headers_for(user)
+    { "Authorization" => "Bearer #{Core::TokenService.issue(Core::TokenService.access_token_payload(user))}" }
   end
 end
