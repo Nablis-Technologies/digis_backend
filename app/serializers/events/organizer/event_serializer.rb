@@ -9,7 +9,8 @@ module Events
 
       attributes :id, :slug, :title, :description, :status, :visibility,
                  :timezone, :currency, :version, :published_at, :cancelled_at,
-                 :created_at, :updated_at, :organization, :categories, :event_dates, :event_media
+                 :created_at, :updated_at, :organization_id, :organization,
+                 :categories, :event_dates, :event_media
 
       def organization
         Events::Public::OrganizationSummarySerializer.new(object.organization).attributes
