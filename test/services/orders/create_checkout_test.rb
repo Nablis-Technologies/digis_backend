@@ -111,7 +111,7 @@ module Orders
         idempotency_key: "expired-#{SecureRandom.hex(6)}"
       )
 
-      assert_predicate result, :failure?
+      assert_predicate result, :failure?, "expected quote_expired, got #{result.error&.code || 'success'}"
       assert_equal "quote_expired", result.error.code
       assert_equal 0, Orders::Order.where(buyer_user: @buyer, event: @event).count
     end
@@ -129,6 +129,55 @@ module Orders
       assert_predicate result, :failure?
       assert_equal "event_cancelled", result.error.code
       assert_equal 0, Orders::Order.where(buyer_user: @buyer, event: @event).count
+    end
+
+    test "rejects checkout when its selected date starts after the quote was built" do
+      event_date = create_event_date(starts_at: @quoted_at + 5.minutes, venue_capacity: 1)
+      quote = build_quote(event_date_ids: [ event_date.id ])
+      order_count = Orders::Order.count
+
+      result = Orders::CreateCheckout.call(
+        quote:,
+        event: @event,
+        buyer: @buyer,
+        idempotency_key: "date-passed-#{SecureRandom.hex(6)}",
+        at: @quoted_at + 6.minutes
+      )
+
+      assert_predicate result, :failure?, "expected event_date_unavailable, got #{result.error&.code || 'success'}"
+      assert_equal "event_date_unavailable", result.error.code
+      assert_equal order_count, Orders::Order.count
+      assert_equal 0, @product.inventories.sole.reload.held_count
+      assert_empty Catalog::InventoryReservation.where(product_inventory: @product.inventories)
+      assert_empty Catalog::VenueCapacityReservation.where(event_date:)
+    end
+
+    test "replays an existing checkout after its selected date becomes unavailable" do
+      event_date = create_event_date(starts_at: @quoted_at + 5.minutes, venue_capacity: 1)
+      quote = build_quote(event_date_ids: [ event_date.id ])
+      key = "date-replay-#{SecureRandom.hex(6)}"
+      created = Orders::CreateCheckout.call(
+        quote:,
+        event: @event,
+        buyer: @buyer,
+        idempotency_key: key,
+        at: @quoted_at
+      )
+      assert_predicate created, :success?, created.error&.message
+
+      replay = Orders::CreateCheckout.call(
+        quote:,
+        event: @event,
+        buyer: @buyer,
+        idempotency_key: key,
+        at: @quoted_at + 6.minutes
+      )
+
+      assert_predicate replay, :success?, replay.error&.message
+      assert_equal created.value.id, replay.value.id
+      assert_equal 1, Catalog::InventoryReservation.where(
+        order_item_id: created.value.order_items.sole.id
+      ).count
     end
 
     test "rejects a stale registration but preserves an exact existing-order replay" do
@@ -409,16 +458,27 @@ module Orders
       [ activation.value, registration ]
     end
 
-    def build_quote
+    def build_quote(event_date_ids: nil)
+      item = { product: @product, quantity: 1 }
+      item[:event_date_ids] = event_date_ids if event_date_ids
       result = Orders::BuildQuote.call(
         event: @event,
         buyer: @buyer,
-        items: [ { product: @product, quantity: 1 } ],
+        items: [ item ],
         charge_currency: "ETB",
         quoted_at: @quoted_at
       )
       assert_predicate result, :success?, result.error&.message
       result.value
+    end
+
+    def create_event_date(starts_at:, venue_capacity: nil)
+      @event.event_dates.create!(
+        starts_at:,
+        ends_at: starts_at + 2.hours,
+        status: "scheduled",
+        venue_capacity:
+      )
     end
   end
 end

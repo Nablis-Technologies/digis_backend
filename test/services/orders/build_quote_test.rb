@@ -56,6 +56,89 @@ module Orders
       assert_equal "event_cancelled", result.error.code
     end
 
+    test "rejects a selected event date whose start is in the past" do
+      event_date = create_event_date(starts_at: @quoted_at - 1.minute)
+
+      assert_quote_rejects_date(event_date.id)
+    end
+
+    test "rejects a selected event date at its exact start time" do
+      event_date = create_event_date(starts_at: @quoted_at)
+
+      assert_quote_rejects_date(event_date.id)
+    end
+
+    test "rejects a selected completed event date even when its start is future" do
+      event_date = create_event_date(starts_at: @quoted_at + 1.day, status: "completed")
+
+      assert_quote_rejects_date(event_date.id)
+    end
+
+    test "rejects a selected cancelled event date even when its start is future" do
+      event_date = create_event_date(starts_at: @quoted_at + 1.day, status: "cancelled")
+
+      assert_quote_rejects_date(event_date.id)
+    end
+
+    test "rejects a selected postponed event date until it is scheduled again" do
+      event_date = create_event_date(starts_at: @quoted_at + 1.day, status: "postponed")
+
+      assert_quote_rejects_date(event_date.id)
+    end
+
+    test "rejects a malformed event date identifier without raising" do
+      assert_quote_rejects_date("not-a-uuid")
+    end
+
+    test "rejects date-free quotes when every materialized event date is unavailable" do
+      create_event_date(starts_at: @quoted_at - 1.day, status: "completed")
+      create_event_date(starts_at: @quoted_at + 1.day, status: "cancelled")
+      product = create_product(name: "Past event parking", price_minor: 1_000)
+
+      result = Orders::BuildQuote.call(
+        event: @event,
+        buyer: @buyer,
+        items: [ { product:, quantity: 1 } ],
+        charge_currency: "ETB",
+        quoted_at: @quoted_at
+      )
+
+      assert_predicate result, :failure?, "expected event_date_unavailable, got #{result.error&.code || 'success'}"
+      assert_equal "event_date_unavailable", result.error.code
+    end
+
+    test "allows a date-free quote while a multi-date event has a future date" do
+      create_event_date(starts_at: @quoted_at - 1.day, status: "completed")
+      create_event_date(starts_at: @quoted_at + 1.day)
+      product = create_product(name: "Multi-date parking", price_minor: 1_000)
+
+      result = Orders::BuildQuote.call(
+        event: @event,
+        buyer: @buyer,
+        items: [ { product:, quantity: 1 } ],
+        charge_currency: "ETB",
+        quoted_at: @quoted_at
+      )
+
+      assert_predicate result, :success?, result.error&.message
+    end
+
+    test "allows selecting a future date while another event date is completed" do
+      create_event_date(starts_at: @quoted_at - 1.day, status: "completed")
+      future_date = create_event_date(starts_at: @quoted_at + 1.day)
+      product = create_product(name: "Future-date parking", price_minor: 1_000)
+
+      result = Orders::BuildQuote.call(
+        event: @event,
+        buyer: @buyer,
+        items: [ { product:, quantity: 1, event_date_ids: [ future_date.id ] } ],
+        charge_currency: "ETB",
+        quoted_at: @quoted_at
+      )
+
+      assert_predicate result, :success?, result.error&.message
+    end
+
     test "rejects a ticket quote for a registration that is no longer payable" do
       product, registration = create_ticket_registration(status: "expired")
 
@@ -233,6 +316,20 @@ module Orders
 
     private
 
+    def assert_quote_rejects_date(event_date_id)
+      product = create_product(name: "Unavailable date #{SecureRandom.hex(3)}", price_minor: 1_000)
+      result = Orders::BuildQuote.call(
+        event: @event,
+        buyer: @buyer,
+        items: [ { product:, quantity: 1, event_date_ids: [ event_date_id ] } ],
+        charge_currency: "ETB",
+        quoted_at: @quoted_at
+      )
+
+      assert_predicate result, :failure?, "expected event_date_unavailable, got #{result.error&.code || 'success'}"
+      assert_equal "event_date_unavailable", result.error.code
+    end
+
     def create_checkout_terms
       schedule = create_schedule(
         code: "checkout_#{SecureRandom.hex(5)}",
@@ -292,6 +389,14 @@ module Orders
         )
       end
       product
+    end
+
+    def create_event_date(starts_at:, status: "scheduled")
+      @event.event_dates.create!(
+        starts_at:,
+        ends_at: starts_at + 2.hours,
+        status:
+      )
     end
 
     def create_ticket_registration(status:)

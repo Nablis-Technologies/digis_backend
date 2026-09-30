@@ -39,6 +39,7 @@ module Orders
         replay = replay_or_conflict!
         return replay if replay
         return failure(checkout_error(:quote_expired, code: "quote_expired", status: :conflict)) if quote_expired?
+        validate_event_date_eligibility!(locked_event)
         active_checkout_conflict!
 
         order = create_order!
@@ -104,6 +105,14 @@ module Orders
       return unless Orders::Order.active_checkouts.lock.where(event:, buyer_user: buyer).exists?
 
       abort_with(checkout_error(:active_checkout_exists, code: "active_checkout_exists", status: :conflict))
+    end
+
+    def validate_event_date_eligibility!(locked_event)
+      event_date_ids = quote.items.flat_map do |item|
+        Array(item.event_date_ids) + Array(item.venue_event_date_ids)
+      end
+      error = Orders::EventDateEligibility.error_for(event: locked_event, event_date_ids:, at: now)
+      abort_with(error) if error
     end
 
     def create_order!

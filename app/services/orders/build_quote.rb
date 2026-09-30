@@ -87,6 +87,15 @@ module Orders
       return requests.find { |request| request.is_a?(Core::BusinessError) } if requests.any? { |request| request.is_a?(Core::BusinessError) }
       return checkout_error(:duplicate_product, code: "duplicate_product") unless requests.map { |request| request[:product_id] }.uniq.length == requests.length
 
+      date_error = Orders::EventDateEligibility.error_for(
+        event:,
+        event_date_ids: requests.flat_map do |request|
+          Array(request[:event_date_ids]) + Array(request[:venue_event_date_ids])
+        end,
+        at: quoted_at
+      )
+      return date_error if date_error
+
       requests.map do |request|
         product = request[:product]
         price_result = Catalog::Pricing::Quote.call(product:, charge_currency:, at: quoted_at)

@@ -12548,7 +12548,7 @@
                     "order_quotes"
                   ]
                 },
-                "description": "Builds a buyer-visible quote. The response contains display totals and an encrypted quote_token bound to the authenticated buyer and event; Commercial definitions and provider internals are not exposed.",
+                "description": "Builds a buyer-visible quote. The response contains display totals and an encrypted quote_token bound to the authenticated buyer and event; Commercial definitions and provider internals are not exposed. Returns HTTP 409 with code event_date_unavailable when a selected date is not a future scheduled date, or when no future scheduled date remains. Multi-date events remain quotable for eligible future dates.",
                 "auth": {
                   "type": "bearer",
                   "bearer": [
@@ -12613,7 +12613,7 @@
                     "orders"
                   ]
                 },
-                "description": "Creates one checkout from the buyer/event-bound quote token. Reuse the same Idempotency-Key and quote token for a safe retry after a timeout. A zero-total credential-bearing checkout is fulfilled through the same orders.payment.fulfilled outbox boundary and issues one normal ticket/credential without creating a fake payment or finance ledger row.",
+                "description": "Creates one checkout from the buyer/event-bound quote token. Reuse the same Idempotency-Key and quote token for a safe retry after a timeout. The server rechecks event-date eligibility under the event lock and may return HTTP 409 with code event_date_unavailable if the selected date starts or becomes unavailable after quoting; exact idempotent replays still return the original order. A zero-total credential-bearing checkout is fulfilled through the same orders.payment.fulfilled outbox boundary and issues one normal ticket/credential without creating a fake payment or finance ledger row.",
                 "auth": {
                   "type": "bearer",
                   "bearer": [
