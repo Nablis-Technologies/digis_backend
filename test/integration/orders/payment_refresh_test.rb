@@ -76,6 +76,13 @@ module Orders
         price_attributes: { currency: "ETB", amount_minor: 10_500, active_from: Time.current },
         inventory_configuration: { mode: "unlimited" }
       ).value
+      product.ticket_type.update!(
+        resale_enabled: true,
+        resale_price_cap_type: "percentage",
+        resale_percentage_cap_bps: 7_500,
+        resale_cutoff_seconds_before_start: 3_600,
+        max_completed_resales: 4
+      )
       date = @event.event_dates.create!(
         starts_at: 2.days.from_now, ends_at: 2.days.from_now + 2.hours, status: "scheduled"
       )
@@ -120,6 +127,7 @@ module Orders
       assert_equal "ready", data.fetch("state")
       wallet_ticket = data.fetch("tickets").find { |entry| entry.fetch("id") == ticket.id }
       assert wallet_ticket
+      assert_equal 7_875, wallet_ticket.dig("ticket_type", "resale_price_cap_minor")
       refute wallet_ticket.key?("owner_user_id")
       refute wallet_ticket.key?("ticket_view_token")
       refute wallet_ticket.key?("ticket_view_url")

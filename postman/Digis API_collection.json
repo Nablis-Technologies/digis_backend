@@ -1060,7 +1060,7 @@
                 { "key": "order_direction", "value": "desc", "disabled": true }
               ]
             },
-            "description": "List the authenticated user's owned tickets. The wallet includes event/product/date/venue context, purchased non-ticket add-ons, and only the current active credential's static QR and PNR/lookup code; payment, provider, holder, scanner, and old-generation fields are never returned.",
+            "description": "List the authenticated user's owned tickets. The wallet includes event/product/date/venue context, purchased non-ticket add-ons, and a server-calculated resale_price_cap_minor when eligible; acquisition basis, payment, provider, holder, scanner, and old-generation fields are never returned. Only the current active credential's static QR and PNR/lookup code are exposed.",
             "auth": {
               "type": "bearer",
               "bearer": [ { "key": "token", "value": "{{accessToken}}", "type": "string" } ]
@@ -1075,6 +1075,15 @@
               "header": [ { "key": "Content-Type", "value": "application/json" } ],
               "cookie": [],
               "body": "{\n  \"success\": true,\n  \"data\": [\n    {\n      \"id\": \"ticket_01HXExample\",\n      \"status\": \"active\",\n      \"unit_number\": 1,\n      \"event\": { \"id\": \"evt_01HXExample\", \"slug\": \"summer-music-festival\", \"title\": \"Summer Music Festival\", \"timezone\": \"Africa/Addis_Ababa\", \"currency\": \"ETB\" },\n      \"product\": { \"id\": \"product_01HXExample\", \"name\": \"General Admission\", \"type\": \"ticket\" },\n      \"ticket_type\": { \"id\": \"type_01HXExample\", \"name\": \"General Admission\", \"admissions_per_unit\": 1, \"entry_validation_mode\": \"qr\" },\n      \"event_dates\": [ { \"id\": \"date_01HXExample\", \"name\": \"Festival Day 1\", \"starts_at\": \"2026-08-01T16:00:00.000Z\", \"ends_at\": \"2026-08-01T23:00:00.000Z\", \"status\": \"scheduled\", \"venue\": { \"id\": \"venue_01HXExample\", \"name\": \"Main Hall\", \"city\": \"Addis Ababa\" } } ],\n      \"add_ons\": [ { \"id\": \"order_item_01HXAddon\", \"name\": \"Festival T-shirt\", \"type\": \"merchandise\", \"quantity\": 1, \"unit_amount_minor\": 750 } ],\n      \"admission_slots\": [ { \"id\": \"slot_01HXExample\", \"position\": 1, \"assignment_status\": \"unassigned\" } ],\n      \"credentials\": [ { \"id\": \"credential_01HXExample\", \"credential_generation_id\": \"generation_01HXExample\", \"admission_slot_id\": null, \"slot_positions\": [1], \"entry_limit\": 1, \"status\": \"active\", \"issued_at\": \"2026-07-20T10:00:00.000Z\", \"lookup_code\": \"AB12CD34\", \"qr_token\": \"opaque-static-token-returned-to-owner\" } ]\n    }\n  ]\n}"
+            },
+            {
+              "name": "Eligible ticket with resale ceiling",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [ { "key": "Content-Type", "value": "application/json" } ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"data\": [{\n    \"id\": \"ticket_01HXExample\",\n    \"ticket_type\": {\n      \"resale_enabled\": true,\n      \"resale_price_cap_type\": \"percentage\",\n      \"resale_percentage_cap_bps\": 7500,\n      \"resale_price_cap_minor\": 2250\n    }\n  }]\n}"
             }
           ],
           "event": [
@@ -1089,6 +1098,8 @@
                   "  const items = pm.response.json().data || [];",
                   "  items.forEach(function (ticket) {",
                   "    pm.expect(ticket).to.not.have.any.keys(\"payment\", \"provider\", \"holder_name\", \"commercial_signature\");",
+                  "    pm.expect(ticket).to.not.have.any.keys(\"current_acquisition_product_value_minor\", \"seller_acquisition_product_value_minor\");",
+                  "    if (ticket.ticket_type && ticket.ticket_type.resale_enabled) pm.expect(ticket.ticket_type).to.have.property(\"resale_price_cap_minor\");",
                   "    pm.expect(ticket).to.have.property(\"add_ons\");",
                   "    (ticket.add_ons || []).forEach(function (addOn) {",
                   "      pm.expect(addOn).to.have.all.keys(\"id\", \"name\", \"type\", \"quantity\", \"unit_amount_minor\");",

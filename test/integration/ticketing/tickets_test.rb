@@ -21,12 +21,42 @@ module Ticketing
       get "/tickets", headers: headers_for(@owner), as: :json
 
       assert_response :success
-      policy = response.parsed_body.fetch("data").sole.fetch("ticket_type")
+      wallet_ticket = response.parsed_body.fetch("data").sole
+      policy = wallet_ticket.fetch("ticket_type")
       assert_equal true, policy.fetch("resale_enabled")
       assert_equal "percentage", policy.fetch("resale_price_cap_type")
       assert_equal 7_500, policy.fetch("resale_percentage_cap_bps")
+      assert_equal 2_250, policy.fetch("resale_price_cap_minor")
       assert_equal 3_600, policy.fetch("resale_cutoff_seconds_before_start")
       assert_equal 4, policy.fetch("max_completed_resales")
+      refute policy.key?("current_acquisition_product_value_minor")
+      refute policy.key?("seller_acquisition_product_value_minor")
+      refute wallet_ticket.key?("current_acquisition_product_value_minor")
+    end
+
+    test "owner wallet returns the configured fixed resale ceiling" do
+      @product.ticket_type.update!(
+        resale_enabled: true,
+        resale_price_cap_type: "fixed",
+        resale_fixed_cap_minor: 4_200,
+        resale_fixed_cap_currency: "ETB",
+        resale_cutoff_seconds_before_start: 3_600,
+        max_completed_resales: 4
+      )
+
+      get "/tickets", headers: headers_for(@owner), as: :json
+
+      assert_response :success
+      assert_equal 4_200, response.parsed_body.fetch("data").sole.dig("ticket_type", "resale_price_cap_minor")
+    end
+
+    test "owner wallet returns a nil cap when resale is disabled" do
+      get "/tickets", headers: headers_for(@owner), as: :json
+
+      assert_response :success
+      ticket_type = response.parsed_body.fetch("data").sole.fetch("ticket_type")
+      assert ticket_type.key?("resale_price_cap_minor")
+      assert_nil ticket_type.fetch("resale_price_cap_minor")
     end
 
     test "owner wallet includes purchased non-ticket add-ons" do

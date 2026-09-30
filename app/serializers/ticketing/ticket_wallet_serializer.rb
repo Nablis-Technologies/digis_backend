@@ -39,9 +39,22 @@ module Ticketing
         resale_fixed_cap_minor: type.resale_fixed_cap_minor,
         resale_fixed_cap_currency: type.resale_fixed_cap_currency,
         resale_percentage_cap_bps: type.resale_percentage_cap_bps,
+        resale_price_cap_minor: calculate_resale_price_cap_minor(type),
         resale_cutoff_seconds_before_start: type.resale_cutoff_seconds_before_start,
         max_completed_resales: type.max_completed_resales
       }
+    end
+
+    def calculate_resale_price_cap_minor(type)
+      return unless resale_cap_available?(type)
+
+      result = Marketplace::CalculatePriceCap.call(
+        cap_type: type.resale_price_cap_type,
+        acquisition_product_value_minor: object.current_acquisition_product_value_minor,
+        fixed_cap_minor: type.resale_fixed_cap_minor,
+        percentage_cap_bps: type.resale_percentage_cap_bps
+      )
+      result.value.calculated_cap_minor if result.success?
     end
 
     def event_dates
@@ -95,6 +108,14 @@ module Ticketing
     end
 
     private
+
+    def resale_cap_available?(type)
+      return false unless type&.resale_enabled && object.status == "active"
+      return false unless Ticketing::Ticket::PAID_ACQUISITION_TYPES.include?(object.current_acquisition_type)
+      return false unless object.current_acquisition_product_value_minor.to_i.positive?
+
+      object.current_acquisition_currency == object.event.currency
+    end
 
     def venue_summary(venue)
       return unless venue
