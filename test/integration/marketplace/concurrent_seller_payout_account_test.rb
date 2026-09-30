@@ -6,6 +6,19 @@ module Marketplace
   class ConcurrentSellerPayoutAccountTest < ActiveSupport::TestCase
     self.use_transactional_tests = false
 
+    class AvailableBankAdapter < PayoutProviders::Adapter
+      def available_banks(country:)
+        return [] unless country == "ET"
+
+        [
+          {
+            bank_slug: "cbe", bank_name: "Commercial Bank of Ethiopia", type: "bank", is_active: true,
+            supported_currencies: { ETB: { countries: { ET: { is_enabled: true } } } }
+          }
+        ]
+      end
+    end
+
     setup do
       @seller = core_users(:attendee)
       @now = Time.utc(2026, 8, 13, 12, 0, 0)
@@ -28,7 +41,7 @@ module Marketplace
           bank_slug: "cbe",
           account_number: "100000000002#{index + 1}",
           holder_name: "Concurrent Seller #{index}",
-          adapter: Marketplace::PayoutProviders::Adapter.new,
+          adapter: AvailableBankAdapter.new,
           idempotency_key: "concurrent-seller-account",
           at: @now
         )

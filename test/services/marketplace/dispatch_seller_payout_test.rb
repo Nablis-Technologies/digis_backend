@@ -84,6 +84,19 @@ module Marketplace
       assert_equal 1, SellerLedgerEntry.where(seller_payout_id: @payout.id).count
     end
 
+    test "dispatches a verified mobile-money destination through the documented bank-slug field" do
+      @account.update!(type: "mobile_money", bank_slug: "telebirr")
+
+      result = DispatchSellerPayout.call(payout: @payout, adapter: @adapter, at: @now)
+
+      assert_predicate result, :success?, result.error&.message
+      request = @adapter.payout_requests.sole
+      assert_equal "telebirr", request.fetch(:bank_slug)
+      assert_equal @account.account_number, request.fetch(:account_number)
+      assert_equal @account.holder_name, request.fetch(:account_name)
+      refute request.key?(:destination_token)
+    end
+
     test "releases reserved allocations on provider failure" do
       @adapter.payout_result = Marketplace::PayoutProviders::Result.failure(failure_code: "declined")
 

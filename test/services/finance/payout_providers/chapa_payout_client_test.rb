@@ -66,6 +66,27 @@ module Finance
         assert_includes transport.requests.sole.fetch(:body), '"amount":900719925474099300'
       end
 
+      test "sends a mobile-money route through Chapa's bank_slug account field" do
+        transport = FakeTransport.new(
+          Response.new(status: 200, body: {
+            status: "success", data: { chapa_reference: "PAYOUT-V2-WALLET", status: "pending" }
+          })
+        )
+
+        result = build_client(transport:).payout(
+          amount_minor: 1_000, currency: "ETB", account_number: "+251911000000",
+          account_name: "Mobile Seller", bank_slug: "telebirr", bank_name: "Telebirr",
+          idempotency_key: "mobile-money-payout"
+        )
+
+        assert_predicate result, :unknown?
+        account = JSON.parse(transport.requests.sole.fetch(:body)).fetch("account")
+        assert_equal "telebirr", account.fetch("bank_slug")
+        assert_equal "+251911000000", account.fetch("account_number")
+        assert_equal "Mobile Seller", account.fetch("account_name")
+        refute account.key?("type")
+      end
+
       test "does not advertise bulk payout while returning scalar results" do
         assert_nil build_client.capabilities.dig(:payouts, :bulk)
       end
@@ -153,14 +174,42 @@ module Finance
         transport = FakeTransport.new(
           Response.new(status: 200, body: {
             status: "success",
-            data: { items: [ { bank_slug: "cbe", bank_name: "Commercial Bank of Ethiopia" } ] }
+            data: {
+              items: [ { bank_slug: "cbe", bank_name: "Commercial Bank of Ethiopia", is_active: true } ],
+              pagination: { next_cursor: nil, has_more: false }
+            }
           })
         )
 
         banks = build_client(transport:).available_banks(country: "ET")
 
-        assert_equal [ { bank_slug: "cbe", bank_name: "Commercial Bank of Ethiopia" } ], banks
+        assert_equal [ { bank_slug: "cbe", bank_name: "Commercial Bank of Ethiopia", is_active: true } ], banks
         assert_equal "/v2/payouts/banks?country=ET", transport.requests.sole.fetch(:path)
+      end
+
+      test "does not return a partial bank catalog when another cursor page exists" do
+        transport = FakeTransport.new(
+          Response.new(status: 200, body: {
+            status: "success",
+            data: {
+              items: [ { bank_slug: "cbe", bank_name: "Commercial Bank of Ethiopia", is_active: true } ],
+              pagination: { next_cursor: "next-page", has_more: true }
+            }
+          })
+        )
+
+        banks = build_client(transport:).available_banks(country: "ET")
+
+        assert_nil banks
+        assert_equal 1, transport.requests.size
+      end
+
+      test "fails closed for a malformed documented bank-list envelope" do
+        transport = FakeTransport.new(
+          Response.new(status: 200, body: { status: "success", data: { items: [] } })
+        )
+
+        assert_nil build_client(transport:).available_banks(country: "ET")
       end
 
       test "hides inactive V2 payout banks" do
@@ -171,7 +220,8 @@ module Finance
               items: [
                 { bank_slug: "cbe", bank_name: "Commercial Bank of Ethiopia", is_active: true },
                 { bank_slug: "closed-bank", bank_name: "Closed Bank", is_active: false }
-              ]
+              ],
+              pagination: { next_cursor: nil, has_more: false }
             }
           })
         )
@@ -181,6 +231,14 @@ module Finance
         assert_equal [
           { bank_slug: "cbe", bank_name: "Commercial Bank of Ethiopia", is_active: true }
         ], banks
+      end
+
+      test "returns nil when the provider reports a bank-list failure" do
+        transport = FakeTransport.new(
+          Response.new(status: 503, body: { status: "error", data: { items: [] } })
+        )
+
+        assert_nil build_client(transport:).available_banks(country: "ET")
       end
 
       test "normalizes a live V2 bank list returned as a data array" do
