@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Marketplace
-  # Stores an encrypted seller bank destination. Raw beneficiary values are
+  # Stores an encrypted seller bank or mobile-money destination. Raw values are
   # available only to the verified payout command at provider dispatch time.
   class SellerPayoutAccount < Marketplace::ApplicationRecord
     self.table_name = "marketplace_seller_payout_accounts"
@@ -9,7 +9,7 @@ module Marketplace
 
     include Core::AuditableModel
 
-    TYPES = %w[bank].freeze
+    TYPES = %w[bank mobile_money].freeze
     PROVIDERS = %w[chapa].freeze
     STATUSES = %w[pending_verification verified suspended closed].freeze
     VERIFICATION_SOURCES = %w[provider test_fixture manual].freeze

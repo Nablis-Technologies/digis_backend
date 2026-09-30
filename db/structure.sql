@@ -5561,7 +5561,7 @@ CREATE TABLE public.marketplace_seller_payout_accounts (
     CONSTRAINT marketplace_payout_accounts_digest_check CHECK (((account_number_digest)::text ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT marketplace_payout_accounts_provider_check CHECK (((provider)::text = 'chapa'::text)),
     CONSTRAINT marketplace_payout_accounts_status_check CHECK (((status)::text = ANY ((ARRAY['pending_verification'::character varying, 'verified'::character varying, 'suspended'::character varying, 'closed'::character varying])::text[]))),
-    CONSTRAINT marketplace_payout_accounts_type_check CHECK (((type)::text = 'bank'::text)),
+    CONSTRAINT marketplace_payout_accounts_type_check CHECK (((type)::text = ANY ((ARRAY['bank'::character varying, 'mobile_money'::character varying])::text[]))),
     CONSTRAINT marketplace_payout_accounts_verification_metadata_check CHECK (((((status)::text = 'verified'::text) AND (verified_at IS NOT NULL) AND (verification_source IS NOT NULL) AND (((verification_source)::text <> 'manual'::text) OR (verified_by_id IS NOT NULL))) OR (((status)::text <> 'verified'::text) AND (verified_at IS NULL) AND (verification_source IS NULL) AND (verified_by_id IS NULL)))),
     CONSTRAINT marketplace_payout_accounts_verification_source_check CHECK (((verification_source IS NULL) OR ((verification_source)::text = ANY ((ARRAY['provider'::character varying, 'test_fixture'::character varying, 'manual'::character varying])::text[]))))
 );

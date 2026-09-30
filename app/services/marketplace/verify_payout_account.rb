@@ -32,7 +32,11 @@ module Marketplace
         return replay if replay
       end
       return failure(input_error) unless valid_input?
-      return failure(bank_error) unless bank_slug_supported?
+      destinations = PayoutProviders::DestinationCatalog.call(
+        adapter:, provider:, country: "ET", currency: "ETB"
+      )
+      return failure(destinations.error) if destinations.failure?
+      return failure(bank_error) unless destination_supported?(destinations.value)
 
       verification = verification_result(key)
       return failure(verification_failed_error(verification)) if verification.failure? || verification.cancelled?
@@ -85,11 +89,8 @@ module Marketplace
       )
     end
 
-    def bank_slug_supported?
-      banks = adapter.available_banks(country: "ET")
-      banks.nil? || banks.any? do |bank|
-        bank.to_h.deep_symbolize_keys[:bank_slug].to_s.downcase == bank_slug.downcase
-      end
+    def destination_supported?(destinations)
+      destinations.any? { |destination| destination[:type] == type && destination[:bank_slug] == bank_slug }
     end
 
     def fixture_allowed?

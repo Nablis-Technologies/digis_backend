@@ -16,6 +16,22 @@ module Marketplace
       render_success(data: accounts, serializer_options: { serializer: SellerPayoutAccountSerializer })
     end
 
+    def destinations
+      authorize SellerPayoutAccount.new(user: current_user), :destinations?
+      result = PayoutProviders::DestinationCatalog.call(
+        adapter: PayoutProviders::Registry.fetch("chapa"),
+        provider: "chapa", country: "ET", currency: "ETB"
+      )
+      return render_error(result.error.message, status: :service_unavailable, code: result.error.code) if result.failure?
+
+      render_success(data: result.value)
+    rescue KeyError
+      render_error(
+        I18n.t("marketplace.resale.errors.payout_account_provider_unavailable"),
+        status: :service_unavailable, code: "payout_account_provider_unavailable"
+      )
+    end
+
     def create
       account = SellerPayoutAccount.new(user: current_user)
       authorize account, :create?

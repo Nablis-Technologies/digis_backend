@@ -29,7 +29,7 @@ class CreateMarketplaceSellerPayoutAccounts < ActiveRecord::Migration[8.1]
               name: "idx_marketplace_payout_accounts_on_default_user_provider"
 
     add_check_constraint :marketplace_seller_payout_accounts,
-      "type IN ('bank')",
+      "type IN ('bank','mobile_money')",
       name: "marketplace_payout_accounts_type_check"
     add_check_constraint :marketplace_seller_payout_accounts,
       "provider IN ('chapa')",

@@ -309,6 +309,7 @@ Rails.application.routes.draw do
     get "seller/history", to: "marketplace/seller_reports#history"
     scope path: "seller" do
       resources :payout_accounts, only: %i[index create], controller: "marketplace/seller_payout_accounts" do
+        get :destinations, on: :collection
         post :set_default, on: :member
       end
     end

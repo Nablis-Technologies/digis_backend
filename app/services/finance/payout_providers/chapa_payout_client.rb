@@ -55,21 +55,18 @@ module Finance
         path = "#{path}?country=#{CGI.escape(query)}" if query
         response = get(path)
         return unless response.is_a?(Response) && response.status.between?(200, 299)
+        return unless response.body[:status].to_s.downcase == "success"
 
-        bank_items(response.body[:data]).filter_map do |bank|
+        items = bank_items(response.body[:data])
+        return unless items.is_a?(Array)
+
+        items.filter_map do |bank|
           attributes = bank.to_h.deep_symbolize_keys
-          next if attributes[:bank_slug].blank? || attributes[:is_active] == false
+          next unless attributes[:bank_slug].present? && attributes[:is_active] == true
 
           attributes.slice(:bank_slug, :bank_name, :type, :min_amount, :max_amount,
             :supported_currencies, :is_active).freeze
         end.freeze
-      end
-
-      def bank_items(data)
-        return data[:items] if data.is_a?(Hash)
-        return data if data.is_a?(Array)
-
-        []
       end
 
       def capabilities
@@ -85,6 +82,17 @@ module Finance
       private
 
       Response = Data.define(:status, :body)
+
+      def bank_items(data)
+        return data if data.is_a?(Array)
+        return unless data.is_a?(Hash)
+
+        pagination = data[:pagination].to_h.deep_symbolize_keys
+        return unless data[:items].is_a?(Array)
+        return unless pagination[:has_more] == false && pagination[:next_cursor].blank?
+
+        data[:items]
+      end
 
       def get(path) = request(:get, path)
 

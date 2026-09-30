@@ -11,6 +11,8 @@ module Marketplace
 
     def index? = account_access?
 
+    def destinations? = account_access?
+
     def show? = account_access?
 
     def create? = platform_admin? || record.user_id == user&.id
@@ -19,6 +21,7 @@ module Marketplace
 
     VISIBILITY = {
       index: { default: { fields: SAFE_FIELDS, include: [] }, admin: { fields: SAFE_FIELDS, include: [] } },
+      destinations: { default: { fields: [], include: [] }, admin: { fields: [], include: [] } },
       show: { default: { fields: SAFE_FIELDS, include: [] }, admin: { fields: SAFE_FIELDS, include: [] } },
       create: { default: { fields: SAFE_FIELDS, include: [] }, admin: { fields: SAFE_FIELDS, include: [] } },
       set_default: { default: { fields: SAFE_FIELDS, include: [] }, admin: { fields: SAFE_FIELDS, include: [] } }
