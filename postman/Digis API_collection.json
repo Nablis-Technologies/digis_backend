@@ -13189,6 +13189,39 @@
               "response": []
             },
             {
+              "name": "List Supported Seller Payout Destinations",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/marketplace/seller/payout_accounts/destinations",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "marketplace", "seller", "payout_accounts", "destinations" ]
+                },
+                "description": "Returns only active Chapa bank and mobile-money destinations enabled for ETB payouts in Ethiopia. Unknown rails such as store_value are omitted until a payout mapping is documented and verified."
+              },
+              "response": [
+                {
+                  "name": "Supported seller payout destinations",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{baseUrl}}/marketplace/seller/payout_accounts/destinations",
+                      "host": [ "{{baseUrl}}" ],
+                      "path": [ "marketplace", "seller", "payout_accounts", "destinations" ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "cookie": [],
+                  "body": "{\n  \"success\": true,\n  \"data\": [\n    {\n      \"provider\": \"chapa\",\n      \"type\": \"bank\",\n      \"bank_slug\": \"cbe\",\n      \"bank_name\": \"Commercial Bank of Ethiopia\",\n      \"country\": \"ET\",\n      \"currency\": \"ETB\"\n    }\n  ]\n}"
+                }
+              ]
+            },
+            {
               "name": "Add Seller Payout Account",
               "request": {
                 "method": "POST",
