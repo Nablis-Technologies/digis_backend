@@ -296,9 +296,16 @@ organizer_permissions.find_each do |perm|
   Core::RolePermission.find_or_create_by!(role: organizer_role, permission: perm)
 end
 
+organizer_request_permission = Core::Permission.find_by(
+  resource: "attendee_export",
+  action: "request",
+  namespace: "ticketing"
+)
+Core::RolePermission.where(role: organizer_role, permission: organizer_request_permission).delete_all if organizer_request_permission
+
 organizer_export_permissions = Core::Permission.where(
   resource: "attendee_export",
-  action: %w[request contact],
+  action: "contact",
   namespace: "ticketing"
 )
 organizer_export_permissions.find_each do |perm|
