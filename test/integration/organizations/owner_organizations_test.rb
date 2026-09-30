@@ -1,4 +1,5 @@
 require "test_helper"
+require "stringio"
 
 class OrganizationsOwnerOrganizationsTest < ActionDispatch::IntegrationTest
   include Core::AuthTestHelpers
@@ -258,6 +259,127 @@ class OrganizationsOwnerOrganizationsTest < ActionDispatch::IntegrationTest
     assert_equal org.id, data["id"]
   end
 
+  test "show exposes verification summary to an active owner" do
+    owner = core_users(:attendee)
+    org = create_verification_organization(
+      owner:, review_feedback: { tin_certificate: "Upload a readable certificate" }, documents: true
+    )
+
+    get "/organizations/owner/#{org.id}", headers: headers_for(owner), as: :json
+
+    assert_response :success
+    assert_verification_summary(response.parsed_body.fetch("data"))
+  end
+
+  test "show exposes verification summary to an active organization admin" do
+    owner = core_users(:attendee)
+    admin = core_users(:support)
+    org = create_verification_organization(
+      owner:, admin:, review_feedback: { tin_certificate: "Upload a readable certificate" }, documents: true
+    )
+
+    get "/organizations/owner/#{org.id}", headers: headers_for(admin), as: :json
+
+    assert_response :success
+    assert_verification_summary(response.parsed_body.fetch("data"))
+  end
+
+  test "show hides verification summary from an active staff member" do
+    owner = core_users(:attendee)
+    staff = Core::User.create!(phone: "+251911#{format("%06d", SecureRandom.random_number(1_000_000))}")
+    org = create_verification_organization(
+      owner:, staff:, review_feedback: { tin_certificate: "Upload a readable certificate" }, documents: true
+    )
+
+    get "/organizations/owner/#{org.id}", headers: headers_for(staff), as: :json
+
+    assert_response :success
+    staff_payload = response.parsed_body.fetch("data")
+    %w[verification_status verification_feedback has_business_license has_tin_certificate].each do |field|
+      assert_not staff_payload.key?(field), "staff response exposed #{field}"
+    end
+  end
+
+  test "index exposes the caller's suspended membership without exposing another member's state" do
+    owner = core_users(:attendee)
+    staff = Core::User.create!(phone: "+251912#{format("%06d", SecureRandom.random_number(1_000_000))}")
+    org = Organizations::Organization.create!(
+      name: "Suspended Member Org #{SecureRandom.hex(4)}",
+      organizer_type: "company",
+      category: "conference"
+    )
+    org.memberships.create!(user: owner, role: :owner, status: :active)
+    org.memberships.create!(user: staff, role: :staff, status: :suspended)
+
+    get "/organizations/owner", headers: headers_for(staff), as: :json
+
+    assert_response :success
+    member_org = response.parsed_body.fetch("data").find { |item| item.fetch("id") == org.id }
+    assert_equal "suspended", member_org["membership_status"]
+    assert_equal "staff", member_org["membership_role"]
+    assert_equal false, member_org["archived"]
+  end
+
+  test "index keeps archive state separate from the caller's active membership status" do
+    owner = core_users(:attendee)
+    org = Organizations::Organization.create!(
+      name: "Archived Owner Org #{SecureRandom.hex(4)}",
+      organizer_type: "company",
+      category: "conference",
+      archived: true
+    )
+    org.memberships.create!(user: owner, role: :owner, status: :active)
+
+    get "/organizations/owner", headers: headers_for(owner), as: :json
+
+    assert_response :success
+    archived_org = response.parsed_body.fetch("data").find { |item| item.fetch("id") == org.id }
+    assert_equal "active", archived_org["membership_status"]
+    assert_equal "owner", archived_org["membership_role"]
+    assert_equal true, archived_org["archived"]
+  end
+
+  test "show reports draft status and missing verification documents to the owner" do
+    owner = core_users(:attendee)
+    org = Organizations::Organization.create!(
+      name: "Draft Verification Org #{SecureRandom.hex(4)}",
+      organizer_type: "company",
+      category: "conference"
+    )
+    org.memberships.create!(user: owner, role: :owner, status: :active)
+
+    get "/organizations/owner/#{org.id}", headers: headers_for(owner), as: :json
+
+    assert_response :success
+    verification = response.parsed_body.fetch("data")
+    assert verification.key?("verification_status")
+    assert_equal "draft", verification["verification_status"]
+    assert verification.key?("verification_feedback")
+    assert_nil verification["verification_feedback"]
+    assert_equal false, verification["has_business_license"]
+    assert_equal false, verification["has_tin_certificate"]
+    assert_equal "active", verification["membership_status"]
+    assert_equal "owner", verification["membership_role"]
+    assert_equal false, verification["archived"]
+  end
+
+  test "verification submission returns the updated verification summary" do
+    owner = core_users(:attendee)
+    org = create_verification_organization(owner:, documents: true, submission_documents: true)
+
+    post "/organizations/owner/#{org.id}/verification/submit", headers: headers_for(owner), as: :json
+
+    assert_response :success
+    verification = response.parsed_body.fetch("data")
+    assert_equal "pending", verification.fetch("verification_status")
+    assert_equal({}, verification.fetch("verification_feedback"))
+    assert_equal true, verification.fetch("has_business_license")
+    assert_equal true, verification.fetch("has_tin_certificate")
+    assert_equal "active", verification["membership_status"]
+    assert_equal "owner", verification["membership_role"]
+    assert_equal false, verification["archived"]
+  end
+
   test "create logs an audit" do
     perform_enqueued_jobs do
       post "/organizations/owner",
@@ -267,5 +389,47 @@ class OrganizationsOwnerOrganizationsTest < ActionDispatch::IntegrationTest
     assert_response :created
     org = Organizations::Organization.find(JSON.parse(response.body).dig("data", "id"))
     assert_audit_logged(action: "create", auditable: org, actor: core_users(:attendee))
+  end
+
+  private
+
+  def create_verification_organization(owner:, admin: nil, staff: nil, review_feedback: nil,
+                                       documents: false, submission_documents: false)
+    org = Organizations::Organization.create!(
+      name: "Verification Scope Org #{SecureRandom.hex(4)}",
+      organizer_type: "company",
+      category: "conference"
+    )
+    org.memberships.create!(user: owner, role: :owner, status: :active)
+    org.memberships.create!(user: admin, role: :admin, status: :active) if admin
+    org.memberships.create!(user: staff, role: :staff, status: :active) if staff
+    if review_feedback
+      Core::Review.create!(reviewable: org, context: "verification", status: "modify", feedback: review_feedback)
+    end
+    if documents
+      org.business_license.attach(io: StringIO.new("private-license-document-body"), filename: "license.pdf", content_type: "application/pdf")
+      org.tin_certificate.attach(io: StringIO.new("private-tin-document-body"), filename: "tin.pdf", content_type: "application/pdf")
+    end
+    if submission_documents
+      org.profile.attach(io: StringIO.new("profile"), filename: "profile.png", content_type: "image/png")
+      org.banner.attach(io: StringIO.new("banner"), filename: "banner.png", content_type: "image/png")
+    end
+    org
+  end
+
+  def assert_verification_summary(organization)
+    assert_equal "modify", organization.fetch("verification_status")
+    assert_equal({ "tin_certificate" => "Upload a readable certificate" }, organization.fetch("verification_feedback"))
+    assert_equal true, organization.fetch("has_business_license")
+    assert_equal true, organization.fetch("has_tin_certificate")
+    %w[business_license_url tin_certificate_url business_license tin_certificate].each do |field|
+      assert_not organization.key?(field), "verification summary exposed #{field}"
+    end
+    assert_not_includes response.body, "private-license-document-body"
+    assert_not_includes response.body, "private-tin-document-body"
+  end
+
+  def headers_for(user)
+    { "Authorization" => "Bearer #{Core::TokenService.issue(Core::TokenService.access_token_payload(user))}" }
   end
 end

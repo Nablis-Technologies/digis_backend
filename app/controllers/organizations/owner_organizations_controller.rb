@@ -96,13 +96,17 @@ module Organizations
       {
         index: { fields: %i[id name slug description profile_url
                             city region events_count follower_count
-                            memberships_count verified created_at] },
+                            memberships_count verified membership_status
+                            membership_role archived created_at] },
         show: { fields: %i[id name slug description profile_url banner_url
                            social_links follower_count memberships_count
                            organizer_type category contact_phone contact_email website_url
                            tin_number address_line1 address_line2 city region
                            estimated_audience event_frequency
-                           events_count verified is_following created_at] },
+                           events_count verified is_following
+                           verification_status verification_feedback
+                           has_business_license has_tin_certificate
+                           membership_status membership_role archived created_at] },
         create: { fields: %i[id name slug description created_at] },
         update: { fields: %i[id name slug description created_at] }
       }
