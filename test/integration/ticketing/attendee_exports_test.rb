@@ -136,6 +136,35 @@ module Ticketing
       assert configured.any? { |entry| entry.include?("filters") }
     end
 
+    test "an organization admin can request a standard export without global organizer permissions" do
+      event = events_events(:ready_listing)
+      Organizations::Membership.create!(
+        organization: event.organization,
+        user: @user,
+        role: "admin",
+        status: "active"
+      )
+      assert_not @user.has_role?("ORGANIZER")
+      assert_not @user.has_permission?("attendee_export.request")
+      assert_not @user.has_permission?("attendee_export.contact")
+
+      post "/auth/reauthenticate",
+           params: { password: "password123" },
+           headers: auth_headers,
+           as: :json
+      assert_response :success
+      proof = response.parsed_body.dig("data", "proof")
+
+      post "/events/#{event.id}/attendee_exports",
+           params: export_params.merge(proof:),
+           headers: auth_headers.merge("Idempotency-Key" => "tenant-export-no-global-role"),
+           as: :json
+
+      assert_response :created
+      assert_equal "pending", response.parsed_body.dig("data", "status")
+      assert_equal @user.id, Ticketing::AttendeeExport.order(:created_at).last.requested_by_id
+    end
+
     test "requests a private attendee export with one proof and replays without another proof" do
       proof = issue_admin_proof
       headers = @admin_export_headers.merge("Idempotency-Key" => "integration-export-key")

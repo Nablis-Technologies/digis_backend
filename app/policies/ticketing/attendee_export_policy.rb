@@ -1,9 +1,10 @@
 # frozen_string_literal: true
 
 module Ticketing
-  # Requires export-field permission and current catalog authority together.
+  # Requires current event authority; sensitive fields have additional grants.
   class AttendeeExportPolicy < Core::ApplicationPolicy
     REQUEST_PERMISSION = "attendee_export.request"
+    CONTACT_PERMISSION = "attendee_export.contact"
 
     FIELDS = %i[
       id event_id requested_by_id status row_mode format_version field_set_digest
@@ -52,8 +53,10 @@ module Ticketing
     end
 
     def fields_authorized?
-      return false unless user.has_permission?(REQUEST_PERMISSION)
-      return platform_admin? if record.status == "expired" && record.field_keys.nil? && record.filters.nil?
+      return false unless user
+      if record.status == "expired" && record.field_keys.nil? && record.filters.nil?
+        return user.has_permission?(REQUEST_PERMISSION) && platform_admin?
+      end
 
       result = Exports::FieldRegistry.resolve(
         event: record.event,
@@ -62,7 +65,28 @@ module Ticketing
       )
       return false if result.failure?
 
-      result.value.all? { |definition| user.has_permission?(definition.fetch(:permission)) }
+      result.value.all? { |definition| field_authorized?(definition.fetch(:authorization)) }
+    end
+
+    def field_authorized?(authorization)
+      case authorization
+      when :event_manager
+        true
+      when CONTACT_PERMISSION
+        user.has_permission?(CONTACT_PERMISSION) || tenant_contact_manager?
+      else
+        user.has_permission?(authorization)
+      end
+    end
+
+    def tenant_contact_manager?
+      memberships = Organizations::Membership.active.where(user_id: user.id, role: %w[owner admin])
+      primary_organization = memberships.where(organization_id: record.event.organization_id)
+      co_organizer_ids = Events::EventOrganization
+        .where(event_id: record.event_id, type: "co_organizer", status: "active")
+        .select(:organization_id)
+
+      primary_organization.or(memberships.where(organization_id: co_organizer_ids)).exists?
     end
 
     def platform_admin?
