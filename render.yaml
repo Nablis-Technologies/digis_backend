@@ -61,7 +61,7 @@ services:
       - key: CHAPA_ENABLED
         value: "true"
       - key: CHAPA_PAYOUT_ENABLED
-        value: "false"
+        value: "true"
       - key: CHAPA_MODE
         value: test
       - key: CHAPA_SECRET_KEY

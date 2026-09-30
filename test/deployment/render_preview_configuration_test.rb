@@ -23,7 +23,7 @@ class RenderPreviewConfigurationTest < ActiveSupport::TestCase
     assert_equal "1", env_vars.fetch("JOB_THREADS")
     assert_equal "digis-backend-preview.onrender.com", env_vars.fetch("APP_HOST")
     assert_equal "true", env_vars.fetch("CHAPA_ENABLED")
-    assert_equal "false", env_vars.fetch("CHAPA_PAYOUT_ENABLED")
+    assert_equal "true", env_vars.fetch("CHAPA_PAYOUT_ENABLED")
     assert_equal "test", env_vars.fetch("CHAPA_MODE")
     assert_equal "https://api.chapa.global", env_vars.fetch("CHAPA_API_BASE_URL")
     assert_equal "https://digis-backend-preview.onrender.com/payments/chapa/callback",

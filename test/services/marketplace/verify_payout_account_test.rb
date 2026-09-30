@@ -41,6 +41,7 @@ module Marketplace
     setup do
       setup_seller_payout_context
       @adapter = FakeAdapter.new
+      @adapter.banks = [ bank(slug: "cbe") ]
     end
 
     test "stores encrypted direct beneficiary values" do
@@ -123,7 +124,7 @@ module Marketplace
     end
 
     test "rejects a bank slug absent from the provider bank list" do
-      @adapter.banks = [ { bank_slug: "other" } ]
+      @adapter.banks = [ bank(slug: "other") ]
 
       result = VerifyPayoutAccount.call(
         user: @seller,
@@ -144,7 +145,7 @@ module Marketplace
     end
 
     test "matches provider bank slugs case-insensitively" do
-      @adapter.banks = [ { bank_slug: "CBE" } ]
+      @adapter.banks = [ bank(slug: "CBE") ]
 
       result = VerifyPayoutAccount.call(
         user: @seller,
@@ -188,7 +189,7 @@ module Marketplace
     end
 
     test "replays a registration before consulting a changed bank list" do
-      @adapter.banks = [ { bank_slug: "cbe" } ]
+      @adapter.banks = [ bank(slug: "cbe") ]
       arguments = {
         user: @seller,
         type: "bank",
@@ -202,7 +203,7 @@ module Marketplace
       }
 
       first = VerifyPayoutAccount.call(**arguments)
-      @adapter.banks = [ { bank_slug: "other" } ]
+      @adapter.banks = [ bank(slug: "other") ]
       replay = VerifyPayoutAccount.call(**arguments)
 
       assert_predicate first, :success?, first.error&.message
@@ -315,6 +316,63 @@ module Marketplace
 
       assert_predicate result, :failure?
       assert_equal "payout_account_input_invalid", result.error.code
+    end
+
+    test "fails closed without persisting when provider bank discovery is unavailable" do
+      @adapter.banks = nil
+
+      result = register_account(bank_slug: "cbe", account_number: "1000000000022", idempotency_key: "bank-list-down")
+
+      assert_predicate result, :failure?
+      assert_equal "payout_account_provider_unavailable", result.error.code
+      assert_empty @adapter.verify_requests
+      assert_no_account_for("1000000000022")
+    end
+
+    test "rejects a store-value destination instead of treating it as a bank" do
+      @adapter.banks = [ bank(slug: "link", type: "store_value") ]
+
+      result = register_account(bank_slug: "link", account_number: "1000000000023", idempotency_key: "store-value")
+
+      assert_predicate result, :failure?
+      assert_equal "payout_account_bank_unsupported", result.error.code
+      assert_empty @adapter.verify_requests
+      assert_no_account_for("1000000000023")
+    end
+
+    test "registers a documented mobile-money destination using its explicit type" do
+      @adapter.banks = [ bank(slug: "telebirr", type: "mobile_money") ]
+
+      result = VerifyPayoutAccount.call(
+        user: @seller, type: "mobile_money", provider: "chapa", bank_slug: "telebirr",
+        account_number: "0911000000", holder_name: "Mobile Seller", adapter: @adapter,
+        idempotency_key: "verify-mobile-money", at: @now
+      )
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "mobile_money", result.value.type
+      assert_equal "mobile_money", @adapter.verify_requests.sole.fetch(:type)
+    end
+
+    private
+
+    def bank(slug:, type: "bank")
+      {
+        bank_slug: slug, bank_name: slug.upcase, type:, is_active: true,
+        supported_currencies: { ETB: { countries: { ET: { is_enabled: true } } } }
+      }
+    end
+
+    def register_account(bank_slug:, account_number:, idempotency_key:)
+      VerifyPayoutAccount.call(
+        user: @seller, type: "bank", provider: "chapa", bank_slug:, account_number:,
+        holder_name: "Seller Holder", adapter: @adapter, idempotency_key:, at: @now
+      )
+    end
+
+    def assert_no_account_for(account_number)
+      digest = Core::PayoutAccountDigest.call(namespace: @seller.id, account_number:)
+      assert_not SellerPayoutAccount.exists?(user: @seller, account_number_digest: digest)
     end
   end
 end
