@@ -2,7 +2,7 @@
 
 module Messaging
   class CampaignContactListPolicy < Core::ApplicationPolicy
-    FIELDS = %i[id organization_id created_by_id name status version created_at updated_at].freeze
+    FIELDS = %i[id organization_id created_by_id name status version entries_count created_at updated_at].freeze
 
     def index? = organization_member?
     def show? = organization_member?

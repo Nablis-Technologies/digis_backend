@@ -27,6 +27,28 @@ module Messaging
       assert_includes JSON.parse(response.body).fetch("data").map { |list| list.fetch("id") }, list_id
     end
 
+    test "lists active entry counts without counting removed entries" do
+      populated = create_contact_list("Counted #{SecureRandom.hex(4)}")
+      empty = create_contact_list("Empty #{SecureRandom.hex(4)}")
+      create_contact_entry(populated, "+251911#{format("%06d", SecureRandom.random_number(1_000_000))}", "active")
+      create_contact_entry(populated, "+251912#{format("%06d", SecureRandom.random_number(1_000_000))}", "active")
+      create_contact_entry(populated, "+251913#{format("%06d", SecureRandom.random_number(1_000_000))}", "removed")
+      create_contact_entry(empty, "+251914#{format("%06d", SecureRandom.random_number(1_000_000))}", "removed")
+
+      get "/organizations/#{@organization.id}/campaign_contact_lists", headers: admin_headers, as: :json
+
+      assert_response :success
+      listed = response.parsed_body.fetch("data").index_by { |item| item.fetch("id") }
+      assert_equal 2, listed.fetch(populated.id)["entries_count"]
+      assert_equal 0, listed.fetch(empty.id)["entries_count"]
+
+      get "/organizations/#{@organization.id}/campaign_contact_lists/#{populated.id}",
+        headers: admin_headers, as: :json
+
+      assert_response :success
+      assert_equal 2, response.parsed_body.dig("data", "entries_count")
+    end
+
     test "starts an asynchronous CSV import and returns its status" do
       list = CampaignContactList.create!(
         organization: @organization, created_by: core_users(:super_admin),
@@ -64,6 +86,7 @@ module Messaging
         headers: admin_headers.merge("Idempotency-Key" => "json-append-#{SecureRandom.hex(4)}"), as: :json
 
       assert_response :success
+      assert_equal 1, response.parsed_body.dig("data", "entries_count")
       assert_equal 1, list.reload.entries.where(status: "active").count
       assert_equal "Aster", list.entries.first.first_name
     end
@@ -85,6 +108,16 @@ module Messaging
       assert_equal entry.id, data.fetch("id")
       assert_equal "removed", data.fetch("status")
       assert_equal true, data.fetch("phone_present")
+    end
+
+    private
+
+    def create_contact_list(name)
+      CampaignContactList.create!(organization: @organization, created_by: core_users(:super_admin), name:)
+    end
+
+    def create_contact_entry(list, phone, status)
+      list.entries.create!(phone_number: phone, phone_digest: Digest::SHA256.hexdigest(phone), status:)
     end
   end
 end

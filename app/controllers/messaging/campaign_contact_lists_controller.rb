@@ -16,7 +16,11 @@ module Messaging
       lists = apply_ordering(lists)
       total_count = lists.count if paginated_request?
       lists = paginated_request? ? apply_pagination(lists) : lists.limit(default_per_page)
-      render_success(data: lists, serializer_options: { serializer: CampaignContactListSerializer },
+      lists = lists.to_a
+      render_success(data: lists, serializer_options: {
+        serializer: CampaignContactListSerializer,
+        active_entry_counts: active_entry_counts_for(lists)
+      },
         pagination: paginated_request? ? pagination_metadata(total_count) : nil)
     end
 
@@ -102,6 +106,14 @@ module Messaging
           :phone_number, :email, :first_name, :last_name
         ).to_h
       end
+    end
+
+    def active_entry_counts_for(lists)
+      ids = lists.map(&:id)
+      return {} if ids.empty?
+
+      CampaignContactListEntry.where(campaign_contact_list_id: ids, status: "active")
+        .group(:campaign_contact_list_id).count
     end
 
     def allowed_order_columns
