@@ -80,7 +80,7 @@ module Marketplace
     def locked_allocations(payout)
       SellerPayoutAllocation
         .where(payout_id: payout.id, status: "reserved")
-        .includes(seller_ledger_entry: { event: :event_dates })
+        .includes(seller_ledger_entry: :event)
         .order(:id)
         .lock
         .to_a
@@ -89,7 +89,6 @@ module Marketplace
     def dispatch_gate_error(payout, allocations)
       return payout_error(:seller_payout_not_dispatchable) if allocations.empty?
       return payout_error(:seller_payout_scope_mismatch) unless signed_allocation_total(allocations) == payout.amount_minor
-      return payout_error(:seller_payout_event_scope_invalid) unless allocations.map { |allocation| allocation.seller_ledger_entry.event_id }.uniq.one?
       return payout_error(:seller_payout_scope_mismatch) unless allocations.all? { |allocation| allocation_scope_valid?(payout, allocation) }
 
       balance_result = provider_balance(adapter, payout.currency)
