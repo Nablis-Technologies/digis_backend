@@ -71,7 +71,8 @@ module Orders
         actor: core_users(:super_admin),
         product_attributes: { name: "Refresh ticket #{SecureRandom.hex(4)}", type: "ticket" },
         ticket_type_attributes: {
-          audience: "public", approval_mode: "automatic", date_selection: "fixed", admissions_per_unit: 1
+          audience: "public", approval_mode: "automatic", date_selection: "fixed", admissions_per_unit: 1,
+          transferable: true
         },
         price_attributes: { currency: "ETB", amount_minor: 10_500, active_from: Time.current },
         inventory_configuration: { mode: "unlimited" }
@@ -111,6 +112,13 @@ module Orders
       wallet_order.update!(subtotal_minor: 10_750, total_minor: 11_250, settlement_total_minor: 11_250)
       wallet_order.update_columns(status: "fulfilled", paid_at: Time.current)
       ticket = Ticketing::Packages::Issue.call(order_item: item, unit_number: 1).value
+      initiated_transfer = Ticketing::Transfers::Initiate.call(
+        ticket:,
+        actor: @buyer,
+        phone: core_users(:core_admin).phone,
+        idempotency_key: "refresh-wallet-transfer-#{SecureRandom.hex(4)}"
+      )
+      assert_predicate initiated_transfer, :success?, initiated_transfer.error&.message
       payment = Orders::Payment.create!(payment_attributes.merge(
         order: wallet_order, status: "succeeded", succeeded_at: Time.current, accepted_at: Time.current,
         idempotency_key: "wallet-refresh-#{SecureRandom.hex(4)}",
@@ -128,6 +136,13 @@ module Orders
       wallet_ticket = data.fetch("tickets").find { |entry| entry.fetch("id") == ticket.id }
       assert wallet_ticket
       assert_equal 7_875, wallet_ticket.dig("ticket_type", "resale_price_cap_minor")
+      pending_transfer = wallet_ticket.fetch("pending_transfer")
+      assert_equal %w[expires_at id status], pending_transfer.keys.sort
+      assert_equal initiated_transfer.value.transfer.id, pending_transfer.fetch("id")
+      assert_equal "pending", pending_transfer.fetch("status")
+      refute_includes response.body, initiated_transfer.value.token
+      refute_includes response.body, initiated_transfer.value.transfer.token_digest
+      refute_includes response.body, core_users(:core_admin).phone
       refute wallet_ticket.key?("owner_user_id")
       refute wallet_ticket.key?("ticket_view_token")
       refute wallet_ticket.key?("ticket_view_url")

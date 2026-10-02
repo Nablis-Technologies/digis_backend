@@ -12,7 +12,7 @@ module Ticketing
     ].freeze
     WALLET_FIELDS = %i[
       id status unit_number admissions_per_unit_snapshot credential_mode credential_version
-      event product ticket_type event_dates admission_slots credentials
+      event product ticket_type event_dates admission_slots credentials pending_transfer
     ].freeze
 
     def index? = user.present?

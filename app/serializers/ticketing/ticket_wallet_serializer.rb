@@ -6,7 +6,14 @@ module Ticketing
   class TicketWalletSerializer < ActiveModel::Serializer
     attributes :id, :status, :unit_number, :admissions_per_unit_snapshot,
                :credential_mode, :credential_version, :event, :product,
-               :ticket_type, :event_dates, :admission_slots, :credentials, :add_ons
+               :ticket_type, :event_dates, :admission_slots, :credentials, :add_ons, :pending_transfer
+
+    def pending_transfer
+      transfer = object.pending_ticket_transfer
+      return unless transfer
+
+      { id: transfer.id, status: transfer.status, expires_at: transfer.expires_at }
+    end
 
     def event
       {

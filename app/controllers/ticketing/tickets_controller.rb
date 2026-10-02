@@ -14,6 +14,7 @@ module Ticketing
         .includes(
           :event,
           :admission_slots,
+          :pending_ticket_transfer,
           { current_credential_generation: :credentials },
           { order_item: { order: :order_items } },
           event_product: [ :ticket_type, { product_accesses: { event_date: :venue } } ]
