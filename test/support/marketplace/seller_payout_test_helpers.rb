@@ -32,7 +32,7 @@ module Marketplace
     end
 
     def create_seller_ledger_entry(amount_minor:, type: "adjustment", currency: "ETB",
-      available_at: @now - 1.day, event: @event)
+      available_at: @now - 1.day, event: @event, created_at: available_at)
       SellerLedgerEntry.create!(
         seller_user: @seller,
         event:,
@@ -42,7 +42,7 @@ module Marketplace
         available_at:,
         idempotency_key: "seller-ledger-test-#{SecureRandom.hex(8)}",
         description: "Seller payout test fact",
-        created_at: available_at
+        created_at:
       )
     end
 

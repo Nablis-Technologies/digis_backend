@@ -23,6 +23,22 @@ module Marketplace
       } ], response.parsed_body.fetch("data")
     end
 
+    test "seller balance aggregates events but excludes not-yet-available ledger facts" do
+      other_event = events_events(:draft_concert)
+      create_seller_ledger_entry(
+        amount_minor: 3_000, available_at: 1.day.from_now, created_at: Time.current
+      )
+      create_seller_ledger_entry(amount_minor: 2_000, event: other_event)
+
+      get "/marketplace/seller/balance", headers: headers_for(@seller), as: :json
+
+      assert_response :success
+      assert_equal [ {
+        "currency" => "ETB", "ledger_total_minor" => 13_500,
+        "reserved_minor" => 0, "available_minor" => 10_500
+      } ], response.parsed_body.fetch("data")
+    end
+
     test "seller history contains own economics without idempotency material" do
       get "/marketplace/seller/history", headers: headers_for(@seller), as: :json
 

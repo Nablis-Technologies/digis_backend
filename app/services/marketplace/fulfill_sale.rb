@@ -322,23 +322,16 @@ module Marketplace
 
     def post_seller_ledger!(sale, event)
       Core::Database::AdvisoryLock.acquire!("marketplace-seller-ledger", sale.seller_user_id, event.id, sale.currency)
-      available_at = seller_ledger_available_at(event)
       create_or_replay_ledger_entry!(
         sale:, event:, type: "resale_proceeds", amount_minor: sale.gross_amount_minor,
-        available_at:, idempotency_key: "marketplace-resale-proceeds-#{sale.id}",
+        available_at: now, idempotency_key: "marketplace-resale-proceeds-#{sale.id}",
         description: I18n.t("marketplace.resale.ledger_descriptions.resale_proceeds")
       )
       create_or_replay_ledger_entry!(
         sale:, event:, type: "marketplace_fee", amount_minor: -sale.marketplace_fee_minor,
-        available_at:, idempotency_key: "marketplace-resale-fee-#{sale.id}",
+        available_at: now, idempotency_key: "marketplace-resale-fee-#{sale.id}",
         description: I18n.t("marketplace.resale.ledger_descriptions.marketplace_fee")
       )
-    end
-
-    def seller_ledger_available_at(event)
-      final_event_end = Events::EventDate.where(event_id: event.id)
-        .where.not(status: "cancelled").maximum(:ends_at)
-      [ now, (final_event_end || now) + Finance::PayoutSupport::DEFAULT_MATURITY_BUFFER ].max
     end
 
     def create_or_replay_ledger_entry!(sale:, event:, type:, amount_minor:, available_at:, idempotency_key:, description:)
