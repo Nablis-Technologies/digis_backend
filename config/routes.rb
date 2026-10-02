@@ -312,6 +312,7 @@ Rails.application.routes.draw do
         get :destinations, on: :collection
         post :set_default, on: :member
       end
+      resources :payouts, only: %i[index show create], controller: "marketplace/seller_payouts"
     end
   end
 
