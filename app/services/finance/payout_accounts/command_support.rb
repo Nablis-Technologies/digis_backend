@@ -19,7 +19,7 @@ module Finance
         "finance-payout-account-idempotency"
       end
 
-      def replay_account(audit)
+      def replay_target(audit)
         account_id = audit.metadata.deep_symbolize_keys[:account_id]
         account = PayoutAccount.find_by(id: account_id)
         return success(account) if account

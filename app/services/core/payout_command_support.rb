@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 module Core
-  # Shares the provider-agnostic idempotency and audit mechanics used by
-  # payout-account commands without coupling domain error or record types.
+  # Shares provider-agnostic idempotency and audit mechanics across payout
+  # commands without coupling Core to a domain's record or error type.
   module PayoutCommandSupport
     private
 
@@ -32,7 +32,7 @@ module Core
       return unless audit
 
       metadata = audit.metadata.deep_symbolize_keys
-      return replay_account(audit) if metadata[:request_digest] == request_digest
+      return replay_target(audit) if metadata[:request_digest] == request_digest
 
       failure(command_error(:idempotency_conflict, code: "idempotency_conflict", status: :conflict))
     end

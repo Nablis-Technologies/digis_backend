@@ -18,7 +18,7 @@ module Marketplace
         "marketplace-seller-payout-account-idempotency"
       end
 
-      def replay_account(audit)
+      def replay_target(audit)
         account = ::Marketplace::SellerPayoutAccount.find_by(
           id: audit.metadata.deep_symbolize_keys[:account_id]
         )
