@@ -44,7 +44,7 @@ module Orders
         assert_equal 1, @delivered_codes.length
       end
 
-      test "rejects paid admission before creating or delivering an OTP" do
+      test "allows an optional phone OTP for paid admission without checkout side effects" do
         product = create_ticket_product(name: "Paid admission", amount_minor: 1_500)
 
         result = RequestOtp.call(
@@ -55,10 +55,13 @@ module Orders
           idempotency_key: "admission-otp-paid"
         )
 
-        assert_predicate result, :failure?
-        assert_equal "phone_verification_not_required", result.error.code
-        assert_empty @delivered_codes
-        assert_empty Core::PhoneVerificationChallenge.where(purpose: "guest_admission")
+        assert_predicate result, :success?, result.error&.message
+        assert_equal "guest_admission", result.value.challenge.purpose
+        assert_equal "pending", result.value.challenge.status
+        assert_equal 1, @delivered_codes.length
+        assert_empty Ticketing::Registration.where(ticket_type: product.ticket_type)
+        assert_empty Orders::Order.where(event: @event)
+        assert_equal 0, product.inventories.sum(:held_count)
       end
 
       test "rejects an existing account before requesting a guest OTP" do
@@ -102,7 +105,7 @@ module Orders
         assert_empty Ticketing::Registration.where(ticket_type: product.ticket_type)
       end
 
-      test "rejects a selection containing a paid line atomically" do
+      test "allows optional OTP for a mixed free and paid selection without checkout side effects" do
         free_product = create_ticket_product(name: "Free selection line", amount_minor: 0)
         paid_product = create_ticket_product(name: "Paid selection line", amount_minor: 100)
 
@@ -122,11 +125,14 @@ module Orders
         # Prosopite's read-path checks remain active in the controller suites.
         result = ENV["N_PLUS_ONE"] == "1" ? Prosopite.pause(&operation) : operation.call
 
-        assert_predicate result, :failure?
-        assert_empty @delivered_codes
+        assert_predicate result, :success?, result.error&.message
+        assert_equal "pending", result.value.challenge.status
+        assert_equal 1, @delivered_codes.length
         assert_empty Ticketing::Registration.where(
           ticket_type_id: [ free_product.ticket_type.id, paid_product.ticket_type.id ]
         )
+        assert_empty Orders::Order.where(event: @event)
+        assert_equal 0, Catalog::ProductInventory.where(event_product_id: [ free_product.id, paid_product.id ]).sum(:held_count)
       end
 
       test "requests OTP when a valid promotion makes the final quote zero" do

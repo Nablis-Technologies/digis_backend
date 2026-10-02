@@ -64,7 +64,8 @@ module Orders
           quote:,
           event: context.event,
           buyer: context.buyer,
-          idempotency_key: order_idempotency_key
+          idempotency_key: order_idempotency_key,
+          recovery_context: context
         )
         abort_with(result.error) if result.failure?
 

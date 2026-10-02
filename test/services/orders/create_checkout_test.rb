@@ -52,6 +52,27 @@ module Orders
       assert_equal order.id, replay.value.id
     end
 
+    test "does not disclose an active checkout without an admission recovery context" do
+      first = Orders::CreateCheckout.call(
+        quote: @quote,
+        event: @event,
+        buyer: @buyer,
+        idempotency_key: "active-checkout-generic-first-#{SecureRandom.hex(4)}"
+      )
+      assert_predicate first, :success?, first.error&.message
+
+      duplicate = Orders::CreateCheckout.call(
+        quote: @quote,
+        event: @event,
+        buyer: @buyer,
+        idempotency_key: "active-checkout-generic-second-#{SecureRandom.hex(4)}"
+      )
+
+      assert_predicate duplicate, :failure?
+      assert_equal "active_checkout_exists", duplicate.error.code
+      assert_nil duplicate.error.meta
+    end
+
     test "acquires checkout advisory before event and order locks" do
       statements = []
       subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _start, _finish, _id, payload|

@@ -446,7 +446,200 @@ module Orders
       assert response.parsed_body.dig("data", "access_token").present?
     end
 
-    test "request OTP refuses paid products without sending an SMS" do
+    test "authenticated duplicate selection returns only the buyer's resumable checkout" do
+      product = create_ticket_product(name: "Recoverable authenticated checkout", amount_minor: 1_500)
+      headers = user_headers
+
+      post selection_path,
+           params: selection_payload(product),
+           headers: headers.merge("Idempotency-Key" => "authenticated-recovery-first"),
+           as: :json
+
+      assert_response :created
+      order = Orders::Order.find(response.parsed_body.dig("data", "order", "id"))
+      registration_id = response.parsed_body.dig("data", "registrations").sole.fetch("id")
+      provider = Payments::Providers::FakePaymentProvider.new(
+        outcomes: {
+          create: [
+            Payments::Providers::Result.unknown(
+              provider_reference: "authenticated-recovery-payment",
+              checkout_url: "https://checkout.chapa.test/authenticated-recovery"
+            )
+          ]
+        }
+      )
+      Payments::Providers::Registry.register("chapa", provider)
+
+      post "/orders/#{order.id}/payment_attempts",
+           params: { payment_attempt: { provider: "chapa", payment_method: "telebirr" } },
+           headers: headers.merge("Idempotency-Key" => "authenticated-recovery-payment"),
+           as: :json
+      assert_response :created
+      payment = Orders::Payment.find(response.parsed_body.dig("data", "id"))
+
+      duplicate = selection_payload(product)
+      duplicate.dig(:admission_selection, :items).sole[:registration_id] = registration_id
+      post selection_path,
+           params: duplicate,
+           headers: headers.merge("Idempotency-Key" => "authenticated-recovery-retry"),
+           as: :json
+
+      assert_response :conflict
+      assert_equal "active_checkout_exists", response.parsed_body.fetch("code")
+      active_checkout = response.parsed_body.dig("meta", "active_checkout")
+      assert active_checkout, response.body
+      assert_equal order.id, active_checkout.fetch("order_id")
+      assert_equal order.expires_at.to_i, Time.iso8601(active_checkout.fetch("expires_at")).to_i
+      assert_equal %w[checkout_url id status], active_checkout.fetch("payment").keys.sort
+      assert_equal payment.id, active_checkout.dig("payment", "id")
+      assert_equal "processing", active_checkout.dig("payment", "status")
+      assert_equal "https://checkout.chapa.test/authenticated-recovery", active_checkout.dig("payment", "checkout_url")
+    end
+
+    test "verified guest can recover an active paid checkout and resume its payment attempt" do
+      product = create_ticket_product(name: "Recoverable guest checkout", amount_minor: 1_500)
+      phone = "+251911#{SecureRandom.random_number(1_000_000).to_s.rjust(6, "0")}"
+
+      post otp_path,
+           params: selection_payload(product).deep_merge(admission_selection: { phone: }),
+           headers: { "Idempotency-Key" => "guest-recovery-request-otp" },
+           as: :json
+      assert_response :created
+      challenge_id = response.parsed_body.dig("data", "challenge_id")
+
+      post "/phone_verifications/#{challenge_id}/verify",
+           params: { code: @delivered_codes.sole.fetch(:code) },
+           headers: { "Idempotency-Key" => "guest-recovery-verify-otp" },
+           as: :json
+      assert_response :success
+      verification_token = response.parsed_body.dig("data", "verification_token")
+
+      post selection_path,
+           params: selection_payload(product).deep_merge(
+             admission_selection: { phone:, phone_confirmation: true, full_name: "Recovery Guest" }
+           ),
+           headers: { "Idempotency-Key" => "guest-recovery-first" },
+           as: :json
+      assert_response :created
+      order = Orders::Order.find(response.parsed_body.dig("data", "order", "id"))
+      registration_id = response.parsed_body.dig("data", "registrations").sole.fetch("id")
+
+      duplicate = selection_payload(product)
+      duplicate.dig(:admission_selection, :items).sole[:registration_id] = registration_id
+      duplicate.deep_merge!(admission_selection: { phone:, phone_confirmation: true, verification_token: "invalid-proof" })
+      post selection_path,
+           params: duplicate,
+           headers: { "Idempotency-Key" => "guest-recovery-invalid-proof" },
+           as: :json
+      assert_response :unprocessable_entity
+      assert_equal "phone_verification_invalid", response.parsed_body.fetch("code")
+      refute_includes response.body, order.id
+
+      duplicate.deep_merge!(admission_selection: { verification_token: })
+      post selection_path,
+           params: duplicate,
+           headers: { "Idempotency-Key" => "guest-recovery-verified-retry" },
+           as: :json
+
+      assert_response :conflict
+      assert_equal "active_checkout_exists", response.parsed_body.fetch("code")
+      active_checkout = response.parsed_body.dig("meta", "active_checkout")
+      assert active_checkout, response.body
+      assert_equal order.id, active_checkout.fetch("order_id")
+      assert_equal order.expires_at.to_i, Time.iso8601(active_checkout.fetch("expires_at")).to_i
+      assert_predicate active_checkout.fetch("order_access_token"), :present?
+      refute active_checkout.key?("payment")
+
+      recovered_token = active_checkout.fetch("order_access_token")
+      recovered = Orders::GuestOrderAccessToken.decode(token: recovered_token, order:, phone:)
+      assert_predicate recovered, :success?, recovered.error&.message
+      assert_equal order.buyer_user_id, recovered.value.id
+
+      provider = Payments::Providers::FakePaymentProvider.new(
+        outcomes: {
+          create: [
+            Payments::Providers::Result.unknown(
+              provider_reference: "verified-guest-recovery",
+              checkout_url: "https://checkout.chapa.test/verified-guest-recovery"
+            )
+          ]
+        }
+      )
+      Payments::Providers::Registry.register("chapa", provider)
+
+      post "/guest/orders/#{order.id}/payment_attempts",
+           params: {
+             payment_attempt: {
+               phone: "+251911000000",
+               order_access_token: recovered_token,
+               provider: "chapa",
+               payment_method: "telebirr"
+             }
+           },
+           headers: { "Idempotency-Key" => "guest-recovery-wrong-phone" },
+           as: :json
+      assert_response :unprocessable_entity
+      assert_equal "invalid_guest_order_token", response.parsed_body.fetch("code")
+
+      post "/guest/orders/#{order.id}/payment_attempts",
+           params: {
+             payment_attempt: {
+               phone:,
+               order_access_token: recovered_token,
+               provider: "chapa",
+               payment_method: "telebirr"
+             }
+           },
+           headers: { "Idempotency-Key" => "guest-recovery-payment" },
+           as: :json
+      assert_response :created
+      assert_equal "https://checkout.chapa.test/verified-guest-recovery", response.parsed_body.dig("data", "checkout_url")
+    end
+
+    test "unverified guest receives a generic active-checkout conflict without identifiers" do
+      product = create_ticket_product(name: "Private guest checkout", amount_minor: 1_500)
+      phone = "+251911#{SecureRandom.random_number(1_000_000).to_s.rjust(6, "0")}"
+      payload = selection_payload(product).deep_merge(
+        admission_selection: { phone:, phone_confirmation: true, full_name: "Unverified Guest" }
+      )
+
+      post selection_path, params: payload,
+           headers: { "Idempotency-Key" => "unverified-recovery-first" }, as: :json
+      assert_response :created
+      order_id = response.parsed_body.dig("data", "order", "id")
+      registration_id = response.parsed_body.dig("data", "registrations").sole.fetch("id")
+
+      duplicate = selection_payload(product)
+      duplicate.dig(:admission_selection, :items).sole[:registration_id] = registration_id
+      duplicate.deep_merge!(admission_selection: { phone:, phone_confirmation: true })
+      post selection_path, params: duplicate,
+           headers: { "Idempotency-Key" => "unverified-recovery-retry" }, as: :json
+
+      assert_response :conflict
+      assert_equal "active_checkout_exists", response.parsed_body.fetch("code")
+      refute response.parsed_body.key?("meta")
+      refute_includes response.body, order_id
+      refute_includes response.body, "order_access_token"
+      refute_includes response.body, "checkout_url"
+    end
+
+    test "a different buyer starts their own checkout without seeing another buyer's active order" do
+      product = create_ticket_product(name: "Buyer-scoped active checkout", amount_minor: 1_500)
+      post selection_path, params: selection_payload(product),
+           headers: user_headers.merge("Idempotency-Key" => "buyer-scope-first"), as: :json
+      assert_response :created
+      first_order_id = response.parsed_body.dig("data", "order", "id")
+
+      post selection_path, params: selection_payload(product),
+           headers: owner_headers.merge("Idempotency-Key" => "buyer-scope-other-buyer"), as: :json
+
+      assert_response :created
+      second_order_id = response.parsed_body.dig("data", "order", "id")
+      refute_equal first_order_id, second_order_id
+      refute_includes response.body, first_order_id
+    end
+
+    test "request OTP accepts paid products without creating checkout state" do
       product = create_ticket_product(name: "Paid admission", amount_minor: 1_500)
 
       post otp_path,
@@ -456,10 +649,12 @@ module Orders
            headers: { "Idempotency-Key" => "paid-admission-no-otp" },
            as: :json
 
-      assert_response :unprocessable_entity
-      assert_equal "phone_verification_not_required", response.parsed_body.fetch("code")
-      assert_empty @delivered_codes
+      assert_response :created
+      assert_equal "pending", response.parsed_body.dig("data", "status")
+      assert_equal 1, @delivered_codes.length
       assert_empty Ticketing::Registration.where(ticket_type: product.ticket_type)
+      assert_empty Orders::Order.where(event: @event)
+      assert_equal 0, product.inventories.sum(:held_count)
     end
 
     test "approved manual registration continues through the public admission selection endpoint" do

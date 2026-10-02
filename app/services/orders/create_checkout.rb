@@ -13,7 +13,7 @@ module Orders
 
     def initialize(
       quote:, event:, buyer:, idempotency_key:, sales_channel: nil,
-      initiated_by: nil, replaces_order: nil, at: nil
+      initiated_by: nil, replaces_order: nil, recovery_context: nil, at: nil
     )
       @quote = quote
       @event = event
@@ -22,6 +22,7 @@ module Orders
       @sales_channel = (sales_channel || quote.sales_channel).to_s.downcase
       @initiated_by = initiated_by
       @replaces_order = replaces_order
+      @recovery_context = recovery_context
       @now = (at || Time.current).to_time.utc.change(usec: 0)
     rescue NoMethodError, ArgumentError => error
       @initialization_error = error
@@ -77,7 +78,7 @@ module Orders
 
     private
 
-    attr_reader :quote, :event, :buyer, :sales_channel, :initiated_by, :replaces_order, :now,
+    attr_reader :quote, :event, :buyer, :sales_channel, :initiated_by, :replaces_order, :recovery_context, :now,
                 :idempotency_key, :idempotency_key_digest, :creation_request_digest
 
     def prepare_idempotency!
@@ -102,9 +103,16 @@ module Orders
     end
 
     def active_checkout_conflict!
-      return unless Orders::Order.active_checkouts.lock.where(event:, buyer_user: buyer).exists?
+      active_order = Orders::Order.active_checkouts.lock.find_by(event:, buyer_user: buyer)
+      return unless active_order
 
-      abort_with(checkout_error(:active_checkout_exists, code: "active_checkout_exists", status: :conflict))
+      recovery = Orders::ActiveCheckoutRecovery.call(order: active_order, context: recovery_context)
+      abort_with(checkout_error(
+        :active_checkout_exists,
+        code: "active_checkout_exists",
+        status: :conflict,
+        meta: recovery.present? ? { active_checkout: recovery } : nil
+      ))
     end
 
     def validate_event_date_eligibility!(locked_event)
@@ -561,9 +569,9 @@ module Orders
       raise CheckoutAbort, error
     end
 
-    def checkout_error(key, code:, status: :unprocessable_entity, errors: nil)
+    def checkout_error(key, code:, status: :unprocessable_entity, errors: nil, meta: nil)
       Core::BusinessError.new(
-        I18n.t("orders.checkout.errors.#{key}"), code:, status:, errors:
+        I18n.t("orders.checkout.errors.#{key}"), code:, status:, errors:, meta:
       )
     end
 

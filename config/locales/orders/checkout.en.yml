@@ -18,7 +18,6 @@ en:
         admission_selection_manual_approval_mixed: "A manually reviewed ticket must be selected on its own"
         phone_verification_required: "Verify this phone number before confirming a free admission"
         phone_verification_invalid: "The guest phone verification is invalid or expired"
-        phone_verification_not_required: "Phone verification is only available for a zero-total admission selection"
         invalid_guest_order_token: "The guest order access token is invalid"
         duplicate_product: "A product may appear only once in checkout"
         product_not_found: "The selected product could not be found"

@@ -90,9 +90,10 @@ module Orders
           require_registrations: false
         )
         abort_with(quote.error) if quote.failure?
-        return if quote.value.total_minor.zero?
 
-        abort_with(selection_error("phone_verification_not_required"))
+        # OTP is optional on paid checkout, but guests may request phone proof
+        # to recover an active checkout later. This preflight creates no holds.
+        true
       end
 
       def validate_line!(item, product)
