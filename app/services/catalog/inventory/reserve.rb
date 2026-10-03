@@ -32,7 +32,7 @@ module Catalog
           group = ReservationGroupLock.acquire!(
             @reservation_group_id,
             inventory_ids: plan.inventory_ids,
-            event_date_ids: @line.venue_event_date_ids
+            event_date_ids: @line.event_date_ids
           )
 
           replay = replay_result(group)
@@ -64,7 +64,7 @@ module Catalog
       end
 
       def validate_capacity!(group, plan)
-        violation = Capacity.violation(
+        violation = Capacity.evaluate(
           plan:,
           inventory_rows: group.inventories,
           event_date_rows: group.event_dates

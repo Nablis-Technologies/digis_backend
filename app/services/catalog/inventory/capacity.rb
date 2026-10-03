@@ -14,6 +14,25 @@ module Catalog
         end
       end
 
+      Snapshot = Data.define(
+        :inventory_rows, :event_date_rows, :inventories_by_product_and_date,
+        :inventories_by_id, :event_dates_by_id
+      ) do
+        def initialize(inventory_rows:, event_date_rows:)
+          inventories = Array(inventory_rows)
+          event_dates = Array(event_date_rows)
+          super(
+            inventory_rows: inventories,
+            event_date_rows: event_dates,
+            inventories_by_product_and_date: inventories.group_by do |row|
+              [ row.event_product_id.to_s, row.event_date_id&.to_s ]
+            end,
+            inventories_by_id: inventories.index_by { |row| row.id.to_s },
+            event_dates_by_id: event_dates.index_by { |row| row.id.to_s }
+          )
+        end
+      end
+
       def self.plan!(line)
         validate_line!(line)
 
@@ -23,11 +42,29 @@ module Catalog
         Plan.new(line:, inventory_ids: inventory_ids_for!(line, global, dated))
       end
 
-      def self.violation(plan:, inventory_rows:, event_date_rows:,
+      # Builds the same validated capacity plan from rows already loaded by a
+      # read-only discovery projection. This path deliberately takes no locks.
+      def self.plan_from_snapshot!(line:, snapshot:)
+        validate_line!(line, event_dates_by_id: snapshot.event_dates_by_id)
+
+        product_id = line.product.id.to_s
+        global = snapshot.inventories_by_product_and_date.fetch([ product_id, nil ], []).first
+        dated = line.event_date_ids.filter_map do |date_id|
+          snapshot.inventories_by_product_and_date.fetch([ product_id, date_id ], []).first
+        end
+        Plan.new(line:, inventory_ids: inventory_ids_for!(line, global, dated))
+      end
+
+      def self.evaluate(plan:, inventory_rows: nil, event_date_rows: nil, snapshot: nil,
         inventory_demand: {}, venue_demand: {})
         validate_plan!(plan)
-        inventories = Array(inventory_rows).index_by { |inventory| inventory.id.to_s }
-        event_dates = Array(event_date_rows).index_by { |date| date.id.to_s }
+        validate_line!(
+          plan.line,
+          event_date_rows: snapshot ? nil : event_date_rows,
+          event_dates_by_id: snapshot&.event_dates_by_id
+        )
+        inventories = snapshot ? snapshot.inventories_by_id : Array(inventory_rows).index_by { |row| row.id.to_s }
+        event_dates = snapshot ? snapshot.event_dates_by_id : Array(event_date_rows).index_by { |row| row.id.to_s }
 
         return :product_capacity if product_capacity_exceeded?(plan, inventories, inventory_demand)
         return :venue_capacity if venue_capacity_exceeded?(plan, event_dates, venue_demand)
@@ -60,7 +97,7 @@ module Catalog
         line.package_quantity * line.admissions_per_unit
       end
 
-      def self.validate_line!(line)
+      def self.validate_line!(line, event_date_rows: nil, event_dates_by_id: nil)
         unless line.is_a?(Line)
           raise_capacity_error("invalid_capacity_request", "package_quantity_positive")
         end
@@ -77,8 +114,19 @@ module Catalog
         requested_dates = (line.event_date_ids + line.venue_event_date_ids).uniq
         return if requested_dates.empty?
 
-        event_dates = Events::EventDate.where(event_id: line.product.event_id, id: requested_dates)
-          .pluck(:id).map(&:to_s)
+        event_dates = if event_dates_by_id
+          requested_dates.filter_map do |id|
+            date = event_dates_by_id[id]
+            date.id.to_s if date&.event_id.to_s == line.product.event_id.to_s
+          end
+        elsif event_date_rows
+          Array(event_date_rows).filter_map do |date|
+            date.id.to_s if date.event_id.to_s == line.product.event_id.to_s && requested_dates.include?(date.id.to_s)
+          end
+        else
+          Events::EventDate.where(event_id: line.product.event_id, id: requested_dates)
+            .pluck(:id).map(&:to_s)
+        end
         missing = requested_dates - event_dates
         return if missing.empty?
 

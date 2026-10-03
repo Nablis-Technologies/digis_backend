@@ -11,7 +11,7 @@ module Catalog
       attr_reader :line, :owner, :expires_at
 
       def initialize(line:, owner:, expires_at:)
-        raise ArgumentError, "line must be a Catalog::Inventory::Line" unless line.is_a?(Line)
+        raise ArgumentError unless line.is_a?(Line)
 
         @line = line
         @owner = owner

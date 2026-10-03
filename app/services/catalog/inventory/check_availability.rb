@@ -33,7 +33,7 @@ module Catalog
       def lock_capacity_rows(plans)
         CapacityLock.acquire!(
           inventory_ids: plans.flat_map(&:inventory_ids),
-          event_date_ids: plans.flat_map { |plan| plan.line.venue_event_date_ids }
+          event_date_ids: plans.flat_map { |plan| plan.line.event_date_ids }
         )
       end
 
@@ -42,7 +42,7 @@ module Catalog
         simulated_venue = Hash.new(0)
 
         plans.filter_map do |plan|
-          violation = Capacity.violation(
+          violation = Capacity.evaluate(
             plan:,
             inventory_rows: rows.inventories,
             event_date_rows: rows.event_dates,
