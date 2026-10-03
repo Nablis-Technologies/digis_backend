@@ -20,6 +20,7 @@
         reservation_group_id: registration.id)
         # Roll back purchase-limit rows if inventory rejects the same request.
         ActiveRecord::Base.transaction do
+          admission_line = registration.ticket_type.admission_line_for(registration)
           purchase_limit = Ticketing::PurchaseLimits::Reserve.call(
             registration:,
             user: registration.user,
@@ -31,7 +32,8 @@
 
           unwrap(Catalog::Inventory::Reserve.call(
             product: registration.ticket_type.event_product,
-            event_date_ids: registration.ticket_type.covered_date_ids(registration),
+            event_date_ids: admission_line.event_date_ids,
+            venue_event_date_ids: admission_line.venue_event_date_ids,
             package_quantity: registration.package_quantity,
             admissions_per_unit: registration.admissions_per_unit_snapshot,
             owner: registration,

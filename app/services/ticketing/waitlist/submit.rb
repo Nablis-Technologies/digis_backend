@@ -138,13 +138,33 @@ module Ticketing
       def validate_selected_date!(product, locked_type)
         date_id = submission.selected_event_date_id
         if locked_type.date_selection == "choose_one"
-          valid = date_id.present? && product.product_accesses.any? do |access|
-            access.event_date_id.to_s == date_id.to_s && access.event_date&.status == "scheduled"
-          end
-          abort_with(waitlist_error("event_dates_required")) unless valid
+          line = locked_type.admission_line(
+            product:, selected_event_date_id: date_id,
+            package_quantity: submission.package_quantity,
+            admissions_per_unit: locked_type.admissions_per_unit
+          )
+          abort_with(waitlist_error("event_dates_required")) unless line
         elsif date_id.present?
           abort_with(waitlist_error("registration_not_waitlistable"))
+        else
+          line = locked_type.admission_line(
+            product:, selected_event_date_id: nil,
+            package_quantity: submission.package_quantity,
+            admissions_per_unit: locked_type.admissions_per_unit
+          )
         end
+
+        validate_event_date_eligibility!(product, line)
+      end
+
+      def validate_event_date_eligibility!(product, line)
+        dates = Events::EventDate.where(event_id: product.event_id)
+        dates = dates.where(id: line.event_date_ids) if line.event_date_ids.present?
+        rows = dates.order(:id).lock.to_a
+        snapshot = Events::EventDateEligibility.snapshot(event_dates: rows, at: Time.current)
+        return if snapshot.eligible?(line.event_date_ids)
+
+        abort_with(waitlist_error("waitlist_product_unavailable"))
       end
 
       def validate_sold_out!(product, locked_type)
@@ -165,7 +185,7 @@ module Ticketing
       def sold_out?(product, registration, inventories)
         return true unless inventory_fits?(product, registration, inventories)
 
-        date_ids = registration.ticket_type.covered_date_ids(registration)
+        date_ids = registration.ticket_type.covered_venue_date_ids(registration)
         dates = Events::EventDate.where(id: date_ids).order(:id).lock.to_a
         dates.any? do |date|
           date.venue_capacity.present? &&

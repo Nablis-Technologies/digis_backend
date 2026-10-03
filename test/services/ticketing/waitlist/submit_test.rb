@@ -49,6 +49,25 @@ module Ticketing
         end
       end
 
+      test "rejects a sold-out choose-one offer after its event date has started" do
+        past_date = @event.event_dates.create!(
+          starts_at: 2.hours.ago, ends_at: 1.hour.ago, status: "scheduled"
+        )
+        product = create_ticket_product(
+          name: "Past choose-one offer", capacity: 1,
+          date_selection: "choose_one", event_dates: [ past_date ]
+        )
+        product.inventories.find_by!(event_date_id: nil).update!(sold_count: 1)
+
+        result = call_submit(
+          product:, key: "waitlist-submit-past-date", selected_event_date_id: past_date.id
+        )
+
+        assert_predicate result, :failure?
+        assert_equal "waitlist_product_unavailable", result.error.code
+        assert_empty Ticketing::Registration.where(ticket_type: product.ticket_type)
+      end
+
       test "manual approval creates a pending approval without queue enrollment" do
         product = create_ticket_product(name: "Reviewed sold-out offer", capacity: 1, approval_mode: "manual")
         product.inventories.find_by!(event_date_id: nil).update!(sold_count: 1)
@@ -89,14 +108,14 @@ module Ticketing
 
       private
 
-      def call_submit(product:, key:, proof: {})
+      def call_submit(product:, key:, proof: {}, selected_event_date_id: nil)
         operation = lambda do
           Submit.call(
             event: @event,
             ticket_type: product.ticket_type,
             actor: @buyer,
             submission: Ticketing::RegistrationSubmission.new(
-              package_quantity: 1, selected_event_date_id: nil, answers: [], consents: []
+              package_quantity: 1, selected_event_date_id:, answers: [], consents: []
             ),
             audience_proof: proof,
             idempotency_key: key
@@ -105,19 +124,23 @@ module Ticketing
         ENV["N_PLUS_ONE"] == "1" ? Prosopite.pause(&operation) : operation.call
       end
 
-      def create_ticket_product(name:, capacity:, audience: "public", approval_mode: "automatic")
+      def create_ticket_product(name:, capacity:, audience: "public", approval_mode: "automatic",
+        date_selection: "fixed", event_dates: [])
         result = Catalog::Products::CreateDraft.call(
           event: @event,
           actor: @actor,
           product_attributes: { name:, type: "ticket" },
           ticket_type_attributes: {
-            audience:, approval_mode:, date_selection: "fixed", admissions_per_unit: 1,
+            audience:, approval_mode:, date_selection:, admissions_per_unit: 1,
             waitlist_enabled: true
           },
           price_attributes: { currency: "ETB", amount_minor: 1_500, active_from: 1.minute.ago },
           inventory_configuration: { mode: "event_wide", capacity: }
         )
         assert_predicate result, :success?, result.error&.message
+        event_dates.each do |date|
+          result.value.product_accesses.create!(event_date: date, type: "venue", usage_limit: nil)
+        end
         activated = Catalog::Products::Activate.call(product: result.value, actor: @actor)
         assert_predicate activated, :success?, activated.error&.message
         activated.value
