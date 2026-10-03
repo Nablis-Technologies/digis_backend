@@ -22,6 +22,7 @@ require "base64"
 require "digest"
 require "stringio"
 require "vips"
+require_relative "preview_pazimo_catalog"
 
 puts "\n🧪 Loading comprehensive preview fixtures..."
 
@@ -1679,6 +1680,9 @@ puts "✓ Campaign fixture #{preview_campaign.id} prepared with #{preview_campai
 
 puts "✓ #{chapa_event.title} published with #{chapa_product.name} and " \
      "#{chapa_ticket_product.name} and #{chapa_rsvp_product.name} active"
+
+pazimo_events = PreviewPazimoCatalog.seed!(actor: admin)
+puts "✓ Added #{pazimo_events.length} additive Pazimo catalog events"
 
 # Counter caches are maintained for new ORM-created events, but preview data
 # may already exist from an older seed version. Reconcile the denormalized

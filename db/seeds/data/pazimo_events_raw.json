@@ -1,0 +1,4947 @@
+[
+  {
+    "id": "6aad2c09aee7b79bfb9596b6",
+    "title": "Avenida Desperados: Pregame Edition",
+    "slug": "avenida-desperados-pregame-edition",
+    "description": "Avenida Desperados: Pregame Edition brings together DJs, music, and a full guest experience at Babi's Bistro. Expect good energy all night Hosted by Betsega Babi's Bistro 6PM - 12AM",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Babi's Bistro",
+    "country": "Ethiopia",
+    "start_date": "2026-09-26",
+    "end_date": "2026-09-27",
+    "start_time": "18:00",
+    "end_time": "00:00",
+    "capacity": 250,
+    "featured": true,
+    "sold_out": false,
+    "tags": [
+      "music",
+      "Pregame",
+      "Entertainment"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1789733896352.jpg"
+    ],
+    "organizer": "Miella Events",
+    "ticket_types": [
+      {
+        "name": "Early Bird",
+        "price_etb": 500,
+        "price_usd": null,
+        "quantity": 100,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6aaaa3b76e88b6e41980553e",
+    "title": "Unity In Beats - Day 2",
+    "slug": "unity-in-beats-day-2",
+    "description": "A NEW DAY. A NEW ENERGY. A BIGGER UNITY. ✨ Unity in Beats continues into Day 2, bringing even more music, energy, and unforgettable moments together under one roof. 📅 October 11 📍 The Warehouse The first chapter was only the beginning. Day 2 is where the energy rises even higher. UNITY WILL RISE.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "The Vanue Warehouse",
+    "country": "Ethiopia",
+    "start_date": "2026-10-11",
+    "end_date": "2026-10-12",
+    "start_time": "00:00",
+    "end_time": "12:00",
+    "capacity": 2000,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1789567926810.PNG"
+    ],
+    "organizer": "Davino sounds",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 1000,
+        "price_usd": null,
+        "quantity": 1000,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6aaaa1ac6e88b6e419804728",
+    "title": "Unity in beats",
+    "slug": "unity-in-beats",
+    "description": "A NEW YEAR. A NEW CHAPTER. A NEW ENERGY. ✨ Unity in Beats is stepping into a new era bringing music, energy, and people together once again. 📅 October 10 📍 The Warehouse A new chapter is about to unfold. UNITY WILL RISE.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "The Venue Warehouse",
+    "country": "Ethiopia",
+    "start_date": "2026-10-10",
+    "end_date": "2026-10-11",
+    "start_time": "18:00",
+    "end_time": "03:00",
+    "capacity": 2000,
+    "featured": true,
+    "sold_out": false,
+    "tags": [
+      "music",
+      "rave",
+      "housemusic",
+      "house-event",
+      "UnityInBeats"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1789567404465.PNG"
+    ],
+    "organizer": "Davino sounds",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 1500,
+        "price_usd": null,
+        "quantity": 1791,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 2500,
+        "price_usd": null,
+        "quantity": 198,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6aaa9c486e88b6e419801964",
+    "title": "ORIGINS",
+    "slug": "origins",
+    "description": "Welcome to a new era of dance music with some of the originators and pioneers of dance culture and the wider electronic music community.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "The Venue Warehouse",
+    "country": "Ethiopia",
+    "start_date": "2026-10-03",
+    "end_date": "2026-10-04",
+    "start_time": "18:00",
+    "end_time": "04:00",
+    "capacity": 1200,
+    "featured": true,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1789566023989.jpeg"
+    ],
+    "organizer": "CHOO CHOO",
+    "ticket_types": [
+      {
+        "name": "Early Bird",
+        "price_etb": 600,
+        "price_usd": null,
+        "quantity": 36,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 2000,
+        "price_usd": null,
+        "quantity": 80,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6aa3beb86e88b6e419570bdb",
+    "title": "Jambo fest",
+    "slug": "jambo-fest",
+    "description": "Music. Experience. Good Energy Feel the rhythm above the city! Jambo Fest brings you a night of Afrobeat × Dancehall, rooftop vibes, and nonstop dancing. Join DJ Kalina, DJ Yona and DJ Lead at Alemnesh Plaza Rooftop for good music, good people, and one unforgettable night. Date: September 19, 2026 Venue: Alemnesh Plaza Rooftop Time: Starting at 6 PM Early Bird: 500 ETB Bring your people. Find your rhythm. See you at Jambo Fest!",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Alemneshe plaza",
+    "country": "Ethiopia",
+    "start_date": "2026-09-19",
+    "end_date": "2026-09-20",
+    "start_time": "18:00",
+    "end_time": "03:00",
+    "capacity": 300,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "Afrobeat and Dancehall"
+    ],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1789116084423.jpg"
+    ],
+    "organizer": "Jambo fest",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 600,
+        "price_usd": null,
+        "quantity": 44,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6aa27f416e88b6e4194ed0bd",
+    "title": "PSY ADDIS SALTLAND",
+    "slug": "psy-addis-saltland",
+    "description": "Hey 🙌🔱 Welcome to SALTLAND. A 3-day music festival + Danakil expedition through the Salt Flats, Dallol, and Erta Ale volcano. 🌋 📍 Danakil, Ethiopia 📅 November 20–22, 2026 🎟️ $925 USD — ALL-IN 👥 Limited to 70–80 guests Includes Addis Ababa ↔ Semera flights, 4x4 transport, camping, meals, water, guides, entrance fees, and the full SALTLAND music experience — Amapiano • Techno • Psytrance. Get yourself to Addis Ababa — we’ll take it from there. 🔱 ✅ Full payment confirms your place. Minimum 50 confirmed guests required. If the event cannot go ahead, all booking payments are fully refunded. Ready to join? 🔥 Send your full name, nationality, and number of guests for booking details. PSY ADDIS × NU ETHIOPIA International flights to/from Addis Ababa are not included.",
+    "category": "Music",
+    "city": "Afar",
+    "address": "Danakil Salt Flat",
+    "country": "Ethiopia",
+    "start_date": "2026-11-20",
+    "end_date": "2026-11-22",
+    "start_time": "06:00",
+    "end_time": "06:00",
+    "capacity": 50,
+    "featured": true,
+    "sold_out": false,
+    "tags": [
+      "Afar",
+      "music",
+      "Fest",
+      "Saltland"
+    ],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1789034303619.jpg"
+    ],
+    "organizer": "Psy Addis",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 150000,
+        "price_usd": 925,
+        "quantity": 50,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6aa0322f6e88b6e4194346a2",
+    "title": "Deep Listening: Arat Kilo - Danama",
+    "slug": "deep-listening-arat-kilo-danama",
+    "description": "you might know arat kilo from their fendika collaboration, or more recently, \"mestefeker\" scoring trevor noah's netflix special. danama, their latest, opens with a tribute to nahel merzouk and closes on a broken tizita. come listen, then meet the band for a video q&a. 📍 social addis rooftop 🗓️ september 17 🕗 7pm 🍵 herbal tea 🎟️ link in bio 📵 phone free event",
+    "category": "Music",
+    "city": "Addis Abeba",
+    "address": "Social Addis",
+    "country": "ethio",
+    "start_date": "2026-09-17",
+    "end_date": "2026-09-17",
+    "start_time": "19:00",
+    "end_time": "21:00",
+    "capacity": 40,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1788883503404.jpg"
+    ],
+    "organizer": "Social Addis",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 100,
+        "price_usd": null,
+        "quantity": 28,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a9ec0056e88b6e4193b90df",
+    "title": "MAADCITY EPISODE 3",
+    "slug": "maadcity-episode-3",
+    "description": "MAADCITY is back for Episode 3. The next chapter brings together music, culture, creativity, and the energy of Addis Ababa for another unforgettable MAADCITY experience.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Golden Tulip Hotel",
+    "country": "Ethiopia",
+    "start_date": "2026-09-19",
+    "end_date": "2026-09-20",
+    "start_time": "18:00",
+    "end_time": "02:00",
+    "capacity": 550,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "Music"
+    ],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1788788740677.PNG"
+    ],
+    "organizer": "Motion creative",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 900,
+        "price_usd": 0,
+        "quantity": 544,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a995c5da43d927a0d47b8ab",
+    "title": "Euphoria",
+    "slug": "euphoria",
+    "description": "Get ready for an unforgettable night of music, energy, and pure EUPHORIA. Join us for an immersive experience featuring incredible music, electrifying performances, and a vibrant atmosphere designed to keep you moving all night long. Secure your ticket now and be part of EUPHORIA. Come for the music. Stay for the experience. Join us on 📅 September 19, 2026 📍 Venue Warehouse, Addis Ababa ⏰ 4:00 PM – 4:00 AM Secure your ticket now and be part of EUPHORIA. 🎟️ Come for the music. Stay for the experience.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "The Venue Warehouse",
+    "country": "Ethiopia",
+    "start_date": "2026-09-19",
+    "end_date": "2026-09-20",
+    "start_time": "16:00",
+    "end_time": "04:00",
+    "capacity": 1500,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "music",
+      "Afrohouse",
+      "Food"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1788435547459.jpg"
+    ],
+    "organizer": "Black Events",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 1200,
+        "price_usd": null,
+        "quantity": 9332,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 2200,
+        "price_usd": null,
+        "quantity": 174,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a929cdea43d927a0d1c7333",
+    "title": "Jubilation Africa",
+    "slug": "jubilation-africa",
+    "description": "JUBILATION AFRICA IS CALLING. The jubilant beings are rising, the energy is shifting, and the countdown to the continent's ultimate celebration of music, art, and culture is officially on. JUBILATION AFRICA Date: Saturday, September 5 Location: Venue Warehouse, Addis Ababa Time: Doors open at 4:00 PM Age Limit: 23+ (ID Required)",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "the venue warehouse",
+    "country": "Ethiopia",
+    "start_date": "2026-09-05",
+    "end_date": "2026-09-06",
+    "start_time": "16:00",
+    "end_time": "03:00",
+    "capacity": 1400,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "movie- music- art-african event"
+    ],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1787993309348.png"
+    ],
+    "organizer": "chimp event and promotion",
+    "ticket_types": [
+      {
+        "name": "First wave",
+        "price_etb": 500,
+        "price_usd": 3,
+        "quantity": 0,
+        "available": false
+      },
+      {
+        "name": "second wave",
+        "price_etb": 600,
+        "price_usd": 4,
+        "quantity": 0,
+        "available": false
+      },
+      {
+        "name": "Third Wave",
+        "price_etb": 800,
+        "price_usd": 5,
+        "quantity": 3893,
+        "available": true
+      },
+      {
+        "name": "VIP Ticket",
+        "price_etb": 2000,
+        "price_usd": 13,
+        "quantity": 10,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a8be04dc7cae6eb2d876eed",
+    "title": "Musical Karaoke",
+    "slug": "musical-karaoke",
+    "description": "Get ready for an evening of songs from your favorite musicals. Hamilton The Greatest Showman Epic: The Musical And much more.... Presented by: Harmony Hub",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Zemen Cinema, Flamingo",
+    "country": "Ethiopia",
+    "start_date": "2026-08-29",
+    "end_date": "2026-08-29",
+    "start_time": "16:00",
+    "end_time": "18:00",
+    "capacity": 100,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "Karaoke",
+      "Musical"
+    ],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1787551818738.png"
+    ],
+    "organizer": "Valeria Events",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 200,
+        "price_usd": 3,
+        "quantity": 94,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a85898fc7cae6eb2d63266e",
+    "title": "Deep Listening: Tamikrest - Assikel",
+    "slug": "deep-listening-tamikrest-assikel",
+    "description": "a deep listening session with Tamikrest, Tuareg desert rock from Mali-Algeria, an album that topped the World Music Charts Europe this year for a reason. no phones, no distractions. just the record, the rooftop, and a room of us listening together, followed by a video Q&A",
+    "category": "Music",
+    "city": "Addis Abeba",
+    "address": "Social Addis",
+    "country": "Ethiopia",
+    "start_date": "2026-08-27",
+    "end_date": "2026-08-27",
+    "start_time": "19:00",
+    "end_time": "21:00",
+    "capacity": 40,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1787136398943.png"
+    ],
+    "organizer": "Social Addis",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 100,
+        "price_usd": null,
+        "quantity": 25,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a84bc36c7cae6eb2d5f2d6b",
+    "title": "NEXUS AFTERHOURS Vol.2",
+    "slug": "nexus-afterhours-vol2",
+    "description": "NEXUS AFTERHOURS VOL. 2 🖤 Bigger . Better . Louder We’re taking Afterhours to another level. 🌙 A night built for the ones who don’t know when to go home. Pull up, bring your people, and let’s make this one unforgettable. 📍 The Wave Club & Lounge 📅 August 29 ⏰ After dark → sunrise This isn’t just another night out. This is NEXUS AFTERHOURS. 🎟️ Tickets are LIVE — don’t wait till the last minute",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "THE WAVE LOUNGE",
+    "country": "Ethiopia",
+    "start_date": "2026-08-29",
+    "end_date": "2026-08-30",
+    "start_time": "20:00",
+    "end_time": "01:00",
+    "capacity": 250,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "afterparty"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21,
+      "max_age": 35
+    },
+    "images": [
+      "https://pazimo.com/uploads/1787083829440.png"
+    ],
+    "organizer": "Nexus Event Presents",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 400,
+        "price_usd": 5,
+        "quantity": 91,
+        "available": true
+      },
+      {
+        "name": "Group of 5",
+        "price_etb": 1950,
+        "price_usd": 15,
+        "quantity": 50,
+        "available": true
+      },
+      {
+        "name": "group of 10",
+        "price_etb": 3800,
+        "price_usd": 25,
+        "quantity": 100,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a845c0fc7cae6eb2d5ce9a8",
+    "title": "Addis Open Air Cinema",
+    "slug": "addis-open-air-cinema",
+    "description": "Get ready for an unforgettable movie night under the stars! Join us on August 30 at the Marriott Hotel for an exclusive open-air cinema experience. Bring your favorite people, enjoy a great film, and soak in the vibrant evening atmosphere. 🎟️ Event Details Date: August 30 Venue: Marriott Hotel Tickets: 999 ETB (Includes movie screening + cinema snack box) Availability: Tickets are available at the gate and online. Save the date, grab your spot, and see you there! ✨",
+    "category": "Arts",
+    "city": "Addis Ababa",
+    "address": "Marriott Hotel",
+    "country": "Ethiopia",
+    "start_date": "2026-08-30",
+    "end_date": "2026-08-30",
+    "start_time": "18:00",
+    "end_time": "21:00",
+    "capacity": 200,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "movie- music- art"
+    ],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1787059215124.png"
+    ],
+    "organizer": "chimp event and promotion",
+    "ticket_types": [
+      {
+        "name": "Addis open air cinema ticket",
+        "price_etb": 999,
+        "price_usd": 6,
+        "quantity": 39,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a81c28b85753fd2550ddcd0",
+    "title": "FETA SOCIETY",
+    "slug": "feta-society",
+    "description": "Feta Society is back with Top-tier music + incredible people and a moment in time designed by our very own tina. Bring your best energy, we’ve got everything else covered.",
+    "category": "Music",
+    "city": "Addis Abeba",
+    "address": "Social Addis",
+    "country": "Ethiopia",
+    "start_date": "2026-08-22",
+    "end_date": "2026-08-23",
+    "start_time": "16:00",
+    "end_time": "00:00",
+    "capacity": 120,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1786888843491.jpeg"
+    ],
+    "organizer": "Social Addis",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 300,
+        "price_usd": null,
+        "quantity": 117,
+        "available": true
+      },
+      {
+        "name": "VIP Access",
+        "price_etb": 700,
+        "price_usd": null,
+        "quantity": 20,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a81bca585753fd2550daf20",
+    "title": "Camping To Coast Vol 8",
+    "slug": "camping-to-coast-vol-8",
+    "description": "Your Favorite escape From Addis is Back! VOL 8 Camping to Coast -Wenchi Villas -September 05 - 06 2 days 1 Night Quality time & Fire line up Guaranteed as Always pack your bags !!",
+    "category": "Music",
+    "city": "Wenchi",
+    "address": "Wenchi Villas",
+    "country": "Ethiopia",
+    "start_date": "2026-09-05",
+    "end_date": "2026-09-06",
+    "start_time": "08:00",
+    "end_time": "10:00",
+    "capacity": 150,
+    "featured": false,
+    "sold_out": true,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1786887332773.jpg"
+    ],
+    "organizer": "SPATEVENTS",
+    "ticket_types": [
+      {
+        "name": "Self Driving Package",
+        "price_etb": 5200,
+        "price_usd": null,
+        "quantity": 60,
+        "available": true
+      },
+      {
+        "name": "Full Package (Tent)",
+        "price_etb": 7000,
+        "price_usd": null,
+        "quantity": 23,
+        "available": true
+      },
+      {
+        "name": "Full Package (Shared Villa)",
+        "price_etb": 8700,
+        "price_usd": null,
+        "quantity": 34,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a7ad18c85753fd255e4c693",
+    "title": "Anicon 2018",
+    "slug": "anicon-2018",
+    "description": "Valeria Events is back with the highly anticipated anime convention. This time, even bigger and better. Get ready for the full convention experience with Anime Game Show, Cosplays, Manga Exhibition, Merch and much more.",
+    "category": "Festivals",
+    "city": "Addis Ababa",
+    "address": "WeVenture Hub, Around Dembel",
+    "country": "Ethiopia",
+    "start_date": "2026-09-06",
+    "end_date": "2026-09-06",
+    "start_time": "11:00",
+    "end_time": "17:00",
+    "capacity": 700,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "Anime"
+    ],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1786706622975.png"
+    ],
+    "organizer": "Valeria Events",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 499,
+        "price_usd": 5,
+        "quantity": 167,
+        "available": true
+      },
+      {
+        "name": "Group of 3",
+        "price_etb": 1000,
+        "price_usd": null,
+        "quantity": 80,
+        "available": true
+      },
+      {
+        "name": "Group of 5",
+        "price_etb": 1700,
+        "price_usd": null,
+        "quantity": 97,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a79e7eb85753fd255e0423b",
+    "title": "The Exstasy",
+    "slug": "the-exstasy",
+    "description": "🎶 R&B and XO Night 🖤 Get ready for the biggest and last party of the year!  We’re talking smooth R&B, XO energy, and a rooftop night to remember✨ Bring the energy and let us take care of the night🍷",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "The Velvet Rooftop",
+    "country": "Ethiopia",
+    "start_date": "2026-08-30",
+    "end_date": "2026-08-31",
+    "start_time": "19:00",
+    "end_time": "01:00",
+    "capacity": 1000,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "Music Festival",
+      "Party"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 18
+    },
+    "images": [
+      "https://pazimo.com/uploads/1787739867571.jpg"
+    ],
+    "organizer": "Meta Events",
+    "ticket_types": [
+      {
+        "name": "Third Wave",
+        "price_etb": 850,
+        "price_usd": 7,
+        "quantity": 75,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 1999,
+        "price_usd": 15,
+        "quantity": 15,
+        "available": true
+      },
+      {
+        "name": "Group of 5",
+        "price_etb": 3000,
+        "price_usd": null,
+        "quantity": 98,
+        "available": true
+      },
+      {
+        "name": "Groups of 3",
+        "price_etb": 2000,
+        "price_usd": null,
+        "quantity": 96,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a7996d885753fd255de79d6",
+    "title": "Deep Listening: Arima Ederra - A Rush To Nowhere",
+    "slug": "deep-listening-arima-ederra-a-rush-to-nowhere",
+    "description": "August 20th, a deep listening session with A Rush to Nowhere, followed by a Q&A with Arima. 📍 Social Addis Rooftop 🗓️ August 20th 🕗 7PM 🍵 herbal tea 🎟️ 100 birr 🔗 link in bio 📵 phone free event",
+    "category": "Music",
+    "city": "Addis Abeba",
+    "address": "Social Addis",
+    "country": "Ethiopia",
+    "start_date": "2026-08-20",
+    "end_date": "2026-08-20",
+    "start_time": "19:00",
+    "end_time": "20:30",
+    "capacity": 40,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "Music",
+      "Deep Listening"
+    ],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1786353368754.jpeg"
+    ],
+    "organizer": "Social Addis",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 100,
+        "price_usd": null,
+        "quantity": 31,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a738f6985753fd255becdc6",
+    "title": "On & On",
+    "slug": "on-on",
+    "description": "The green season is back. 🌿 On & On returns with the energy you’ve been waiting for.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "The Venue Warehouse",
+    "country": "Ethiopia",
+    "start_date": "2026-08-22",
+    "end_date": "2026-08-23",
+    "start_time": "17:00",
+    "end_time": "03:00",
+    "capacity": 1500,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1785958248544.jpg"
+    ],
+    "organizer": "On and On",
+    "ticket_types": [
+      {
+        "name": "Early Bird",
+        "price_etb": 600,
+        "price_usd": null,
+        "quantity": 0,
+        "available": false
+      },
+      {
+        "name": "Regular",
+        "price_etb": 1000,
+        "price_usd": null,
+        "quantity": 1069,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 1500,
+        "price_usd": null,
+        "quantity": 177,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a70bcb985753fd255af64e5",
+    "title": "Death Note: Anime Convention",
+    "slug": "death-note-anime-convention",
+    "description": "A special Anime event at videobet, hosted by ReGenesis. This immersive, fully interactive experience for anime fans across the country will include everything from a custom-curated cinematic recap of Death Note to a cosplay exhibition and competition, an art competition, and an anime community debate",
+    "category": "Arts",
+    "city": "Addis Ababa",
+    "address": "Videobet Cinema, Meskel Square",
+    "country": "Ethiopia",
+    "start_date": "2026-08-15",
+    "end_date": "2026-08-15",
+    "start_time": "11:00",
+    "end_time": "18:00",
+    "capacity": 250,
+    "featured": false,
+    "sold_out": true,
+    "tags": [
+      "AnimeCon",
+      "Cosplay"
+    ],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1785773240900.jpg"
+    ],
+    "organizer": "Videobet Cinema",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 350,
+        "price_usd": 3,
+        "quantity": 11,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a6f2af185753fd255a7eb13",
+    "title": "𝗝𝗔𝗠 𝗡𝗔𝗧𝗜𝗢𝗡 𝗔𝗙𝗥𝗜𝗖𝗔",
+    "slug": "jam-nation-africa",
+    "description": "Jam Nation Africa is a one-of-a-kind music and cultural festival that brings Africa together through a new rhythm, creativity, and shared experiences.",
+    "category": "Festivals",
+    "city": "Addis Ababa",
+    "address": "The Venue Warehouse",
+    "country": "Ethiopia",
+    "start_date": "2026-08-29",
+    "end_date": "2026-08-30",
+    "start_time": "15:00",
+    "end_time": "03:00",
+    "capacity": 1500,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "music",
+      "Festival",
+      "culture",
+      "Art"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 23
+    },
+    "images": [
+      "https://pazimo.com/uploads/1785693171426.jpg"
+    ],
+    "organizer": "MIGNOT SPECIAL EVENTS",
+    "ticket_types": [
+      {
+        "name": "Torpa ticket",
+        "price_etb": 1000,
+        "price_usd": 5,
+        "quantity": 1377,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 15999,
+        "price_usd": 100,
+        "quantity": 20,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a6b1de785753fd2558d527f",
+    "title": "DEEP LISTENING: Nsikak David - Strings of Solace",
+    "slug": "deep-listening-nsikak-david-strings-of-solace",
+    "description": "A phone-free, deep-listening session of Strings of Solace - the debut EP by Nigerian guitarist Nsikak David, An audio documentary of places and emotions, followed by a video Q&A with Nsikak.",
+    "category": "Music",
+    "city": "Addis Abeba",
+    "address": "Social Addis",
+    "country": "Ethiopia",
+    "start_date": "2026-08-06",
+    "end_date": "2026-08-06",
+    "start_time": "19:00",
+    "end_time": "21:00",
+    "capacity": 40,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1785404903686.png"
+    ],
+    "organizer": "Social Addis",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 100,
+        "price_usd": null,
+        "quantity": 38,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a68ee2c371b131f9e0100df",
+    "title": "ORIGINS",
+    "slug": "origins",
+    "description": "For the first time ever, the A-team of Addis Ababas' electronic music scene comes together under one roof to celebrate The Origins. On August 15, we celebrate a decade of beautiful moments, powered by the city’s incredible electronic music community. Limited tickets available at 600 BIRR. Gate tickets: 1000.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "The Venue Warehouse",
+    "country": "Ethiopia",
+    "start_date": "2026-08-15",
+    "end_date": "2026-08-16",
+    "start_time": "18:00",
+    "end_time": "04:00",
+    "capacity": 2000,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1785261605695.jpeg"
+    ],
+    "organizer": "So&So",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 1000,
+        "price_usd": null,
+        "quantity": 410,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 2000,
+        "price_usd": null,
+        "quantity": 134,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a677841a47c28118e240593",
+    "title": "& FRIENDS",
+    "slug": "friends",
+    "description": "African Electronic music event",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Anki Liquor Infront of Dembel City Center",
+    "country": "Ethiopia",
+    "start_date": "2026-08-08",
+    "end_date": "2026-08-09",
+    "start_time": "19:00",
+    "end_time": "05:00",
+    "capacity": 500,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1785165889282.png"
+    ],
+    "organizer": "TEDROS",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 800,
+        "price_usd": null,
+        "quantity": 485,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a6477cfa47c28118e13d072",
+    "title": "Avenida Desperados: Pregame Edition",
+    "slug": "avenida-desperados-pregame-edition",
+    "description": "Date - August 1 Time - 6PM -2 AM Hosted by - Miran Save your spot today!",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Berlin Bar and restaurant",
+    "country": "Ethiopia",
+    "start_date": "2026-08-01",
+    "end_date": "2026-08-02",
+    "start_time": "18:00",
+    "end_time": "02:00",
+    "capacity": 450,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1784969155968.jpg"
+    ],
+    "organizer": "Miella Events",
+    "ticket_types": [
+      {
+        "name": "Final Wave",
+        "price_etb": 700,
+        "price_usd": null,
+        "quantity": 327,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a5f63efa47c28118efc0bec",
+    "title": "Evangadi",
+    "slug": "evangadi",
+    "description": "A celebration of African music, bringing together the sounds of Afrobeats, Amapiano, Afro House, Goom, and 3-Step, powered by exceptional DJs and artists from across Africa and beyond. Get ready for unforgettable performances from outstanding local and international talent, united by one rhythm and one culture. Sound:- @bekuku_hailu - FILETO(unreleased)",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "The Venue Warehouse",
+    "country": "Ethiopia",
+    "start_date": "2026-07-25",
+    "end_date": "2026-07-26",
+    "start_time": "18:00",
+    "end_time": "03:00",
+    "capacity": 1500,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1784636399099.jpg"
+    ],
+    "organizer": "Evangadi",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 1000,
+        "price_usd": null,
+        "quantity": 668,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 1600,
+        "price_usd": null,
+        "quantity": 197,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a5e82eda47c28118ef7ee56",
+    "title": "iFest Events 🇯🇲🇿🇦",
+    "slug": "ifest-events",
+    "description": "Caribbean & Afronight is back! iFest Events is delivering non-stop energy with Caribbean heat, Afro beats, and a little bit of everything in between to keep you moving🔥🇯🇲🇿🇦 join us at 📍the venue warehouse",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "The Venue Warehouse",
+    "country": "Ethiopia",
+    "start_date": "2026-08-01",
+    "end_date": "2026-08-02",
+    "start_time": "19:00",
+    "end_time": "02:00",
+    "capacity": 1500,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1784578773690.jpg"
+    ],
+    "organizer": "IFEST Events",
+    "ticket_types": [
+      {
+        "name": "Early Bird",
+        "price_etb": 699,
+        "price_usd": null,
+        "quantity": 0,
+        "available": false
+      },
+      {
+        "name": "Regular",
+        "price_etb": 899,
+        "price_usd": null,
+        "quantity": 553,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 2000,
+        "price_usd": null,
+        "quantity": 180,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a5a9b08a47c28118ee049c7",
+    "title": "Unity in Beats Day 2",
+    "slug": "unity-in-beats-day-2",
+    "description": "🔥 UNITY IN BEATS – DAY 2 LINEUP 🔥 Get ready for an unforgettable second day of Unity in Beats! We'll be bringing you non-stop entertainment from midday until midnight. ⚽ Catch the World Cup live on our giant big screen and experience every moment with an amazing crowd! 🎧 Our top DJs will be taking over the decks, keeping the energy high and the party alive until kickoff—and then rocking the night long. Don't miss out on the music, the football, and the incredible vibes. Gather your crew and join us for an epic day and night! See you all there! 🎉🔥",
+    "category": "Sports",
+    "city": "Addis Ababa",
+    "address": "The Venue Warehouse",
+    "country": "Ethiopia",
+    "start_date": "2026-07-19",
+    "end_date": "2026-07-20",
+    "start_time": "16:00",
+    "end_time": "03:00",
+    "capacity": 2000,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1784322822608.jpg"
+    ],
+    "organizer": "Davino sounds",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 700,
+        "price_usd": null,
+        "quantity": 808,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a54d86ea47c28118ec056f2",
+    "title": "World Cup Final watch party",
+    "slug": "world-cup-final-watch-party",
+    "description": "Nexus Events presents the ultimate FIFA World Cup Final Watch Party at Velvet Rooftop. Watch the biggest match of the year on a massive LED screen surrounded by the city's best vibes. Enjoy sets from some of Addis' hottest DJs, explore unique vendors including accessories and face art, take part in exciting giveaways, and enjoy great food and drinks all night. Whether you're here for the football, the music, or the atmosphere, this is the place to be. Secure your ticket now and don't miss the biggest football night of the year!",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Velvet rooftop restaurant",
+    "country": "Ethiopia",
+    "start_date": "2026-07-19",
+    "end_date": "2026-07-20",
+    "start_time": "18:00",
+    "end_time": "02:00",
+    "capacity": 400,
+    "featured": false,
+    "sold_out": true,
+    "tags": [
+      "music",
+      "food",
+      "drinks",
+      "vibes that lasts till last minute"
+    ],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1784210711374.jpeg"
+    ],
+    "organizer": "Nexus Event Presents",
+    "ticket_types": [
+      {
+        "name": "Early birds",
+        "price_etb": 400,
+        "price_usd": 4,
+        "quantity": 83,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a5383f7a47c28118eb8359d",
+    "title": "Casaddis 2000s Rnb & Hiphop Night Vol.3",
+    "slug": "casaddis-2000s-rnb-hiphop-night-vol3",
+    "description": "An Rnb and Hiphop fest curated by the casaddis experience",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Golden tulip hotel, 1st floor, lemon bar. (Bole)",
+    "country": "Ethiopia",
+    "start_date": "2026-07-18",
+    "end_date": "2026-07-19",
+    "start_time": "19:00",
+    "end_time": "01:00",
+    "capacity": 700,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "music",
+      "festivals",
+      "Rnb",
+      "Hiphop",
+      "Party",
+      "2000s"
+    ],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1783858166452.jpg"
+    ],
+    "organizer": "Casaddis events",
+    "ticket_types": [
+      {
+        "name": "Early bird",
+        "price_etb": 600,
+        "price_usd": 5,
+        "quantity": 0,
+        "available": false
+      },
+      {
+        "name": "Final Wave",
+        "price_etb": 900,
+        "price_usd": 10,
+        "quantity": 389,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 2000,
+        "price_usd": 15,
+        "quantity": 79,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a524672a47c28118eb0f169",
+    "title": "Dutty Tunes",
+    "slug": "dutty-tunes",
+    "description": "Dancehall-Basshall-soca",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Alemnesh plaza rooftop",
+    "country": "Ethiopia",
+    "start_date": "2026-07-18",
+    "end_date": "2026-07-19",
+    "start_time": "19:00",
+    "end_time": "02:00",
+    "capacity": 400,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1783776881834.jpg"
+    ],
+    "organizer": "DUTTY TUNES",
+    "ticket_types": [
+      {
+        "name": "Final Wave",
+        "price_etb": 700,
+        "price_usd": null,
+        "quantity": 242,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a51431c0ca77898e8757931",
+    "title": "Project X",
+    "slug": "project-x",
+    "description": "Step into a night where the best memories come alive. WUBSOCIETY proudly presents Project X: 2000s Throwback—a high-energy party celebrating the biggest hits of the 2000s, mixed with today's hottest Afrobeats.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Velvet Addis",
+    "country": "Ethiopia",
+    "start_date": "2026-07-25",
+    "end_date": "2026-07-26",
+    "start_time": "18:00",
+    "end_time": "13:00",
+    "capacity": 300,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "Music"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21,
+      "max_age": 40
+    },
+    "images": [
+      "https://pazimo.com/uploads/1783710492073.jpg"
+    ],
+    "organizer": "Wub Society",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 400,
+        "price_usd": null,
+        "quantity": 0,
+        "available": false
+      },
+      {
+        "name": "Wave 2",
+        "price_etb": 800,
+        "price_usd": null,
+        "quantity": 712,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 1300,
+        "price_usd": null,
+        "quantity": 3,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a5128268ab22c8540fdd245",
+    "title": "FREEFORM",
+    "slug": "freeform",
+    "description": "Freeform is partnering with @moonshine.mu to bring you something special. A shared vision, fresh energy, and an unforgettable night featuring four international acts ready to take over the dancefloor.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "The Venue Warehouse",
+    "country": "Ethiopia",
+    "start_date": "2026-07-11",
+    "end_date": "2026-07-12",
+    "start_time": "17:00",
+    "end_time": "01:00",
+    "capacity": 2000,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1783703588233.jpg"
+    ],
+    "organizer": "HADISH EVENTS AND ENTERTAINMENT",
+    "ticket_types": [
+      {
+        "name": "Early Bird",
+        "price_etb": 800,
+        "price_usd": null,
+        "quantity": 0,
+        "available": false
+      },
+      {
+        "name": "Second Wave",
+        "price_etb": 1500,
+        "price_usd": null,
+        "quantity": 224,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 4000,
+        "price_usd": null,
+        "quantity": 191,
+        "available": true
+      },
+      {
+        "name": "First Wave",
+        "price_etb": 1000,
+        "price_usd": null,
+        "quantity": 0,
+        "available": false
+      }
+    ]
+  },
+  {
+    "id": "6a4e387af5e8819b9818c8e8",
+    "title": "Unity in beats",
+    "slug": "unity-in-beats",
+    "description": "JULY 18TH HOUSE MUSIC RISES. Get ready for Unity in Beats. We're bringing bigger energy, deeper grooves, and a night that goes beyond your imagination. This is more than a party it's a movement where music, rhythm, and people become one. 📍 Venue: Warehouse 📅 Date: July 18 Come feel the vibe. Bring your crew. Let's make history on the dance floor. Unity in Beats — We're bigger than your thoughts. #UnityInBeats #HouseMusic #WarehouseVibes #July18 #DanceCulture #MusicLovers",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "The Venue Warehouse",
+    "country": "Ethiopia",
+    "start_date": "2026-07-18",
+    "end_date": "2026-07-19",
+    "start_time": "18:00",
+    "end_time": "03:00",
+    "capacity": 1500,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1783511161494.jpeg"
+    ],
+    "organizer": "Davino sounds",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 1000,
+        "price_usd": null,
+        "quantity": 323,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 1500,
+        "price_usd": null,
+        "quantity": 269,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a42d045f5e8819b98e1f160",
+    "title": "Eclipse Music Festival",
+    "slug": "eclipse-music-festival",
+    "description": "ECLIPSE is a weekend escape built around music, adventure, community, and unforgettable moments by the lake. Whether you're coming with friends, meeting new people, or just looking for a weekend that feels alive again, ECLIPSE is designed to bring together people who love experiences over schedules and memories over ordinary weekends. Pack your bags. Bring your people. Leave the city behind.",
+    "category": "Festivals",
+    "city": "Langano",
+    "address": "Lake Langano",
+    "country": "Ethiopia",
+    "start_date": "2026-07-03",
+    "end_date": "2026-07-05",
+    "start_time": "02:02",
+    "end_time": "08:02",
+    "capacity": 400,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "Rave",
+      "Travel Festival"
+    ],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1782763588182.jpg"
+    ],
+    "organizer": "Venture Addis",
+    "ticket_types": [
+      {
+        "name": "2 day package",
+        "price_etb": 6000,
+        "price_usd": null,
+        "quantity": 100,
+        "available": true
+      },
+      {
+        "name": "3 day package",
+        "price_etb": 7000,
+        "price_usd": null,
+        "quantity": 100,
+        "available": true
+      },
+      {
+        "name": "2 day self driving package",
+        "price_etb": 3000,
+        "price_usd": null,
+        "quantity": 100,
+        "available": true
+      },
+      {
+        "name": "3 day self driving package",
+        "price_etb": 5000,
+        "price_usd": null,
+        "quantity": 100,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a41ed8ef5e8819b98dda9c0",
+    "title": "DNKUAN FEST 1.0",
+    "slug": "dnkuan-fest-10",
+    "description": "🔥 SHE HOT EDITION 🔥 The heat is on. DNKUAN FEST 1.0 – SHE HOT EDITION is bringing together music, energy, and unforgettable vibes for one explosive night. Get ready for an experience packed with nonstop entertainment, premium sound, and an electric atmosphere. 🎤 Special Highlight: Witness the first-ever live performance by MY G, taking the stage for their official debut. Be part of a historic moment and experience an unforgettable performance. 🎶 Enjoy a night filled with Amapiano, Hip-Hop, R&B, Reggae, and Afrobeats, powered by premium sound, an amazing crowd, and an unmatched festival atmosphere. ✨ One stage. One night. One unforgettable experience. Be there. Bring your crew. Make history. 🔥",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Bole Alemnesh palaza rooftop",
+    "country": "Ethiopia",
+    "start_date": "2026-07-04",
+    "end_date": "2026-07-05",
+    "start_time": "19:00",
+    "end_time": "02:00",
+    "capacity": 600,
+    "featured": false,
+    "sold_out": true,
+    "tags": [
+      "One Stage",
+      "One Vibe",
+      "One Unforgettable Night."
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1783025664130.jpeg"
+    ],
+    "organizer": "Dnkuan Events",
+    "ticket_types": [
+      {
+        "name": "Early Bird",
+        "price_etb": 500,
+        "price_usd": null,
+        "quantity": 0,
+        "available": false
+      },
+      {
+        "name": "Regular",
+        "price_etb": 600,
+        "price_usd": null,
+        "quantity": 201,
+        "available": true
+      },
+      {
+        "name": "Vip",
+        "price_etb": 1600,
+        "price_usd": null,
+        "quantity": 0,
+        "available": false
+      }
+    ]
+  },
+  {
+    "id": "6a3cf5a9f5e8819b98c73bdf",
+    "title": "Avenida Desperados: Pregame Edition",
+    "slug": "avenida-desperados-pregame-edition",
+    "description": "Avenida Desperados: Pregame Edition brings together DJs, music, and a full guest experience at Berlin Bar and restaurant. Expect good energy all night with sets from Josh, Eyu, and Slim, hosted by Mansiya. Berlin Bar and restaurant June 6 6PM - 12AM",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Berlin Bar and restaurant",
+    "country": "Ethiopia",
+    "start_date": "2026-07-04",
+    "end_date": "2026-07-05",
+    "start_time": "18:00",
+    "end_time": "02:00",
+    "capacity": 450,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1782379940048.jpg"
+    ],
+    "organizer": "Miella Events",
+    "ticket_types": [
+      {
+        "name": "First Wave",
+        "price_etb": 700,
+        "price_usd": null,
+        "quantity": 804,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a3aa700f5e8819b98bd605a",
+    "title": "PSY ADDIS FOREST EDITION",
+    "slug": "psy-addis-forest-edition",
+    "description": "We’re taking the dance floor into the forest. ✨ On Saturday, July 4, PSY ADDIS invites you deep into the trees for a full-day journey of rhythm, movement, and wild energy. Between the branches and beneath the canopy, the bass rolls through the woods as beautiful souls gather to dance freely and fully present. It’s a forest escape where music, nature, and connection become one. 🎟 First-wave tickets on sale with almost 40% off. 🔥 FOREST MUSIC FEST Amapiano | Techno | Psytrance 🌿 Respect the forest: • Keep the space clean • Bring your best energy • Respect the land, the people • Leave only footprints 📅 Saturday, July 4 ☀️ 10 AM – Sunset 📍 Sansusi Picnic Site Come early. Move freely. The forest is calling. 🌲❤️",
+    "category": "Festivals",
+    "city": "Addis Ababa",
+    "address": "Sansusi Picnic Site",
+    "country": "Ethiopia",
+    "start_date": "2026-07-04",
+    "end_date": "2026-07-04",
+    "start_time": "10:00",
+    "end_time": "19:00",
+    "capacity": 1000,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1782455476092.jpeg"
+    ],
+    "organizer": "Psy Addis",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 1200,
+        "price_usd": null,
+        "quantity": 365,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a365bc2f5e8819b98ad0a2a",
+    "title": "Birara Genet Annual fundraising event",
+    "slug": "birara-genet-annual-fundraising-event",
+    "description": "Join us on Thursday, June 25th, from 5:30 PM for the Birara Genet Annual Fundraising Event. This evening is dedicated to celebrating our growth through an immersive entertainment experience. We are excited to present the latest curated designs from BG Crafted and share the compelling stories of our participants. Through an exclusive fashion showcase, we will highlight the professional journeys of our graduates a vibrant demonstration of our continued commitment to building inclusive workforce pathways in Ethiopia.",
+    "category": "Arts",
+    "city": "Addis Ababa",
+    "address": "Sheraton Addis Hotel",
+    "country": "Ethiopia",
+    "start_date": "2026-06-25",
+    "end_date": "2026-06-25",
+    "start_time": "17:30",
+    "end_time": "20:00",
+    "capacity": 150,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1781954320898.jpeg"
+    ],
+    "organizer": "Birara Genet Charitable Organization",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 2500,
+        "price_usd": 16,
+        "quantity": 130,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a3511c8f5e8819b98a8081a",
+    "title": "Afroheat",
+    "slug": "afroheat",
+    "description": "🔥 AFROHEAT IS COMING TO ADDIS 🔥 Get ready for a night where Afrobeats, Amapiano, and Ethiopian culture become one. Experience a special fusion of Masinko and Washint with the sounds of modern Africa, creating a vibe you’ve never felt before. 🎧 Featuring: @its_djaman @chapi_masinko_ @dj_kalinaa @t_mikee_ and many more surprise DJs & performers. 📅 July 4 📍@dusk Adiss This is more than an event—it’s a movement. Addis, are you ready to feel the heat?",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Dusk Addis | Rooftop",
+    "country": "Ethiopia",
+    "start_date": "2026-07-04",
+    "end_date": "2026-07-05",
+    "start_time": "17:00",
+    "end_time": "01:00",
+    "capacity": 500,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 18
+    },
+    "images": [
+      "https://pazimo.com/uploads/1782340056744.jpg"
+    ],
+    "organizer": "Afroheat.Et",
+    "ticket_types": [
+      {
+        "name": "Third Wave",
+        "price_etb": 1200,
+        "price_usd": null,
+        "quantity": 191,
+        "available": true
+      },
+      {
+        "name": "Final Wave",
+        "price_etb": 1300,
+        "price_usd": null,
+        "quantity": 300,
+        "available": false
+      }
+    ]
+  },
+  {
+    "id": "6a3394d0f5e8819b98a25ba3",
+    "title": "𝐃𝐞𝐞𝐩 𝐋𝐢𝐬𝐭𝐞𝐧𝐢𝐧𝐠: 𝐀𝐝𝐦𝐚𝐬 - 𝐒𝐨𝐧𝐬 𝐨𝐟 𝐄𝐭𝐡𝐢𝐨𝐩𝐢𝐚",
+    "slug": "deep-listening-admas-sons-of-ethiopia",
+    "description": "A phone-free, deep-listening session of Sons of Ethiopia - the legendary, one-off album by Admas, who later became foundational to their generation of Ethiopian music. Experience this iconic instrumental album from start to finish, followed by a live Q&A with some of the original musicians.",
+    "category": "Music",
+    "city": "Addis Abeba",
+    "address": "Social Addis",
+    "country": "Ethiopia",
+    "start_date": "2026-06-26",
+    "end_date": "2026-06-26",
+    "start_time": "06:30",
+    "end_time": "08:30",
+    "capacity": 40,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1781765327752.png"
+    ],
+    "organizer": "Social Addis",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 100,
+        "price_usd": null,
+        "quantity": 16,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a313648f5e8819b989a278d",
+    "title": "Arté",
+    "slug": "arte",
+    "description": "A marketplace-meets-party experience where guests can shop from curated vendors, enjoy drinks, and dance to great music.",
+    "category": "Arts",
+    "city": "Addis Ababa",
+    "address": "Moseb Cultural Center",
+    "country": "Ethiopia",
+    "start_date": "2026-06-20",
+    "end_date": "2026-06-20",
+    "start_time": "16:00",
+    "end_time": "22:00",
+    "capacity": 500,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "Arté",
+      "studio11",
+      "Artéevent",
+      "ticket",
+      "eventinaddis",
+      "Artéticket"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1781703445040.jpeg"
+    ],
+    "organizer": "Studio 11",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 500,
+        "price_usd": null,
+        "quantity": 487,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a305970f5e8819b9897199e",
+    "title": "ዳውኤ",
+    "slug": "ዳውኤ",
+    "description": "Get ready for an unforgettable night of live concert ዳውኤ at “Hawasa big stadium ”, proudly presented by Dagi Promotion & Bubbly Entertainment. The event will feature live performances from popular entertainers Melat, Tokichow, Yo Mariyos, and Ja ማሩ, bringing an exciting mix of music and stage performances to the audience. 📅 Date: ሰኔ 13, 2018 (as listed on the poster) 📍 Venue: ትልቁ ስታዲየም 🕚 Doors Open: 11:00 pm 🎟 Tickets: Available online and local ticket vendors. Join friends, family, and fans for a vibrant entertainment experience filled with great performances, energy, and memorable moments. Don’t miss this special event! 📞 for more Information: 0936006592 / 00913867406",
+    "category": "Music",
+    "city": "Hawasa",
+    "address": "Hawasa big stadium",
+    "country": "Ethiopia",
+    "start_date": "2026-06-20",
+    "end_date": "2026-06-21",
+    "start_time": "17:00",
+    "end_time": "07:00",
+    "capacity": 5000,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1781553519986.jpg"
+    ],
+    "organizer": "Dagi Promotion & Bubbly Entertainment",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 800,
+        "price_usd": null,
+        "quantity": 530,
+        "available": true
+      },
+      {
+        "name": "Group 6X",
+        "price_etb": 3000,
+        "price_usd": null,
+        "quantity": 498,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 1200,
+        "price_usd": null,
+        "quantity": 519,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a29cffcf5e8819b987fca72",
+    "title": "Monkey Business",
+    "slug": "monkey-business",
+    "description": "We’re bringing the vibes back to Juventus Garden on June 20 expect good music, good energy, and the kind of night you don’t want to miss. This edition brings the best of Afro Tech and Afro House, featuring performances by Exodus, Isat Irat, Tera, Sam, and YF. 🎟️ Grab your tickets in advance and secure your spot before it’s too late. See you on the dance floor.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Juventus Garden",
+    "country": "Ethiopia",
+    "start_date": "2026-06-20",
+    "end_date": "2026-06-21",
+    "start_time": "20:00",
+    "end_time": "04:00",
+    "capacity": 500,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "Music",
+      "Juventus",
+      "Monkeybusiness"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 25
+    },
+    "images": [
+      "https://pazimo.com/uploads/1781125113695.JPG"
+    ],
+    "organizer": "So&So",
+    "ticket_types": [
+      {
+        "name": "Early Bird",
+        "price_etb": 600,
+        "price_usd": null,
+        "quantity": 74,
+        "available": false
+      },
+      {
+        "name": "Regular",
+        "price_etb": 800,
+        "price_usd": null,
+        "quantity": 50,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a2446225a9441e1289e5245",
+    "title": "ESKSTA",
+    "slug": "esksta",
+    "description": "From Hip Hop and House to Amapiano, alongside the Amharic, Gonderegna, and Guragena anthems you know and love.",
+    "category": "Music",
+    "city": "addis ababa",
+    "address": "Elmos hotel",
+    "country": "Ethiopia",
+    "start_date": "2026-06-13",
+    "end_date": "2026-06-14",
+    "start_time": "19:00",
+    "end_time": "01:00",
+    "capacity": 500,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "Music"
+    ],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1780775874215.jpg"
+    ],
+    "organizer": "ESKSTA",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 700,
+        "price_usd": 7,
+        "quantity": 8,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a1e8e925a9441e128880bfd",
+    "title": "Avenida Desperados pregame edition",
+    "slug": "avenida-desperados-pregame-edition",
+    "description": "Entertainment event featuring Dj's, music, and Guest Experience Date - June 6 Time - 6PM -12PM DJ line up - Josh, Eyu, Slim Hosted by - Skat Nati Save your spot today!",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Dusk Addis | Rooftop",
+    "country": "Ethiopia",
+    "start_date": "2026-06-06",
+    "end_date": "2026-06-07",
+    "start_time": "18:00",
+    "end_time": "00:00",
+    "capacity": 400,
+    "featured": false,
+    "sold_out": true,
+    "tags": [
+      "duskaddis",
+      "avenida",
+      "desperados",
+      "eventinaddis"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1780387426440.jpg"
+    ],
+    "organizer": "Miella Events",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 600,
+        "price_usd": null,
+        "quantity": 437,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a1b6d9b4100adedc0f290f5",
+    "title": "CAMPING TO COAST VOL 6",
+    "slug": "camping-to-coast-vol-6",
+    "description": "Your Favorite escape From Addis is Back! VOL 6 Camping to Coast -Langano & Abijiata Shala park -June 19 - 21 3 days 2 Night Quality time & Fire line up Guaranteed as Always pack your bags !!",
+    "category": "Festivals",
+    "city": "Langano",
+    "address": "Langano Abijata Shala",
+    "country": "Ethiopia",
+    "start_date": "2026-06-19",
+    "end_date": "2026-06-21",
+    "start_time": "09:00",
+    "end_time": "10:00",
+    "capacity": 300,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1780182419540.jpg"
+    ],
+    "organizer": "SPATEVENTS",
+    "ticket_types": [
+      {
+        "name": "2 DAYS SELF - DRIVING PACKAGE",
+        "price_etb": 6500,
+        "price_usd": null,
+        "quantity": 95,
+        "available": true
+      },
+      {
+        "name": "2 DAY PACKAGE",
+        "price_etb": 8300,
+        "price_usd": null,
+        "quantity": 72,
+        "available": true
+      },
+      {
+        "name": "3 DAYS SELF - DRIVING PACKAGE",
+        "price_etb": 9500,
+        "price_usd": null,
+        "quantity": 99,
+        "available": true
+      },
+      {
+        "name": "3 DAY PACKAGE",
+        "price_etb": 11000,
+        "price_usd": null,
+        "quantity": 90,
+        "available": true
+      },
+      {
+        "name": "2 DAY PACKAGE",
+        "price_etb": 10000,
+        "price_usd": null,
+        "quantity": 50,
+        "available": true
+      },
+      {
+        "name": "3 DAY PACKAGE",
+        "price_etb": 13000,
+        "price_usd": null,
+        "quantity": 42,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a1ac0c94100adedc0f059be",
+    "title": "Groove: The Jazz Show",
+    "slug": "groove-the-jazz-show",
+    "description": "Spend your Friday night above the city at Groove the Jazz Show. Experience live jazz, stunning rooftop views, and an atmosphere unlike any other. Good music, good people, and a memorable night under the lights.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Dusk Addis | Rooftop lounge and cocktail bar",
+    "country": "Ethiopia",
+    "start_date": "2026-06-05",
+    "end_date": "2026-06-06",
+    "start_time": "19:00",
+    "end_time": "23:00",
+    "capacity": 200,
+    "featured": false,
+    "sold_out": true,
+    "tags": [
+      "Live Jazz Performance"
+    ],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1780138185248.jpg"
+    ],
+    "organizer": "Urban Addis",
+    "ticket_types": [
+      {
+        "name": "Wave 2",
+        "price_etb": 800,
+        "price_usd": 8,
+        "quantity": 150,
+        "available": true
+      },
+      {
+        "name": "Wave 2",
+        "price_etb": 900,
+        "price_usd": 8,
+        "quantity": 150,
+        "available": false
+      }
+    ]
+  },
+  {
+    "id": "6a18841a4100adedc0e95a25",
+    "title": "𝐊𝟖𝐀 - 𝐖𝐎𝐑𝐀𝐃𝐉 𝐀𝐋𝐋𝐄 | 𝐋𝐢𝐬𝐭𝐞𝐧𝐢𝐧𝐠 𝐒𝐞𝐬𝐬𝐢𝐨𝐧 + 𝐐&𝐀",
+    "slug": "k8a-woradj-alle-listening-session-qa",
+    "description": "A phone-free, deep listening session of Woradj Ale, a sonic journy of Ethiopian music by American violinist Kaethe Hostetter. Experience this hypnotic, loop-driven album, start to end, followed by an live video Q&A with the artist.",
+    "category": "Music",
+    "city": "Addis Abeba",
+    "address": "Social Addis",
+    "country": "Ethiopia",
+    "start_date": "2026-06-04",
+    "end_date": "2026-06-04",
+    "start_time": "19:00",
+    "end_time": "21:00",
+    "capacity": 36,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1779991577726.png"
+    ],
+    "organizer": "Social Addis",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 100,
+        "price_usd": null,
+        "quantity": 35,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a0d89fb4100adedc0bc81bf",
+    "title": "ድለቃ",
+    "slug": "ድለቃ",
+    "description": "Get ready for an unforgettable Reggae & Dancehall night this Saturday featuring live performances by Haile Roots from Ethiopia and Frankie Dee from Kenya. One stage, two powerful artists, and nonstop vibes all night long. Enjoy live music, great energy, delicious food, fun games, and amazing memories with friends. 📍 Kana Ware 📅 May 23 ⏰ Doors Open at 10:00 PM Local Time",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Kana Warehouse",
+    "country": "Ethiopia",
+    "start_date": "2026-05-23",
+    "end_date": "2026-05-24",
+    "start_time": "16:00",
+    "end_time": "00:00",
+    "capacity": 3500,
+    "featured": false,
+    "sold_out": true,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1779272187199.JPG"
+    ],
+    "organizer": "Dasamba Events",
+    "ticket_types": [
+      {
+        "name": "1st Wave",
+        "price_etb": 700,
+        "price_usd": null,
+        "quantity": 796,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 1500,
+        "price_usd": null,
+        "quantity": 699,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a0834b44100adedc0a884fe",
+    "title": "𝐖𝐢𝐭𝐜𝐡 𝐏𝐫𝐨𝐩𝐡𝐞𝐭 | 𝐋𝐢𝐬𝐭𝐞𝐧𝐢𝐧𝐠 𝐒𝐞𝐬𝐬𝐢𝐨𝐧 + 𝐐&𝐀",
+    "slug": "witch-prophet-listening-session-qa",
+    "description": "Come to the rooftop for a close deep-dive into the world of Witch Prophet and her album Words Are Spells, Thoughts Are Magic. listening session and a video Q&A. This is a phone free event.",
+    "category": "Music",
+    "city": "Addis Abeba",
+    "address": "Social Addis",
+    "country": "Ethiopia",
+    "start_date": "2026-05-21",
+    "end_date": "2026-05-21",
+    "start_time": "19:00",
+    "end_time": "21:00",
+    "capacity": 35,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1778922676710.jpeg"
+    ],
+    "organizer": "Social Addis",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 100,
+        "price_usd": null,
+        "quantity": 37,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a04ccd84100adedc09c532c",
+    "title": "iFest Events - Rewind 🇪🇹🇯🇲",
+    "slug": "ifest-events-rewind",
+    "description": "2016 ⇄ 2026 🌴🇪🇹🇯🇲 The ultimate throwback night. From iconic 2000’s anthems to Afro and Caribbean heat — expect nonstop energy, nostalgia, and an exclusive vibe all night long. Edition IIl is coming.",
+    "category": "Festivals",
+    "city": "Addis Abeba",
+    "address": "Velvet Roof Top",
+    "country": "Ethiopia",
+    "start_date": "2026-05-23",
+    "end_date": "2026-05-24",
+    "start_time": "19:00",
+    "end_time": "02:00",
+    "capacity": 800,
+    "featured": false,
+    "sold_out": true,
+    "tags": [
+      "IFEST",
+      "IFESTEVENT",
+      "TICKET",
+      "IFESTTICKET",
+      "EVENTINADDIS"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1778699425589.jpg"
+    ],
+    "organizer": "IFEST Events",
+    "ticket_types": [
+      {
+        "name": "Early Bird",
+        "price_etb": 400,
+        "price_usd": null,
+        "quantity": 1,
+        "available": false
+      },
+      {
+        "name": "Regular",
+        "price_etb": 599,
+        "price_usd": null,
+        "quantity": 57,
+        "available": false
+      },
+      {
+        "name": "Regular",
+        "price_etb": 799,
+        "price_usd": null,
+        "quantity": 432,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6a037b164100adedc097cba1",
+    "title": "Sand Volley and Football Picnic Party",
+    "slug": "sand-volley-and-football-picnic-party",
+    "description": "A social sports event that brings together the Bole Burners group and extended friends on a sunday afternoon in Addis with food, music, limited edition merch & more",
+    "category": "Sports",
+    "city": "Addis Abeba",
+    "address": "Addis Sports Park",
+    "country": "Ethiopia",
+    "start_date": "2026-05-17",
+    "end_date": "2026-05-17",
+    "start_time": "15:00",
+    "end_time": "20:00",
+    "capacity": 200,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "boleburners",
+      "ethiosport",
+      "pazimoevents",
+      "boleburnersclubevent",
+      "boleburnerseventticket"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 6
+    },
+    "images": [
+      "https://pazimo.com/uploads/1778664354041.jpeg"
+    ],
+    "organizer": "Bole Burners",
+    "ticket_types": [
+      {
+        "name": "Early Bird",
+        "price_etb": 1500,
+        "price_usd": null,
+        "quantity": 125,
+        "available": true
+      },
+      {
+        "name": "Regular",
+        "price_etb": 2000,
+        "price_usd": null,
+        "quantity": 200,
+        "available": false
+      }
+    ]
+  },
+  {
+    "id": "69fe1ac04100adedc085d79d",
+    "title": "𝐃𝐞𝐞𝐩 𝐋𝐢𝐬𝐭𝐞𝐧𝐢𝐧𝐠: 𝐊𝐢𝐛𝐫𝐨𝐦 𝐁𝐢𝐫𝐡𝐚𝐧𝐞",
+    "slug": "deep-listening-kibrom-birhane",
+    "description": "Come to the rooftop for a close deep-dive into the world of Lisané Bahir by visionary musician Kibrom Birhane. listening session and a video Q&A. one last thing - could you add at the description - This is a phone free event.",
+    "category": "Music",
+    "city": "Addis Abeba",
+    "address": "Social Addis",
+    "country": "Ethiopia",
+    "start_date": "2026-05-14",
+    "end_date": "2026-05-14",
+    "start_time": "19:00",
+    "end_time": "21:00",
+    "capacity": 40,
+    "featured": false,
+    "sold_out": true,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1778260671899.jpeg"
+    ],
+    "organizer": "Social Addis",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 100,
+        "price_usd": null,
+        "quantity": 14,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "69fb93304100adedc0745360",
+    "title": "Monkey Business",
+    "slug": "monkey-business",
+    "description": "It’s going to be a groovy, funky type of night. 🕺🏽✨ We’re bringing the vibes back to Juventus Garden on May 23rd expect good music, good energy, and the kind of night you don’t want to miss. Last time, we had to close the gates early… don’t let that happen to you. 🎟️ Grab your tickets in advance and secure your spot before it’s too late. See you on the dance floor.",
+    "category": "Music",
+    "city": "Addis Abeba",
+    "address": "Juventus Garden",
+    "country": "Ethiopia",
+    "start_date": "2026-05-23",
+    "end_date": "2026-05-24",
+    "start_time": "17:00",
+    "end_time": "04:00",
+    "capacity": 500,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 23
+    },
+    "images": [
+      "https://pazimo.com/uploads/1778094893802.jpeg"
+    ],
+    "organizer": "So&So",
+    "ticket_types": [
+      {
+        "name": "Early Bird",
+        "price_etb": 500,
+        "price_usd": null,
+        "quantity": 181,
+        "available": false
+      },
+      {
+        "name": "Regular",
+        "price_etb": 700,
+        "price_usd": null,
+        "quantity": 371,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "69f39fde4a2e52e9c020dc4a",
+    "title": "PSY ADDIS",
+    "slug": "psy-addis",
+    "description": "We’re taking the dance floor back to the sky. ⛰️☁️✨ On May 9, PSY ADDIS returns to Gullele Botanical Garden for another journey above the city — where the forest breathes, the skyline glows, and the bass rolls through the hills. This is more than a party. It’s a sunrise-to-sunset escape into music, nature, freedom, and connection. 🔥 MOUNTAIN TOP MUSIC FEST Dance high above Addis with deep grooves, wild energy, beautiful people, and a dance floor surrounded by green. Come early. Stay present. Leave only footprints. 🎟️ First-wave tickets go on sale May 1 with almost 40% off. Limited quantity — get yours ASAP. 🌱 Respect the mountain: • Keep the space clean • Bring your best energy • Respect the land, the people, and the music • Cash is recommended — network may be weak on the mountain 🚫 NO DRUGS ALLOWED Drugs are neither encouraged nor allowed at this festival. 📅 May 9, 2026 ⏰ 10 AM – Sunset 📍 Gullele Botanical Garden 📲 +251 913 014 619 The highest dance floor in Africa is calling again. ⛰️",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Botanical Guarden",
+    "country": "Ethiopia",
+    "start_date": "2026-05-09",
+    "end_date": "2026-05-09",
+    "start_time": "10:00",
+    "end_time": "19:00",
+    "capacity": 800,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "psy addis",
+      "eventinaddis",
+      "musicfestinaddis",
+      "botanical",
+      "mountainevent"
+    ],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1777573827421.jpg"
+    ],
+    "organizer": "Psy Addis",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 1200,
+        "price_usd": 5,
+        "quantity": 131,
+        "available": true
+      },
+      {
+        "name": "Squad Pass (4 People)",
+        "price_etb": 2000,
+        "price_usd": null,
+        "quantity": 1,
+        "available": false
+      },
+      {
+        "name": "Squad Pass (4 People )",
+        "price_etb": 2251,
+        "price_usd": null,
+        "quantity": 1,
+        "available": false
+      },
+      {
+        "name": "Squad Pass (4 People )",
+        "price_etb": 2300,
+        "price_usd": null,
+        "quantity": 1,
+        "available": false
+      }
+    ]
+  },
+  {
+    "id": "69dcd8a19abd6f19753f701d",
+    "title": "MERON T dj set",
+    "slug": "meron-t-dj-set",
+    "description": "🇪🇹🌍🇬🇧 South London DJ / singer returns to the motherland and will bless us with a dance heavy DJ set at Social Addis. think Amapiano, afrobeats, afro house, baile funk, hip hop. Opening set by the one and only Kalina with unlimited vibes.",
+    "category": "Music",
+    "city": "Addis Abeba",
+    "address": "Social Addis",
+    "country": "Ethiopia",
+    "start_date": "2026-05-02",
+    "end_date": "2026-05-03",
+    "start_time": "20:00",
+    "end_time": "00:00",
+    "capacity": 110,
+    "featured": false,
+    "sold_out": true,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1776081056894.png"
+    ],
+    "organizer": "Social Addis",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 400,
+        "price_usd": null,
+        "quantity": 54,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "69dcb2e39abd6f19753e711b",
+    "title": "On and On",
+    "slug": "on-and-on",
+    "description": "On & On is a curated, 12-hour music and lifestyle festival designed for a modern, tech-savvy audience in Addis Ababa. The event is built around a premium house music experience, blending an amazing vibe with interactive attendee activities, drinks, and games. ​Held at The Warehouse (Jacross), the series focuses on minimalist and modern branding aesthetics, serving as a high-energy platform for urban professionals and trendsetters aged 25–35. Through its collaboration with Motor Sport ET, On & On also functions as an immersive \"pre-game\" destination, where elite race cars and motorbikes are showcased to bridge the gap between lifestyle culture and high octane performance. During the daytime, since we're showcasing cars and motorbikes, there will be families with their kids, but starting from 2:00LT strictly 21+",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "The Venue Warehouse",
+    "country": "Ethiopia",
+    "start_date": "2026-04-18",
+    "end_date": "2026-04-19",
+    "start_time": "14:00",
+    "end_time": "02:00",
+    "capacity": 1000,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "on & on",
+      "Event in addis Ababa",
+      "Eentinethiopia",
+      "Pazimo"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1776071379525.jpg"
+    ],
+    "organizer": "On and On",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 700,
+        "price_usd": null,
+        "quantity": 549,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 1000,
+        "price_usd": null,
+        "quantity": 486,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "69d7b35c9abd6f1975284393",
+    "title": "ZENA ALBUM RELEASE EVENT",
+    "slug": "zena-album-release-event",
+    "description": "The first EP of the Ethiopian-British Duo Zena \"Temesgen\" is out now. Zena will perform the EP LIVE at the Hilton Hotel on the 16th of April.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Hilton Hotel - Atrium",
+    "country": "Ethiopia",
+    "start_date": "2026-04-16",
+    "end_date": "2026-04-16",
+    "start_time": "18:00",
+    "end_time": "22:00",
+    "capacity": 300,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1775743836423.png"
+    ],
+    "organizer": "Kebelezero",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 400,
+        "price_usd": null,
+        "quantity": 49,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "69d52458a7369c38ed23d621",
+    "title": "Avenida",
+    "slug": "avenida",
+    "description": "Entertainment & Music Event",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Kana Warehouse",
+    "country": "Ethiopia",
+    "start_date": "2026-04-18",
+    "end_date": "2026-04-19",
+    "start_time": "18:00",
+    "end_time": "02:00",
+    "capacity": 3000,
+    "featured": false,
+    "sold_out": true,
+    "tags": [
+      "Miella Events"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1775576152094.jpg"
+    ],
+    "organizer": "Miella Events",
+    "ticket_types": [
+      {
+        "name": "First Wave",
+        "price_etb": 300,
+        "price_usd": null,
+        "quantity": 403,
+        "available": true
+      },
+      {
+        "name": "Second Wave",
+        "price_etb": 600,
+        "price_usd": null,
+        "quantity": 1304,
+        "available": false
+      }
+    ]
+  },
+  {
+    "id": "69ccc978e4bddfd30613d0a7",
+    "title": "Monkey Business",
+    "slug": "monkey-business",
+    "description": "Monkey Business – AfroTech & AfroHouse Experience Get ready for an electrifying night at Monkey Business, where rhythm, energy, and vibe come together in one unforgettable experience. Hosted at Juventus Garden, this event brings the best of AfroTech and AfroHouse to the dance floor. On April 4th, starting from 5PM till late, immerse yourself in deep beats, vibrant sounds, and a high-energy atmosphere powered by a lineup of talented DJs: Apollo, Davino, Sam YF, and Tera.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Juventus Italian sport club",
+    "country": "Ethiopia",
+    "start_date": "2026-04-04",
+    "end_date": "2026-04-05",
+    "start_time": "17:00",
+    "end_time": "04:00",
+    "capacity": 300,
+    "featured": false,
+    "sold_out": true,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1775028599687.jpg"
+    ],
+    "organizer": "So&So",
+    "ticket_types": [
+      {
+        "name": "Early Bird",
+        "price_etb": 500,
+        "price_usd": null,
+        "quantity": 64,
+        "available": true
+      },
+      {
+        "name": "Regular",
+        "price_etb": 700,
+        "price_usd": null,
+        "quantity": 15,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "69b3354ce59325dc7f21ab2f",
+    "title": "Strictly Soul Addis",
+    "slug": "strictly-soul-addis",
+    "description": "Africa's biggest R&B night is back in Addis for the third edition, and this one's going to be special. Akio takes to the decks alongside some of the best local talent around, bringing you a night of pure R&B from start to fi nish, the classics you grew up on, the records everyone's been playing lately, and everything in between. No fi llers, no detours, just the music that hits every time. The atmosphere does the rest. Strictly Soul has always been about bringing the right people together in the right room, and April 25 is no diff erent. Whether you're coming to sing every word or just let the night take over, this is the kind of event that reminds you why you love going out in the fi rst place. Get your people together and come ready, nights like this don't come around too often. Strictly Soul. R&B all night.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Kana Warehouse",
+    "country": "Ethiopia",
+    "start_date": "2026-04-25",
+    "end_date": "2026-04-26",
+    "start_time": "18:00",
+    "end_time": "01:00",
+    "capacity": 2500,
+    "featured": false,
+    "sold_out": true,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1773352256702.jpg"
+    ],
+    "organizer": "Dari Trading Plc",
+    "ticket_types": [
+      {
+        "name": "Early Bird",
+        "price_etb": 1200,
+        "price_usd": null,
+        "quantity": 1,
+        "available": false
+      },
+      {
+        "name": "1st Wave",
+        "price_etb": 1500,
+        "price_usd": null,
+        "quantity": 1,
+        "available": false
+      },
+      {
+        "name": "2nd Wave",
+        "price_etb": 2000,
+        "price_usd": null,
+        "quantity": 2,
+        "available": false
+      },
+      {
+        "name": "VIP",
+        "price_etb": 5000,
+        "price_usd": null,
+        "quantity": 230,
+        "available": false
+      },
+      {
+        "name": "3rd Wave",
+        "price_etb": 2500,
+        "price_usd": null,
+        "quantity": 127,
+        "available": false
+      },
+      {
+        "name": "Last Sales",
+        "price_etb": 3000,
+        "price_usd": null,
+        "quantity": 7,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 5000,
+        "price_usd": null,
+        "quantity": 1,
+        "available": false
+      }
+    ]
+  },
+  {
+    "id": "69afedf5e59325dc7f188ded",
+    "title": "እልል ያለ ቅልቅል",
+    "slug": "እልል-ያለ-ቅልቅል",
+    "description": "እልል ያለ ቅልቅል is a celebration of Ethiopian culture, brought to life through a curated journey of Ethiopian sounds and experiences. It is where culture, crowd, and music come together to honor those who push forward Ethiopian identity. 🎧🔥",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "The Venue Warehouse",
+    "country": "Ethiopia",
+    "start_date": "2026-03-14",
+    "end_date": "2026-03-15",
+    "start_time": "16:00",
+    "end_time": "01:00",
+    "capacity": 1500,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1773137397395.jpg"
+    ],
+    "organizer": "HADISH EVENTS AND ENTERTAINMENT",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 1000,
+        "price_usd": null,
+        "quantity": 27,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 2500,
+        "price_usd": null,
+        "quantity": 491,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "69af28e2e59325dc7f175d74",
+    "title": "LIGHT UP FEST",
+    "slug": "light-up-fest",
+    "description": "Light Up - Chapter two An electrifying music experience bringing international and local DJs together for one unforgettable night of music, lights, Stage effect, and energy.",
+    "category": "Festivals",
+    "city": "Addis Ababa",
+    "address": "The Venue Warehouse",
+    "country": "Ethiopia",
+    "start_date": "2026-04-25",
+    "end_date": "2026-04-26",
+    "start_time": "18:00",
+    "end_time": "04:00",
+    "capacity": 1500,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1775027983954.jpeg"
+    ],
+    "organizer": "Sabadoor Events",
+    "ticket_types": [
+      {
+        "name": "Limited Ticket",
+        "price_etb": 500,
+        "price_usd": null,
+        "quantity": 43,
+        "available": false
+      },
+      {
+        "name": "Regular",
+        "price_etb": 800,
+        "price_usd": null,
+        "quantity": 21,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 1500,
+        "price_usd": null,
+        "quantity": 471,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "69aaa3a71edef6d546ab4490",
+    "title": "I WANNA GO SHORT MOVIE",
+    "slug": "i-wanna-go-short-movie",
+    "description": "This film was created with a purpose to open a door to a better future for Abel and his team. 1. Supporting the Launch Donations will help cover the essential costs of organizing the film’s inauguration events in two cities. These events are more than celebrations — they are opportunities to share the story, raise awareness, and give these young creators the recognition they deserve. 2. Building a Sustainable Future The true goal of this project goes beyond a single film. We want to help Abel and his team build a future where they can stand on their own through their talent and creativity. Funds raised will be invested in long-term tools such as professional filmmaking equipment and production resources. These are not temporary solutions — they are investments that will allow these talented young orphans to continue creating films, telling stories, and generating income independently for years to come. This is not just about supporting a movie. It is about giving a group of determined young creators the chance to build a lasting future through their passion.",
+    "category": "Arts",
+    "city": "Addis Ababa",
+    "address": "Video Bet",
+    "country": "Ethiopia",
+    "start_date": "2026-03-19",
+    "end_date": "2026-03-19",
+    "start_time": "17:30",
+    "end_time": "19:30",
+    "capacity": 250,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1772790642034.jpg"
+    ],
+    "organizer": "Why Not Pictures",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 400,
+        "price_usd": 7,
+        "quantity": 73,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 700,
+        "price_usd": 10,
+        "quantity": 81,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "69a0a2793de0bd26c9b2290f",
+    "title": "Monkey Business",
+    "slug": "monkey-business",
+    "description": "Monkey Business returns March 7th! In honor of International Womens' Day, we're spotlighting incredible ladies behind the decks. See you under the lights.",
+    "category": "Music",
+    "city": "Addis Abeba",
+    "address": "Juventus Italian sport club",
+    "country": "Ethiopia",
+    "start_date": "2026-03-07",
+    "end_date": "2026-03-08",
+    "start_time": "17:00",
+    "end_time": "04:00",
+    "capacity": 300,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1772135023411.jpg"
+    ],
+    "organizer": "So&So",
+    "ticket_types": [
+      {
+        "name": "Regularr",
+        "price_etb": 500,
+        "price_usd": 5,
+        "quantity": 279,
+        "available": true
+      },
+      {
+        "name": "Regular",
+        "price_etb": 700,
+        "price_usd": null,
+        "quantity": 34,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "69897c9a1741fa586dce2be2",
+    "title": "Addis Moged",
+    "slug": "addis-moged",
+    "description": "Flea Market and Music",
+    "category": "Music",
+    "city": "Addis Abeba",
+    "address": "The Venue Warehouse",
+    "country": "Ethiopia",
+    "start_date": "2026-02-14",
+    "end_date": "2026-02-15",
+    "start_time": "15:00",
+    "end_time": "02:00",
+    "capacity": 3000,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1770618009956.jpeg"
+    ],
+    "organizer": "Arada Media And Entertainment",
+    "ticket_types": [
+      {
+        "name": "Early Bird",
+        "price_etb": 500,
+        "price_usd": null,
+        "quantity": 350,
+        "available": true
+      },
+      {
+        "name": "Regular",
+        "price_etb": 700,
+        "price_usd": null,
+        "quantity": 517,
+        "available": true
+      },
+      {
+        "name": "Couple bundle",
+        "price_etb": 800,
+        "price_usd": null,
+        "quantity": 496,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 1000,
+        "price_usd": null,
+        "quantity": 500,
+        "available": true
+      },
+      {
+        "name": "Couple bundle",
+        "price_etb": 1000,
+        "price_usd": null,
+        "quantity": 494,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 1500,
+        "price_usd": null,
+        "quantity": 495,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "69886fe9ece00f9f2da10acb",
+    "title": "IFEST NIGHT 🇯🇲 🇿🇦 🇪🇹",
+    "slug": "ifest-night",
+    "description": "Caribbean and Afro night Edition ፪ 🇯🇲 🇿🇦 🇪🇹",
+    "category": "Music",
+    "city": "Addis Abeba",
+    "address": "Amigos Addis",
+    "country": "Ethiopia",
+    "start_date": "2026-02-14",
+    "end_date": "2026-02-15",
+    "start_time": "19:00",
+    "end_time": "02:00",
+    "capacity": 700,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1770549199070.jpg"
+    ],
+    "organizer": "IFEST Events",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 499,
+        "price_usd": null,
+        "quantity": 138,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 1800,
+        "price_usd": null,
+        "quantity": 1,
+        "available": true
+      },
+      {
+        "name": "Regular",
+        "price_etb": 599,
+        "price_usd": null,
+        "quantity": 5,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "69850bb726e5a027f6b03279",
+    "title": "THE LAB",
+    "slug": "the-lab",
+    "description": "THE LAB is back. Episode 13 hits February 07 no warm-up, no mercy. Expect raw performances, reckless creativity, and energy pushed past the limit. This is THE LAB.",
+    "category": "Music",
+    "city": "Addis Abeba",
+    "address": "Millennium Hall VIP Section",
+    "country": "Ethiopia",
+    "start_date": "2026-02-07",
+    "end_date": "2026-02-08",
+    "start_time": "16:00",
+    "end_time": "02:00",
+    "capacity": 2000,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 23
+    },
+    "images": [
+      "https://pazimo.com/uploads/1770355634008.jpeg"
+    ],
+    "organizer": "HADISH EVENTS AND ENTERTAINMENT",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 1000,
+        "price_usd": null,
+        "quantity": 1411,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 4000,
+        "price_usd": null,
+        "quantity": 921,
+        "available": true
+      },
+      {
+        "name": "Regular",
+        "price_etb": 1500,
+        "price_usd": null,
+        "quantity": 1155,
+        "available": true
+      },
+      {
+        "name": "Final wave",
+        "price_etb": 2000,
+        "price_usd": null,
+        "quantity": 255,
+        "available": true
+      },
+      {
+        "name": "Vip",
+        "price_etb": 5000,
+        "price_usd": null,
+        "quantity": 85,
+        "available": true
+      },
+      {
+        "name": "Regular",
+        "price_etb": 2500,
+        "price_usd": null,
+        "quantity": 943,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "697f5c7f63761c24e151e192",
+    "title": "YeFiker Esat w/ Debbie Tesfaye",
+    "slug": "yefiker-esat-w-debbie-tesfaye",
+    "description": "YEFikier Esat w/ Debbie Tesfaye: 𝓁𝑜𝓋𝑒 𝓂𝒾𝓈𝓊𝓃𝒹𝑒𝓇𝓈𝓉𝑜𝑜𝒹. Could love be the most misunderstood concept of all? We call it love, but we often mean something else. On February 15th, we sit down with Debbie Tesfaye (@chaoticpiece) to dissect \"Love Misunderstood.\" Join the flame with a deep and intimate conversation, crowd participation, and cozy energy.",
+    "category": "Arts",
+    "city": "Addis Abeba",
+    "address": "Social Addis",
+    "country": "Ethiopia",
+    "start_date": "2026-02-15",
+    "end_date": "2026-02-16",
+    "start_time": "18:00",
+    "end_time": "20:00",
+    "capacity": 80,
+    "featured": false,
+    "sold_out": true,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1769954431095.jpeg"
+    ],
+    "organizer": "Social Addis",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 400,
+        "price_usd": null,
+        "quantity": 71,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "697e3ce6edd123f74ceff754",
+    "title": "ገፀ ጥበብ",
+    "slug": "ገፀ-ጥበብ",
+    "description": "A curated night of theater, poetry, and performance art bringing some of the city's best writers and voices to the stage. Poetry by: Fikadu Asserat, Astawesgne Regasa ,Estifanos Merto, Yabsira Tamiru, Esubalew Yeneneh, Periva Tefra, Hayelom Wedajo, Yohannes Fikadu. Comedy by: Yasin Redo, Lincoln Abraham. Music by: Bereket Zelalem, Ermias Ashebir. One-man theater by: Girum Asfaw. Production Team Program Director & Executive Producer: Esubalew Yeneneh Advertising & Promotion: Estifanos Merto Public Relations: Fidel Presented By: Airor Theater Production",
+    "category": "Arts",
+    "city": "Addis Abeba",
+    "address": "Social Addis",
+    "country": "Ethiopia",
+    "start_date": "2026-02-10",
+    "end_date": "2026-02-10",
+    "start_time": "17:00",
+    "end_time": "20:30",
+    "capacity": 300,
+    "featured": false,
+    "sold_out": true,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1769880806335.png"
+    ],
+    "organizer": "Social Addis",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 200,
+        "price_usd": null,
+        "quantity": 250,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "697cea9676bef832a7e57098",
+    "title": "Psy Addis",
+    "slug": "psy-addis",
+    "description": "PSY ADDIS is back at Gullele Botanical Garden — Feb 7. 🌿🏔️ Highest dance floor in Africa.",
+    "category": "Music",
+    "city": "Addis Abeba",
+    "address": "Botanical Guarden",
+    "country": "Ethiopia",
+    "start_date": "2026-02-07",
+    "end_date": "2026-02-07",
+    "start_time": "10:00",
+    "end_time": "19:00",
+    "capacity": 2000,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1769794198527.JPG"
+    ],
+    "organizer": "Psy Addis",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 750,
+        "price_usd": null,
+        "quantity": 371,
+        "available": true
+      },
+      {
+        "name": "On door",
+        "price_etb": 1200,
+        "price_usd": null,
+        "quantity": 672,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "697c685bb673f04506798379",
+    "title": "CAMPAIGN TO COAST VOL 4",
+    "slug": "campaign-to-coast-vol-4",
+    "description": "Your Favorite escape From Addis is Back! VOL 4 Camping to Coast -Langano & Abijiata Shala park - Feb 14 - 15 2 days 1 Night Quality time & Fire line up (2 international Djs) Guaranteed as Always pack your bags !!",
+    "category": "Music",
+    "city": "Langano",
+    "address": "Langano Abijata Shala",
+    "country": "Ethiopia",
+    "start_date": "2026-02-14",
+    "end_date": "2026-02-15",
+    "start_time": "09:00",
+    "end_time": "10:00",
+    "capacity": 120,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1769760859264.png"
+    ],
+    "organizer": "SPATEVENTS",
+    "ticket_types": [
+      {
+        "name": "First Wave",
+        "price_etb": 6000,
+        "price_usd": null,
+        "quantity": 24,
+        "available": true
+      },
+      {
+        "name": "Second Wave",
+        "price_etb": 7000,
+        "price_usd": null,
+        "quantity": 25,
+        "available": false
+      },
+      {
+        "name": "Final wave",
+        "price_etb": 8000,
+        "price_usd": null,
+        "quantity": 23,
+        "available": false
+      }
+    ]
+  },
+  {
+    "id": "6973a477408789240afd267c",
+    "title": "MoonRise: Snow Moon Cycle",
+    "slug": "moonrise-snow-moon-cycle",
+    "description": "A curated progression from stillness (Breathwork) to expression (Free Dance), ending in the warmth of the Sharing Circle.",
+    "category": "Arts",
+    "city": "Addis Abeba",
+    "address": "Social Addis",
+    "country": "Ethiopia",
+    "start_date": "2026-02-01",
+    "end_date": "2026-02-01",
+    "start_time": "18:00",
+    "end_time": "20:30",
+    "capacity": 30,
+    "featured": false,
+    "sold_out": true,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1769186423165.png"
+    ],
+    "organizer": "Social Addis",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 400,
+        "price_usd": null,
+        "quantity": 35,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6970d6cc280e2ee459661160",
+    "title": "MAADCITY",
+    "slug": "maadcity",
+    "description": "MAADCITY is a hip-hop–first music event blending hip-hop, trap, R&B, dancehall, and select pop sounds. Building on the success of Episode 1, it delivers a high-energy, DJ-driven nightlife experience focused on culture, movement, and crowd energy in Addis Ababa.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Amigos Addis",
+    "country": "Ethiopia",
+    "start_date": "2026-01-31",
+    "end_date": "2026-02-01",
+    "start_time": "18:00",
+    "end_time": "02:00",
+    "capacity": 550,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1769002700872.jpg"
+    ],
+    "organizer": "Motion creative",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 600,
+        "price_usd": null,
+        "quantity": 362,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "696fa93381ad58d552b5f008",
+    "title": "Sophia Mitiku Live",
+    "slug": "sophia-mitiku-live",
+    "description": "SOPHIA MITIKU LIVE Following the release of her sophomore album, 𝒜𝓁𝓁 𝒮𝒾𝒸𝓀𝓃𝑒𝓈𝓈 𝒾𝓈 𝐻𝑜𝓂𝑒𝓈𝒾𝒸𝓀𝓃𝑒𝓈𝓈, Sophia Mitiku is back in the motherland with a rare, pre-departure performance. walking the tension between folklore and futurism, Sophia’s music is a art-pop study in ritual and repair. This Wednesday, she translates her musical landscapes into a stripped back, live set. synths-laptop-vocals. Space is intentionally limited.",
+    "category": "Music",
+    "city": "Addis Abeba",
+    "address": "Social Addis",
+    "country": "Ethiopia",
+    "start_date": "2026-01-28",
+    "end_date": "2026-01-28",
+    "start_time": "20:00",
+    "end_time": "22:00",
+    "capacity": 50,
+    "featured": false,
+    "sold_out": true,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1768925491812.png"
+    ],
+    "organizer": "Social Addis",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 400,
+        "price_usd": null,
+        "quantity": 2,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6967eafa16b60d95c527fd51",
+    "title": "Katanga Jan 16th",
+    "slug": "katanga-jan-16th",
+    "description": "Homecoming Friday at KDMC! This Friday, we're opening up the KDMC stage to our family from the US. Different cities, same energy. They're pulling up to show us how they set the room on fire.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Katanga, Ambassador Cinema",
+    "country": "Ethiopia",
+    "start_date": "2026-01-16",
+    "end_date": "2026-01-17",
+    "start_time": "22:00",
+    "end_time": "04:30",
+    "capacity": 200,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "Katanga",
+      "Dance music club",
+      "event in Addis",
+      "Ticket on Pazimo"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1768418042163.jpg"
+    ],
+    "organizer": "Selam Fisseha",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 600,
+        "price_usd": null,
+        "quantity": 103,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "69679caf8c4c24c9ae36defa",
+    "title": "Katanga Jan 17th",
+    "slug": "katanga-jan-17th",
+    "description": "Litty to titty Saturday We've got a fire lineup this weekend strictly for the initiated. Who's in?",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Katanga, Ambassador Cinema",
+    "country": "Ethiopia",
+    "start_date": "2026-01-17",
+    "end_date": "2026-01-18",
+    "start_time": "22:00",
+    "end_time": "04:30",
+    "capacity": 300,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "Katanga",
+      "Dance music club",
+      "event in Addis",
+      "Ticket on Pazimo"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1768397999512.jpg"
+    ],
+    "organizer": "Selam Fisseha",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 800,
+        "price_usd": null,
+        "quantity": 127,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "69679b6a8c4c24c9ae36dc8e",
+    "title": "Ethiopian gastronomy festival and expo",
+    "slug": "ethiopian-gastronomy-festival-and-expo",
+    "description": "The Ethiopia gastronomy festival and expo is a land mark two-day national event and one of Ethiopia’s most influential food and beverage industry platforms. Uniting culture, commerce, tourism, innovation, and policy.",
+    "category": "Festivals",
+    "city": "Addis Ababa",
+    "address": "Millennium Hall",
+    "country": "Ethiopia",
+    "start_date": "2026-01-17",
+    "end_date": "2026-01-18",
+    "start_time": "09:00",
+    "end_time": "21:00",
+    "capacity": 30000,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "Ethiopian gastronomy festival and expo",
+      "Millennium Hall",
+      "pazimo",
+      "Ticket",
+      "online ticket"
+    ],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1768397674538.png"
+    ],
+    "organizer": "Golden Group Hospitality",
+    "ticket_types": [
+      {
+        "name": "Saturday",
+        "price_etb": 300,
+        "price_usd": null,
+        "quantity": 9781,
+        "available": true
+      },
+      {
+        "name": "Sunday",
+        "price_etb": 300,
+        "price_usd": null,
+        "quantity": 9908,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "69614d8144cd9f298355bc96",
+    "title": "Katanga Jan 10th",
+    "slug": "katanga-jan-10th",
+    "description": "This Saturday at KDMC, the focus is African electronic dance music on its own terms. For years, sounds from this continent have traveled the world, shaped global dance culture, and been reintroduced back to us under different names. This night is about recognizing where those ideas come from and celebrating them without translation or compromise. Benaiah, Drømmer, and Ben Arsenal three DJs from three continents, all meeting around African-rooted electronic",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Katanga, Ambassador Cinema",
+    "country": "Ethiopia",
+    "start_date": "2026-01-10",
+    "end_date": "2026-01-11",
+    "start_time": "22:00",
+    "end_time": "10:30",
+    "capacity": 300,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1767984513945.JPG"
+    ],
+    "organizer": "Selam Fisseha",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 600,
+        "price_usd": null,
+        "quantity": 180,
+        "available": true
+      },
+      {
+        "name": "Regular on door",
+        "price_etb": 800,
+        "price_usd": null,
+        "quantity": 183,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "69614c3344cd9f298355ba6b",
+    "title": "Katanga Jan 9th",
+    "slug": "katanga-jan-9th",
+    "description": "This Friday at KDMC is for the local heroes shaping the scene in Addis. The true rock'n'rolla's carrying the torch and pushing African electronic dance music forward. This is a special night featuring some of our absolute favorites. PULL UP",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Katanga, Ambassador Cinema",
+    "country": "Ethiopia",
+    "start_date": "2026-01-09",
+    "end_date": "2026-01-10",
+    "start_time": "22:00",
+    "end_time": "04:30",
+    "capacity": 300,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1767984179775.JPG"
+    ],
+    "organizer": "Selam Fisseha",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 600,
+        "price_usd": null,
+        "quantity": 108,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6954e837a3a9595aa06b8434",
+    "title": "Katanga Jan 2",
+    "slug": "katanga-jan-2",
+    "description": "Commanding the dance floor this Friday are Addis' own Miss Panda, Apollo & Mitmita Come as you are and see you on the dance floor!",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Katanga, Ambassador Cinema",
+    "country": "Ethiopia",
+    "start_date": "2026-01-02",
+    "end_date": "2026-01-03",
+    "start_time": "21:30",
+    "end_time": "04:30",
+    "capacity": 300,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1767172151029.JPG"
+    ],
+    "organizer": "Selam Fisseha",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 500,
+        "price_usd": null,
+        "quantity": 98,
+        "available": true
+      },
+      {
+        "name": "Regular on door",
+        "price_etb": 800,
+        "price_usd": null,
+        "quantity": 33,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "69542de29660a797d5ef3224",
+    "title": "Amapiano Worldwide",
+    "slug": "amapiano-worldwide",
+    "description": "Amapiano Worldwide lands in Addis Ababa at Kuriftu African Village. A luxury resort experience blending music, culture & vibes. Jan 4, 2026. AMAPIANO WORLDWIDE — ADDIS ABABA 🇪🇹 On January 4th, 2026, Amapiano Worldwide lands in Addis Ababa for a special resort edition at the iconic Kuriftu African Village. Set inside one of Ethiopia’s most beautiful luxury resorts, this experience blends Amapiano, Afro sounds, culture, and elevated leisure. Expect open-air energy, curated DJs, warm Ethiopian hospitality, and a crowd that moves with intention. This is not just a party — it’s a destination moment.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Kuriftu African Village ( Sheger City)",
+    "country": "Ethiopia",
+    "start_date": "2026-01-04",
+    "end_date": "2026-01-05",
+    "start_time": "15:00",
+    "end_time": "00:00",
+    "capacity": 800,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1767124450848.jpg"
+    ],
+    "organizer": "Amapiano Worldwide",
+    "ticket_types": [
+      {
+        "name": "Early-Bird",
+        "price_etb": 1050,
+        "price_usd": null,
+        "quantity": 112,
+        "available": true
+      },
+      {
+        "name": "Regular",
+        "price_etb": 1550,
+        "price_usd": null,
+        "quantity": 0,
+        "available": false
+      }
+    ]
+  },
+  {
+    "id": "69512c6441b812ec9198b67c",
+    "title": "1001 Total Bashment",
+    "slug": "1001-total-bashment",
+    "description": "New Year New Room 1001 Party on DJ eyu = Amapiano DJ Jotè = Balie funk DJ B$how = Trap DJ Abela = Open format DJ prince = open format Drinks and Food",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Social Addis",
+    "country": "Ethiopia",
+    "start_date": "2026-01-03",
+    "end_date": "2026-01-04",
+    "start_time": "20:00",
+    "end_time": "02:00",
+    "capacity": 85,
+    "featured": false,
+    "sold_out": true,
+    "tags": [
+      "Music",
+      "Djs",
+      "Party",
+      "Baile Funk",
+      "Afrohouse",
+      "Amapiano",
+      "Trap"
+    ],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1766927460248.png"
+    ],
+    "organizer": "Social Addis",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 200,
+        "price_usd": null,
+        "quantity": 75,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "694f76c0c954ae6fcda5dff5",
+    "title": "YeFikir Esat w/ Tensae: ፍቅርን ፈራን",
+    "slug": "yefikir-esat-w-tensae-ፍቅርን-ፈራን",
+    "description": "❤️ ✨️ This round of YeFikirEsat, we’re joined by Tensae, a lover of Ethiopian literature and the mind behind @InjeraChronicles, for an episode that’s about to change the way you think about love: \"ፍቅርን ፈራን\" Using Laureate Tsegaye Gabre-Medhins work as a point of departure, Tensae revisits Ethiopian cultural narratives to explore how love has been imagined and used as a tool for political expression through movies, music, and theatre. It’s charged, metaphorical, and deeply Addis.",
+    "category": "Arts",
+    "city": "Addis Abeba",
+    "address": "Social Addis",
+    "country": "Ethiopia",
+    "start_date": "2026-01-11",
+    "end_date": "2026-01-11",
+    "start_time": "18:00",
+    "end_time": "21:00",
+    "capacity": 50,
+    "featured": false,
+    "sold_out": true,
+    "tags": [
+      "storytelling",
+      "talks",
+      "love"
+    ],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1766815424700.jpg"
+    ],
+    "organizer": "Social Addis",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 400,
+        "price_usd": null,
+        "quantity": 10,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "694ec6d3900647b57f8fae1a",
+    "title": "Katanga Dec 27",
+    "slug": "katanga-dec-27",
+    "description": "Our sound captains this Saturday are the heavyweights of African electronic music in Addis @neyewnet & @sam.yf Come as you are!",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Katanga, Ambassador Cinema",
+    "country": "Ethiopia",
+    "start_date": "2025-12-27",
+    "end_date": "2025-12-28",
+    "start_time": "21:00",
+    "end_time": "04:30",
+    "capacity": 500,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1766770387153.JPG"
+    ],
+    "organizer": "Selam Fisseha",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 500,
+        "price_usd": null,
+        "quantity": 281,
+        "available": true
+      },
+      {
+        "name": "Regular on door",
+        "price_etb": 800,
+        "price_usd": null,
+        "quantity": 151,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "694ea6d7900647b57f8f7dcc",
+    "title": "East Africa Skate Cup After Party",
+    "slug": "east-africa-skate-cup-after-party",
+    "description": "EAST AFRICAN SKATE CUP AFTERPARTY The competition doesn't stop at the park. After a full day of skating, we come together with the best rappers, performers & artists in the city taking the stage. A Live performances Syd DJs & special guests",
+    "category": "Festivals",
+    "city": "Addis Ababa",
+    "address": "Sarbet Skatepark",
+    "country": "Ethiopia",
+    "start_date": "2025-12-27",
+    "end_date": "2025-12-28",
+    "start_time": "20:00",
+    "end_time": "01:00",
+    "capacity": 500,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1766762199804.png",
+      "https://pazimo.com/uploads/1766762199808.png"
+    ],
+    "organizer": "Ethiopia Skate",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 600,
+        "price_usd": null,
+        "quantity": 516,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "694d937c7c650182fe94b63a",
+    "title": "VisualSpam Live Coding Music",
+    "slug": "visualspam-live-coding-music",
+    "description": "Live Coding Music in Addis for the first time ever. @visualspam is a multidisciplinary artist working on the bridge between code and art. Come, take a deep breath, and lose yourself in the bouncy soundscapes of his live audio visual experiment. including guest vocalists and a special DJ Performance by a mystery DJ you've definitely danced with before.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Social Addis",
+    "country": "Ethiopia",
+    "start_date": "2026-01-14",
+    "end_date": "2026-01-14",
+    "start_time": "20:00",
+    "end_time": "22:30",
+    "capacity": 90,
+    "featured": false,
+    "sold_out": true,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1766691708352.PNG"
+    ],
+    "organizer": "Social Addis",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 300,
+        "price_usd": null,
+        "quantity": 90,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "694d8d087c650182fe94ac0e",
+    "title": "Katanga Dec 26",
+    "slug": "katanga-dec-26",
+    "description": "Commanding the dance floor this Friday are Addis' own @_jabu_z, @tedros_et_& @k.u.d.u.s_ Come as you are and see you on the dance floor!",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Katanga, Ambassador Cinema",
+    "country": "Ethiopia",
+    "start_date": "2025-12-26",
+    "end_date": "2025-12-27",
+    "start_time": "21:00",
+    "end_time": "04:30",
+    "capacity": 500,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1766690056697.JPG"
+    ],
+    "organizer": "Selam Fisseha",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 500,
+        "price_usd": null,
+        "quantity": 293,
+        "available": true
+      },
+      {
+        "name": "Regular on door",
+        "price_etb": 800,
+        "price_usd": null,
+        "quantity": 247,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "694c1d9c7c650182fe92df09",
+    "title": "East African Skate Competition",
+    "slug": "east-african-skate-competition",
+    "description": "Join us for the first ever East African skate competition this Saturday at the new sarbet skatepark.",
+    "category": "Sports",
+    "city": "Addis Ababa",
+    "address": "Sarbet Skatepark",
+    "country": "Ethiopia",
+    "start_date": "2025-12-27",
+    "end_date": "2025-12-28",
+    "start_time": "12:00",
+    "end_time": "20:00",
+    "capacity": 800,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "Africa cup",
+      "East africa skate",
+      "pazimo",
+      "event",
+      "ethiopia skate"
+    ],
+    "age_restriction": {
+      "has_restriction": false
+    },
+    "images": [
+      "https://pazimo.com/uploads/1766595996559.jpg"
+    ],
+    "organizer": "Ethiopia Skate",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 300,
+        "price_usd": null,
+        "quantity": 530,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "694af5ae7c650182fe91958c",
+    "title": "Santa's playground experience",
+    "slug": "santas-playground-experience",
+    "description": "2025 Christmas pop party",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Amigos addis",
+    "country": "Ethiopia",
+    "start_date": "2025-12-26",
+    "end_date": "2025-12-27",
+    "start_time": "18:00",
+    "end_time": "02:00",
+    "capacity": 300,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1766520238972.png"
+    ],
+    "organizer": "Mebreq Trading PLC",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 400,
+        "price_usd": null,
+        "quantity": 211,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "694a95417c650182fe91246b",
+    "title": "Katanga Jan 3",
+    "slug": "katanga-jan-3",
+    "description": "We are beyond honored to announce a historic night at KDMC. The hypnotic, multi-disciplinary force that is ALEWYA is coming home to Addis. From the London underground to global stages, her raw fusion of club culture and spiritual calling has captivated the world. And now, she's bringing that energy back to the source this festive season.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Katanga, Ambassador cinema",
+    "country": "Ethiopia",
+    "start_date": "2026-01-03",
+    "end_date": "2026-01-04",
+    "start_time": "21:30",
+    "end_time": "04:30",
+    "capacity": 500,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "Alewya",
+      "katanga",
+      "kdmc",
+      "pazimo"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1766495553396.jpeg"
+    ],
+    "organizer": "Selam Fisseha",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 700,
+        "price_usd": null,
+        "quantity": 73,
+        "available": true
+      },
+      {
+        "name": "Second wave",
+        "price_etb": 700,
+        "price_usd": null,
+        "quantity": 73,
+        "available": true
+      },
+      {
+        "name": "Final wave",
+        "price_etb": 800,
+        "price_usd": null,
+        "quantity": 45,
+        "available": false
+      }
+    ]
+  },
+  {
+    "id": "69404995732867ac8b5af75c",
+    "title": "Monkey Business",
+    "slug": "monkey-business",
+    "description": "Monkey Business goes global and local this Saturday. We're thrilled to welcome Christopher Tyler (C.T.) - Dubais' melodic maestro and resident at The Penthouse and Bohemia - for a night of deep, ethnic, and progressive grooves. But that's not all. Our homegrown heroes Davino, Sam YF, and Ram are bringing the heat early, setting the vibe and proving the future of sound is already here.Monkey Business goes global and local this Saturday. We're thrilled to welcome Christopher Tyler (C.T.) - Dubais' melodic maestro and resident at The Penthouse and Bohemia - for a night of deep, ethnic, and progressive grooves. But that's not all. Our homegrown heroes Davino, Sam YF, and Ram are bringing the heat early, setting the vibe and proving the future of sound is already here.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Juventus Italian sport club",
+    "country": "Ethiopia",
+    "start_date": "2025-12-20",
+    "end_date": "2025-12-21",
+    "start_time": "18:00",
+    "end_time": "04:00",
+    "capacity": 250,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1765820821477.JPG"
+    ],
+    "organizer": "So&So",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 500,
+        "price_usd": null,
+        "quantity": 54,
+        "available": true
+      },
+      {
+        "name": "On -Door",
+        "price_etb": 700,
+        "price_usd": null,
+        "quantity": 1,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "694028d4732867ac8b5aceff",
+    "title": "Katanga Dec 20",
+    "slug": "katanga-dec-20",
+    "description": "Katanga Dance Music Club (KDMC) is back on December 20 for another high-energy night on the floor. Two DJs take control Call Me Dagi and Osaka bringing layered sounds, heavy rhythms, and nonstop motion.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Katanga, Ambassador Cinema",
+    "country": "Ethiopia",
+    "start_date": "2025-12-20",
+    "end_date": "2025-12-21",
+    "start_time": "21:00",
+    "end_time": "04:00",
+    "capacity": 300,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1765812436040.jpg"
+    ],
+    "organizer": "So&So",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 500,
+        "price_usd": null,
+        "quantity": 76,
+        "available": true
+      },
+      {
+        "name": "On - door",
+        "price_etb": 800,
+        "price_usd": null,
+        "quantity": 239,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6940284f732867ac8b5ace91",
+    "title": "Katanga Dec 19",
+    "slug": "katanga-dec-19",
+    "description": "Katanga Dance Music Club (KDMC) returns on December 19 with a night built for pure movement. Deep grooves and driving rhythms led by DJ Lyra and Bozzy, setting the dance floor in constant motion.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Katanga, Ambassador Cinema",
+    "country": "Ethiopia",
+    "start_date": "2025-12-19",
+    "end_date": "2025-12-20",
+    "start_time": "21:00",
+    "end_time": "04:00",
+    "capacity": 300,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1765812303772.jpg"
+    ],
+    "organizer": "So&So",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 500,
+        "price_usd": null,
+        "quantity": 100,
+        "available": true
+      },
+      {
+        "name": "Regular On Door",
+        "price_etb": 800,
+        "price_usd": null,
+        "quantity": 261,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "693d72511feac34a6c004dbd",
+    "title": "Katanga Dec 13",
+    "slug": "katanga-dec-13",
+    "description": "KDMC is stacked with heavy hitters and true pioneers of the culture. This is one of those nights you do not miss!",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Katanga",
+    "country": "Ethiopia",
+    "start_date": "2025-12-13",
+    "end_date": "2025-12-14",
+    "start_time": "21:00",
+    "end_time": "04:30",
+    "capacity": 400,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1765634641426.jpeg"
+    ],
+    "organizer": "So&So",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 500,
+        "price_usd": null,
+        "quantity": 99,
+        "available": true
+      },
+      {
+        "name": "Regularr",
+        "price_etb": 1000,
+        "price_usd": null,
+        "quantity": 209,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "693bfe7d1feac34a6cfea0f6",
+    "title": "Sunsetclub Vol 2",
+    "slug": "sunsetclub-vol-2",
+    "description": "It's rooftop season and we had to bring back Sunsetclub. DJs: Eva Roots Betty Yasmini Gurinya",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Jasper Lounge",
+    "country": "Ethiopia",
+    "start_date": "2025-12-13",
+    "end_date": "2025-12-14",
+    "start_time": "18:00",
+    "end_time": "12:00",
+    "capacity": 400,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1765539453551.PNG"
+    ],
+    "organizer": "Kebelezero",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 400,
+        "price_usd": null,
+        "quantity": 209,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "693ac74d1feac34a6cfce376",
+    "title": "KATANGA",
+    "slug": "katanga",
+    "description": "Our very first Friday night at KDMC is stacked with heavy hitters and true pioneers of the culture. This is one of those nights you do not miss!",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Katanga, Ambassador Cinema",
+    "country": "Ethiopia",
+    "start_date": "2025-12-12",
+    "end_date": "2025-12-13",
+    "start_time": "21:00",
+    "end_time": "04:30",
+    "capacity": 400,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "Katanga",
+      "Dance music club",
+      "event in Addis",
+      "Ticket on Pazimo"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1765459789627.JPG"
+    ],
+    "organizer": "So&So",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 700,
+        "price_usd": null,
+        "quantity": 97,
+        "available": true
+      },
+      {
+        "name": "Regularr",
+        "price_etb": 1000,
+        "price_usd": null,
+        "quantity": 247,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "69398830590ea621de924115",
+    "title": "The W show - Edition II",
+    "slug": "the-w-show-edition-ii",
+    "description": "On A Rebel presents : The W Show brings one of the best of live shows in collaboration with Adey Music Fest",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Kana Warehouse, Addis Ababa",
+    "country": "Ethiopia",
+    "start_date": "2025-12-20",
+    "end_date": "2025-12-21",
+    "start_time": "13:00",
+    "end_time": "02:30",
+    "capacity": 3000,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1765378096468.jpg"
+    ],
+    "organizer": "On A Rebel Creatives Plc",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 600,
+        "price_usd": null,
+        "quantity": 166,
+        "available": true
+      },
+      {
+        "name": "On - Door",
+        "price_etb": 900,
+        "price_usd": null,
+        "quantity": 1214,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 2000,
+        "price_usd": null,
+        "quantity": 267,
+        "available": true
+      },
+      {
+        "name": "Group",
+        "price_etb": 2000,
+        "price_usd": null,
+        "quantity": 94,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "69356a064255c527f1aee7b1",
+    "title": "Caps n' Shades",
+    "slug": "caps-n-shades",
+    "description": "Caps n' Shades returns for Episode Three with an Afro-Chic twist where African culture meets a modern vibe. On December 27 at The Venue Warehouse, we’re taking you from an easy daytime hangout and cookout session all the way into a late-night party filled with Afro-centric rhythms from start to finish. Door opens 2PM. This is the one you don’t want to miss. Disclaimer: - By attending this event, you consent to photography and video recording that may be used for promotional purposes by Solace Entertainment and its partners. - Entry is subject to venue capacity and security checks. - Strictly 23+! - ID is required. - Management reserves the right to refuse entry.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "The Venue Warehouse",
+    "country": "Ethiopia",
+    "start_date": "2025-12-27",
+    "end_date": "2025-12-28",
+    "start_time": "14:00",
+    "end_time": "02:30",
+    "capacity": 800,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "caps'n shades",
+      "event in Addis",
+      "pazimo ticket",
+      "pazimo",
+      "the venue warehouse",
+      "evet ticket",
+      "diaspora",
+      "diaspora season",
+      "caps and shades"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 23
+    },
+    "images": [
+      "https://pazimo.com/uploads/1765108230508.jpg"
+    ],
+    "organizer": "Solace Entertainment PLC",
+    "ticket_types": [
+      {
+        "name": "Regular FW",
+        "price_etb": 500,
+        "price_usd": null,
+        "quantity": 297,
+        "available": true
+      },
+      {
+        "name": "Regular",
+        "price_etb": 600,
+        "price_usd": null,
+        "quantity": 294,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 1000,
+        "price_usd": null,
+        "quantity": 294,
+        "available": true
+      },
+      {
+        "name": "Regular on door",
+        "price_etb": 700,
+        "price_usd": null,
+        "quantity": 98,
+        "available": true
+      },
+      {
+        "name": "Vip on door",
+        "price_etb": 1200,
+        "price_usd": null,
+        "quantity": 82,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6925baa9b17c120190da50e3",
+    "title": "KATANGA",
+    "slug": "katanga",
+    "description": "We know you’ve waited to dance for so long, because so have we. Don’t make any major plans for December 06th. We are launching the first dance music club in Addis by hosting some of the forces behind the rise of dance music in Ethiopia.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Katanga, Ambassador Cinema",
+    "country": "Ethiopia",
+    "start_date": "2025-12-06",
+    "end_date": "2025-12-07",
+    "start_time": "21:00",
+    "end_time": "04:00",
+    "capacity": 800,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "Katanga",
+      "Dance music club",
+      "event in Addis",
+      "Ticket on Pazimo"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1764080297357.jpg"
+    ],
+    "organizer": "So&So",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 1000,
+        "price_usd": null,
+        "quantity": 107,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "690df9d49234853b97213968",
+    "title": "Mebreq Ch. 3 Concrete Jungle",
+    "slug": "mebreq-ch-3-concrete-jungle",
+    "description": "This is Mebreq. A celebration beyond borders, beyond worlds.The call has been made.Will you answer?",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "The Jungle, Addis Ababa, Ethiopia",
+    "country": "Ethiopia",
+    "start_date": "2025-11-15",
+    "end_date": "2025-11-16",
+    "start_time": "18:00",
+    "end_time": "03:00",
+    "capacity": 900,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "Mebrek fest",
+      "event in Addis",
+      "Pazimo event",
+      "Mebrek and Pazimo",
+      "hottest event",
+      "Event in town"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1762523604719.png"
+    ],
+    "organizer": "Mebreq Trading PLC",
+    "ticket_types": [
+      {
+        "name": "Early Bird",
+        "price_etb": 500,
+        "price_usd": null,
+        "quantity": 48,
+        "available": true
+      },
+      {
+        "name": "Regular",
+        "price_etb": 600,
+        "price_usd": null,
+        "quantity": 82,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 1000,
+        "price_usd": null,
+        "quantity": 292,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "6909b0801bda2f8109d60dd0",
+    "title": "Cinema Night",
+    "slug": "cinema-night",
+    "description": "🎬 Welcome to Cinema Night… kinda. This is actually our test event (yes, the legendary 1 birr experience). If you’re here, you’re either curious, supportive, or just love testing things 😄 Go ahead, try it out — your future self will thank you when buying real tickets is this smooth.",
+    "category": "Tech",
+    "city": "Addis Ababa",
+    "address": "Your Couch 🛋️",
+    "country": "Ethiopia",
+    "start_date": "2025-11-11",
+    "end_date": "2026-10-31",
+    "start_time": "19:30",
+    "end_time": "00:00",
+    "capacity": 100,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 18
+    },
+    "images": [
+      "https://pazimo.com/uploads/1770019486896.jpg"
+    ],
+    "organizer": "Yjahak",
+    "ticket_types": [
+      {
+        "name": "Wave 2",
+        "price_etb": 2,
+        "price_usd": null,
+        "quantity": 18,
+        "available": true
+      },
+      {
+        "name": "vip",
+        "price_etb": 2,
+        "price_usd": 2,
+        "quantity": 29,
+        "available": false
+      }
+    ]
+  },
+  {
+    "id": "68fdf871a4a3914efc0fac01",
+    "title": "404 Halloween Night",
+    "slug": "404-halloween-night",
+    "description": "Here are the heavy hitter spooks lined up for 404 This edition! Free people, it's been long and we can't wait to see you!🎃",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Juventus Garden",
+    "country": "Ethiopia",
+    "start_date": "2025-10-31",
+    "end_date": "2025-11-01",
+    "start_time": "21:00",
+    "end_time": "04:00",
+    "capacity": 300,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 25
+    },
+    "images": [
+      "https://pazimo.com/uploads/1761474673793.jpg"
+    ],
+    "organizer": "So&So",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 500,
+        "price_usd": null,
+        "quantity": 297,
+        "available": true
+      },
+      {
+        "name": "On - Door",
+        "price_etb": 600,
+        "price_usd": null,
+        "quantity": 63,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "68efbc7b372f82851d1541f8",
+    "title": "Monkey Business",
+    "slug": "monkey-business",
+    "description": "Monkey Business returns with a Halloween twist! Hit songs from the '90s to now. Come dressed as your favorite music artist and bring their energy to the dance floor. Whether you're channeling Beyoncé or Gaga, make it iconic! See you soon 🎃",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "Juventus Italian sport club",
+    "country": "Ethiopia",
+    "start_date": "2025-10-25",
+    "end_date": "2025-10-27",
+    "start_time": "18:00",
+    "end_time": "02:00",
+    "capacity": 400,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "Pazimo",
+      "Event in Addis",
+      "monkey business",
+      "ticket",
+      "halloween",
+      "Ethiopian Event"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 25
+    },
+    "images": [
+      "https://pazimo.com/uploads/1760541819251.JPG"
+    ],
+    "organizer": "So&So",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 500,
+        "price_usd": null,
+        "quantity": 296,
+        "available": true
+      },
+      {
+        "name": "On Door",
+        "price_etb": 700,
+        "price_usd": null,
+        "quantity": 67,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "68eb71711f94adeca746222e",
+    "title": "Caps n' Shades",
+    "slug": "caps-n-shades",
+    "description": "Caps 'n Shades: The Day Party is back this October 18th at The Venue Warehouse! Kicking off at 2PM, it’s a 2000s-themed day-to-night experience — chill, cookout, and catch vibes with friends before the music turns up and the party moves inside for a high-energy night. Expect great food, good people, and nonstop throwback hits. Don’t miss this signature Solace experience! Disclaimer: - By attending this event, you consent to photography and video recording that may be used for promotional purposes by Solace Entertainment and its partners. - Entry is subject to venue capacity and security checks. - Strictly 23+! - ID is required. - Management reserves the right to refuse entry.",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "The Venue Warehouse",
+    "country": "Ethiopia",
+    "start_date": "2025-10-18",
+    "end_date": "2025-10-19",
+    "start_time": "14:00",
+    "end_time": "02:00",
+    "capacity": 2000,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 23
+    },
+    "images": [
+      "https://pazimo.com/uploads/1760260465876.png"
+    ],
+    "organizer": "Solace Entertainment PLC",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 600,
+        "price_usd": null,
+        "quantity": 1281,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 1000,
+        "price_usd": null,
+        "quantity": 453,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "68e8f03afadd363e572a94eb",
+    "title": "CAMPAIGN TO COAST VOL 3",
+    "slug": "campaign-to-coast-vol-3",
+    "description": "📍 Chasing sunsets & sound checks Road trips •🎸 Live gigs • From sunset to sunrise",
+    "category": "Festivals",
+    "city": "Debrezyit",
+    "address": "Private lake side debrezyit",
+    "country": "Ethiopia",
+    "start_date": "2025-10-23",
+    "end_date": "2025-10-24",
+    "start_time": "10:00",
+    "end_time": "04:00",
+    "capacity": 100,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1760096314209.PNG"
+    ],
+    "organizer": "SPATEVENTS",
+    "ticket_types": [
+      {
+        "name": "First Wave",
+        "price_etb": 1000,
+        "price_usd": null,
+        "quantity": 29,
+        "available": true
+      },
+      {
+        "name": "Second Wave",
+        "price_etb": 1500,
+        "price_usd": null,
+        "quantity": 24,
+        "available": false
+      },
+      {
+        "name": "Final Wave",
+        "price_etb": 2000,
+        "price_usd": null,
+        "quantity": 30,
+        "available": false
+      },
+      {
+        "name": "First Wave With transport",
+        "price_etb": 2000,
+        "price_usd": null,
+        "quantity": 24,
+        "available": false
+      },
+      {
+        "name": "First Wave With Transport & Tent",
+        "price_etb": 2500,
+        "price_usd": null,
+        "quantity": 28,
+        "available": false
+      },
+      {
+        "name": "First Wave WIth Tent",
+        "price_etb": 1500,
+        "price_usd": null,
+        "quantity": 24,
+        "available": false
+      },
+      {
+        "name": "Second Wave WIth Tent",
+        "price_etb": 2000,
+        "price_usd": null,
+        "quantity": 25,
+        "available": false
+      },
+      {
+        "name": "Second Wave With transport",
+        "price_etb": 2500,
+        "price_usd": null,
+        "quantity": 21,
+        "available": false
+      },
+      {
+        "name": "Second Wave With Transport & Tent",
+        "price_etb": 3000,
+        "price_usd": null,
+        "quantity": 24,
+        "available": false
+      },
+      {
+        "name": "Final Wave with Tent",
+        "price_etb": 2500,
+        "price_usd": null,
+        "quantity": 26,
+        "available": false
+      },
+      {
+        "name": "Final Wave with transport",
+        "price_etb": 3000,
+        "price_usd": null,
+        "quantity": 28,
+        "available": false
+      },
+      {
+        "name": "Final Wave with Transport and & Tent",
+        "price_etb": 3500,
+        "price_usd": null,
+        "quantity": 30,
+        "available": false
+      }
+    ]
+  },
+  {
+    "id": "68d7c348bbd690055f8495c4",
+    "title": "Mass (ማሥ)",
+    "slug": "mass-ማሥ",
+    "description": "Music performance event",
+    "category": "Music",
+    "city": "A.A",
+    "address": "Bisrat Building, 22 Lem Hotel",
+    "country": "Ethiopia",
+    "start_date": "2025-09-28",
+    "end_date": "2025-09-28",
+    "start_time": "15:00",
+    "end_time": "19:00",
+    "capacity": 70,
+    "featured": false,
+    "sold_out": false,
+    "tags": [],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1758970696764.jpg"
+    ],
+    "organizer": "Hager Beqel",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 150,
+        "price_usd": null,
+        "quantity": 71,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "68c8216aa32714bafc94f0e4",
+    "title": "Kelem - 1 Year Anniversary",
+    "slug": "kelem-1-year-anniversary",
+    "description": "Kelem is back for its 1-Year Anniversary — a night of colors, sound, and celebration. 🌅✨ On stage: Laeke, Ebne Hakim, and Rumi, each bringing their own unique sound and energy. Plus, a special surprise guest you won’t want to miss. Powered by Marathon Spirits & Kebelezero",
+    "category": "Music",
+    "city": "A.A",
+    "address": "Hilton Addis Ababa Atrium",
+    "country": "Ethiopia",
+    "start_date": "2025-09-20",
+    "end_date": "2025-09-21",
+    "start_time": "17:00",
+    "end_time": "23:00",
+    "capacity": 400,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "kelem",
+      "event",
+      "pazimo",
+      "event in addis",
+      "addis ababa event",
+      "pazimo event",
+      "kebelezero",
+      "kebelezero event",
+      "hilton"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 23
+    },
+    "images": [
+      "https://pazimo.com/uploads/1757946218811.png"
+    ],
+    "organizer": "Kebelezero",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 700,
+        "price_usd": null,
+        "quantity": 66,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "68b862bdd777159ec3c049c4",
+    "title": "Back to 70's",
+    "slug": "back-to-70s",
+    "description": "Back to 70s is taking off! 🚀🎶 From the groovy 70s all the way into the FUTURE, our DJs are bringing every vibe: Amapiano 🔥 Deep House 🎧 Old School 🎵 and MORE!",
+    "category": "Music",
+    "city": "Addis Ababa",
+    "address": "La Maison Franch Cuisine",
+    "country": "Ethiopia",
+    "start_date": "2025-09-06",
+    "end_date": "2025-09-07",
+    "start_time": "16:30",
+    "end_time": "02:00",
+    "capacity": 400,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "\"Back to 70s 🚀 From groovy classics to future vibes: Amapiano",
+      "Deep House",
+      "Old School & more!\""
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1756914365716.png"
+    ],
+    "organizer": "Balchut Creatives",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 400,
+        "price_usd": null,
+        "quantity": 301,
+        "available": true
+      },
+      {
+        "name": "Group",
+        "price_etb": 1600,
+        "price_usd": null,
+        "quantity": 3,
+        "available": true
+      }
+    ]
+  },
+  {
+    "id": "68b290bf01296d8d3cbfc46a",
+    "title": "ESKESTA FEST",
+    "slug": "eskesta-fest",
+    "description": "Step into the rhythm of the night with Eskesta Fest Vol 1, presented by Warka Events. An unforgettable celebration of house music and dancehall at The Jungle on Saturday, 30 August 2025. The festival opens at 6:00 PM and runs until 2:00 AM, delivering eight hours of music, energy, and movement. 🎟️ Regular: 400 ETB 🎟️ Gate: 500 ETB 🎟️ VIP: 1000 ETB Join us for a night where rhythm meets atmosphere Eskesta Fest, the ultimate dance experience.",
+    "category": "Festivals",
+    "city": "A.A",
+    "address": "The Jungle, Addis Ababa, Ethiopia",
+    "country": "Ethiopia",
+    "start_date": "2025-08-30",
+    "end_date": "2025-08-31",
+    "start_time": "18:00",
+    "end_time": "02:00",
+    "capacity": 1000,
+    "featured": false,
+    "sold_out": false,
+    "tags": [
+      "esksta fest",
+      "festival",
+      "ticket on pazimo",
+      "event in addis",
+      "august 30"
+    ],
+    "age_restriction": {
+      "has_restriction": true,
+      "min_age": 21
+    },
+    "images": [
+      "https://pazimo.com/uploads/1756532927131.png"
+    ],
+    "organizer": "Warka Events",
+    "ticket_types": [
+      {
+        "name": "Regular",
+        "price_etb": 500,
+        "price_usd": null,
+        "quantity": 830,
+        "available": true
+      },
+      {
+        "name": "VIP",
+        "price_etb": 1000,
+        "price_usd": null,
+        "quantity": 1989,
+        "available": true
+      }
+    ]
+  }
+]
