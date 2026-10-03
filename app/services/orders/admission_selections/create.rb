@@ -209,7 +209,10 @@ module Orders
           next if new_manual_application?(item, product) || offered_registration?(item, product)
 
           validate_sales_window!(product)
-          inventory_check_line(item, product)
+          line = inventory_check_line(item, product)
+          abort_with(selection_error("event_date_unavailable", status: :unprocessable_entity)) unless line
+
+          line
         end
         result = Catalog::Inventory::CheckAvailability.call(lines:)
         abort_with(inventory_preflight_error(result.error)) if result.failure?
@@ -224,23 +227,12 @@ module Orders
       end
 
       def inventory_check_line(item, product)
-        date_ids = inventory_date_ids(item, product)
-        Catalog::Inventory::Line.new(
+        Catalog::Inventory::AdmissionLine.call(
           product:,
-          event_date_ids: date_ids,
-          venue_event_date_ids: date_ids,
+          selected_event_date_id: item[:selected_event_date_id],
           package_quantity: item[:quantity],
           admissions_per_unit: product.ticket_type.admissions_per_unit
         )
-      end
-
-      def inventory_date_ids(item, product)
-        ticket_type = product.ticket_type
-        return [ item[:selected_event_date_id] ].compact if ticket_type.date_selection == "choose_one"
-
-        product.product_accesses
-          .select { |access| access.type.in?(%w[venue parking]) }
-          .filter_map(&:event_date_id)
       end
 
       def new_manual_application?(item, product)

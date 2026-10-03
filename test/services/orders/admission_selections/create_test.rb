@@ -107,6 +107,29 @@ module Orders
         assert_equal "confirmed", replay.value.next_action
       end
 
+      test "free stream ticket does not consume physical venue capacity" do
+        @event_date.update!(venue_capacity: 0)
+        product = create_ticket_product(
+          name: "Stream only admission", etb_minor: 0, access_type: "stream", date_selection: "choose_one"
+        )
+
+        result = call_selection(
+          items: [ {
+            event_product_id: product.id, quantity: 1, selected_event_date_id: @event_date.id,
+            answers: [], consents: []
+          } ],
+          key: "stream-admission-#{SecureRandom.hex(6)}"
+        )
+
+        assert_predicate result, :success?, error_detail(result)
+        assert_equal "fulfilled", result.value.order.status
+        assert_empty Catalog::VenueCapacityReservation.where(
+          reservation_group_id: result.value.order.order_items.select(:id)
+        )
+        assert_equal 0, @event_date.reload.held_venue_count
+        assert_equal 0, @event_date.issued_venue_count
+      end
+
       test "confirms every registration in a zero-total multi-product selection" do
         products = [
           create_ticket_product(name: "Free GA #{SecureRandom.hex(3)}", etb_minor: 0),
@@ -749,14 +772,14 @@ module Orders
       def create_ticket_product(
         name:, etb_minor:, usd_minor: nil, approval_mode: "automatic", audience: "public",
         inventory_mode: "unlimited", capacity: nil, waitlist_enabled: false,
-        max_packages_per_user: nil
+        max_packages_per_user: nil, access_type: "venue", date_selection: "fixed"
       )
         product_result = Catalog::Products::CreateDraft.call(
           event: @event,
           actor: @actor,
           product_attributes: { name:, type: "ticket" },
           ticket_type_attributes: {
-            audience:, approval_mode:, date_selection: "fixed",
+            audience:, approval_mode:, date_selection:,
             admissions_per_unit: 1, waitlist_enabled:, max_packages_per_user:
           },
           price_attributes: {
@@ -766,7 +789,9 @@ module Orders
         )
         assert_predicate product_result, :success?, product_result.error&.message
         product = product_result.value
-        product.product_accesses.create!(event_date: @event_date, type: "venue")
+        access_attributes = { event_date: @event_date, type: access_type }
+        access_attributes[:required_access_protection] = "public" if access_type == "stream"
+        product.product_accesses.create!(access_attributes)
         product.prices.create!(
           type: "override", currency: "USD", amount_minor: usd_minor, active_from: @quoted_at - 1.minute
         ) if usd_minor

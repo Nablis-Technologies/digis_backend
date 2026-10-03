@@ -1,38 +1,26 @@
 # frozen_string_literal: true
 
 module Orders
-  # Owns the sellability rule for event dates used by checkout quotes and
-  # orders. Scheduled dates must still be ahead of the operation timestamp.
+  # Converts shared Events date eligibility into the checkout error contract.
   class EventDateEligibility
-    UUID_PATTERN = /\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/i.freeze
-
     def self.error_for(event:, event_date_ids:, at:)
       ids = Array(event_date_ids).map(&:to_s).uniq
-      return unavailable unless ids.all? { |id| id.match?(UUID_PATTERN) }
+      return unavailable unless Events::EventDateEligibility.valid_ids?(ids)
 
-      if ids.empty?
-        return unless event.event_dates.exists?
-        return if eligible_dates_exist?(event, at)
+      snapshot = snapshot_for(event, ids, at)
+      return if snapshot.eligible?(ids)
 
-        return unavailable
-      end
-
-      dates = event.event_dates.where(id: ids).index_by { |date| date.id.to_s }
-      return unavailable unless dates.size == ids.size
-      return unavailable unless ids.all? { |id| sellable?(dates.fetch(id), at) }
-
-      nil
+      unavailable
     end
 
-    def self.eligible_dates_exist?(event, at)
-      event.event_dates.where(status: "scheduled").where("starts_at > ?", at).exists?
-    end
-    private_class_method :eligible_dates_exist?
+    def self.snapshot_for(event, ids, at)
+      return Events::EventDateEligibility.snapshot(event_dates: event.event_dates.where(id: ids).to_a, at:) if ids.present?
 
-    def self.sellable?(date, at)
-      date.status == "scheduled" && date.starts_at > at
+      has_dates = event.event_dates.exists?
+      future_dates = event.event_dates.where(status: "scheduled").where("starts_at > ?", at).to_a
+      Events::EventDateEligibility.snapshot(event_dates: future_dates, at:, has_dates:)
     end
-    private_class_method :sellable?
+    private_class_method :snapshot_for
 
     def self.unavailable
       Core::BusinessError.new(

@@ -144,18 +144,12 @@ module Orders
       end
       return checkout_error(:admissions_invalid, code: "admissions_invalid") if product.ticket? && !admissions.to_i.positive?
 
-      event_date_ids = Array(attributes[:event_date_ids]).presence
-      if event_date_ids.blank? && product.ticket? && registration
-        event_date_ids = ticket_type.covered_date_ids(registration)
-      end
-      if event_date_ids.blank? && product.ticket? && ticket_type&.date_selection == "fixed"
-        event_date_ids = product.product_accesses.where(type: %w[venue parking]).pluck(:event_date_id)
-      end
+      event_date_ids, venue_event_date_ids = demand_for_product(attributes, product, registration, quantity, admissions)
+      return event_date_ids if event_date_ids.is_a?(Core::BusinessError)
       if product.inventory_mode.in?(%w[per_date event_wide_and_per_date]) && event_date_ids.blank?
         return checkout_error(:event_dates_required, code: "event_dates_required")
       end
 
-      venue_event_date_ids = Array(attributes[:venue_event_date_ids]).presence || event_date_ids || []
       {
         product:,
         product_id: product.id.to_s,
@@ -167,6 +161,37 @@ module Orders
         venue_event_date_ids:,
         admissions_per_unit: admissions
       }
+    end
+
+    def demand_for_product(attributes, product, registration, quantity, admissions)
+      return non_ticket_demand(attributes) unless product.ticket?
+
+      ticket_type = product.ticket_type
+      requested_date_ids = Array(attributes[:event_date_ids]).map(&:to_s).uniq
+      selected_date_id = registration&.selected_event_date_id
+      if ticket_type.date_selection == "choose_one" && selected_date_id.blank? && requested_date_ids.one?
+        selected_date_id = requested_date_ids.sole
+      end
+      line = Catalog::Inventory::AdmissionLine.call(
+        product:, selected_event_date_id: selected_date_id,
+        package_quantity: quantity, admissions_per_unit: admissions
+      )
+      return [ checkout_error(:event_date_unavailable, code: "event_date_unavailable"), [] ] unless line
+      return [ checkout_error(:event_date_unavailable, code: "event_date_unavailable"), [] ] if
+        requested_date_ids.present? && requested_date_ids.sort != line.event_date_ids
+
+      requested_venue_ids = Array(attributes[:venue_event_date_ids]).map(&:to_s).uniq.sort
+      if attributes.key?(:venue_event_date_ids) && requested_venue_ids != line.venue_event_date_ids
+        return [ checkout_error(:event_date_unavailable, code: "event_date_unavailable"), [] ]
+      end
+
+      [ line.event_date_ids, line.venue_event_date_ids ]
+    end
+
+    def non_ticket_demand(attributes)
+      event_date_ids = Array(attributes[:event_date_ids]).presence
+      venue_event_date_ids = Array(attributes[:venue_event_date_ids]).presence || event_date_ids || []
+      [ event_date_ids, venue_event_date_ids ]
     end
 
     def load_product(value)

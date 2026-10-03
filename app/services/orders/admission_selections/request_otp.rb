@@ -71,13 +71,18 @@ module Orders
         quote_items = items.map do |item|
           product = products.fetch(item.fetch(:event_product_id))
           validate_line!(item, product)
-          date_ids = quote_event_date_ids(item, product)
+          demand = Catalog::Inventory::AdmissionLine.call(
+            product:,
+            selected_event_date_id: item[:selected_event_date_id],
+            package_quantity: item.fetch(:quantity),
+            admissions_per_unit: product.ticket_type.admissions_per_unit
+          )
           {
             product:,
             registration: nil,
             quantity: item.fetch(:quantity),
-            event_date_ids: date_ids,
-            venue_event_date_ids: date_ids
+            event_date_ids: demand.event_date_ids,
+            venue_event_date_ids: demand.venue_event_date_ids
           }
         end
         quote = Orders::BuildQuote.call(
@@ -108,15 +113,6 @@ module Orders
         validate_date!(item, product, ticket_type)
         validate_audience!(item, ticket_type)
         validate_form!(item, ticket_type)
-      end
-
-      def quote_event_date_ids(item, product)
-        ticket_type = product.ticket_type
-        return [ item[:selected_event_date_id] ].compact if ticket_type.date_selection == "choose_one"
-
-        product.product_accesses
-          .select { |access| access.type.in?(%w[venue parking]) }
-          .filter_map(&:event_date_id)
       end
 
       def resolve_promotion!
