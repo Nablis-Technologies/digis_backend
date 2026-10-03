@@ -61,7 +61,7 @@ module Orders
       Orders::OrderAdjustment.create!(buyer_fee_adjustment_attributes)
       @order.update!(status: "pending_payment")
       @chapa = FakeAdapter.new(
-        capabilities: { currencies: [ "ETB" ], payment_methods: [ "telebirr", "card" ] }
+        capabilities: { currencies: [ "ETB" ], payment_methods: [ "telebirr", "card", "cbebirr" ] }
       )
       @stripe = FakeAdapter.new(
         capabilities: { currencies: [ "ETB" ], payment_methods: [ "card" ] }
@@ -211,6 +211,23 @@ module Orders
 
       assert_predicate result, :failure?
       assert_equal "payment_method_unsupported", result.error.code
+      assert_empty Orders::Payment.where(order: @order)
+    end
+
+    test "persists and dispatches the canonical CBE Birr payment method" do
+      result = start(provider: "chapa", payment_method: "cbebirr", key: "canonical-cbebirr")
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "cbebirr", result.value.payment_method
+      assert_equal "cbebirr", @chapa.create_calls.sole.fetch(:payment_method)
+    end
+
+    test "rejects the non-canonical CBE alias before provider dispatch" do
+      result = start(provider: "chapa", payment_method: "cbe", key: "alias-cbe")
+
+      assert_predicate result, :failure?
+      assert_equal "invalid_payment_method", result.error.code
+      assert_empty @chapa.create_calls
       assert_empty Orders::Payment.where(order: @order)
     end
 

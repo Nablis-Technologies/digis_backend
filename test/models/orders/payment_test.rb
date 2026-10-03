@@ -42,6 +42,18 @@ module Orders
       assert_nil payment.checkout_url
     end
 
+    test "accepts canonical CBE Birr and rejects non-canonical aliases" do
+      assert_equal %w[telebirr card bank cbebirr], Orders::Payment::PAYMENT_METHODS
+      assert_equal %w[telebirr card bank], Commercial::FeeComponent::PAYMENT_METHODS
+
+      canonical = Orders::Payment.new(payment_attributes(payment_method: "cbebirr"))
+      alias_method = Orders::Payment.new(payment_attributes(payment_method: "cbe"))
+
+      assert_predicate canonical, :valid?, canonical.errors.full_messages
+      assert_not alias_method.valid?
+      assert_includes alias_method.errors.attribute_names, :payment_method
+    end
+
     test "normalizes and validates the provider merchant reference" do
       payment = Orders::Payment.new(payment_attributes(provider_merchant_reference: "  ABC123  "))
 

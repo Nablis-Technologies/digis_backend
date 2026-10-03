@@ -10,7 +10,7 @@ module Orders
     STATUSES = %w[created processing succeeded failed cancelled unknown timeout reversed].freeze
     RELEASE_BLOCKING_STATUSES = %w[created processing succeeded unknown timeout].freeze
     PROVIDERS = Commercial::FeeComponent::PROVIDERS.freeze
-    PAYMENT_METHODS = Commercial::FeeComponent::PAYMENT_METHODS.freeze
+    PAYMENT_METHODS = %w[telebirr card bank cbebirr].freeze
     SNAPSHOT_ATTRIBUTES = %w[
       order_id billing_purchase_id attempt_number provider payment_method amount_minor currency
       commercial_signature buyer_fee_minor organizer_fee_minor provider_fee_minor

@@ -29,7 +29,7 @@ module Orders
         "fake-ref-#{attempt_number}"
       end
       def available_balance(**) = { amount_minor: 100_000, currency: "ETB" }
-      def capabilities = { currencies: [ "ETB" ], payment_methods: [ "telebirr" ] }
+      def capabilities = { currencies: [ "ETB" ], payment_methods: [ "telebirr", "cbebirr" ] }
       def settlement_grace_minutes = 5
     end
 
@@ -61,6 +61,23 @@ module Orders
       assert_nil first.value.order_id
       assert_equal "fake-ref-1", first.value.provider_merchant_reference
       assert_equal "fake-ref-1", @adapter.create_calls.sole.fetch(:merchant_reference)
+    end
+
+    test "persists and dispatches the canonical CBE Birr payment method" do
+      result = start("billing-canonical-cbebirr", payment_method: "cbebirr")
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "cbebirr", result.value.payment_method
+      assert_equal "cbebirr", @adapter.create_calls.sole.fetch(:payment_method)
+    end
+
+    test "rejects the non-canonical CBE alias before provider dispatch" do
+      result = start("billing-alias-cbe", payment_method: "cbe")
+
+      assert_predicate result, :failure?
+      assert_equal "invalid_payment_method", result.error.code
+      assert_empty @adapter.create_calls
+      assert_empty Orders::Payment.where(billing_purchase: @purchase)
     end
 
     test "returns a typed failure when the billing purchase has expired" do
@@ -118,10 +135,10 @@ module Orders
 
     private
 
-    def start(key)
+    def start(key, payment_method: "telebirr")
       StartBillingPaymentAttempt.call(
         billing_purchase: @purchase, buyer: @buyer, provider: "chapa",
-        payment_method: "telebirr", idempotency_key: key
+        payment_method:, idempotency_key: key
       )
     end
   end
