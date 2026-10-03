@@ -28,6 +28,12 @@
 
 - When a user asks to finish a plan, reconcile the canonical plan checkboxes with the actual committed code before advancing; distinguish completed implementation from remaining gated tasks and update the plan as each tranche is verified.
 
+- When presenting an interactive choice, do not treat a missing answer as approval or
+  end the task as though the user chose. Keep the work at that decision point; if
+  the user says they have not answered, re-present the choice with the ask-user
+  tool and continue only after their response. Independent, already-approved work
+  may proceed while an optional clarification is pending.
+
 - For pre-launch invitation delivery, use the hybrid boundary: persist the
   one-time token encrypted alongside its lookup digest, publish only the
   invitation ID through the outbox, and let a provider-injection job decrypt
@@ -179,3 +185,10 @@
   `Idempotency-Key` header, but derive and persist a provider-safe reference
   when the gateway imposes a shorter `merchant_reference` limit; never truncate
   an identifier without a durable correlation strategy.
+
+- Public discovery must not let unrelated page neighbors or arbitrary result
+  caps change an event's business state. Stream child records in fixed-size
+  batches, fold per-event results, and test total rows visited and maximum batch
+  size in addition to SQL query count. Inventory checks must distinguish access
+  dates (including stream) from physical venue demand; lock/validate all access
+  dates, but consume venue capacity only for physical accesses.
