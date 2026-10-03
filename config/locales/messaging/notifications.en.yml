@@ -47,6 +47,9 @@ en:
       transfer_received:
         title: "Ticket transfer received"
         body: "A ticket was transferred to you."
+      transfer_incoming:
+        title: "Ticket transfer waiting"
+        body: "A ticket is waiting for you to accept the transfer."
       waitlist_offer_created:
         title: "Waitlist offer available"
         body: "A ticket offer is available from the waitlist."

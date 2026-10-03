@@ -118,6 +118,24 @@ module Messaging
             ).compact
           }
         ),
+        "transfer_incoming" => definition(
+          key: "transfer_incoming",
+          category: "transactional", mandatory: false,
+          channels: %w[in_app],
+          data_keys: %w[transfer_id ticket_id event_id event_title ticket_label expires_at],
+          recipients: ->(source:, **) { source.to_user },
+          dedupe: ->(source:, **) { "transfer-incoming:#{source.id}:v1" },
+          projector: ->(source:, **) {
+            {
+              "transfer_id" => source.id,
+              "ticket_id" => source.ticket_id,
+              "event_id" => source.ticket.event_id,
+              "event_title" => source.ticket.event.title,
+              "ticket_label" => source.ticket.event_product.name,
+              "expires_at" => source.expires_at&.iso8601
+            }.compact
+          }
+        ),
         "waitlist_offer_created" => definition(
           key: "waitlist_offer_created",
           category: "transactional", mandatory: false,
@@ -186,10 +204,11 @@ module Messaging
       }
     end
 
-    def definition(key:, category:, mandatory:, data_keys:, recipients:, dedupe:, projector: nil)
+    def definition(key:, category:, mandatory:, data_keys:, recipients:, dedupe:,
+      projector: nil, channels: NotificationDelivery::CHANNELS)
       NotificationTypeDefinition.new(
         key:,
-        category:, mandatory:, channels: NotificationDelivery::CHANNELS,
+        category:, mandatory:, channels:,
         data_keys:, locale_scope: "messaging.notifications", recipient_resolver: recipients,
         dedupe_resolver: dedupe, projector:
       )

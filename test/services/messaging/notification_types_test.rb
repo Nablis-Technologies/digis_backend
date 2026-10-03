@@ -45,6 +45,36 @@ module Messaging
       )
     end
 
+    test "incoming transfer notifications are recipient-owned and in-app only" do
+      event = Struct.new(:title).new("Chapa Test Event")
+      product = Struct.new(:name).new("General Admission")
+      ticket = Struct.new(:event_id, :event, :event_product)
+        .new("event-1", event, product)
+      recipient = Object.new
+      recipient.define_singleton_method(:id) { "recipient-1" }
+      expires_at = Time.utc(2026, 10, 10)
+      transfer = Struct.new(:id, :to_user, :ticket_id, :ticket, :expires_at)
+        .new("transfer-1", recipient, "ticket-1", ticket, expires_at)
+      definition = Messaging::NotificationTypes.fetch("transfer_incoming")
+
+      assert_equal "transactional", definition.category
+      assert_equal [ "in_app" ], definition.channels
+      assert_equal recipient, definition.recipient_for(source: transfer)
+      assert_equal "transfer-incoming:transfer-1:v1",
+        definition.dedupe_key_for(source: transfer, recipient:)
+      assert_equal(
+        {
+          "transfer_id" => "transfer-1",
+          "ticket_id" => "ticket-1",
+          "event_id" => "event-1",
+          "event_title" => "Chapa Test Event",
+          "ticket_label" => "General Admission",
+          "expires_at" => expires_at.iso8601
+        },
+        definition.project(source: transfer, payload: {})
+      )
+    end
+
     test "ticket projections derive the label used by seed and outbox paths" do
       event = Struct.new(:title).new("Chapa Test Event")
       product = Struct.new(:name).new("General Admission")

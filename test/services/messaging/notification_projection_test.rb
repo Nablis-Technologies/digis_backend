@@ -34,5 +34,20 @@ module Messaging
       assert_equal({ "event_title" => "Concert", "ticket_label" => "General" }, projected)
       assert_predicate projected, :frozen?
     end
+
+    test "incoming transfer projection rejects bearer credentials and contact data" do
+      %w[token token_digest phone email].each do |key|
+        assert_raises(Messaging::NotificationProjection::UnsafeData, key) do
+          Messaging::NotificationProjection.call(
+            "transfer_incoming",
+            {
+              transfer_id: "transfer-1", ticket_id: "ticket-1", event_id: "event-1",
+              event_title: "Concert", ticket_label: "General", expires_at: "2026-10-10T00:00:00Z",
+              key => "sensitive"
+            }
+          )
+        end
+      end
+    end
   end
 end
