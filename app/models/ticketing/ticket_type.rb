@@ -88,15 +88,30 @@ module Ticketing
     scope :with_invitation, -> { where(audience: %w[invitation code_or_invitation]) }
     scope :transferable, -> { where(transferable: true) }
 
-    def covered_date_ids(registration)
-      # Inventory and venue holds use the selected date for choose-one products
-      # and every venue/parking date for fixed products.
-      return [ registration.selected_event_date_id ].compact if date_selection == "choose_one"
+    def admission_line(product:, selected_event_date_id:, package_quantity:, admissions_per_unit:)
+      Catalog::Inventory::AdmissionLine.call(
+        product:,
+        selected_event_date_id:,
+        package_quantity:,
+        admissions_per_unit:
+      )
+    end
 
-      event_product.product_accesses
-        .where(type: %w[venue parking])
-        .distinct
-        .pluck(:event_date_id)
+    def covered_date_ids(registration)
+      admission_line_for(registration).event_date_ids
+    end
+
+    def covered_venue_date_ids(registration)
+      admission_line_for(registration).venue_event_date_ids
+    end
+
+    def admission_line_for(registration)
+      admission_line(
+        product: event_product,
+        selected_event_date_id: registration.selected_event_date_id,
+        package_quantity: registration.package_quantity,
+        admissions_per_unit: registration.admissions_per_unit_snapshot
+      )
     end
 
     def self.ransackable_attributes(_auth_object = nil)
