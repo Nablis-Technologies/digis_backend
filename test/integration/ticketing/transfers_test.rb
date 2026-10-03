@@ -123,6 +123,74 @@ module Ticketing
       )
     end
 
+    test "authenticated recipient can accept transfer by ID without a bearer token" do
+      post "/tickets/#{@ticket.id}/transfers",
+        params: { phone: @recipient.phone }.to_json,
+        headers: @owner_headers.merge("Idempotency-Key" => "transfer-for-tokenless-accept")
+
+      assert_response :created
+      transfer_id = response.parsed_body.dig("data", "transfer", "id")
+
+      post "/ticket_transfers/#{transfer_id}/accept",
+        params: {}.to_json,
+        headers: @recipient_headers.merge("Idempotency-Key" => "accept-transfer-by-id"),
+        as: :json
+
+      assert_response :success
+      assert_equal "accepted", response.parsed_body.dig("data", "status")
+      assert_equal @recipient.id, @ticket.reload.owner_user_id
+
+      post "/ticket_transfers/#{transfer_id}/accept",
+        params: {}.to_json,
+        headers: @recipient_headers.merge("Idempotency-Key" => "accept-transfer-by-id"),
+        as: :json
+
+      assert_response :success
+      assert_equal "accepted", response.parsed_body.dig("data", "status")
+      assert_equal 2, @ticket.reload.credential_version
+      assert_equal 1, Core::OutboxEvent.where(
+        aggregate_id: transfer_id,
+        event_type: "ticketing.ticket_transfer.accepted"
+      ).count
+    end
+
+    test "tokenless recipient acceptance still requires Idempotency-Key" do
+      post "/tickets/#{@ticket.id}/transfers",
+        params: { phone: @recipient.phone }.to_json,
+        headers: @owner_headers.merge("Idempotency-Key" => "transfer-for-tokenless-missing-key")
+
+      assert_response :created
+      transfer_id = response.parsed_body.dig("data", "transfer", "id")
+
+      post "/ticket_transfers/#{transfer_id}/accept",
+        params: {}.to_json,
+        headers: @recipient_headers,
+        as: :json
+
+      assert_response :bad_request
+      assert_equal "missing_idempotency_key", response.parsed_body.fetch("code")
+      assert_equal "pending", Ticketing::TicketTransfer.find(transfer_id).status
+    end
+
+    test "authenticated non-recipient cannot accept a transfer by ID" do
+      post "/tickets/#{@ticket.id}/transfers",
+        params: { phone: @recipient.phone }.to_json,
+        headers: @owner_headers.merge("Idempotency-Key" => "transfer-for-other-tokenless-accept")
+
+      assert_response :created
+      transfer_id = response.parsed_body.dig("data", "transfer", "id")
+
+      post "/ticket_transfers/#{transfer_id}/accept",
+        params: {}.to_json,
+        headers: @other_headers.merge("Idempotency-Key" => "other-accept-transfer-by-id"),
+        as: :json
+
+      assert_response :not_found
+      assert_equal "transfer_invalid", response.parsed_body.fetch("code")
+      assert_equal "pending", Ticketing::TicketTransfer.find(transfer_id).status
+      assert_equal @owner.id, @ticket.reload.owner_user_id
+    end
+
     test "accepting with invalid token returns 404" do
       post "/tickets/#{@ticket.id}/transfers",
         params: { phone: @recipient.phone }.to_json,
@@ -135,6 +203,24 @@ module Ticketing
         headers: @recipient_headers.merge("Idempotency-Key" => "accept-bad-token")
 
       assert_response :not_found
+    end
+
+    test "acceptance binds a valid token to the transfer in the route" do
+      post "/tickets/#{@ticket.id}/transfers",
+        params: { phone: @recipient.phone }.to_json,
+        headers: @owner_headers.merge("Idempotency-Key" => "transfer-for-route-token-binding")
+
+      transfer_id = response.parsed_body.dig("data", "transfer", "id")
+      raw_token = response.parsed_body.dig("data", "token")
+
+      post "/ticket_transfers/#{SecureRandom.uuid}/accept",
+        params: { token: raw_token }.to_json,
+        headers: @recipient_headers.merge("Idempotency-Key" => "accept-wrong-route-id")
+
+      assert_response :not_found
+      assert_equal "transfer_invalid", response.parsed_body.fetch("code")
+      assert_equal "pending", Ticketing::TicketTransfer.find(transfer_id).status
+      assert_equal @owner.id, @ticket.reload.owner_user_id
     end
 
     test "non-recipient user cannot accept transfer" do

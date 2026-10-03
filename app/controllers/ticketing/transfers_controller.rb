@@ -33,11 +33,9 @@ module Ticketing
     end
 
     def accept
-      transfer = Ticketing::TicketTransfer.find(params.require(:id))
-      token = params.require(:token)
-      return render_invalid_transfer unless transfer.token_digest == Ticketing::TicketTransfer.token_digest_for(token:)
-
-      result = Ticketing::Transfers::Accept.call(token:, actor: current_user)
+      result = Ticketing::Transfers::Accept.call(
+        transfer_id: params.require(:id), token: params[:token], actor: current_user
+      )
       return render_service_result(result) if result.failure?
 
       render_success(
@@ -76,14 +74,6 @@ module Ticketing
 
     def load_ticket
       @ticket = Ticketing::Ticket.find(params[:ticket_id])
-    end
-
-    def render_invalid_transfer
-      render_error(
-        :"ticketing.package_workflow.errors.transfer_invalid",
-        status: :not_found,
-        code: "transfer_invalid"
-      )
     end
   end
 end
