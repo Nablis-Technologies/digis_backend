@@ -6,7 +6,8 @@ module Events
       include Core::AttributeVisibilitySerializer
 
       attributes :id, :slug, :title, :description, :visibility,
-                 :timezone, :currency, :published_at, :price_from_minor
+                 :timezone, :currency, :published_at, :price_from_minor,
+                 :event_lifecycle, :ticket_availability
 
       has_many :categories, serializer: Events::Public::CategorySerializer
       has_many :event_dates, serializer: Events::Public::EventDateSerializer
@@ -16,20 +17,22 @@ module Events
       has_one :organization, serializer: Events::Public::OrganizationSummarySerializer
 
       def price_from_minor
-        object.event_products
-          .select { |product| product.status == "active" && product.ticket? }
-          .flat_map { |product| product.prices.select { |price| active_price?(price) } }
-          .map(&:amount_minor)
-          .min
+        event_status[:price_from_minor]
+      end
+
+      def event_lifecycle
+        event_status.fetch(:event_lifecycle, "unscheduled")
+      end
+
+      def ticket_availability
+        event_status.fetch(:ticket_availability, "no_public_tickets")
       end
 
       private
 
-      def active_price?(price)
-        price.currency == object.currency && Catalog::Public::PriceWindow.active?(price, at: evaluation_time)
+      def event_status
+        instance_options.fetch(:event_statuses, {}).fetch(object.id, {})
       end
-
-      def evaluation_time = instance_options.fetch(:at, Time.current)
     end
   end
 end

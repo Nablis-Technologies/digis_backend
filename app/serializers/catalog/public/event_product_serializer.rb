@@ -21,7 +21,7 @@ module Catalog
       end
 
       def available
-        instance_options.fetch(:availability, {}).fetch(object.id, false)
+        instance_options.fetch(:availability, {}).fetch(object.id, "unavailable") == "available"
       end
 
       def requires_ticket
