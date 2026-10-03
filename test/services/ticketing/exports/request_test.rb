@@ -84,11 +84,11 @@ module Ticketing
 
       test "rechecks current field authorization before accepting an exact replay" do
         raw_proof = issue_proof
-        first = request_export(raw_proof:)
+        first = request_export(raw_proof:, field_keys: [ "registration_user_email" ])
         assert_predicate first, :success?, first.error&.message
         @actor.stubs(:has_permission?).returns(false)
 
-        replay = request_export(raw_proof: nil)
+        replay = request_export(raw_proof: nil, field_keys: [ "registration_user_email" ])
 
         assert_predicate replay, :failure?
         assert_equal "not_authorized", replay.error.code
@@ -185,7 +185,7 @@ module Ticketing
       end
 
       test "rechecks current authorization before consuming a new request proof" do
-        actor = core_users(:core_admin)
+        actor = core_users(:attendee)
         session = Core::RefreshToken.generate(actor, ActionDispatch::TestRequest.create)
         raw_proof = issue_proof(actor:, session_jti: session.jti)
 
