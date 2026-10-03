@@ -1,8 +1,13 @@
 # Marketplace Seller Payout Direct-Transfer Design
 
 **Date:** 2026-09-10  
-**Status:** Approved design; implementation pending  
+**Status:** Direct-transfer account model implemented; payout timing superseded
 **Scope:** G-03 / Gap #26 — Marketplace seller payout destination creation and Chapa dispatch
+
+> **Superseded for resale payout timing and scope:** The 2026-10-02
+> `marketplace-instant-resale-withdrawals` design replaces the event-completion,
+> seven-day maturity, and one-event-per-payout assumptions below. This document
+> remains the source for direct-transfer account security and provider transport.
 
 ## Decision summary
 
@@ -67,8 +72,8 @@ preserving its seller-specific ledger and payout allocation rules.
 ## Non-goals
 
 - Chapa split-payment checkout or subaccount settlement.
-- Moving resale proceeds earlier than the existing event-completion and
-  maturity rules.
+- Organizer payout maturity; Marketplace resale timing is superseded by the
+  immediate-withdrawal design linked above.
 - Changing seller ledger economics, resale pricing, marketplace fees, or
   purchase fulfillment.
 - Adding a new provider-specific account-token abstraction.
@@ -301,13 +306,15 @@ by a default change.
 
 ## Dispatch flow
 
-`Marketplace::BuildSellerPayout` remains responsible for selecting an
-explicit verified account, reserving signed seller-ledger entries, applying
-maturity and event-scope checks, and creating the pending seller payout.
+`Marketplace::BuildSellerPayout` remains responsible for selecting a verified
+account, reserving signed seller-ledger entries, applying availability and
+seller/currency scope checks, and creating the pending seller payout. Resale availability
+is immediate under the superseding design; organizer maturity rules do not
+apply here.
 
 `Marketplace::DispatchSellerPayout` continues to commit `processing` before
-the provider call. After the existing seller, account, allocation, maturity,
-currency, and reserve checks pass, it calls:
+the provider call. After seller, account, allocation, availability, currency,
+and reserve checks pass, it calls:
 
 ```ruby
 adapter.payout(
@@ -381,7 +388,7 @@ provider request/response body may be logged with account credentials.
   that would be cheaply reversible for predictable bank account formats.
 - Manual verification binds actor, reason, evidence reference, account ID, and
   idempotency key into an audit record.
-- Seller identity, account ownership, provider, currency, maturity, allocation
+- Seller identity, account ownership, provider, currency, availability, allocation
   totals, and reserve checks remain locked and validated before dispatch.
 - Provider success cannot rewrite payout amount or currency.
 - A provider timeout cannot release allocations or trigger an unbounded blind
@@ -408,7 +415,7 @@ The implementation is complete only when all of the following are proven:
    account number, holder name as `account_name`, and bank code, and contains
    no destination token.
 6. Existing seller payout tests continue to prove reservation, ledger,
-   maturity, reserve, failure, timeout, and reconciliation behavior.
+   immediate availability, reserve, failure, timeout, and reconciliation behavior.
 7. The full Rails test suite, RuboCop, Zeitwerk, Brakeman, and `git diff --check`
    pass.
 8. A controlled Render preview check proves migration/seed completion, safe
