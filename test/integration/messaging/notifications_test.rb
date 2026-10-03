@@ -6,6 +6,7 @@ module Messaging
   class NotificationsTest < ActionDispatch::IntegrationTest
     include Core::AuthTestHelpers
     include MessagingTestHelpers
+    include Ticketing::PackageWorkflowTestHelpers
 
     setup do
       create_messaging_policy
@@ -31,6 +32,53 @@ module Messaging
 
       assert_response :not_found
       assert_equal "notification_not_found", JSON.parse(response.body).fetch("code")
+    end
+
+    test "recipient inbox exposes a safe incoming-transfer notification from the outbox" do
+      setup_package_workflow(admissions_per_unit: 1)
+      initiated = Ticketing::Transfers::Initiate.call(
+        ticket: @ticket,
+        actor: @owner,
+        phone: @recipient.phone,
+        idempotency_key: "inbox-transfer-initiation"
+      )
+      assert_predicate initiated, :success?, initiated.error&.message
+      assert_equal @recipient.id, initiated.value.transfer.to_user_id
+
+      outbox_event = Core::OutboxEvent.find_by!(
+        aggregate: initiated.value.transfer,
+        event_type: "ticketing.ticket_transfer.initiated"
+      )
+      dispatched = Core::Outbox::Dispatch.call(event_id: outbox_event.id)
+      assert_predicate dispatched, :success?, dispatched.error&.message
+
+      recipient_token = Core::TokenService.issue(Core::TokenService.access_token_payload(@recipient))
+      get "/notifications",
+        headers: { "Authorization" => "Bearer #{recipient_token}" },
+        as: :json
+
+      assert_response :success
+      incoming = response.parsed_body.fetch("data").find do |row|
+        row.fetch("notification_type") == "transfer_incoming"
+      end
+      assert incoming
+      assert_equal initiated.value.transfer.id, incoming.dig("data", "transfer_id")
+      assert_equal @event.id, incoming.dig("data", "event_id")
+      assert_equal [
+        "event_id", "event_title", "expires_at", "ticket_id", "ticket_label", "transfer_id"
+      ], incoming.fetch("data").keys.sort
+
+      other_user = core_users(:support)
+      other_user_token = Core::TokenService.issue(Core::TokenService.access_token_payload(other_user))
+      get "/notifications",
+        headers: { "Authorization" => "Bearer #{other_user_token}" },
+        as: :json
+
+      assert_response :success
+      other_user_has_transfer = response.parsed_body.fetch("data").any? do |row|
+        row.fetch("notification_type") == "transfer_incoming"
+      end
+      refute other_user_has_transfer, response.parsed_body.inspect
     end
 
     test "mark read is a safe repeated state set" do

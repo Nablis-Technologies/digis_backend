@@ -14,6 +14,7 @@ module Messaging
         "ticketing.package_issued" => "ticket_issued",
         "ticketing.credential_generation_replaced" => "credential_replaced",
         "ticketing.ticket_transfer.accepted" => "transfer_received",
+        "ticketing.ticket_transfer.initiated" => "transfer_incoming",
         "ticketing.registration.waitlist_offer_created" => "waitlist_offer_created",
         "ticketing.registration.waitlist_offer_expired" => "waitlist_offer_expired",
         "ticketing.registration.rejected" => "registration_rejected",
@@ -75,6 +76,10 @@ module Messaging
           Ticketing::Ticket.includes(:owner_user, :event, :event_product).find(@event.payload.fetch("ticket_id"))
         when "ticketing.ticket_transfer.accepted"
           Ticketing::TicketTransfer.includes(:to_user, :ticket).find(@event.payload.fetch("transfer_id"))
+        when "ticketing.ticket_transfer.initiated"
+          Ticketing::TicketTransfer.includes(:to_user, ticket: [ :event, :event_product ]).find(
+            @event.payload.fetch("transfer_id")
+          )
         when /^ticketing\.registration\./, "ticketing.registration.rejected"
           Ticketing::Registration.includes(:user, :event).find(@event.payload.fetch("registration_id"))
         when "ticketing.registration_consent.reminder_due"

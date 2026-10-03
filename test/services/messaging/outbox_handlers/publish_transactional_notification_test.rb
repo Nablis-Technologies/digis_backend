@@ -108,6 +108,46 @@ module Messaging
         assert_equal 1, Messaging::Notification.where(source: ticket, notification_type: "ticket_issued").count
       end
 
+      test "projects initiated ticket transfers to one recipient-owned in-app notification" do
+        create_messaging_policy
+        initiated = Ticketing::Transfers::Initiate.call(
+          ticket: @ticket,
+          actor: @owner,
+          phone: @recipient.phone,
+          idempotency_key: "notification-transfer-initiate"
+        )
+        assert_predicate initiated, :success?, initiated.error&.message
+
+        event = Core::OutboxEvent.find_by!(
+          aggregate: initiated.value.transfer,
+          event_type: "ticketing.ticket_transfer.initiated"
+        )
+        first = Messaging::OutboxHandlers::PublishTransactionalNotification.call(event:)
+        replay = Messaging::OutboxHandlers::PublishTransactionalNotification.call(event:)
+
+        assert_predicate first, :success?, first.error&.message
+        assert_predicate replay, :success?, replay.error&.message
+        notification = Messaging::Notification.find_by!(
+          source: initiated.value.transfer,
+          notification_type: "transfer_incoming"
+        )
+        assert_equal @recipient.id, notification.user_id
+        assert_equal [ "in_app" ], Messaging::NotificationDelivery
+          .where(notification_id: notification.id).order(:channel).pluck(:channel)
+        assert_equal(
+          %w[event_id event_title expires_at ticket_id ticket_label transfer_id],
+          notification.data.keys.sort
+        )
+        refute notification.data.key?("token")
+        refute notification.data.key?("token_digest")
+        refute notification.data.key?("phone")
+        refute notification.data.key?("email")
+        assert_equal 1, Messaging::Notification.where(
+          source: initiated.value.transfer,
+          notification_type: "transfer_incoming"
+        ).count
+      end
+
       test "hands schedule changes to bounded fan-out without inline recipients" do
         event = Core::Outbox::Publish.call(
           topic: "events", event_type: "events.schedule_changed", aggregate: @event,

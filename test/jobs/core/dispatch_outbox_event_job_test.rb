@@ -3,6 +3,9 @@
 require "test_helper"
 
 class Core::DispatchOutboxEventJobTest < ActiveJob::TestCase
+  include Ticketing::PackageWorkflowTestHelpers
+  include MessagingTestHelpers
+
   setup do
     # Preserve the real registry registered by initializers; these tests mutate
     # the global handler configuration and must restore it between examples.
@@ -87,35 +90,35 @@ class Core::DispatchOutboxEventJobTest < ActiveJob::TestCase
   end
 
   test "enqueues transfer delivery for an initiated ticket transfer" do
-    event = core_outbox_events(:pending)
-    transfer_id = SecureRandom.uuid
-    event.update!(
-      topic: "ticketing",
-      event_type: "ticketing.ticket_transfer.initiated",
-      payload: { "transfer_id" => transfer_id, "ticket_id" => SecureRandom.uuid }
+    setup_package_workflow(admissions_per_unit: 1)
+    create_messaging_policy
+    initiated = Ticketing::Transfers::Initiate.call(
+      ticket: @ticket,
+      actor: @owner,
+      phone: @recipient.phone,
+      idempotency_key: "outbox-transfer-delivery"
+    )
+    assert_predicate initiated, :success?, initiated.error&.message
+
+    transfer_id = initiated.value.transfer.id
+    event = Core::OutboxEvent.find_by!(
+      aggregate_id: transfer_id,
+      event_type: "ticketing.ticket_transfer.initiated"
     )
 
     assert_enqueued_with(job: Ticketing::TicketTransferDeliveryJob, args: [ transfer_id ]) do
       Core::Outbox::Dispatch.call(event_id: event.id)
     end
     assert event.reload.published_at?
+    assert Messaging::Notification.exists?(source_id: transfer_id, notification_type: "transfer_incoming")
   end
 
-  test "acknowledges terminal ticket transfer events without downstream jobs" do
-    %w[cancelled declined].each do |status|
-      event = core_outbox_events(:pending)
-      event.update!(
-        topic: "ticketing",
-        event_type: "ticketing.ticket_transfer.#{status}",
-        payload: { "transfer_id" => SecureRandom.uuid, "ticket_id" => SecureRandom.uuid }
-      )
+  test "acknowledges cancelled ticket transfer events without downstream jobs" do
+    assert_terminal_ticket_transfer_acknowledged("cancelled")
+  end
 
-      assert_no_enqueued_jobs do
-        Core::Outbox::Dispatch.call(event_id: event.id)
-      end
-
-      assert event.reload.published_at?, "#{status} transfer event was not acknowledged"
-    end
+  test "acknowledges declined ticket transfer events without downstream jobs" do
+    assert_terminal_ticket_transfer_acknowledged("declined")
   end
 
   test "acknowledges event completion evidence without enqueueing maturity" do
@@ -172,5 +175,22 @@ class Core::DispatchOutboxEventJobTest < ActiveJob::TestCase
 
     assert_empty calls
     assert_nil event.reload.published_at
+  end
+
+  private
+
+  def assert_terminal_ticket_transfer_acknowledged(status)
+    event = core_outbox_events(:pending)
+    event.update!(
+      topic: "ticketing",
+      event_type: "ticketing.ticket_transfer.#{status}",
+      payload: { "transfer_id" => SecureRandom.uuid, "ticket_id" => SecureRandom.uuid }
+    )
+
+    assert_no_enqueued_jobs do
+      Core::Outbox::Dispatch.call(event_id: event.id)
+    end
+
+    assert event.reload.published_at?
   end
 end
