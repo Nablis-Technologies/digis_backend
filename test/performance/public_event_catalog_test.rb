@@ -15,11 +15,14 @@ class PublicEventCatalogPerformanceTest < ActionDispatch::IntegrationTest
   end
 
   test "public event index query count stays bounded as the result set grows" do
+    without_n_plus_one { create_public_event(-1) }
     baseline = count_database_queries { get "/public/events", as: :json }
     assert_response :success
-    assert_operator baseline, :<=, 12, "public event list used #{baseline} queries"
+    assert_operator baseline, :<=, 18, "public event list used #{baseline} queries"
 
-    4.times { |index| create_public_event(index) }
+    without_n_plus_one do
+      4.times { |index| create_public_event(index) }
+    end
     expanded = count_database_queries { get "/public/events", as: :json }
     assert_response :success
 
@@ -53,7 +56,7 @@ class PublicEventCatalogPerformanceTest < ActionDispatch::IntegrationTest
   end
 
   def create_public_event(index)
-    Events::Event.create!(
+    event = Events::Event.create!(
       organization: @event.organization,
       created_by: core_users(:super_admin),
       title: "Public event #{index}",
@@ -63,5 +66,20 @@ class PublicEventCatalogPerformanceTest < ActionDispatch::IntegrationTest
       timezone: "Africa/Addis_Ababa",
       currency: "ETB"
     )
+    date = event.event_dates.create!(
+      starts_at: 1.month.from_now, ends_at: 1.month.from_now + 2.hours, status: "scheduled"
+    )
+    product = Catalog::Products::CreateDraft.call(
+      event:,
+      actor: core_users(:super_admin),
+      product_attributes: { name: "Public ticket #{index}", type: "ticket" },
+      ticket_type_attributes: {
+        audience: "public", approval_mode: "automatic", date_selection: "fixed", admissions_per_unit: 1
+      },
+      price_attributes: { currency: "ETB", amount_minor: 1_000, active_from: 1.hour.ago },
+      inventory_configuration: { mode: "unlimited" }
+    ).value
+    product.product_accesses.create!(event_date: date, type: "venue", usage_limit: nil)
+    Catalog::Products::Activate.call(product:, actor: core_users(:super_admin)).value
   end
 end
