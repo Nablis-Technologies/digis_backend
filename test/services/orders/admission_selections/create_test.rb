@@ -45,6 +45,322 @@ module Orders
         assert_empty Orders::Payment.where(order:)
       end
 
+      test "creates one order for ticket and merchandise with a ticket registration only" do
+        ticket = create_ticket_product(name: "Mixed basket ticket", etb_minor: 1_000)
+        merchandise = create_add_on_product(
+          name: "Mixed basket shirt", type: "merchandise", amount_minor: 250,
+          inventory_mode: "event_wide", capacity: 10
+        )
+
+        result = call_selection(items: [
+          { event_product_id: ticket.id, quantity: 1, answers: [], consents: [] },
+          { event_product_id: merchandise.id, quantity: 2 }
+        ], key: "ticket-merch-#{SecureRandom.hex(6)}")
+
+        assert_predicate result, :success?, error_detail(result)
+        order = result.value.order
+        items = order.order_items.includes(:registration).index_by(&:event_product_id)
+        assert_equal 1_500, order.total_minor
+        assert_equal 2, items.size
+        assert_equal ticket.id, items.fetch(ticket.id).event_product_id
+        assert_predicate items.fetch(ticket.id).registration, :present?
+        assert_nil items.fetch(merchandise.id).registration
+        assert_equal [ items.fetch(ticket.id).registration.id ], result.value.registrations.map(&:id)
+        assert_equal 1, Catalog::InventoryReservation.where(order_item_id: items.fetch(merchandise.id).id).count
+        assert_empty Orders::Payment.where(order:)
+      end
+
+      test "creates one order for ticket and date-scoped parking" do
+        second_date = @event.event_dates.create!(
+          name: "Second parking date #{SecureRandom.hex(3)}",
+          starts_at: @quoted_at + 2.days,
+          ends_at: @quoted_at + 2.days + 2.hours,
+          status: "scheduled"
+        )
+        ticket = create_ticket_product(name: "Parking bundle ticket", etb_minor: 1_000)
+        parking = create_add_on_product(
+          name: "Weekend parking", type: "parking", amount_minor: 200,
+          inventory_mode: "per_date", inventory_dates: [ @event_date, second_date ],
+          access_dates: [ @event_date, second_date ], access_type: "parking", capacity: 10
+        )
+        items = [
+          { event_product_id: ticket.id, quantity: 1, answers: [], consents: [] },
+          { event_product_id: parking.id, quantity: 1, event_date_ids: [ @event_date.id ] }
+        ]
+        key = "ticket-parking-#{SecureRandom.hex(6)}"
+
+        result = call_selection(items:, key:)
+
+        assert_predicate result, :success?, error_detail(result)
+        order = result.value.order
+        parking_item = order.order_items.find_by!(event_product_id: parking.id)
+        assert_nil parking_item.registration_id
+        reservation = Catalog::InventoryReservation.includes(:product_inventory)
+          .find_by!(order_item_id: parking_item.id)
+        assert_equal @event_date.id.to_s, reservation.product_inventory.event_date_id.to_s
+
+        replay = call_selection(items:, key:)
+        assert_predicate replay, :success?, error_detail(replay)
+        assert_equal order.id, replay.value.order.id
+        assert_equal 2, order.order_items.count
+
+        changed_dates = items.deep_dup
+        changed_dates.last[:event_date_ids] = [ second_date.id ]
+        conflict = call_selection(items: changed_dates, key:)
+        assert_predicate conflict, :failure?
+        assert_equal "idempotency_conflict", conflict.error.code
+      end
+
+      test "pairs interleaved ticket lines to registrations by product" do
+        first_ticket = create_ticket_product(name: "Interleaved ticket one", etb_minor: 500)
+        merchandise = create_add_on_product(
+          name: "Interleaved merchandise", type: "merchandise", amount_minor: 100,
+          inventory_mode: "event_wide", capacity: 5
+        )
+        second_ticket = create_ticket_product(name: "Interleaved ticket two", etb_minor: 700)
+        items = [
+          admission_item(first_ticket),
+          admission_item(merchandise),
+          admission_item(second_ticket)
+        ]
+
+        result = call_selection(items:, key: "interleaved-#{SecureRandom.hex(6)}")
+
+        assert_predicate result, :success?, error_detail(result)
+        order_items = result.value.order.order_items.includes(registration: :ticket_type).index_by(&:event_product_id)
+        assert_equal first_ticket.id, order_items.fetch(first_ticket.id).registration.ticket_type.event_product_id
+        assert_nil order_items.fetch(merchandise.id).registration
+        assert_equal second_ticket.id, order_items.fetch(second_ticket.id).registration.ticket_type.event_product_id
+        assert_equal 2, result.value.registrations.size
+      end
+
+      test "does not count noncredential add-ons as pending issuance" do
+        ticket = create_ticket_product(name: "Issuance count ticket", etb_minor: 0)
+        merchandise = create_add_on_product(
+          name: "Two shirts", type: "merchandise", amount_minor: 0,
+          inventory_mode: "event_wide", capacity: 5
+        )
+        items = [
+          { event_product_id: ticket.id, quantity: 1, answers: [], consents: [] },
+          { event_product_id: merchandise.id, quantity: 2 }
+        ]
+        key = "credential-count-#{SecureRandom.hex(6)}"
+
+        result = call_selection(items:, key:)
+
+        assert_predicate result, :success?, error_detail(result)
+        order = result.value.order
+        assert_equal "issuing", result.value.next_action
+        outbox = Core::OutboxEvent.find_by!(aggregate: order, event_type: "orders.payment.fulfilled")
+        dispatch = Core::Outbox::Dispatch.call(event_id: outbox.id)
+        assert_predicate dispatch, :success?, dispatch.error&.message
+
+        replay = call_selection(items:, key:)
+        assert_predicate replay, :success?, error_detail(replay)
+        assert_equal "confirmed", replay.value.next_action
+      end
+
+      test "replays legacy ticket-only receipts after adding empty add-on dates" do
+        ticket = create_ticket_product(name: "Legacy replay ticket", etb_minor: 1_000)
+        items = [ { event_product_id: ticket.id, quantity: 1, answers: [], consents: [] } ]
+        key = "legacy-selection-replay-#{SecureRandom.hex(6)}"
+        result = call_selection(items:, key:)
+        assert_predicate result, :success?, error_detail(result)
+        audit = Core::AuditLog.find_by!(
+          action: "orders.admission_selection.created",
+          auditable_type: "Orders::Order",
+          auditable_id: result.value.order.id
+        )
+        command = Orders::AdmissionSelections::Create.new(
+          event: @event, buyer: @buyer, idempotency_key: key,
+          selection: { items:, charge_currency: "ETB", quoted_at: @quoted_at }
+        )
+        legacy_items = Orders::AdmissionSelectionEnvelope.new(items:).items.map do |item|
+          item.to_h.except(:event_date_ids)
+        end
+        legacy_payload = {
+          event_id: @event.id,
+          buyer_id: @buyer.id,
+          charge_currency: "ETB",
+          promotion_id: nil,
+          promotion_code: "",
+          guest_identity: { guest: false },
+          items: legacy_items
+        }
+        legacy_digest = Core::KeyedDigest.digest(
+          namespace: "orders-admission-selection-request:#{@event.id}",
+          value: ActiveSupport::JSON.encode(command.send(:canonical, legacy_payload))
+        )
+        command.send(:prepare_request!)
+        command.send(:resolve_promotion!)
+        actual_payload = {
+          event_id: @event.id,
+          buyer_id: @buyer.id,
+          charge_currency: command.send(:charge_currency),
+          promotion_id: command.instance_variable_get(:@promotion)&.id,
+          promotion_code: command.send(:promotion_code),
+          guest_identity: command.send(:guest_identity_digest),
+          items: command.send(:digest_items)
+        }
+        assert_equal legacy_payload, actual_payload
+        assert_equal legacy_digest, command.send(:request_digest)
+        audit.update!(metadata: audit.metadata.to_h.merge("request_digest" => legacy_digest))
+
+        replay = call_selection(items:, key:)
+
+        assert_predicate replay, :success?, error_detail(replay)
+        assert_equal result.value.order.id, replay.value.order.id
+      end
+
+      test "rejects add-on-only admission selections" do
+        merchandise = create_add_on_product(
+          name: "Standalone shirt", type: "merchandise", amount_minor: 250,
+          inventory_mode: "event_wide", capacity: 5
+        )
+        order_count = Orders::Order.count
+        registration_count = Ticketing::Registration.count
+
+        result = call_selection(
+          items: [ { event_product_id: merchandise.id, quantity: 1 } ],
+          key: "addon-only-#{SecureRandom.hex(6)}"
+        )
+
+        assert_predicate result, :failure?
+        assert_equal "admission_selection_invalid", result.error.code
+        assert_equal order_count, Orders::Order.count
+        assert_equal registration_count, Ticketing::Registration.count
+      end
+
+      test "rejects unsupported other products" do
+        ticket = create_ticket_product(name: "Supported ticket", etb_minor: 500)
+        other = create_add_on_product(
+          name: "Unsupported other", type: "other", amount_minor: 100,
+          inventory_mode: "event_wide", capacity: 5
+        )
+        order_count = Orders::Order.count
+
+        result = call_selection(items: [
+          { event_product_id: ticket.id, quantity: 1, answers: [], consents: [] },
+          { event_product_id: other.id, quantity: 1 }
+        ], key: "unsupported-addon-#{SecureRandom.hex(6)}")
+
+        assert_predicate result, :failure?
+        assert_equal "product_unavailable", result.error.code
+        assert_equal order_count, Orders::Order.count
+      end
+
+      test "rejects ticket-only fields on an add-on without partial writes" do
+        ticket = create_ticket_product(name: "Ticket-only fields admission", etb_minor: 500)
+        merchandise = create_add_on_product(
+          name: "Ticket-only fields shirt", type: "merchandise", amount_minor: 100,
+          inventory_mode: "event_wide", capacity: 5
+        )
+        registration_count = Ticketing::Registration.count
+        order_count = Orders::Order.count
+
+        result = call_selection(items: [
+          { event_product_id: ticket.id, quantity: 1, answers: [], consents: [] },
+          {
+            event_product_id: merchandise.id,
+            quantity: 1,
+            registration_id: SecureRandom.uuid,
+            answers: [ { question_key: "name", value: "Ada" } ],
+            consents: [ { request_uuid: SecureRandom.uuid } ],
+            audience_proof: { access_code: "NOT-AN-ADD-ON-PROOF" }
+          }
+        ], key: "addon-ticket-fields-#{SecureRandom.hex(6)}")
+
+        assert_predicate result, :failure?
+        assert_equal "admission_selection_invalid", result.error.code
+        assert_equal registration_count, Ticketing::Registration.count
+        assert_equal order_count, Orders::Order.count
+      end
+
+      test "rejects add-on date ids on a ticket line" do
+        ticket = create_ticket_product(name: "Ticket date contract", etb_minor: 500)
+        registration_count = Ticketing::Registration.count
+        order_count = Orders::Order.count
+
+        result = call_selection(items: [ {
+          event_product_id: ticket.id,
+          quantity: 1,
+          event_date_ids: [ @event_date.id ],
+          answers: [],
+          consents: []
+        } ], key: "ticket-date-contract-#{SecureRandom.hex(6)}")
+
+        assert_predicate result, :failure?
+        assert_equal "admission_selection_invalid", result.error.code
+        assert_equal registration_count, Ticketing::Registration.count
+        assert_equal order_count, Orders::Order.count
+      end
+
+      test "rejects a manual ticket mixed with an add-on atomically" do
+        ticket = create_ticket_product(
+          name: "Manual ticket", etb_minor: 1_000, approval_mode: "manual"
+        )
+        merchandise = create_add_on_product(
+          name: "Manual basket shirt", type: "merchandise", amount_minor: 100,
+          inventory_mode: "event_wide", capacity: 5
+        )
+        registration_count = Ticketing::Registration.count
+        order_count = Orders::Order.count
+
+        result = call_selection(items: [
+          { event_product_id: ticket.id, quantity: 1, answers: [], consents: [] },
+          { event_product_id: merchandise.id, quantity: 1 }
+        ], key: "manual-addon-#{SecureRandom.hex(6)}")
+
+        assert_predicate result, :failure?
+        assert_equal "admission_selection_manual_approval_mixed", result.error.code
+        assert_equal registration_count, Ticketing::Registration.count
+        assert_equal order_count, Orders::Order.count
+      end
+
+      test "does not create an add-on order or hold when a ticket enters the waitlist path" do
+        ticket = create_ticket_product(
+          name: "Sold out waitlist ticket", etb_minor: 1_000,
+          inventory_mode: "event_wide", capacity: 1, waitlist_enabled: true
+        )
+        ticket.inventories.find_by!(event_date_id: nil).update!(sold_count: 1)
+        merchandise = create_add_on_product(
+          name: "Waitlist basket shirt", type: "merchandise", amount_minor: 100,
+          inventory_mode: "event_wide", capacity: 5
+        )
+        order_count = Orders::Order.count
+
+        result = call_selection(items: [
+          { event_product_id: ticket.id, quantity: 1, answers: [], consents: [] },
+          { event_product_id: merchandise.id, quantity: 1 }
+        ], key: "waitlist-addon-#{SecureRandom.hex(6)}")
+
+        assert_predicate result, :success?, error_detail(result)
+        assert_equal "waitlist_available", result.value.next_action
+        assert_equal [ ticket.id.to_s ], result.value.waitlist_product_ids
+        assert_equal order_count, Orders::Order.count
+        assert_equal 0, merchandise.inventories.sole.held_count
+      end
+
+      test "rolls back ticket registration when an add-on cannot be quoted" do
+        ticket = create_ticket_product(name: "Rollback ticket", etb_minor: 1_000)
+        unpriced_merchandise = create_add_on_product(
+          name: "Unpriced shirt", type: "merchandise", amount_minor: nil,
+          inventory_mode: "event_wide", capacity: 5
+        )
+        registration_count = Ticketing::Registration.count
+        order_count = Orders::Order.count
+
+        result = call_selection(items: [
+          { event_product_id: ticket.id, quantity: 1, answers: [], consents: [] },
+          { event_product_id: unpriced_merchandise.id, quantity: 1 }
+        ], key: "rollback-addon-#{SecureRandom.hex(6)}")
+
+        assert_predicate result, :failure?
+        assert_equal "unsupported_currency", result.error.code
+        assert_equal registration_count, Ticketing::Registration.count
+        assert_equal order_count, Orders::Order.count
+      end
+
       test "fulfills a zero-total selection without starting a provider payment" do
         free_product = create_ticket_product(
           name: "Currency-specific free admission",
@@ -763,10 +1079,108 @@ module Orders
         ENV["N_PLUS_ONE"] == "1" ? Prosopite.pause(&operation) : operation.call
       end
 
+      def admission_item(product)
+        Orders::AdmissionSelectionEnvelope::Item.new(
+          event_product_id: product.id.to_s,
+          registration_id: nil,
+          quantity: 1,
+          selected_event_date_id: nil,
+          event_date_ids: [],
+          answers: [],
+          consents: [],
+          audience_proof: {}
+        )
+      end
+
+      def create_add_on_product(
+        name:, type:, amount_minor:, inventory_mode:, capacity:, inventory_dates: [],
+        access_dates: [], access_type: nil
+      )
+        product = Catalog::EventProduct.create!(
+          event: @event,
+          name:,
+          type:,
+          status: "active",
+          inventory_mode:,
+          schedule_change_refund_policy: "full_or_partial",
+          min_per_order: 1
+        )
+        if amount_minor
+          Catalog::ProductPrice.create!(
+            event_product: product,
+            type: "base",
+            currency: "ETB",
+            amount_minor:,
+            active_from: @quoted_at - 1.minute
+          )
+        end
+        if inventory_mode.in?(%w[event_wide event_wide_and_per_date])
+          Catalog::ProductInventory.create!(event_product: product, capacity:)
+        end
+        if inventory_mode.in?(%w[per_date event_wide_and_per_date])
+          inventory_dates.each do |event_date|
+            Catalog::ProductInventory.create!(event_product: product, event_date:, capacity:)
+          end
+        end
+        access_dates.each do |event_date|
+          product.product_accesses.create!(event_date:, type: access_type)
+        end
+        product
+      end
+
       def error_detail(result)
         return unless result.failure?
 
         "#{result.error.code}: #{result.error.message}"
+      end
+
+      def admission_item(product)
+        Orders::AdmissionSelectionEnvelope::Item.new(
+          event_product_id: product.id.to_s,
+          registration_id: nil,
+          quantity: 1,
+          selected_event_date_id: nil,
+          event_date_ids: [],
+          answers: [],
+          consents: [],
+          audience_proof: {}
+        )
+      end
+
+      def create_add_on_product(
+        name:, type:, amount_minor:, inventory_mode:, capacity:, inventory_dates: [],
+        access_dates: [], access_type: nil
+      )
+        product = Catalog::EventProduct.create!(
+          event: @event,
+          name:,
+          type:,
+          status: "active",
+          inventory_mode:,
+          schedule_change_refund_policy: "full_or_partial",
+          min_per_order: 1
+        )
+        if amount_minor
+          Catalog::ProductPrice.create!(
+            event_product: product,
+            type: "base",
+            currency: "ETB",
+            amount_minor:,
+            active_from: @quoted_at - 1.minute
+          )
+        end
+        case inventory_mode
+        when "event_wide"
+          Catalog::ProductInventory.create!(event_product: product, capacity:)
+        when "per_date"
+          inventory_dates.each do |event_date|
+            Catalog::ProductInventory.create!(event_product: product, event_date:, capacity:)
+          end
+        end
+        access_dates.each do |event_date|
+          product.product_accesses.create!(event_date:, type: access_type)
+        end
+        product
       end
 
       def create_ticket_product(
