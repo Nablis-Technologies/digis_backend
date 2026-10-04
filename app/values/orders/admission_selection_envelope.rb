@@ -10,7 +10,7 @@ module Orders
     PUBLIC_PROOF_FIELDS = %w[access_code invitation_token].freeze
 
     Item = Data.define(
-      :event_product_id, :registration_id, :quantity, :selected_event_date_id,
+      :event_product_id, :registration_id, :quantity, :selected_event_date_id, :event_date_ids,
       :answers, :consents, :audience_proof
     ) do
       def [](key)
@@ -53,6 +53,7 @@ module Orders
         registration_id: immutable(attributes["registration_id"].presence&.to_s),
         quantity: immutable(attributes["quantity"]),
         selected_event_date_id: immutable(attributes["selected_event_date_id"].presence&.to_s),
+        event_date_ids: immutable(Array(attributes["event_date_ids"]).compact.map(&:to_s).uniq.sort),
         answers: normalize_entries(attributes["answers"], Ticketing::RegistrationSubmission::ANSWER_FIELDS),
         consents: normalize_entries(attributes["consents"], Ticketing::RegistrationSubmission::CONSENT_FIELDS),
         audience_proof: immutable(proof.slice(*(public_payload ? PUBLIC_PROOF_FIELDS : INTERNAL_PROOF_FIELDS)).symbolize_keys)

@@ -29,6 +29,23 @@ module Orders
       assert_raises(FrozenError) { item.answers.first[:value] = "changed" }
     end
 
+    test "normalizes add-on event date ids and does not accept client venue date demand" do
+      raw_items = ActionController::Parameters.new(
+        items: [ {
+          event_product_id: "parking-product",
+          quantity: 1,
+          event_date_ids: [ "date-2", "date-1", "date-2" ],
+          venue_event_date_ids: [ "forged-date" ]
+        } ]
+      )[:items]
+
+      item = Orders::AdmissionSelectionEnvelope.new(items: raw_items, public_payload: true).items.sole
+
+      assert_equal [ "date-1", "date-2" ], item.to_h[:event_date_ids]
+      assert_not_includes item.to_h.keys, :venue_event_date_ids
+      assert_raises(FrozenError) { item.event_date_ids << "changed" }
+    end
+
     test "retains internal invitation alias only for non-public command input" do
       raw_item = {
         event_product_id: "product-1",
