@@ -16244,6 +16244,23 @@
           ]
         },
         {
+          "name": "Create Ticket and Parking Add-on Selection",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{mixedTicketParkingIdempotencyKey}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"admission_selection\": {\n    \"charge_currency\": \"ETB\",\n    \"items\": [\n      { \"event_product_id\": \"{{eventProductId}}\", \"quantity\": 1, \"answers\": [], \"consents\": [], \"audience_proof\": {} },\n      { \"event_product_id\": \"{{parkingProductId}}\", \"quantity\": 1, \"event_date_ids\": [\"{{eventDateId}}\"] }\n    ]\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/public/events/{{eventSlug}}/admission_selections",
+            "description": "One admission selection creates one order for the ticket and parking line. Product type is inferred by the backend; date-scoped add-ons send event_date_ids. Do not send client pricing, venue_event_date_ids, or a line_type. The response registrations list contains ticket lines only."
+          },
+          "response": [
+            { "name": "Mixed ticket and parking checkout", "status": "Created", "code": 201, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": {\n    \"order\": { \"id\": \"order_01HX\", \"status\": \"pending_payment\", \"charge_currency\": \"ETB\" },\n    \"registrations\": [{ \"id\": \"registration_01HX\", \"status\": \"pending_payment\", \"next_action\": \"checkout_required\" }],\n    \"next_action\": { \"type\": \"checkout_required\", \"order_id\": \"order_01HX\" }\n  }\n}" }
+          ]
+        },
+        {
           "name": "Continue Approved or Offered Registration",
           "request": {
             "method": "POST",

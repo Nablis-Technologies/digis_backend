@@ -12,7 +12,7 @@ module Orders
       @event.update!(status: "published")
       @actor = core_users(:super_admin)
       @quoted_at = Time.current.change(usec: 0)
-      @event.event_dates.create!(
+      @event_date = @event.event_dates.create!(
         name: "Admission selection date #{SecureRandom.hex(3)}",
         starts_at: @quoted_at + 1.day,
         ends_at: @quoted_at + 1.day + 2.hours,
@@ -285,6 +285,198 @@ module Orders
       end
       assert_predicate replay, :success?, replay.error&.message
       assert_equal 2, Ticketing::Ticket.where(order_item_id: order.order_items.select(:id)).count
+    end
+
+    test "creates a mixed ticket-and-add-on order with ticket-only registrations" do
+      ticket = create_ticket_product(name: "Mixed API ticket", amount_minor: 1_000)
+      merchandise = create_add_on_product(name: "Mixed API shirt", amount_minor: 250)
+      payload = {
+        admission_selection: {
+          charge_currency: "ETB",
+          items: [
+            { event_product_id: ticket.id, quantity: 1, answers: [], consents: [], audience_proof: {} },
+            { event_product_id: merchandise.id, quantity: 2 }
+          ]
+        }
+      }
+
+      with_per_item_write_fanout_paused do
+        post selection_path, params: payload,
+             headers: user_headers.merge("Idempotency-Key" => "mixed-ticket-merchandise-http"),
+             as: :json
+      end
+
+      assert_response :created
+      data = response.parsed_body.fetch("data")
+      order = Orders::Order.find(data.dig("order", "id"))
+      items = order.order_items.includes(:registration).index_by(&:event_product_id)
+      assert_equal "pending_payment", order.status
+      assert_equal 2, items.size
+      assert_predicate items.fetch(ticket.id).registration, :present?
+      assert_nil items.fetch(merchandise.id).registration
+      assert_equal [ items.fetch(ticket.id).registration.id ], data.fetch("registrations").map { |row| row.fetch("id") }
+      assert_equal 1, Catalog::InventoryReservation.where(order_item_id: items.fetch(merchandise.id).id).count
+    end
+
+    test "mixed invitation and add-on selection uses one payable order" do
+      ticket = create_ticket_product(name: "Mixed invited ticket", amount_minor: 1_500, audience: "invitation")
+      invitation = Ticketing::Invitations::Create.call(
+        ticket_type: ticket.ticket_type,
+        actor: @actor,
+        attributes: { email: "mixed-invite-#{SecureRandom.hex(4)}@example.test", allowed_quantity: 1 },
+        idempotency_key: "mixed-invitation-#{SecureRandom.hex(4)}"
+      )
+      assert_predicate invitation, :success?, invitation.error&.message
+      merchandise = create_add_on_product(name: "Invitation basket shirt", amount_minor: 250)
+      payload = {
+        admission_selection: {
+          charge_currency: "ETB",
+          items: [
+            {
+              event_product_id: ticket.id,
+              quantity: 1,
+              answers: [],
+              consents: [],
+              audience_proof: { invitation_token: invitation.value.token }
+            },
+            { event_product_id: merchandise.id, quantity: 1 }
+          ]
+        }
+      }
+
+      with_per_item_write_fanout_paused do
+        post selection_path, params: payload,
+             headers: user_headers.merge("Idempotency-Key" => "mixed-invitation-addon"),
+             as: :json
+      end
+
+      assert_response :created
+      data = response.parsed_body.fetch("data")
+      order = Orders::Order.find(data.dig("order", "id"))
+      assert_equal 2, order.order_items.count
+      registration = Ticketing::Registration.find(data.fetch("registrations").sole.fetch("id"))
+      assert_equal invitation.value.record.id, registration.invitation_id
+      assert_equal "accepted", invitation.value.record.reload.status
+      refute_includes response.body, invitation.value.token
+      assert_empty Orders::Payment.where(order: order)
+    end
+
+    test "rejects nonempty ticket-only proof on an add-on without partial writes" do
+      ticket = create_ticket_product(name: "Mixed malformed ticket", amount_minor: 1_000)
+      merchandise = create_add_on_product(name: "Malformed proof shirt", amount_minor: 100)
+      registration_count = Ticketing::Registration.count
+      order_count = Orders::Order.count
+      payload = {
+        admission_selection: {
+          charge_currency: "ETB",
+          items: [
+            { event_product_id: ticket.id, quantity: 1, answers: [], consents: [], audience_proof: {} },
+            {
+              event_product_id: merchandise.id,
+              quantity: 1,
+              answers: [ { question_key: "name", value: "Should not apply" } ],
+              consents: [],
+              audience_proof: { access_code: "NOT-AN-ADDON-CODE" }
+            }
+          ]
+        }
+      }
+
+      post selection_path, params: payload,
+           headers: user_headers.merge("Idempotency-Key" => "mixed-addon-invalid-proof"),
+           as: :json
+
+      assert_response :unprocessable_entity
+      assert_equal "admission_selection_invalid", response.parsed_body.fetch("code")
+      assert_equal registration_count, Ticketing::Registration.count
+      assert_equal order_count, Orders::Order.count
+      assert_equal 0, merchandise.inventories.sole.held_count
+    end
+
+    test "paid mixed ticket-and-parking order fulfills credentials exactly once" do
+      ticket = create_ticket_product(name: "Parking bundle admission", amount_minor: 1_000)
+      parking = create_add_on_product(
+        name: "Parking bundle spot", type: "parking", amount_minor: 250,
+        inventory_mode: "per_date", capacity: 5,
+        inventory_dates: [ @event_date ], access_dates: [ @event_date ], access_type: "parking"
+      )
+      payload = {
+        admission_selection: {
+          charge_currency: "ETB",
+          items: [
+            { event_product_id: ticket.id, quantity: 1, answers: [], consents: [], audience_proof: {} },
+            { event_product_id: parking.id, quantity: 1, event_date_ids: [ @event_date.id ] }
+          ]
+        }
+      }
+
+      with_per_item_write_fanout_paused do
+        post selection_path, params: payload,
+             headers: user_headers.merge("Idempotency-Key" => "paid-ticket-parking-selection"),
+             as: :json
+      end
+
+      assert_response :created
+      data = response.parsed_body.fetch("data")
+      order = Orders::Order.find(data.dig("order", "id"))
+      assert_equal 2, order.order_items.count
+      assert_equal 1, data.fetch("registrations").length
+      assert_nil order.order_items.find_by!(event_product: parking).registration_id
+      assert_empty Ticketing::Ticket.where(order_item_id: order.order_items.select(:id))
+
+      Payments::Providers::Registry.register(
+        "chapa",
+        Payments::Providers::FakePaymentProvider.new(
+          outcomes: { create: [ Payments::Providers::Result.success(provider_reference: "ticket-parking-payment") ] }
+        )
+      )
+      post "/orders/#{order.id}/payment_attempts",
+           params: { payment_attempt: { provider: "chapa", payment_method: "telebirr" } },
+           headers: user_headers.merge("Idempotency-Key" => "paid-ticket-parking-attempt"),
+           as: :json
+      assert_response :created
+      payment = Orders::Payment.find(response.parsed_body.dig("data", "id"))
+      accepted = with_per_item_write_fanout_paused { Orders::AcceptPayment.call(payment:) }
+      assert_predicate accepted, :success?, accepted.error&.message
+
+      fulfillment = Core::OutboxEvent.find_by!(aggregate: order, event_type: "orders.payment.fulfilled")
+      dispatch = with_per_item_write_fanout_paused { Core::Outbox::Dispatch.call(event_id: fulfillment.id) }
+      assert_predicate dispatch, :success?, dispatch.error&.message
+      ticket_item = order.order_items.find_by!(event_product: ticket)
+      parking_item = order.order_items.find_by!(event_product: parking)
+      assert_equal 1, Ticketing::Ticket.where(order_item_id: ticket_item.id).count
+      assert_equal 1, Ticketing::Ticket.where(order_item_id: parking_item.id).count
+
+      replay = with_per_item_write_fanout_paused { Core::Outbox::Dispatch.call(event_id: fulfillment.id) }
+      assert_predicate replay, :success?, replay.error&.message
+      assert_equal 1, Ticketing::Ticket.where(order_item_id: ticket_item.id).count
+      assert_equal 1, Ticketing::Ticket.where(order_item_id: parking_item.id).count
+    end
+
+    test "guest can request OTP for a mixed ticket-and-add-on selection without side effects" do
+      ticket = create_ticket_product(name: "OTP bundle ticket", amount_minor: 1_000)
+      merchandise = create_add_on_product(name: "OTP bundle shirt", amount_minor: 250)
+
+      post otp_path,
+           params: {
+             admission_selection: {
+               charge_currency: "ETB",
+               phone: "+251911000098",
+               items: [
+                 { event_product_id: ticket.id, quantity: 1, answers: [], consents: [], audience_proof: {} },
+                 { event_product_id: merchandise.id, quantity: 1 }
+               ]
+             }
+           },
+           headers: { "Idempotency-Key" => "otp-ticket-addon-http" },
+           as: :json
+
+      assert_response :created
+      assert_equal "pending", response.parsed_body.dig("data", "status")
+      assert_equal 1, @delivered_codes.length
+      assert_empty Ticketing::Registration.where(ticket_type: ticket.ticket_type)
+      assert_empty Orders::Order.where(event: @event)
+      assert_equal 0, merchandise.inventories.sole.held_count
     end
 
     test "guest zero-total selection requires OTP and then creates no-provider order" do
@@ -765,6 +957,40 @@ module Orders
       activated = Catalog::Products::Activate.call(product: result.value, actor: @actor)
       assert_predicate activated, :success?, activated.error&.message
       activated.value
+    end
+
+    def create_add_on_product(
+      name:, amount_minor:, type: "merchandise", inventory_mode: "event_wide", capacity: 10,
+      inventory_dates: [], access_dates: [], access_type: nil
+    )
+      product = Catalog::EventProduct.create!(
+        event: @event,
+        name:,
+        type:,
+        status: "active",
+        inventory_mode:,
+        schedule_change_refund_policy: "full_or_partial",
+        min_per_order: 1
+      )
+      Catalog::ProductPrice.create!(
+        event_product: product,
+        type: "base",
+        currency: "ETB",
+        amount_minor:,
+        active_from: @quoted_at - 1.minute
+      )
+      if inventory_mode.in?(%w[event_wide event_wide_and_per_date])
+        Catalog::ProductInventory.create!(event_product: product, capacity:)
+      end
+      if inventory_mode.in?(%w[per_date event_wide_and_per_date])
+        inventory_dates.each do |event_date|
+          Catalog::ProductInventory.create!(event_product: product, event_date:, capacity:)
+        end
+      end
+      access_dates.each do |event_date|
+        product.product_accesses.create!(event_date:, type: access_type)
+      end
+      product
     end
 
     def complete_paid_order(order_id:, headers:, idempotency_key:)
