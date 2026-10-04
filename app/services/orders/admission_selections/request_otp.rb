@@ -62,29 +62,37 @@ module Orders
         abort_with(selection_error("duplicate_product")) unless ids.uniq.length == ids.length
 
         products = Catalog::EventProduct.where(event_id: @event.id, id: ids)
-          .includes(:prices, :ticket_type, product_accesses: :event_date)
+          .includes(:prices, :ticket_type, { inventories: :event_date }, product_accesses: :event_date)
           .index_by { |product| product.id.to_s }
         abort_with(selection_error("product_not_found", status: :not_found)) unless products.size == ids.size
         abort_with(selection_error("admission_selection_manual_approval_mixed")) if
           items.size > 1 && products.values.any? { |product| product.ticket_type&.approval_mode == "manual" }
 
+        ticket_count = 0
+        add_on_lines = []
         quote_items = items.map do |item|
           product = products.fetch(item.fetch(:event_product_id))
-          validate_line!(item, product)
-          demand = Catalog::Inventory::AdmissionLine.call(
+          line_kind = validate_line!(item, product)
+          ticket_count += 1 if line_kind == :ticket
+          line = Catalog::Inventory::ProductLine.call(
             product:,
-            selected_event_date_id: item[:selected_event_date_id],
             package_quantity: item.fetch(:quantity),
-            admissions_per_unit: product.ticket_type.admissions_per_unit
+            selected_event_date_id: item[:selected_event_date_id],
+            event_date_ids: item[:event_date_ids]
           )
+          abort_with(selection_error("event_date_unavailable")) unless line
+          add_on_lines << line unless product.ticket?
           {
             product:,
             registration: nil,
             quantity: item.fetch(:quantity),
-            event_date_ids: demand.event_date_ids,
-            venue_event_date_ids: demand.venue_event_date_ids
+            event_date_ids: line.event_date_ids,
+            venue_event_date_ids: line.venue_event_date_ids
           }
         end
+        abort_with(selection_error("admission_selection_invalid")) if ticket_count.zero?
+        validate_add_on_inventory_configuration!(add_on_lines, products.values)
+
         quote = Orders::BuildQuote.call(
           event: @event,
           items: quote_items,
@@ -102,17 +110,47 @@ module Orders
       end
 
       def validate_line!(item, product)
-        ticket_type = product.ticket_type
-        abort_with(selection_error("product_unavailable", status: :conflict)) unless
-          product.status == "active" && product.ticket? && ticket_type.present?
+        abort_with(selection_error("product_unavailable", status: :conflict)) unless product.status == "active"
         quantity = item[:quantity]
         abort_with(selection_error("quantity_invalid")) unless quantity.is_a?(Integer) && quantity.positive?
         abort_with(selection_error("quantity_outside_product_limit")) unless
           product.min_per_order <= quantity && (product.max_per_order.nil? || quantity <= product.max_per_order)
-        abort_with(selection_error("admission_selection_invalid")) unless item[:answers] && item[:consents]
+        abort_with(selection_error("product_unavailable", status: :conflict)) unless
+          Catalog::Products::SalesWindow.open?(product)
+
+        validation = AdmissionSelections::ValidateLine.call(item:, product:)
+        abort_with(validation.error) if validation.failure?
+        validate_ticket_line!(item, product) if validation.value == :ticket
+
+        validation.value
+      end
+
+      def validate_ticket_line!(item, product)
+        ticket_type = product.ticket_type
         validate_date!(item, product, ticket_type)
         validate_audience!(item, ticket_type)
         validate_form!(item, ticket_type)
+      end
+
+      def validate_add_on_inventory_configuration!(lines, products)
+        return if lines.empty?
+
+        inventory_rows = products.flat_map { |product| product.inventories.to_a }
+        event_date_rows = products.flat_map do |product|
+          product.product_accesses.filter_map(&:event_date) + product.inventories.filter_map(&:event_date)
+        end.uniq(&:id)
+        snapshot = Catalog::Inventory::Capacity::Snapshot.new(inventory_rows:, event_date_rows:)
+        lines.each { |line| Catalog::Inventory::Capacity.plan_from_snapshot!(line:, snapshot:) }
+      rescue Core::Error => error
+        key = case error.respond_to?(:code) ? error.code : nil
+        when "inventory_not_configured", "inventory_mode_unsupported"
+          "inventory_not_configured"
+        when "event_date_unavailable", "event_dates_event_mismatch", "venue_dates_required"
+          "event_date_unavailable"
+        else
+          "inventory_validation_failed"
+        end
+        abort_with(selection_error(key))
       end
 
       def resolve_promotion!

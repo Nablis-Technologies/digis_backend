@@ -135,6 +135,117 @@ module Orders
         assert_equal 0, Catalog::ProductInventory.where(event_product_id: [ free_product.id, paid_product.id ]).sum(:held_count)
       end
 
+      test "prices a guest ticket-and-add-on OTP selection without checkout side effects" do
+        ticket = create_ticket_product(name: "Guest bundle ticket", amount_minor: 1_000)
+        merchandise = create_add_on_product(name: "Guest bundle shirt", amount_minor: 250)
+
+        result = RequestOtp.call(
+          event: @event,
+          items: [
+            { event_product_id: ticket.id, quantity: 1, answers: [], consents: [] },
+            { event_product_id: merchandise.id, quantity: 2 }
+          ],
+          charge_currency: "ETB",
+          phone: "+251911000087",
+          idempotency_key: "admission-otp-ticket-addon"
+        )
+
+        assert_predicate result, :success?, result.error&.message
+        assert_equal "guest_admission", result.value.challenge.purpose
+        assert_equal 1, @delivered_codes.length
+        assert_empty Ticketing::Registration.where(ticket_type: ticket.ticket_type)
+        assert_empty Orders::Order.where(event: @event)
+        assert_equal 0, merchandise.inventories.sole.held_count
+      end
+
+      test "rejects an invalid ticket access code in a mixed OTP selection before delivery" do
+        ticket = create_ticket_product(name: "Gated mixed ticket", amount_minor: 1_000, audience: "access_code")
+        raw_code = "MIXED-OTP-#{SecureRandom.hex(4)}"
+        code = create_access_code(ticket.ticket_type, raw_code)
+        merchandise = create_add_on_product(name: "Gated basket shirt", amount_minor: 250)
+        users_before = Core::User.count
+
+        result = RequestOtp.call(
+          event: @event,
+          items: [
+            {
+              event_product_id: ticket.id,
+              quantity: 1,
+              answers: [],
+              consents: [],
+              audience_proof: { access_code: "wrong-code" }
+            },
+            { event_product_id: merchandise.id, quantity: 1 }
+          ],
+          charge_currency: "ETB",
+          phone: "+251911000088",
+          idempotency_key: "admission-otp-mixed-invalid-ticket-proof"
+        )
+
+        assert_predicate result, :failure?
+        assert_empty @delivered_codes
+        assert_equal users_before, Core::User.count
+        assert_equal 0, code.reload.used_count
+        assert_empty Ticketing::Registration.where(ticket_type: ticket.ticket_type)
+        assert_empty Orders::Order.where(event: @event)
+        assert_equal 0, merchandise.inventories.sole.held_count
+      end
+
+      test "rejects ticket-only proof on an add-on before guest OTP delivery" do
+        ticket = create_ticket_product(name: "Public mixed OTP ticket", amount_minor: 1_000)
+        merchandise = create_add_on_product(name: "Invalid OTP proof shirt", amount_minor: 250)
+        users_before = Core::User.count
+        challenges_before = Core::PhoneVerificationChallenge.count
+
+        result = RequestOtp.call(
+          event: @event,
+          items: [
+            { event_product_id: ticket.id, quantity: 1, answers: [], consents: [] },
+            { event_product_id: merchandise.id, quantity: 1, audience_proof: { access_code: "not-applicable" } }
+          ],
+          charge_currency: "ETB",
+          phone: "+251911000089",
+          idempotency_key: "admission-otp-addon-proof"
+        )
+
+        assert_predicate result, :failure?
+        assert_equal "admission_selection_invalid", result.error.code
+        assert_empty @delivered_codes
+        assert_equal users_before, Core::User.count
+        assert_equal challenges_before, Core::PhoneVerificationChallenge.count
+        assert_equal 0, merchandise.inventories.sole.held_count
+      end
+
+      test "rejects OTP when a date-bound add-on has no per-date inventory" do
+        ticket = create_ticket_product(name: "Configured OTP ticket", amount_minor: 1_000)
+        event_date = ticket.product_accesses.sole.event_date
+        parking = create_add_on_product(
+          name: "Unconfigured OTP parking", amount_minor: 250, type: "parking",
+          inventory_mode: "per_date", access_dates: [ event_date ], access_type: "parking"
+        )
+        users_before = Core::User.count
+        challenges_before = Core::PhoneVerificationChallenge.count
+
+        result = RequestOtp.call(
+          event: @event,
+          items: [
+            { event_product_id: ticket.id, quantity: 1, answers: [], consents: [] },
+            { event_product_id: parking.id, quantity: 1, event_date_ids: [ event_date.id ] }
+          ],
+          charge_currency: "ETB",
+          phone: "+251911000090",
+          idempotency_key: "admission-otp-unconfigured-parking"
+        )
+
+        assert_predicate result, :failure?
+        assert_equal "inventory_not_configured", result.error.code
+        assert_empty @delivered_codes
+        assert_equal users_before, Core::User.count
+        assert_equal challenges_before, Core::PhoneVerificationChallenge.count
+        assert_empty Ticketing::Registration.where(ticket_type: ticket.ticket_type)
+        assert_empty Orders::Order.where(event: @event)
+      end
+
       test "requests OTP when a valid promotion makes the final quote zero" do
         product = create_ticket_product(name: "Discounted admission", amount_minor: 1_500)
         promotion = Catalog::Promotion.create!(
@@ -210,6 +321,40 @@ module Orders
         activated = Catalog::Products::Activate.call(product: result.value, actor: @actor)
         assert_predicate activated, :success?, activated.error&.message
         activated.value
+      end
+
+      def create_add_on_product(
+        name:, amount_minor:, type: "merchandise", inventory_mode: "event_wide", capacity: 10,
+        inventory_dates: [], access_dates: [], access_type: nil
+      )
+        product = Catalog::EventProduct.create!(
+          event: @event,
+          name:,
+          type:,
+          status: "active",
+          inventory_mode:,
+          schedule_change_refund_policy: "full_or_partial",
+          min_per_order: 1
+        )
+        Catalog::ProductPrice.create!(
+          event_product: product,
+          type: "base",
+          currency: "ETB",
+          amount_minor:,
+          active_from: @quoted_at - 1.minute
+        )
+        if inventory_mode.in?(%w[event_wide event_wide_and_per_date])
+          Catalog::ProductInventory.create!(event_product: product, capacity:)
+        end
+        if inventory_mode.in?(%w[per_date event_wide_and_per_date])
+          inventory_dates.each do |event_date|
+            Catalog::ProductInventory.create!(event_product: product, event_date:, capacity:)
+          end
+        end
+        access_dates.each do |event_date|
+          product.product_accesses.create!(event_date:, type: access_type)
+        end
+        product
       end
 
       def create_access_code(ticket_type, raw_code)
