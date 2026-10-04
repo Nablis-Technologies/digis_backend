@@ -61,6 +61,21 @@ module Catalog
       assert_includes price.errors[:active_from], "can't be blank"
     end
 
+    test "active in-memory price selection includes its start and excludes its end" do
+      at = Time.utc(2026, 10, 5, 12)
+      price_row = Struct.new(:id, :active_from, :active_to)
+      rows = [
+        price_row.new("z", at, nil),
+        price_row.new("a", at - 1.minute, at + 1.minute),
+        price_row.new("b", at - 2.minutes, at),
+        price_row.new("c", at + 1.second, nil)
+      ]
+
+      active = Catalog::ProductPrice.active_at_in_memory(rows, at:)
+
+      assert_equal %w[a z], active.map(&:id)
+    end
+
     test "overlapping active ranges for the same product/type/currency are rejected" do
       Catalog::ProductPrice.create!(
         event_product: @product, type: "base", currency: "USD",

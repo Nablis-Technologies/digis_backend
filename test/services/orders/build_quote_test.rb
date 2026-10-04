@@ -40,6 +40,40 @@ module Orders
       assert_equal quote.expires_at, quote.exchange_rate_expires_at
     end
 
+    test "quotes multiple product lines with batched product and price reads" do
+      first = create_product(name: "Batch quote first", price_minor: nil)
+      second = create_product(name: "Batch quote second", price_minor: 1_500)
+      Catalog::ProductPrice.create!(
+        event_product: first,
+        type: "base",
+        currency: "USD",
+        amount_minor: 1_000,
+        active_from: @quoted_at - 1.hour
+      )
+      Catalog::ProductPrice.create!(
+        event_product: first,
+        type: "override",
+        currency: "ETB",
+        amount_minor: 900,
+        active_from: @quoted_at - 1.hour
+      )
+
+      result = Orders::BuildQuote.call(
+        event: @event,
+        buyer: @buyer,
+        items: [
+          { product_id: first.id, quantity: 1 },
+          { product_id: second.id, quantity: 2 }
+        ],
+        charge_currency: "ETB",
+        quoted_at: @quoted_at
+      )
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal [ 900, 1_500 ], result.value.items.map { |item| item.price_quote.amount_minor }
+      assert_equal 3_900, result.value.subtotal_minor
+    end
+
     test "rejects a quote after the event is cancelled" do
       product = create_product(name: "Cancelled event parking", price_minor: 1_000)
       @event.update!(status: "cancelled")

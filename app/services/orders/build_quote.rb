@@ -83,7 +83,11 @@ module Orders
     end
 
     def build_priced_lines
-      requests = Array(@item_requests).map { |request| normalize_item_request(request) }
+      attributes = Array(@item_requests).map do |request|
+        request.respond_to?(:to_h) ? request.to_h.symbolize_keys : {}
+      end
+      products_by_id = load_products(attributes)
+      requests = attributes.map { |request| normalize_item_request(request, products_by_id:) }
       return requests.find { |request| request.is_a?(Core::BusinessError) } if requests.any? { |request| request.is_a?(Core::BusinessError) }
       return checkout_error(:duplicate_product, code: "duplicate_product") unless requests.map { |request| request[:product_id] }.uniq.length == requests.length
 
@@ -116,9 +120,10 @@ module Orders
       end
     end
 
-    def normalize_item_request(request)
-      attributes = request.respond_to?(:to_h) ? request.to_h.symbolize_keys : {}
-      product = load_product(attributes[:product] || attributes[:product_id])
+    def normalize_item_request(attributes, products_by_id:)
+      product_value = attributes[:product] || attributes[:product_id]
+      product_id = product_value.respond_to?(:id) ? product_value.id : product_value
+      product = products_by_id[product_id.to_s]
       return checkout_error(:product_not_found, code: "product_not_found") unless product
       return checkout_error(:product_unavailable, code: "product_unavailable") unless product.status == "active"
       return checkout_error(:product_event_mismatch, code: "product_event_mismatch") unless product.event_id == event.id
@@ -194,11 +199,15 @@ module Orders
       [ event_date_ids, venue_event_date_ids ]
     end
 
-    def load_product(value)
-      id = value.respond_to?(:id) ? value.id : value
-      return unless id
+    def load_products(requests)
+      product_ids = requests.filter_map do |attributes|
+        value = attributes[:product] || attributes[:product_id]
+        id = value.respond_to?(:id) ? value.id : value
+        id.to_s if id.present?
+      end.uniq
 
-      Catalog::EventProduct.includes(:prices, :ticket_type, :product_accesses).find_by(id:)
+      Catalog::EventProduct.includes(:prices, :ticket_type, :product_accesses)
+        .where(id: product_ids).index_by { |product| product.id.to_s }
     end
 
     def load_registration(value)
@@ -211,7 +220,9 @@ module Orders
     def base_amount_for(product, price_quote)
       return price_quote.amount_minor if price_quote.source_type != "exchange"
 
-      product.prices.base.active_at(quoted_at).find { |price| price.currency == price_quote.from_currency }&.amount_minor
+      Catalog::ProductPrice.active_at_in_memory(product.prices, at: quoted_at).find do |price|
+        price.type == "base" && price.currency == price_quote.from_currency
+      end&.amount_minor
     end
 
     def build_promotion_quote(lines)
