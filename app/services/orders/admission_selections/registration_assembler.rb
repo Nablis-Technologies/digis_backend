@@ -20,7 +20,13 @@ module Orders
       end
 
       def call
-        success(context.items.map { |item| assemble(item) })
+        registrations_by_product_id = context.items.filter_map do |item|
+          product = products.fetch(item.fetch(:event_product_id))
+          next unless product.ticket?
+
+          [ product.id.to_s, assemble(item, product) ]
+        end.to_h
+        success(registrations_by_product_id)
       rescue Abort => error
         failure(error.business_error)
       end
@@ -29,8 +35,7 @@ module Orders
 
       attr_reader :context, :products
 
-      def assemble(item)
-        product = products.fetch(item.fetch(:event_product_id))
+      def assemble(item, product)
         registration = registration_for(item, product)
         registration.status == "offered" ? accept_offer(registration) : registration
       end

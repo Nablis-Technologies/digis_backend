@@ -14,6 +14,7 @@ module Catalog
       ticket parking merchandise food donation digital_addon other
     ].freeze
     CREDENTIAL_PRODUCT_TYPES = %w[ticket parking].freeze
+    ADMISSION_ADD_ON_TYPES = %w[parking merchandise food donation digital_addon].freeze
     REFUND_POLICIES = %w[full_or_partial full_only].freeze
     INVENTORY_MODES = %w[unlimited event_wide per_date event_wide_and_per_date].freeze
     STATUSES = %w[draft active retired].freeze

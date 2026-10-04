@@ -67,15 +67,19 @@ module Orders
           context = command_context
           assembly = RegistrationAssembler.call(context:, products:)
           abort_with(assembly.error) if assembly.failure?
-          registrations = assembly.value
-          if manual_request_without_checkout?(products, registrations)
-            registration = registrations.sole
+          registrations_by_product_id = assembly.value
+          if manual_request_without_checkout?(products, registrations_by_product_id)
+            registration = registrations_by_product_id.values.sole
             record_registration_request!(registration)
             result = success(result_for_registration(registration))
             next
           end
 
-          dispatch = CheckoutDispatcher.call(context:, registrations:)
+          dispatch = CheckoutDispatcher.call(
+            context:,
+            registrations_by_product_id:,
+            inventory_lines_by_product_id: @inventory_lines_by_product_id
+          )
           abort_with(dispatch.error) if dispatch.failure?
           order = dispatch.value
           record_order_request!(order)
@@ -154,7 +158,8 @@ module Orders
         abort_with(selection_error("event_cancelled", status: :conflict)) if locked_event.status == "cancelled"
 
         @locked_products = Catalog::EventProduct.where(event_id: locked_event.id, id: product_ids)
-          .order(:id).lock.includes(:ticket_type, :prices, :product_accesses).to_a.index_by { |product| product.id.to_s }
+          .order(:id).lock.includes(:ticket_type, :prices, :product_accesses, :inventories)
+          .to_a.index_by { |product| product.id.to_s }
       rescue ActiveRecord::RecordNotFound
         abort_with(selection_error("product_not_found", status: :not_found))
       end
@@ -189,28 +194,38 @@ module Orders
 
       def validate_selection!(products)
         manual = []
+        ticket_count = 0
         @normalized_items.each do |item|
           product = products[item.fetch(:event_product_id)]
           abort_with(selection_error("product_not_found", status: :not_found)) unless product
           abort_with(selection_error("product_unavailable", status: :conflict)) unless product.status == "active"
-          abort_with(selection_error("product_unavailable", status: :unprocessable_entity)) unless
-            product.ticket? && product.ticket_type.present?
           abort_with(selection_error("quantity_invalid")) unless item[:quantity].is_a?(Integer) && item[:quantity].positive?
-          abort_with(selection_error("admission_selection_invalid")) unless item[:answers] && item[:consents]
-          manual << item if product.ticket_type.approval_mode == "manual"
+
+          validation = AdmissionSelections::ValidateLine.call(item:, product:)
+          abort_with(validation.error) if validation.failure?
+
+          if validation.value == :ticket
+            ticket_count += 1
+            manual << item if product.ticket_type.approval_mode == "manual"
+          end
         end
+        abort_with(selection_error("admission_selection_invalid")) if ticket_count.zero?
         abort_with(selection_error("admission_selection_manual_approval_mixed")) if
           manual.any? && @normalized_items.length > 1
       end
 
       def preflight_inventory!(products)
+        @inventory_lines_by_product_id = {}
         lines = @normalized_items.filter_map do |item|
           product = products.fetch(item.fetch(:event_product_id))
-          next if new_manual_application?(item, product) || offered_registration?(item, product)
+          next if new_manual_application?(item, product)
 
-          validate_sales_window!(product)
           line = inventory_check_line(item, product)
           abort_with(selection_error("event_date_unavailable", status: :unprocessable_entity)) unless line
+          @inventory_lines_by_product_id[product.id.to_s] = line
+          next if offered_registration?(item, product)
+
+          validate_sales_window!(product)
 
           line
         end
@@ -221,26 +236,26 @@ module Orders
         unavailable.each do |product_id|
           product = products.fetch(product_id)
           abort_with(selection_error("inventory_unavailable", status: :conflict)) unless
-            product.ticket_type.waitlist_enabled?
+            product.ticket? && product.ticket_type&.waitlist_enabled?
         end
         unavailable
       end
 
       def inventory_check_line(item, product)
-        Catalog::Inventory::AdmissionLine.call(
+        Catalog::Inventory::ProductLine.call(
           product:,
-          selected_event_date_id: item[:selected_event_date_id],
           package_quantity: item[:quantity],
-          admissions_per_unit: product.ticket_type.admissions_per_unit
+          selected_event_date_id: item[:selected_event_date_id],
+          event_date_ids: item[:event_date_ids]
         )
       end
 
       def new_manual_application?(item, product)
-        item[:registration_id].blank? && product.ticket_type.approval_mode == "manual"
+        product.ticket? && item[:registration_id].blank? && product.ticket_type.approval_mode == "manual"
       end
 
       def offered_registration?(item, product)
-        return false if item[:registration_id].blank?
+        return false if item[:registration_id].blank? || !product.ticket?
 
         Ticketing::Registration.exists?(
           id: item[:registration_id],
@@ -283,12 +298,13 @@ module Orders
         )
       end
 
-      def manual_request_without_checkout?(products, registrations)
+      def manual_request_without_checkout?(products, registrations_by_product_id)
         return false unless @normalized_items.one?
 
         item = @normalized_items.sole
         product = products.fetch(item.fetch(:event_product_id))
-        registrations.sole.status == "pending_approval" ||
+        registration = registrations_by_product_id.fetch(product.id.to_s)
+        registration.status == "pending_approval" ||
           (item[:registration_id].blank? && product.ticket_type.approval_mode == "manual")
       end
 
@@ -352,7 +368,7 @@ module Orders
         registrations = order.order_items.includes(:registration).filter_map(&:registration)
         action = if order.status == "pending_payment"
           "checkout_required"
-        elsif order.status.in?(%w[paid fulfilled]) && issued_ticket_count(order) < expected_ticket_count(order)
+        elsif order.status.in?(%w[paid fulfilled]) && issued_credential_count(order) < expected_credential_count(order)
           "issuing"
         elsif order.status.in?(%w[paid fulfilled])
           "confirmed"
@@ -369,12 +385,17 @@ module Orders
         )
       end
 
-      def issued_ticket_count(order)
-        Ticketing::Ticket.where(order_item_id: order.order_items.select(:id)).count
+      def issued_credential_count(order)
+        credential_item_ids = order.order_items
+          .where(type_snapshot: Catalog::EventProduct::CREDENTIAL_PRODUCT_TYPES)
+          .select(:id)
+        Ticketing::Ticket.where(order_item_id: credential_item_ids).count
       end
 
-      def expected_ticket_count(order)
-        order.order_items.sum(:quantity)
+      def expected_credential_count(order)
+        order.order_items
+          .where(type_snapshot: Catalog::EventProduct::CREDENTIAL_PRODUCT_TYPES)
+          .sum(:quantity)
       end
 
       def result_for_registration(registration)
@@ -402,12 +423,21 @@ module Orders
           promotion_id: @promotion&.id,
           promotion_code: @promotion_code,
           guest_identity: guest_identity_digest,
-          items: @normalized_items.map(&:to_h)
+          items: digest_items
         }
         Core::KeyedDigest.digest(
           namespace: "orders-admission-selection-request:#{event.id}",
           value: ActiveSupport::JSON.encode(canonical(payload))
         )
+      end
+
+      def digest_items
+        @normalized_items.map do |item|
+          attributes = item.to_h
+          event_date_ids = attributes.delete(:event_date_ids)
+          attributes[:event_date_ids] = event_date_ids if event_date_ids.present?
+          attributes
+        end
       end
 
       def guest_identity_digest

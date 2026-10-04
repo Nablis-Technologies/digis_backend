@@ -15,9 +15,10 @@ module Orders
         end
       end
 
-      def initialize(context:, registrations:)
+      def initialize(context:, registrations_by_product_id:, inventory_lines_by_product_id:)
         @context = context
-        @registrations = registrations
+        @registrations_by_product_id = registrations_by_product_id
+        @inventory_lines_by_product_id = inventory_lines_by_product_id
       end
 
       def call
@@ -30,7 +31,7 @@ module Orders
 
       private
 
-      attr_reader :context, :registrations
+      attr_reader :context, :registrations_by_product_id, :inventory_lines_by_product_id
 
       def build_quote
         result = Orders::BuildQuote.call(
@@ -48,8 +49,17 @@ module Orders
       end
 
       def quote_items
-        context.items.zip(registrations).map do |item, registration|
-          { product_id: item.fetch(:event_product_id), registration_id: registration.id, quantity: item.fetch(:quantity) }
+        context.items.map do |item|
+          product_id = item.fetch(:event_product_id).to_s
+          line = inventory_lines_by_product_id.fetch(product_id)
+          registration = registrations_by_product_id[product_id]
+          {
+            product_id:,
+            registration_id: registration&.id,
+            quantity: item.fetch(:quantity),
+            event_date_ids: line.event_date_ids,
+            venue_event_date_ids: line.venue_event_date_ids
+          }
         end
       end
 
