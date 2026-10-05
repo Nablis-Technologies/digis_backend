@@ -21,6 +21,12 @@ module Core
     end
 
     def record_failure
+      record_attempt
+    end
+
+    # Counts a potentially costly auth-side effect, such as sending an OTP,
+    # even when the action itself succeeds.
+    def record_attempt
       counts = [
         increment(scope: "ip", value: @ip_address),
         increment(scope: "identifier", value: @identifier)
