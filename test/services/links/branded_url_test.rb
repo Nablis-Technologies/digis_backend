@@ -80,7 +80,7 @@ module Links
       ShortLink.create!(slug: "t-aaaaaa", custom_url: "https://example.test/collision", click_count: 0)
 
       SecureRandom.expects(:alphanumeric).times(BrandedUrl::MAX_SLUG_ATTEMPTS).returns("aaaaaa")
-      url = BrandedUrl.ticket(@ticket)
+      url = Prosopite.pause { BrandedUrl.ticket(@ticket) }
 
       assert_match(%r{\Ahttp://localhost:3000/public/tickets/#{@ticket.id}\?view_token=}, url)
     end

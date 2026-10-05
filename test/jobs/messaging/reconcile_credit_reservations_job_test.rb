@@ -6,6 +6,7 @@ require "test_helper"
 module Messaging
   class ReconcileCreditReservationsJobTest < ActiveJob::TestCase
     setup do
+      CreditReservation.delete_all
       @organization = organizations_organizations(:one)
       @account = CreditAccount.create!(organization: @organization, channel: "sms")
       @rate = CreditRateVersion.create!(
