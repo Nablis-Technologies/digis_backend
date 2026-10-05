@@ -34,7 +34,7 @@ module Marketplace
       assert data.key?("fee_terms")
       assert_equal @event.title, data.dig("event", "title")
       assert_equal @product.name, data.dig("ticket_type", "name")
-      %w[seller_acquisition_product_value_minor calculated_cap_minor commercial_fee_component_id
+      %w[ticket_id seller_acquisition_product_value_minor calculated_cap_minor commercial_fee_component_id
          commercial_fee_schedule_version_id].each do |field|
         assert_not data.key?(field), "buyer response leaked #{field}"
       end
@@ -60,7 +60,7 @@ module Marketplace
       event_date = data.fetch("event_dates").sole
       assert_equal "Grand Palace", event_date.dig("venue", "name")
       assert_equal "Addis Ababa", event_date.dig("venue", "city")
-      %w[seller_user_id seller_acquisition_product_value_minor calculated_cap_minor
+      %w[ticket_id seller_user_id seller_acquisition_product_value_minor calculated_cap_minor
          commercial_fee_component_id commercial_fee_schedule_version_id payout_account payment scanner].each do |field|
         refute data.key?(field), "buyer response leaked #{field}"
       end
@@ -72,6 +72,7 @@ module Marketplace
       assert_response :success
       data = response.parsed_body.fetch("data").sole
       assert_equal @listing.id, data.fetch("id")
+      assert_equal @listing.ticket_id, data.fetch("ticket_id")
       assert_equal @owner.id, data.fetch("seller_user_id")
       assert data.key?("calculated_cap_minor")
 
@@ -86,6 +87,7 @@ module Marketplace
 
       assert_response :success
       data = response.parsed_body.fetch("data")
+      assert_equal @listing.ticket_id, data.fetch("ticket_id")
       assert_equal @listing.seller_acquisition_product_value_minor, data.fetch("seller_acquisition_product_value_minor")
       assert_equal @listing.calculated_cap_minor, data.fetch("calculated_cap_minor")
       assert_equal @listing.commercial_fee_component_id, data.fetch("commercial_fee_component_id")

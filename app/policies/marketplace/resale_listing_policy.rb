@@ -10,7 +10,7 @@ module Marketplace
       event product ticket_type event_dates created_at updated_at
     ].freeze
     SELLER_FIELDS = (BUYER_FIELDS + %i[
-      seller_user_id seller_acquisition_product_value_minor cap_type_snapshot fixed_cap_minor_snapshot
+      ticket_id seller_user_id seller_acquisition_product_value_minor cap_type_snapshot fixed_cap_minor_snapshot
       percentage_cap_bps_snapshot calculated_cap_minor resale_count_before max_completed_resales_snapshot
       commercial_fee_component_id commercial_fee_schedule_version_id activated_at sold_at closed_at
     ]).freeze

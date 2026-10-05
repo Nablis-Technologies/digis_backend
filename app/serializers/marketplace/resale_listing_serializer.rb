@@ -7,7 +7,7 @@ module Marketplace
   class ResaleListingSerializer < ActiveModel::Serializer
     include Core::AttributeVisibilitySerializer
 
-    attributes :id, :event_id, :ticket_type_id, :seller_user_id, :status,
+    attributes :id, :event_id, :ticket_id, :ticket_type_id, :seller_user_id, :status,
                :asking_amount_minor, :currency, :seller_acquisition_product_value_minor,
                :cap_type_snapshot, :fixed_cap_minor_snapshot, :percentage_cap_bps_snapshot,
                :calculated_cap_minor, :resale_count_before, :max_completed_resales_snapshot,
