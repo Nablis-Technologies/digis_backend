@@ -17,6 +17,13 @@ en:
       authentication_required: "Authentication required"
       refresh_token_missing: "Refresh token missing"
       signup: "Signup failed"
+      signup_failed: "Signup failed"
+      phone_invalid: "A valid phone number is required"
+      invalid_idempotency_key: "The Idempotency-Key value is invalid"
+      phone_verification_required: "Verify your phone number before creating an account"
+      verification_invalid: "The phone verification is invalid or has expired"
+      phone_taken: "An account already exists for this phone. Sign in instead"
+      idempotency_conflict: "The signup request conflicts with a previous request"
       password_required: "Password is required"
       rate_limited: "Too many authentication attempts. Please try again later"
     phone_verification:

@@ -3,6 +3,7 @@ Rails.application.routes.draw do
 
   scope module: :core do
     post "auth/login", to: "auth#login"
+    post "auth/signup/request_otp", to: "auth#signup_request_otp"
     post "auth/signup", to: "auth#signup"
     post "auth/refresh", to: "auth#refresh"
     post "auth/logout", to: "auth#logout"
