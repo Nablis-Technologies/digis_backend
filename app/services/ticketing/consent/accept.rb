@@ -8,7 +8,7 @@ module Ticketing
     class Accept < Core::BaseService
       def initialize(requirement:, actor:, request_uuid:, acceptance_method: "otp", content_sha256: nil,
         idempotency_key: nil, accepted_at: Time.current, requirement_locked: false,
-        idempotency_lookup: :unchecked)
+        idempotency_lookup: :unchecked, allow_unverified: false)
         @requirement = requirement
         @actor = actor
         @request_uuid = request_uuid
@@ -18,11 +18,12 @@ module Ticketing
         @accepted_at = accepted_at
         @requirement_locked = requirement_locked
         @idempotency_lookup = idempotency_lookup
+        @allow_unverified = allow_unverified
       end
 
       def call
         return failure(error("missing_idempotency_key")) if idempotency_key.blank?
-        return failure(error("consent_subject_unverified")) unless actor.is_a?(Core::User) && actor.verified_at.present?
+        return failure(error("consent_subject_unverified")) unless actor.is_a?(Core::User) && (@allow_unverified || actor.verified_at.present?)
         return failure(error("invalid_request_uuid")) unless valid_request_uuid?
 
         key_digest = idempotency_key_digest

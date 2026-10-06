@@ -7,6 +7,7 @@ module Ticketing
     TYPES_BY_STATUS = {
       "pending_approval" => "awaiting_approval",
       "pending_payment" => "requires_order",
+      "gift_pending_claim" => "gift_claim_pending",
       "offered" => "requires_order",
       "waitlisted" => "waitlisted",
       "confirmed" => "confirmed",

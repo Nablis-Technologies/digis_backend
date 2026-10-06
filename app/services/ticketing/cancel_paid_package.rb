@@ -112,7 +112,7 @@ module Ticketing
     end
 
     def finalize_refund
-      refund = Orders::Refund.includes(refund_items: :ticket).lock.find(@refund.id)
+      refund = Orders::Refund.includes(:event_cancellation, refund_items: :ticket).lock.find(@refund.id)
       return success(refund) if refund.refund_items.empty?
       return failure(package_error(:package_refund_not_succeeded, :conflict)) unless refund.succeeded?
 
@@ -139,7 +139,11 @@ module Ticketing
         generation = ticket.credential_generations.includes(:credentials).lock.find_by!(status: "active")
         ticket.admission_slots.order(:position).lock.to_a
         Ticketing::AdmissionUse.where(admission_slot_id: ticket.admission_slots.select(:id)).lock.load
-        suspension = ticket.ticket_suspensions.lock.find_by!(status: "active")
+        suspension = ticket.ticket_suspensions.lock.find_by(status: "active")
+        unless suspension || event_cancellation_refund_for?(refund, ticket)
+          outcome = failure(package_error(:package_refund_invalid))
+          next
+        end
         Orders::Payment.lock.find(refund.payment_id)
         Orders::Refund.where(payment_id: refund.payment_id).lock.load
 
@@ -167,19 +171,21 @@ module Ticketing
           raise projection.error if projection.failure?
         end
 
-        suspension.update!(
-          status: "cancelled_refunded",
-          resolved_by: suspension.initiated_by,
-          resolution_reason: "refund_succeeded",
-          resolved_at: Time.current
-        )
-        record_transition!(
-          suspension:,
-          action: "cancelled_refunded",
-          actor: nil,
-          metadata: { refund_id: refund.id, revocation_version: revocation.revocation_version }
-        )
-        publish_transition!(suspension:, ticket:, revocation:, action: "cancelled_refunded")
+        if suspension
+          suspension.update!(
+            status: "cancelled_refunded",
+            resolved_by: suspension.initiated_by,
+            resolution_reason: "refund_succeeded",
+            resolved_at: Time.current
+          )
+          record_transition!(
+            suspension:,
+            action: "cancelled_refunded",
+            actor: nil,
+            metadata: { refund_id: refund.id, revocation_version: revocation.revocation_version }
+          )
+          publish_transition!(suspension:, ticket:, revocation:, action: "cancelled_refunded")
+        end
         publication = Core::Outbox::Publish.call(
           topic: "ticketing",
           event_type: "ticketing.package_refunded",
@@ -222,8 +228,12 @@ module Ticketing
     end
 
     def finalized_package?(ticket)
-      ticket.status == "refunded" && ticket.package_dead? &&
+      ticket.status.in?(%w[refunded void]) && ticket.package_dead? &&
         ticket.ticket_suspensions.none? { |suspension| suspension.status == "active" }
+    end
+
+    def event_cancellation_refund_for?(refund, ticket)
+      refund.event_cancellation&.event_id == ticket.event_id
     end
 
     def paid_ticket?(ticket)
