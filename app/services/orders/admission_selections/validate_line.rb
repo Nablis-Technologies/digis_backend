@@ -19,6 +19,7 @@ module Orders
         return failure(error("product_unavailable", status: :unprocessable_entity)) unless product.ticket_type.present?
         return failure(error("admission_selection_invalid")) unless item[:answers] && item[:consents]
         return failure(error("admission_selection_invalid")) if item[:event_date_ids].present?
+        return failure(error("admission_selection_invalid")) if item[:gift].present? && item.recipient_registration_data_present?
 
         success(:ticket)
       end
@@ -43,7 +44,7 @@ module Orders
 
       def ticket_only_input?
         item[:registration_id].present? || item[:selected_event_date_id].present? || item[:answers].present? ||
-          item[:consents].present? || item[:audience_proof].present?
+          item[:consents].present? || item[:audience_proof].present? || item[:gift].present?
       end
 
       def error(code, status: :unprocessable_entity)

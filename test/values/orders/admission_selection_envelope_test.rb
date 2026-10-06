@@ -58,6 +58,75 @@ module Orders
       assert_equal "internal-invitation", item.audience_proof.fetch(:invitation)
     end
 
+    test "normalizes and allowlists the gift recipient and note" do
+      item = Orders::AdmissionSelectionEnvelope.new(
+        items: [ {
+          event_product_id: "gift-ticket",
+          quantity: 1,
+          answers: [],
+          consents: [],
+          gift: {
+            recipient_phone: " 0911000101 ",
+            recipient_email: " Gift@Example.com ",
+            note: "  Happy birthday!  ",
+            recipient_user_id: "forged-user",
+            token: "forged-token"
+          }
+        } ],
+        public_payload: true
+      ).items.sole
+
+      assert_equal(
+        { recipient_phone: "0911000101", recipient_email: "gift@example.com", note: "Happy birthday!" },
+        item.to_h[:gift]
+      )
+      assert_raises(FrozenError) { item.to_h[:gift][:recipient_phone] = "changed" }
+    end
+
+    test "identifies recipient registration data separately from gift contact details" do
+      forbidden_fields = [
+        { registration_id: "registration-1" },
+        { answers: [ { question_key: "name", value: "Ada" } ] },
+        { consents: [ { consent_document_version_id: "version-1" } ] },
+        { audience_proof: { access_code: "CODE" } }
+      ]
+
+      forbidden_fields.each do |fields|
+        item = Orders::AdmissionSelectionEnvelope.new(
+          items: [ {
+            event_product_id: "gift-ticket",
+            quantity: 1,
+            answers: [],
+            consents: [],
+            gift: { recipient_phone: "0911000101" }
+          }.merge(fields) ]
+        ).items.sole
+
+        assert_predicate item, :recipient_registration_data_present?
+      end
+
+      gift_only = Orders::AdmissionSelectionEnvelope.new(
+        items: [ {
+          event_product_id: "gift-ticket",
+          quantity: 1,
+          answers: [],
+          consents: [],
+          gift: { recipient_phone: "0911000101" }
+        } ]
+      ).items.sole
+
+      assert_not_predicate gift_only, :recipient_registration_data_present?
+    end
+
+    test "rejects a non-object gift intent" do
+      assert_raises(Orders::AdmissionSelectionEnvelope::InvalidInput) do
+        Orders::AdmissionSelectionEnvelope.new(
+          items: [ { event_product_id: "gift-ticket", quantity: 1, gift: "not-an-object" } ],
+          public_payload: true
+        )
+      end
+    end
+
     test "rejects a non-object admission item" do
       assert_raises(Orders::AdmissionSelectionEnvelope::InvalidInput) do
         Orders::AdmissionSelectionEnvelope.new(items: [ "not-an-item" ])

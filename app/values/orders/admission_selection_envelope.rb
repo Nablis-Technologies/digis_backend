@@ -8,10 +8,11 @@ module Orders
     InvalidInput = Class.new(ArgumentError)
     INTERNAL_PROOF_FIELDS = %w[access_code invitation_token invitation].freeze
     PUBLIC_PROOF_FIELDS = %w[access_code invitation_token].freeze
+    GIFT_FIELDS = %w[recipient_phone recipient_email note].freeze
 
     Item = Data.define(
       :event_product_id, :registration_id, :quantity, :selected_event_date_id, :event_date_ids,
-      :answers, :consents, :audience_proof
+      :answers, :consents, :audience_proof, :gift
     ) do
       def [](key)
         public_send(key)
@@ -19,6 +20,10 @@ module Orders
 
       def fetch(key)
         public_send(key)
+      end
+
+      def recipient_registration_data_present?
+        registration_id.present? || answers.present? || consents.present? || audience_proof.present?
       end
     end
 
@@ -56,7 +61,22 @@ module Orders
         event_date_ids: immutable(Array(attributes["event_date_ids"]).compact.map(&:to_s).uniq.sort),
         answers: normalize_entries(attributes["answers"], Ticketing::RegistrationSubmission::ANSWER_FIELDS),
         consents: normalize_entries(attributes["consents"], Ticketing::RegistrationSubmission::CONSENT_FIELDS),
-        audience_proof: immutable(proof.slice(*(public_payload ? PUBLIC_PROOF_FIELDS : INTERNAL_PROOF_FIELDS)).symbolize_keys)
+        audience_proof: immutable(proof.slice(*(public_payload ? PUBLIC_PROOF_FIELDS : INTERNAL_PROOF_FIELDS)).symbolize_keys),
+        gift: normalize_gift(attributes["gift"])
+      )
+    end
+
+    def normalize_gift(value)
+      return if value.nil?
+
+      attributes = parameter_hash(value)
+      raise InvalidInput unless attributes
+
+      fields = attributes.slice(*GIFT_FIELDS)
+      immutable(
+        recipient_phone: fields["recipient_phone"].to_s.strip.presence,
+        recipient_email: fields["recipient_email"].to_s.strip.downcase.presence,
+        note: fields["note"].to_s.strip.presence
       )
     end
 

@@ -5,6 +5,8 @@ module Orders
     # Submits/reuses registrations and transfers waitlist-offer holds. It runs
     # inside Create's transaction and never opens a separate commit boundary.
     class RegistrationAssembler < Core::BaseService
+      Assembly = Data.define(:registrations_by_product_id, :gift_intents_by_product_id)
+
       class Abort < Core::Error
         attr_reader :business_error
 
@@ -20,13 +22,21 @@ module Orders
       end
 
       def call
-        registrations_by_product_id = context.items.filter_map do |item|
+        registrations_by_product_id = {}
+        gift_intents_by_product_id = {}
+        context.items.each do |item|
           product = products.fetch(item.fetch(:event_product_id))
           next unless product.ticket?
 
-          [ product.id.to_s, assemble(item, product) ]
-        end.to_h
-        success(registrations_by_product_id)
+          if item[:gift].present?
+            gift = prepare_gift(item, product)
+            registrations_by_product_id[product.id.to_s] = gift.registration
+            gift_intents_by_product_id[product.id.to_s] = gift
+          else
+            registrations_by_product_id[product.id.to_s] = assemble(item, product)
+          end
+        end
+        success(Assembly.new(registrations_by_product_id:, gift_intents_by_product_id:))
       rescue Abort => error
         failure(error.business_error)
       end
@@ -38,6 +48,26 @@ module Orders
       def assemble(item, product)
         registration = registration_for(item, product)
         registration.status == "offered" ? accept_offer(registration) : registration
+      end
+
+      def prepare_gift(item, product)
+        if item.recipient_registration_data_present?
+          abort_with(selection_error("admission_selection_invalid"))
+        end
+
+        result = Orders::GiftPurchases::Prepare.call(
+          ticket_type: product.ticket_type,
+          purchaser: context.buyer,
+          recipient_phone: item[:gift][:recipient_phone],
+          recipient_email: item[:gift][:recipient_email],
+          note: item[:gift][:note],
+          package_quantity: item[:quantity],
+          selected_event_date_id: item[:selected_event_date_id],
+          idempotency_key: registration_idempotency_key(product)
+        )
+        abort_with(result.error) if result.failure?
+
+        result.value
       end
 
       def registration_for(item, product)
