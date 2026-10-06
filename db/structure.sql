@@ -3086,7 +3086,7 @@ BEGIN
     RAISE EXCEPTION 'consent evidence signer does not match the requirement subject'
       USING ERRCODE = '23514';
   END IF;
-  IF signer_verified_at IS NULL THEN
+  IF signer_verified_at IS NULL AND NEW.acceptance_method = 'otp' THEN
     RAISE EXCEPTION 'consent evidence signer must have verified OTP identity'
       USING ERRCODE = '23514';
   END IF;
@@ -3201,11 +3201,17 @@ BEGIN
          USING ERRCODE = '23514';
      END IF;
 
+     IF OLD.expired_at IS NOT NULL AND NEW.expired_at IS DISTINCT FROM OLD.expired_at THEN
+       RAISE EXCEPTION 'expired consent requirement timestamps are immutable'
+         USING ERRCODE = '23514';
+     END IF;
+
     IF NEW.status IS DISTINCT FROM OLD.status AND NOT (
-      (OLD.status = 'pending' AND NEW.status IN ('pending','accepted','withdrawn','superseded')) OR
+      (OLD.status = 'pending' AND NEW.status IN ('pending','accepted','withdrawn','superseded','expired')) OR
       (OLD.status = 'accepted' AND NEW.status IN ('accepted','withdrawn','superseded')) OR
       (OLD.status = 'withdrawn' AND NEW.status = 'withdrawn') OR
-      (OLD.status = 'superseded' AND NEW.status = 'superseded')
+      (OLD.status = 'superseded' AND NEW.status = 'superseded') OR
+      (OLD.status = 'expired' AND NEW.status = 'expired')
     ) THEN
       RAISE EXCEPTION 'invalid consent requirement status transition'
         USING ERRCODE = '23514';
@@ -6227,6 +6233,41 @@ CREATE TABLE public.orders_billing_purchases (
 
 
 --
+-- Name: orders_gift_purchases; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.orders_gift_purchases (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    order_item_id uuid NOT NULL,
+    recipient_user_id uuid NOT NULL,
+    recipient_phone_ciphertext text NOT NULL,
+    recipient_phone_digest character varying(64) NOT NULL,
+    recipient_email_ciphertext text,
+    recipient_email_digest character varying(64),
+    note_ciphertext text,
+    token_ciphertext text NOT NULL,
+    token_digest character varying(64) NOT NULL,
+    status character varying DEFAULT 'pending_payment'::character varying NOT NULL,
+    delivery_status character varying DEFAULT 'pending'::character varying NOT NULL,
+    delivery_revision integer DEFAULT 0 NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    ready_at timestamp with time zone,
+    delivered_at timestamp with time zone,
+    claimed_at timestamp with time zone,
+    expired_at timestamp with time zone,
+    revoked_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT orders_gift_purchases_delivery_revision_check CHECK ((delivery_revision >= 0)),
+    CONSTRAINT orders_gift_purchases_delivery_status_check CHECK (((delivery_status)::text = ANY ((ARRAY['pending'::character varying, 'sent'::character varying, 'partial'::character varying, 'failed'::character varying])::text[]))),
+    CONSTRAINT orders_gift_purchases_digest_check CHECK ((((recipient_phone_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((token_digest)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT orders_gift_purchases_email_digest_check CHECK ((((recipient_email_ciphertext IS NULL) = (recipient_email_digest IS NULL)) AND ((recipient_email_digest IS NULL) OR ((recipient_email_digest)::text ~ '^[0-9a-f]{64}$'::text)))),
+    CONSTRAINT orders_gift_purchases_lifecycle_check CHECK (((((status)::text = 'pending_payment'::text) AND (ready_at IS NULL) AND (claimed_at IS NULL) AND (expired_at IS NULL) AND (revoked_at IS NULL)) OR (((status)::text = ANY ((ARRAY['ready'::character varying, 'pending_recipient_consent'::character varying])::text[])) AND (ready_at IS NOT NULL) AND (claimed_at IS NULL) AND (expired_at IS NULL) AND (revoked_at IS NULL)) OR (((status)::text = 'claimed'::text) AND (ready_at IS NOT NULL) AND (claimed_at IS NOT NULL) AND (expired_at IS NULL) AND (revoked_at IS NULL)) OR (((status)::text = 'expired'::text) AND (expired_at IS NOT NULL) AND (revoked_at IS NULL)) OR (((status)::text = 'revoked'::text) AND (revoked_at IS NOT NULL)))),
+    CONSTRAINT orders_gift_purchases_status_check CHECK (((status)::text = ANY ((ARRAY['pending_payment'::character varying, 'ready'::character varying, 'pending_recipient_consent'::character varying, 'claimed'::character varying, 'expired'::character varying, 'revoked'::character varying])::text[])))
+);
+
+
+--
 -- Name: orders_order_adjustments; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -7053,15 +7094,16 @@ CREATE TABLE public.ticketing_registration_consent_requirements (
     required_by_id uuid,
     required_at timestamp with time zone CONSTRAINT ticketing_registration_consent_requirement_required_at_not_null NOT NULL,
     superseded_at timestamp with time zone,
+    expired_at timestamp with time zone,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_consent_requirements_coordinate_check CHECK (((((acceptance_scope)::text = 'buyer'::text) AND (package_unit_number IS NULL) AND (admission_position IS NULL) AND (admission_slot_id IS NULL) AND (subject_user_id IS NOT NULL)) OR (((acceptance_scope)::text = 'admission_slot'::text) AND (package_unit_number IS NOT NULL) AND (package_unit_number > 0) AND (admission_position IS NOT NULL) AND (admission_position > 0) AND (admission_slot_id IS NULL)))),
     CONSTRAINT ticketing_consent_requirements_reason_check CHECK (((required_reason)::text = ANY ((ARRAY['initial_submission'::character varying, 'reconsent'::character varying])::text[]))),
     CONSTRAINT ticketing_consent_requirements_required_by_check CHECK ((((required_reason)::text = 'initial_submission'::text) OR (required_by_id IS NOT NULL))),
     CONSTRAINT ticketing_consent_requirements_scope_check CHECK (((acceptance_scope)::text = ANY ((ARRAY['buyer'::character varying, 'admission_slot'::character varying])::text[]))),
-    CONSTRAINT ticketing_consent_requirements_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'accepted'::character varying, 'withdrawn'::character varying, 'superseded'::character varying])::text[]))),
+    CONSTRAINT ticketing_consent_requirements_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'accepted'::character varying, 'withdrawn'::character varying, 'superseded'::character varying, 'expired'::character varying])::text[]))),
     CONSTRAINT ticketing_consent_requirements_subject_check CHECK ((((status)::text <> ALL ((ARRAY['accepted'::character varying, 'withdrawn'::character varying])::text[])) OR (subject_user_id IS NOT NULL))),
-    CONSTRAINT ticketing_consent_requirements_superseded_at_check CHECK (((((status)::text = 'superseded'::text) AND (superseded_at IS NOT NULL)) OR (((status)::text <> 'superseded'::text) AND (superseded_at IS NULL))))
+    CONSTRAINT ticketing_consent_requirements_terminal_at_check CHECK (((((status)::text = 'superseded'::text) AND (superseded_at IS NOT NULL) AND (expired_at IS NULL)) OR (((status)::text = 'expired'::text) AND (expired_at IS NOT NULL) AND (superseded_at IS NULL)) OR (((status)::text <> ALL ((ARRAY['superseded'::character varying, 'expired'::character varying])::text[])) AND (superseded_at IS NULL) AND (expired_at IS NULL))))
 );
 
 
@@ -7237,7 +7279,7 @@ CREATE TABLE public.ticketing_registrations (
     CONSTRAINT ticketing_registrations_source_check CHECK (((source)::text = ANY ((ARRAY['self_service'::character varying, 'organizer_complimentary'::character varying, 'walk_up'::character varying])::text[]))),
     CONSTRAINT ticketing_registrations_source_metadata_check CHECK (((((source)::text = 'organizer_complimentary'::text) AND (complimentary_reason IS NOT NULL) AND ((complimentary_reason)::text <> ''::text) AND (issuance_idempotency_key IS NOT NULL) AND ((issuance_idempotency_key)::text <> ''::text)) OR (((source)::text <> 'organizer_complimentary'::text) AND (complimentary_reason IS NULL)))),
     CONSTRAINT ticketing_registrations_state_timestamps_check CHECK ((((((status)::text = 'waitlisted'::text) AND (waitlisted_at IS NOT NULL)) OR (((status)::text <> 'waitlisted'::text) AND (waitlisted_at IS NULL))) AND ((((status)::text = 'offered'::text) AND (offered_at IS NOT NULL) AND (offer_expires_at IS NOT NULL) AND (offer_expires_at > offered_at)) OR (((status)::text <> 'offered'::text) AND (offered_at IS NULL) AND (offer_expires_at IS NULL))))),
-    CONSTRAINT ticketing_registrations_status_check CHECK (((status)::text = ANY ((ARRAY['pending_payment'::character varying, 'pending_approval'::character varying, 'waitlisted'::character varying, 'offered'::character varying, 'confirmed'::character varying, 'rejected'::character varying, 'cancelled'::character varying, 'expired'::character varying])::text[])))
+    CONSTRAINT ticketing_registrations_status_check CHECK (((status)::text = ANY ((ARRAY['pending_payment'::character varying, 'gift_pending_claim'::character varying, 'pending_approval'::character varying, 'waitlisted'::character varying, 'offered'::character varying, 'confirmed'::character varying, 'rejected'::character varying, 'cancelled'::character varying, 'expired'::character varying])::text[])))
 );
 
 
@@ -7397,8 +7439,8 @@ CREATE TABLE public.ticketing_ticket_suspensions (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT ticketing_ticket_suspensions_reason_code_check CHECK (((reason_code)::text = ANY ((ARRAY['suspected_fraud'::character varying, 'identity_review'::character varying, 'chargeback_review'::character varying, 'safety_review'::character varying, 'organizer_cancellation'::character varying])::text[]))),
-    CONSTRAINT ticketing_ticket_suspensions_resolution_reason_check CHECK (((resolution_reason IS NULL) OR ((resolution_reason)::text = ANY ((ARRAY['review_cleared'::character varying, 'organizer_cancellation'::character varying, 'refund_succeeded'::character varying, 'review_deadline_expired'::character varying])::text[])))),
-    CONSTRAINT ticketing_ticket_suspensions_resolution_shape_check CHECK (((((status)::text = 'active'::text) AND (resolved_by_id IS NULL) AND (resolution_reason IS NULL) AND (resolved_at IS NULL)) OR (((status)::text <> 'active'::text) AND (resolved_by_id IS NOT NULL) AND (resolution_reason IS NOT NULL) AND (resolved_at IS NOT NULL)))),
+    CONSTRAINT ticketing_ticket_suspensions_resolution_reason_check CHECK (((resolution_reason IS NULL) OR ((resolution_reason)::text = ANY ((ARRAY['review_cleared'::character varying, 'organizer_cancellation'::character varying, 'refund_succeeded'::character varying, 'review_deadline_expired'::character varying, 'gift_claim_expired'::character varying])::text[])))),
+    CONSTRAINT ticketing_ticket_suspensions_resolution_shape_check CHECK (((((status)::text = 'active'::text) AND (resolved_by_id IS NULL) AND (resolution_reason IS NULL) AND (resolved_at IS NULL)) OR (((status)::text <> 'active'::text) AND ((resolved_by_id IS NOT NULL) OR ((resolution_reason)::text = 'gift_claim_expired'::text)) AND (resolution_reason IS NOT NULL) AND (resolved_at IS NOT NULL)))),
     CONSTRAINT ticketing_ticket_suspensions_status_check CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'restored'::character varying, 'revoked_free'::character varying, 'cancelled_refunded'::character varying, 'expired'::character varying])::text[])))
 );
 
@@ -8382,6 +8424,14 @@ ALTER TABLE ONLY public.messaging_notifications
 
 ALTER TABLE ONLY public.orders_billing_purchases
     ADD CONSTRAINT orders_billing_purchases_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: orders_gift_purchases orders_gift_purchases_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_gift_purchases
+    ADD CONSTRAINT orders_gift_purchases_pkey PRIMARY KEY (id);
 
 
 --
@@ -9762,6 +9812,13 @@ CREATE INDEX idx_on_published_at_available_at_id_30dbfe6ec6 ON public.core_outbo
 
 
 --
+-- Name: idx_on_recipient_user_id_created_at_a1399cb031; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_recipient_user_id_created_at_a1399cb031 ON public.orders_gift_purchases USING btree (recipient_user_id, created_at);
+
+
+--
 -- Name: idx_on_registration_answer_id_revised_at_ad59af8066; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10140,6 +10197,13 @@ CREATE INDEX idx_orders_billing_purchases_status_expiry ON public.orders_billing
 
 
 --
+-- Name: idx_orders_gift_purchases_expiry; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_orders_gift_purchases_expiry ON public.orders_gift_purchases USING btree (status, expires_at);
+
+
+--
 -- Name: idx_orders_on_creation_request_digest; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10514,7 +10578,7 @@ CREATE UNIQUE INDEX idx_ticketing_purchase_limit_overrides_registration ON publi
 -- Name: idx_ticketing_registrations_active_identity; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_ticketing_registrations_active_identity ON public.ticketing_registrations USING btree (ticket_type_id, identity_digest, COALESCE(selected_event_date_id, '00000000-0000-0000-0000-000000000000'::uuid)) WHERE ((status)::text = ANY ((ARRAY['pending_payment'::character varying, 'pending_approval'::character varying, 'waitlisted'::character varying, 'offered'::character varying])::text[]));
+CREATE UNIQUE INDEX idx_ticketing_registrations_active_identity ON public.ticketing_registrations USING btree (ticket_type_id, identity_digest, COALESCE(selected_event_date_id, '00000000-0000-0000-0000-000000000000'::uuid)) WHERE ((status)::text = ANY ((ARRAY['pending_payment'::character varying, 'gift_pending_claim'::character varying, 'pending_approval'::character varying, 'waitlisted'::character varying, 'offered'::character varying])::text[]));
 
 
 --
@@ -11649,6 +11713,20 @@ CREATE UNIQUE INDEX index_one_published_legal_doc ON public.legal_document_versi
 --
 
 CREATE UNIQUE INDEX index_one_published_version_per_doc ON public.events_consent_document_versions USING btree (consent_document_id) WHERE ((status)::text = 'published'::text);
+
+
+--
+-- Name: index_orders_gift_purchases_on_order_item_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_orders_gift_purchases_on_order_item_id ON public.orders_gift_purchases USING btree (order_item_id);
+
+
+--
+-- Name: index_orders_gift_purchases_on_token_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_orders_gift_purchases_on_token_digest ON public.orders_gift_purchases USING btree (token_digest);
 
 
 --
@@ -13138,6 +13216,14 @@ ALTER TABLE ONLY public.ticketing_scanner_device_assignments
 
 
 --
+-- Name: orders_gift_purchases fk_rails_22cfa6d077; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_gift_purchases
+    ADD CONSTRAINT fk_rails_22cfa6d077 FOREIGN KEY (order_item_id) REFERENCES public.orders_order_items(id);
+
+
+--
 -- Name: commercial_program_entitlements fk_rails_22f7aea472; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13423,6 +13509,14 @@ ALTER TABLE ONLY public.catalog_promotion_products
 
 ALTER TABLE ONLY public.legal_acceptances
     ADD CONSTRAINT fk_rails_3b2c4ebc36 FOREIGN KEY (legal_document_version_id) REFERENCES public.legal_document_versions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: orders_gift_purchases fk_rails_3c952a553a; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_gift_purchases
+    ADD CONSTRAINT fk_rails_3c952a553a FOREIGN KEY (recipient_user_id) REFERENCES public.core_users(id);
 
 
 --
@@ -15552,6 +15646,7 @@ ALTER TABLE ONLY public.ticketing_ticket_suspensions
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261005090000'),
 ('20260908090001'),
 ('20260906090015'),
 ('20260906090014'),

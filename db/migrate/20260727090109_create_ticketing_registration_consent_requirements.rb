@@ -17,6 +17,7 @@ class CreateTicketingRegistrationConsentRequirements < ActiveRecord::Migration[8
       t.uuid :required_by_id
       t.timestamptz :required_at, null: false
       t.timestamptz :superseded_at
+      t.timestamptz :expired_at
       t.timestamps
     end
 
@@ -24,7 +25,7 @@ class CreateTicketingRegistrationConsentRequirements < ActiveRecord::Migration[8
       "acceptance_scope IN ('buyer','admission_slot')",
       name: "ticketing_consent_requirements_scope_check"
     add_check_constraint :ticketing_registration_consent_requirements,
-      "status IN ('pending','accepted','withdrawn','superseded')",
+      "status IN ('pending','accepted','withdrawn','superseded','expired')",
       name: "ticketing_consent_requirements_status_check"
     add_check_constraint :ticketing_registration_consent_requirements,
       "required_reason IN ('initial_submission','reconsent')",
@@ -37,9 +38,10 @@ class CreateTicketingRegistrationConsentRequirements < ActiveRecord::Migration[8
         "AND admission_slot_id IS NULL))",
       name: "ticketing_consent_requirements_coordinate_check"
     add_check_constraint :ticketing_registration_consent_requirements,
-      "((status = 'superseded' AND superseded_at IS NOT NULL) OR " \
-        "(status <> 'superseded' AND superseded_at IS NULL))",
-      name: "ticketing_consent_requirements_superseded_at_check"
+      "((status = 'superseded' AND superseded_at IS NOT NULL AND expired_at IS NULL) OR " \
+        "(status = 'expired' AND expired_at IS NOT NULL AND superseded_at IS NULL) OR " \
+        "(status NOT IN ('superseded','expired') AND superseded_at IS NULL AND expired_at IS NULL))",
+      name: "ticketing_consent_requirements_terminal_at_check"
     add_check_constraint :ticketing_registration_consent_requirements,
       "(required_reason = 'initial_submission' OR required_by_id IS NOT NULL)",
       name: "ticketing_consent_requirements_required_by_check"
@@ -133,11 +135,17 @@ class CreateTicketingRegistrationConsentRequirements < ActiveRecord::Migration[8
                USING ERRCODE = '23514';
            END IF;
 
+           IF OLD.expired_at IS NOT NULL AND NEW.expired_at IS DISTINCT FROM OLD.expired_at THEN
+             RAISE EXCEPTION 'expired consent requirement timestamps are immutable'
+               USING ERRCODE = '23514';
+           END IF;
+
           IF NEW.status IS DISTINCT FROM OLD.status AND NOT (
-            (OLD.status = 'pending' AND NEW.status IN ('pending','accepted','withdrawn','superseded')) OR
+            (OLD.status = 'pending' AND NEW.status IN ('pending','accepted','withdrawn','superseded','expired')) OR
             (OLD.status = 'accepted' AND NEW.status IN ('accepted','withdrawn','superseded')) OR
             (OLD.status = 'withdrawn' AND NEW.status = 'withdrawn') OR
-            (OLD.status = 'superseded' AND NEW.status = 'superseded')
+            (OLD.status = 'superseded' AND NEW.status = 'superseded') OR
+            (OLD.status = 'expired' AND NEW.status = 'expired')
           ) THEN
             RAISE EXCEPTION 'invalid consent requirement status transition'
               USING ERRCODE = '23514';

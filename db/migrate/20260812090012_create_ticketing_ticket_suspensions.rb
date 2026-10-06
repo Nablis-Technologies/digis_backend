@@ -3,7 +3,9 @@
 class CreateTicketingTicketSuspensions < ActiveRecord::Migration[8.1]
   REASON_CODES = %w[suspected_fraud identity_review chargeback_review safety_review organizer_cancellation].freeze
   STATUSES = %w[active restored revoked_free cancelled_refunded expired].freeze
-  RESOLUTION_REASONS = %w[review_cleared organizer_cancellation refund_succeeded review_deadline_expired].freeze
+  RESOLUTION_REASONS = %w[
+    review_cleared organizer_cancellation refund_succeeded review_deadline_expired gift_claim_expired
+  ].freeze
 
   def up
     create_table :ticketing_ticket_suspensions, id: :uuid, default: -> { "uuidv7()" } do |t|
@@ -33,7 +35,8 @@ class CreateTicketingTicketSuspensions < ActiveRecord::Migration[8.1]
       name: "ticketing_ticket_suspensions_resolution_reason_check"
     add_check_constraint :ticketing_ticket_suspensions,
       "(status = 'active' AND resolved_by_id IS NULL AND resolution_reason IS NULL AND resolved_at IS NULL) OR " \
-      "(status <> 'active' AND resolved_by_id IS NOT NULL AND resolution_reason IS NOT NULL AND resolved_at IS NOT NULL)",
+      "(status <> 'active' AND (resolved_by_id IS NOT NULL OR resolution_reason = 'gift_claim_expired') AND " \
+      "resolution_reason IS NOT NULL AND resolved_at IS NOT NULL)",
       name: "ticketing_ticket_suspensions_resolution_shape_check"
 
     add_index :ticketing_ticket_suspensions, :ticket_id,
