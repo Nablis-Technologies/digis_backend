@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "set"
+
 module Events
   module Cancellation
     # Claims and resolves one durable cancellation-payment snapshot. Refund
@@ -123,9 +125,15 @@ module Events
       end
 
       def refundable_items(order, tickets_by_item:, excluded_ticket_ids: [])
+        gift_order_item_ids = Orders::GiftPurchase.where(
+          order_item_id: order.order_items.select(:id)
+        ).pluck(:order_item_id).to_set
         order.order_items.flat_map do |item|
           if item.type_snapshot == "ticket"
-            tickets_by_item.fetch(item.id, []).filter_map do |ticket|
+            tickets = tickets_by_item.fetch(item.id, [])
+            next [ [ item, nil ] ] if tickets.empty? && gift_order_item_ids.include?(item.id)
+
+            tickets.filter_map do |ticket|
               next if excluded_ticket_ids.include?(ticket.id)
 
               [ item, ticket ]

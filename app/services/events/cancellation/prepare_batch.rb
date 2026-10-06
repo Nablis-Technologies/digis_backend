@@ -23,6 +23,7 @@ module Events
             snapshot_payments!(cancellation, event)
             cancel_future_dates!(cancellation, event)
             stop_event_workflows!(event)
+            revoke_gift_purchases!(event)
             revoke_free_tickets!(event)
             update_progress!(cancellation)
             enqueue = cancellation.status != "completed"
@@ -154,6 +155,11 @@ module Events
           result = RevokeFreeTicket.call(ticket:)
           raise result.error if result.failure?
         end
+      end
+
+      def revoke_gift_purchases!(event)
+        result = Orders::GiftPurchases::RevokeForEvent.call(event:)
+        raise result.error if result.failure?
       end
 
       def update_progress!(cancellation)

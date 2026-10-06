@@ -58,6 +58,11 @@ module Links
         direct_transfer_url(transfer, token)
       end
 
+      def gift(gift_purchase, token: nil)
+        capability = token || gift_purchase.token
+        "#{public_app_url.to_s.delete_suffix("/")}/#gift/#{gift_purchase.id}?token=#{ERB::Util.url_encode(capability)}"
+      end
+
       private
 
       def canonical_ticket_link(ticket)
