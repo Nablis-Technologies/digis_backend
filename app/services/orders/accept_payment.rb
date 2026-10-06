@@ -113,10 +113,14 @@ module Orders
     end
 
     def confirm_paid_registrations!(locked_payment, locked_order)
-      registration_ids = Orders::OrderItem.where(order_id: locked_order.id)
-        .where.not(registration_id: nil)
-        .select(:registration_id)
-      Ticketing::Registration.lock.where(id: registration_ids).find_each do |registration|
+      items = Orders::OrderItem.includes(:gift_purchase, registration: :user)
+        .where(order_id: locked_order.id).order(:id).to_a
+      items.each do |item|
+        next if item.gift_purchase
+
+        registration = item.registration
+        next unless registration
+
         result = Ticketing::Registrations::ConfirmPaid.call(
           registration:, payment: locked_payment, at: now
         )
@@ -125,14 +129,15 @@ module Orders
     end
 
     def commit_purchase_limits!(locked_order)
-      items = Orders::OrderItem.where(order_id: locked_order.id).includes(:registration).to_a
+      items = Orders::OrderItem.includes(:gift_purchase, registration: :user)
+        .where(order_id: locked_order.id).order(:id).to_a
       items.each do |item|
         registration = item.registration
         next unless registration
         next unless Ticketing::PurchaseLimitAllocation.where(registration_id: registration.id, status: %w[reserved committed]).exists?
 
         result = Ticketing::PurchaseLimits::Commit.call(
-          registration:, user: Core::User.find(locked_order.buyer_user_id),
+          registration:, user: registration.user,
           idempotency_key: "orders-purchase-limit-#{item.id}", at: now
         )
         raise AcceptanceFailure, result.error if result.failure?

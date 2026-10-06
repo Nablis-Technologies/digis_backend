@@ -15,9 +15,11 @@ module Orders
         end
       end
 
-      def initialize(context:, registrations_by_product_id:, inventory_lines_by_product_id:)
+      def initialize(context:, registrations_by_product_id:, gift_intents_by_product_id: {},
+        inventory_lines_by_product_id:)
         @context = context
         @registrations_by_product_id = registrations_by_product_id
+        @gift_intents_by_product_id = gift_intents_by_product_id
         @inventory_lines_by_product_id = inventory_lines_by_product_id
       end
 
@@ -31,7 +33,8 @@ module Orders
 
       private
 
-      attr_reader :context, :registrations_by_product_id, :inventory_lines_by_product_id
+      attr_reader :context, :registrations_by_product_id, :gift_intents_by_product_id,
+                  :inventory_lines_by_product_id
 
       def build_quote
         result = Orders::BuildQuote.call(
@@ -39,6 +42,7 @@ module Orders
           buyer: context.buyer,
           items: quote_items,
           charge_currency: context.charge_currency,
+          gift_registration_ids: gift_intents_by_product_id.values.map { |intent| intent.registration.id },
           promotion: context.promotion,
           promotion_code: context.promotion_code,
           quoted_at: context.quoted_at
@@ -75,6 +79,7 @@ module Orders
           event: context.event,
           buyer: context.buyer,
           idempotency_key: order_idempotency_key,
+          gift_intents_by_product_id: gift_intents_by_product_id,
           recovery_context: context
         )
         abort_with(result.error) if result.failure?

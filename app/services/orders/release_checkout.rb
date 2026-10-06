@@ -57,9 +57,11 @@ module Orders
       return failure(expiry_error(:checkout_not_releasable, code: "checkout_not_releasable")) unless releasable?(locked_order)
       Payment.where(order_id: locked_order.id).current.lock.order(:id).to_a unless payment_rows_locked
 
-      items = OrderItem.where(order_id: locked_order.id).includes(:registration).lock.order(:id).to_a
+      items = OrderItem.where(order_id: locked_order.id)
+        .includes(:gift_purchase, registration: :user).lock.order(:id).to_a
       release_inventory!(items)
-      release_purchase_limits!(locked_order, items)
+      release_purchase_limits!(items)
+      revoke_gift_purchases!(items)
       release_promotion!(locked_order)
       release_subsidies!(locked_order)
       expire_registrations!(locked_order, items)
@@ -85,22 +87,42 @@ module Orders
       end
     end
 
-    def release_purchase_limits!(locked_order, items)
+    def release_purchase_limits!(items)
       registrations = items.filter_map(&:registration).uniq(&:id)
       registrations.each do |registration|
+        next if items.any? { |item| item.gift_purchase && item.registration_id == registration.id }
+
         unit_numbers = Ticketing::PurchaseLimitAllocation.where(
           registration_id: registration.id,
-          user_id: locked_order.buyer_user_id,
+          user_id: registration.user_id,
           status: "reserved"
         ).order(:unit_number).pluck(:unit_number)
         next if unit_numbers.empty?
 
         result = Ticketing::PurchaseLimits::Release.call(
           registration:,
-          user: Core::User.find(locked_order.buyer_user_id),
+          user: registration.user,
           reason: reason_for_purchase_limit,
           idempotency_key: "orders-checkout-expiry-#{locked_order.id}-#{registration.id}",
           unit_numbers:
+        )
+        raise ReleaseFailure, result.error if result.failure?
+      end
+    end
+
+    def revoke_gift_purchases!(items)
+      order_item_ids = items.filter_map { |item| item.id if item.gift_purchase }
+      return if order_item_ids.empty?
+
+      gifts = Orders::GiftPurchase.where(order_item_id: order_item_ids)
+        .includes(
+          :recipient_user,
+          order_item: { registration: [ :user, :created_by, :event, { ticket_type: { event_product: :event } } ] }
+        )
+        .lock.order(:id)
+      gifts.each do |gift_purchase|
+        result = GiftPurchases::Revoke.call(
+          gift_purchase:, reason: RELEASE_REASON, at: now, row_locked: true
         )
         raise ReleaseFailure, result.error if result.failure?
       end

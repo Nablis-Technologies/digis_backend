@@ -16,7 +16,7 @@ module Orders
       sales_channel: "online", provider: nil, payment_method: nil,
       organizer_payer_selections: {}, promotion: nil, promotion_code: nil,
       promotion_quote: nil, quoted_at: nil, expires_at: nil,
-      require_registrations: true
+      require_registrations: true, gift_registration_ids: []
     )
       @event = event
       @buyer = buyer
@@ -31,6 +31,7 @@ module Orders
       @promotion_code = promotion_code
       @promotion_quote = promotion_quote
       @require_registrations = require_registrations != false
+      @gift_registration_ids = Array(gift_registration_ids).map(&:to_s).uniq.freeze
       @quoted_at = (quoted_at || Time.current).to_time.utc.change(usec: 0)
       @expires_at = (expires_at || @quoted_at + HOLD_DURATION).to_time.utc.change(usec: 0)
     rescue NoMethodError, ArgumentError => error
@@ -133,11 +134,12 @@ module Orders
       return checkout_error(:quantity_outside_product_limit, code: "quantity_outside_product_limit") unless product.min_per_order <= quantity && (product.max_per_order.nil? || quantity <= product.max_per_order)
 
       registration = load_registration(attributes[:registration] || attributes[:registration_id])
-      if registration && (registration.event_id != event.id || (buyer && registration.user_id != buyer.id))
-        return checkout_error(:registration_scope_invalid, code: "registration_scope_invalid")
-      end
-      if registration && !registration.pending_payment?
-        return checkout_error(:registration_not_payable, code: "registration_not_payable", status: :conflict)
+      if registration
+        return checkout_error(:registration_scope_invalid, code: "registration_scope_invalid") unless
+          registration_scope_valid?(registration, product)
+
+        payable = gift_registration?(registration) ? registration.status == "gift_pending_claim" : registration.pending_payment?
+        return checkout_error(:registration_not_payable, code: "registration_not_payable", status: :conflict) unless payable
       end
       if product.ticket? && registration.nil? && @require_registrations
         return checkout_error(:registration_required, code: "registration_required")
@@ -215,6 +217,22 @@ module Orders
       return unless id
 
       Ticketing::Registration.find_by(id:)
+    end
+
+    def gift_registration?(registration)
+      @gift_registration_ids.include?(registration.id.to_s)
+    end
+
+    def registration_scope_valid?(registration, product)
+      valid_event_and_product = registration.event_id == event.id &&
+        registration.ticket_type_id == product.ticket_type&.id
+      return false unless valid_event_and_product
+
+      if gift_registration?(registration)
+        buyer.is_a?(Core::User) && registration.status == "gift_pending_claim" && buyer.id != registration.user_id
+      else
+        !buyer || registration.user_id == buyer.id
+      end
     end
 
     def base_amount_for(product, price_quote)

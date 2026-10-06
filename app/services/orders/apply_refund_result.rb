@@ -23,6 +23,7 @@ module Orders
         locked_refund = Orders::Refund.lock.find(@refund.id)
         if locked_refund.status == "succeeded"
           apply_late_fee!(locked_refund) if @result.success? && provider_fee_present?
+          revoke_gift_purchases!(locked_refund)
           post_finance_refund!(locked_refund)
           next locked_refund
         end
@@ -57,7 +58,10 @@ module Orders
         else
           raise ArgumentError, I18n.t("orders.refunds.errors.unsupported_provider_refund_status")
         end
-        post_finance_refund!(locked_refund) if locked_refund.status == "succeeded"
+        if locked_refund.status == "succeeded"
+          revoke_gift_purchases!(locked_refund)
+          post_finance_refund!(locked_refund)
+        end
         publish_terminal_status!(locked_refund) if previous_status != locked_refund.status
         locked_refund
       end
@@ -136,6 +140,22 @@ module Orders
     def post_finance_refund!(locked_refund)
       result = Finance::PostRefund.call(refund: locked_refund, at: @now)
       raise result.error if result.failure?
+    end
+
+    def revoke_gift_purchases!(locked_refund)
+      item_ids = Orders::RefundItem.where(refund_id: locked_refund.id).select(:order_item_id)
+      gifts = Orders::GiftPurchase.where(order_item_id: item_ids)
+        .includes(
+          :recipient_user,
+          order_item: { registration: [ :user, :created_by, :event, { ticket_type: { event_product: :event } } ] }
+        )
+        .lock.order(:id)
+      gifts.each do |gift_purchase|
+        result = GiftPurchases::Revoke.call(
+          gift_purchase:, reason: "refunded", at: @now, row_locked: true
+        )
+        raise result.error if result.failure?
+      end
     end
 
     def refund_error(key, code:, errors: nil)
