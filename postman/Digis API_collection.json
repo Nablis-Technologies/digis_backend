@@ -46,6 +46,26 @@
       "type": "string"
     },
     {
+      "key": "signupPhone",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "signupChallengeId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "signupOtpCode",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "signupVerificationToken",
+      "value": "",
+      "type": "string"
+    },
+    {
       "key": "notificationId",
       "value": "",
       "type": "string"
@@ -288,6 +308,46 @@
     {
       "key": "sellerPayoutId",
       "value": "",
+      "type": "string"
+    },
+    {
+      "key": "giftPurchaseId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "giftToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "giftRecipientPhone",
+      "value": "+251911234567",
+      "type": "string"
+    },
+    {
+      "key": "giftRecipientEmail",
+      "value": "recipient@example.com",
+      "type": "string"
+    },
+    {
+      "key": "giftNote",
+      "value": "Happy birthday!",
+      "type": "string"
+    },
+    {
+      "key": "giftSelectionIdempotencyKey",
+      "value": "gift-selection-{{randomUUID}}",
+      "type": "string"
+    },
+    {
+      "key": "giftClaimIdempotencyKey",
+      "value": "gift-claim-{{randomUUID}}",
+      "type": "string"
+    },
+    {
+      "key": "giftResendIdempotencyKey",
+      "value": "gift-resend-{{randomUUID}}",
       "type": "string"
     }
   ],
@@ -613,6 +673,130 @@
           ]
         },
         {
+          "name": "Request Signup OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{signupPhone}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/signup/request_otp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "signup",
+                "request_otp"
+              ]
+            },
+            "description": "Request a phone OTP before signup. Set signupPhone first. The response does not expose whether the phone is new, shadow, or already a real account. Reuse the Idempotency-Key only for the exact retry.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Signup OTP response contains only challenge metadata\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property(\"success\", true);",
+                  "  pm.expect(json.data).to.have.all.keys(\"challenge_id\", \"status\", \"expires_at\");",
+                  "  pm.collectionVariables.set(\"signupChallengeId\", json.data.challenge_id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify Signup Phone",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"{{signupOtpCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/phone_verifications/{{signupChallengeId}}/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "phone_verifications",
+                "{{signupChallengeId}}",
+                "verify"
+              ]
+            },
+            "description": "Enter the six-digit code delivered to signupPhone. The verification token is purpose-bound and short-lived; pass it to Signup.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Phone verification returns a proof token\", function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property(\"success\", true);",
+                  "  pm.expect(json.data).to.have.property(\"verification_token\");",
+                  "  pm.collectionVariables.set(\"signupVerificationToken\", json.data.verification_token);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
           "name": "Signup",
           "request": {
             "method": "POST",
@@ -621,11 +805,16 @@
                 "key": "Content-Type",
                 "value": "application/json",
                 "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"user\": {\n    \"email\": \"user@example.com\",\n    \"phone\": \"+251911234567\",\n    \"password\": \"securepassword123\",\n    \"password_confirmation\": \"securepassword123\"\n  }\n}",
+              "raw": "{\n  \"user\": {\n    \"email\": \"user@example.com\",\n    \"phone\": \"{{signupPhone}}\",\n    \"password\": \"securepassword123\",\n    \"password_confirmation\": \"securepassword123\"\n  },\n  \"verification_token\": \"{{signupVerificationToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -642,7 +831,7 @@
                 "signup"
               ]
             },
-            "description": "Create a new user account. Either email or phone is required.",
+            "description": "Complete signup after requesting and verifying the phone OTP. A passwordless shadow for this phone is upgraded in place; an existing real account returns phone_taken after proof. Success returns user and auth tokens.",
             "auth": {
               "type": "noauth"
             }
@@ -663,6 +852,10 @@
                   "  pm.expect(json).to.have.property(\"data\");",
                   "  pm.expect(json.data).to.have.property(\"user\");",
                   "  pm.expect(json.data.user).to.have.property(\"id\");",
+                  "  pm.expect(json.data).to.have.property(\"access_token\");",
+                  "  pm.expect(json.data).to.have.property(\"refresh_token\");",
+                  "  pm.collectionVariables.set(\"accessToken\", json.data.access_token);",
+                  "  pm.collectionVariables.set(\"refreshToken\", json.data.refresh_token);",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -13160,7 +13353,7 @@
               "path": [ "resale_listings", "mine" ]
             }
           },
-          "description": "Seller-only discovery of the authenticated seller's active listings with seller-safe economics. The public index never exposes seller fields.",
+          "description": "Seller-only discovery of the authenticated seller's active listings with seller-safe economics and the listed ticket_id for wallet/picker reconciliation. The public index and buyer views never expose ticket_id.",
           "auth": {
             "type": "bearer",
             "bearer": [ { "key": "token", "value": "{{accessToken}}", "type": "string" } ]
@@ -16308,6 +16501,91 @@
           "response": [
             { "name": "Waitlisted registration", "status": "Created", "code": 201, "_postman_previewlanguage": "json", "header": [{ "key": "Cache-Control", "value": "no-store" }], "body": "{\n  \"success\": true,\n  \"data\": { \"registration\": { \"id\": \"registration_01HX\", \"status\": \"waitlisted\" }, \"next_action\": { \"type\": \"waitlisted\" } }\n}" },
             { "name": "Offer still available", "status": "Unprocessable Entity", "code": 422, "_postman_previewlanguage": "json", "body": "{\n  \"success\": false,\n  \"code\": \"waitlist_not_sold_out\"\n}" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Gift Purchases",
+      "item": [
+        {
+          "name": "Create Gift Ticket Selection",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{giftSelectionIdempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"admission_selection\": {\n    \"charge_currency\": \"ETB\",\n    \"items\": [{\n      \"event_product_id\": \"{{eventProductId}}\",\n      \"quantity\": 1,\n      \"answers\": [],\n      \"consents\": [],\n      \"gift\": {\n        \"recipient_phone\": \"{{giftRecipientPhone}}\",\n        \"recipient_email\": \"{{giftRecipientEmail}}\",\n        \"note\": \"{{giftNote}}\"\n      }\n    }]\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/public/events/{{eventSlug}}/admission_selections",
+            "description": "One gift object is allowed on a public, automatically approved ticket line. It represents one package for one recipient. The payer remains the order owner; no bearer link or recipient contact is returned. A link is sent only after successful fulfillment."
+          },
+          "response": [
+            { "name": "Gift checkout pending", "status": "Created", "code": 201, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": {\n    \"order\": { \"id\": \"order_01HX\", \"status\": \"pending_payment\", \"total_minor\": 1500 },\n    \"gift_purchases\": [{ \"id\": \"gift_01HX\", \"status\": \"pending_payment\", \"expires_at\": \"2026-10-08T18:00:00Z\", \"delivery_status\": \"pending\" }],\n    \"next_action\": { \"type\": \"checkout_required\", \"order_id\": \"order_01HX\" }\n  }\n}" },
+            { "name": "Gift recipient consent pending on checkout replay", "status": "Created", "code": 201, "_postman_previewlanguage": "json", "body": "{\n  \"success\": true,\n  \"data\": {\n    \"order\": { \"id\": \"order_01HX\", \"status\": \"fulfilled\", \"total_minor\": 1500 },\n    \"gift_purchases\": [{ \"id\": \"gift_01HX\", \"status\": \"pending_recipient_consent\", \"expires_at\": \"2026-10-08T18:00:00Z\", \"delivery_status\": \"sent\" }],\n    \"next_action\": { \"type\": \"gift_claim_pending\", \"order_id\": \"order_01HX\", \"charge_currency\": \"ETB\", \"amount_minor\": 1500, \"expires_at\": \"2026-10-08T18:00:00Z\" }\n  }\n}" }
+          ]
+        },
+        {
+          "name": "Resolve Gift Link",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json", "type": "text" } ],
+            "body": { "mode": "raw", "raw": "{ \"gift\": { \"token\": \"{{giftToken}}\" } }", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/public/gift_purchases/{{giftPurchaseId}}/resolve",
+            "description": "Read the token from the app URL fragment (#gift/<id>?token=...), immediately remove it from browser history, and send it only in this JSON body. The response is no-store and contains the gift note, event/product, published form/consent schema, and ticket only after claim."
+          },
+          "response": [
+            { "name": "Gift resolved", "status": "OK", "code": 200, "_postman_previewlanguage": "json", "header": [{ "key": "Cache-Control", "value": "no-store" }], "body": "{\n  \"success\": true,\n  \"data\": {\n    \"gift\": { \"id\": \"gift_01HX\", \"status\": \"ready\", \"expires_at\": \"2026-10-08T18:00:00Z\", \"note\": \"Happy birthday!\" },\n    \"event\": { \"id\": \"event_01HX\", \"slug\": \"sample-event\", \"title\": \"Sample Event\" },\n    \"product\": { \"id\": \"product_01HX\", \"name\": \"General Admission\", \"admissions_per_unit\": 1 },\n    \"forms\": [], \"consents\": [], \"ticket\": null\n  }\n}" }
+          ]
+        },
+        {
+          "name": "Claim Gift as Guest Recipient",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{giftClaimIdempotencyKey}}", "type": "text" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"gift\": {\n    \"token\": \"{{giftToken}}\",\n    \"answers\": [{ \"question_key\": \"attendee_name\", \"value\": \"Recipient Name\" }],\n    \"consents\": []\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/public/gift_purchases/{{giftPurchaseId}}/claim",
+            "description": "Claims using the bearer capability with no OTP. Supply required attendee answers/consents. For a recipient with an existing verified account, authenticate as that exact recipient; an account mismatch is forbidden. Exact retries must reuse the same Idempotency-Key."
+          },
+          "response": [
+            { "name": "Gift claimed", "status": "OK", "code": 200, "_postman_previewlanguage": "json", "header": [{ "key": "Cache-Control", "value": "no-store" }], "body": "{\n  \"success\": true,\n  \"data\": { \"gift\": { \"id\": \"gift_01HX\", \"status\": \"claimed\" }, \"ticket\": { \"id\": \"ticket_01HX\", \"status\": \"active\", \"qr_token\": \"only-visible-to-recipient\" } }\n}" }
+          ]
+        },
+        {
+          "name": "List Payer Gift Delivery Status",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" } ],
+            "url": "{{baseUrl}}/orders/{{orderId}}/gift_purchases",
+            "description": "Payer-only status projection. It intentionally excludes recipient phone/email, gift note, bearer token, attendee answers, and QR data."
+          },
+          "response": [
+            { "name": "Payer gift status", "status": "OK", "code": 200, "_postman_previewlanguage": "json", "header": [{ "key": "Cache-Control", "value": "no-store" }], "body": "{\n  \"success\": true,\n  \"data\": [{ \"id\": \"gift_01HX\", \"status\": \"ready\", \"expires_at\": \"2026-10-08T18:00:00Z\", \"delivery_status\": \"sent\", \"delivered_at\": \"2026-10-05T12:00:00Z\", \"claimed_at\": null }]\n}" }
+          ]
+        },
+        {
+          "name": "Resend Gift Link",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{giftResendIdempotencyKey}}", "type": "text" }
+            ],
+            "url": "{{baseUrl}}/orders/{{orderId}}/gift_purchases/{{giftPurchaseId}}/resend",
+            "description": "Only the original payer may request redelivery. Reuses the same link without extending expiry; an exact retry uses the same key."
+          },
+          "response": [
+            { "name": "Gift redelivery queued", "status": "OK", "code": 200, "_postman_previewlanguage": "json", "header": [{ "key": "Cache-Control", "value": "no-store" }], "body": "{\n  \"success\": true,\n  \"data\": { \"id\": \"gift_01HX\", \"status\": \"ready\", \"delivery_status\": \"pending\", \"expires_at\": \"2026-10-08T18:00:00Z\" }\n}" }
           ]
         }
       ]

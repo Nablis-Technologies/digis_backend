@@ -6,6 +6,7 @@ module Orders
   module AdmissionSelections
     class CreateTest < ActiveSupport::TestCase
       include Commercial::GovernanceTestHelpers
+      include Ticketing::ConsentTestHelpers
 
       setup do
         @event = events_events(:draft_concert)
@@ -43,6 +44,210 @@ module Orders
         assert_equal [ 0, 1_500 ], order.order_items.order(:charge_unit_amount_minor).pluck(:charge_unit_amount_minor)
         assert_empty Ticketing::Ticket.where(order_item_id: order.order_items.select(:id))
         assert_empty Orders::Payment.where(order:)
+      end
+
+      test "pays for a gift as the buyer while reserving the registration for a separate recipient" do
+        product = create_ticket_product(name: "Giftable admission", etb_minor: 1_500)
+        gift_input = {
+          recipient_phone: "0911000101",
+          recipient_email: "  GIFT@EXAMPLE.COM ",
+          note: "  Happy birthday!  "
+        }
+
+        result = call_selection(
+          items: [ { event_product_id: product.id, quantity: 1, answers: [], consents: [], gift: gift_input } ],
+          key: "gift-admission-#{SecureRandom.hex(6)}"
+        )
+
+        assert_predicate result, :success?, error_detail(result)
+        order = result.value.order
+        item = order.order_items.sole
+        gift = item.gift_purchase
+        assert_predicate gift, :present?, "expected checkout to persist the explicit gift intent"
+        assert_equal @buyer.id, order.buyer_user_id
+        assert_equal "pending_payment", order.status
+        assert_equal "gift_pending_claim", item.registration.status
+        assert_equal "+251911000101", item.registration.user.phone
+        assert_not_equal @buyer.id, item.registration.user_id
+        assert_equal item.registration.user_id, gift.recipient_user_id
+        assert_equal "+251911000101", gift.recipient_phone
+        assert_equal "gift@example.com", gift.recipient_email
+        assert_equal "Happy birthday!", gift.note
+        assert_empty result.value.registrations
+        assert_equal [ { id: gift.id, status: "pending_payment", expires_at: gift.expires_at,
+                         delivery_status: "pending" } ], result.value.gift_purchases
+        assert_empty Ticketing::Ticket.where(order_item_id: item.id)
+        refute_includes result.value.gift_purchases.to_json, gift_input[:recipient_phone]
+        refute_includes result.value.gift_purchases.to_json, gift_input[:note]
+      end
+
+      test "does not bypass a recipient's package purchase limit with a gift" do
+        product = create_ticket_product(
+          name: "Recipient limit gift",
+          etb_minor: 1_500,
+          max_packages_per_user: 1
+        )
+        recipient_identity = Core::PhoneIdentity::ResolveOrCreate.call(
+          phone: "0911000106",
+          actor: nil,
+          allow_actor_mismatch: true
+        ).value
+        prior_registration = Ticketing::Registration.create!(
+          event: @event,
+          ticket_type: product.ticket_type,
+          user: recipient_identity.user,
+          created_by: @buyer,
+          source: "self_service",
+          identity_digest: recipient_identity.digest,
+          package_quantity: 1,
+          admissions_per_unit_snapshot: 1,
+          party_size: 1,
+          status: "cancelled",
+          submitted_at: @quoted_at
+        )
+        reservation = Ticketing::PurchaseLimits::Reserve.call(
+          registration: prior_registration,
+          user: recipient_identity.user,
+          quantity: 1,
+          expires_at: @quoted_at + 10.minutes,
+          idempotency_key: "prior-recipient-gift-limit"
+        )
+        assert_predicate reservation, :success?, reservation.error&.message
+        committed = Ticketing::PurchaseLimits::Commit.call(
+          registration: prior_registration,
+          user: recipient_identity.user,
+          idempotency_key: "commit-prior-recipient-gift-limit"
+        )
+        assert_predicate committed, :success?, committed.error&.message
+
+        result = call_selection(
+          items: [ {
+            event_product_id: product.id,
+            quantity: 1,
+            answers: [],
+            consents: [],
+            gift: { recipient_phone: "0911000106" }
+          } ],
+          key: "recipient-limit-gift-#{SecureRandom.hex(4)}"
+        )
+
+        assert_predicate result, :failure?
+        assert_equal "purchase_limit_exceeded", result.error.code
+        assert_equal 1, Ticketing::Registration.where(ticket_type: product.ticket_type).count
+        assert_empty Orders::Order.where(event: @event, buyer_user: @buyer)
+        assert_empty Orders::GiftPurchase.all
+      end
+
+      test "fulfills a zero-total gift order without confirming or issuing to the payer" do
+        product = create_ticket_product(name: "Free gift admission", etb_minor: 0)
+
+        result = call_selection(
+          items: [ {
+            event_product_id: product.id,
+            quantity: 1,
+            answers: [],
+            consents: [],
+            gift: { recipient_phone: "0911000102", note: "A free gift" }
+          } ],
+          key: "free-gift-admission-#{SecureRandom.hex(6)}"
+        )
+
+        assert_predicate result, :success?, error_detail(result)
+        order = result.value.order
+        item = order.order_items.sole
+        assert_equal "fulfilled", order.status
+        assert_equal "gift_pending_claim", item.registration.status
+        assert_equal "ready", item.gift_purchase.status
+        assert_equal "gift_claim_pending", result.value.next_action
+        assert_empty result.value.registrations
+        assert_empty Ticketing::Ticket.where(order_item_id: item.id)
+        event = Core::OutboxEvent.find_by!(aggregate: order, event_type: "orders.payment.fulfilled")
+        assert_equal [ item.id ], event.payload.fetch("gift_order_item_ids")
+        ready_event = Core::OutboxEvent.find_by!(aggregate: item.gift_purchase, event_type: "orders.gift_purchase.ready")
+        assert_equal item.gift_purchase.id, ready_event.payload.fetch("gift_purchase_id")
+        assert_equal 0, Orders::Payment.where(order:).count
+
+        issued = Ticketing::OutboxHandlers::OrderFulfilled.call(event:)
+
+        assert_predicate issued, :success?, issued.error&.message
+        assert_empty Ticketing::Ticket.where(order_item_id: item.id)
+      end
+
+      test "replaying checkout while a gift awaits recipient consent keeps the gift claim action" do
+        product = create_ticket_product(name: "Gift consent replay", etb_minor: 0)
+        key = "gift-consent-replay-#{SecureRandom.hex(6)}"
+        items = [ {
+          event_product_id: product.id,
+          quantity: 1,
+          answers: [],
+          consents: [],
+          gift: { recipient_phone: "0911000107" }
+        } ]
+        created = call_selection(items:, key:)
+        assert_predicate created, :success?, error_detail(created)
+
+        gift = created.value.order.order_items.sole.gift_purchase
+        _document, version = create_consent_document(scope: "admission_slot", required: true)
+
+        claim = Orders::GiftPurchases::Claim.call(
+          gift_purchase_id: gift.id,
+          token: gift.token,
+          actor: nil,
+          submission: Ticketing::RegistrationSubmission.new(
+            package_quantity: 1, selected_event_date_id: nil, answers: [], consents: []
+          ),
+          idempotency_key: "gift-claim-pending-consent-#{SecureRandom.hex(6)}"
+        )
+
+        assert_predicate claim, :success?, claim.error&.message
+        assert_equal "pending_recipient_consent", claim.value.gift_purchase.status
+        assert_equal version.id, gift.order_item.registration.consent_requirements.sole.consent_document_version_id
+
+        replay = call_selection(items:, key:)
+
+        assert_predicate replay, :success?, error_detail(replay)
+        assert_equal "gift_claim_pending", replay.value.next_action
+      end
+
+      test "reusing a selection key with a different gift recipient or note conflicts" do
+        product = create_ticket_product(name: "Gift replay admission", etb_minor: 1_500)
+        key = "gift-replay-#{SecureRandom.hex(6)}"
+        first_items = [ {
+          event_product_id: product.id, quantity: 1, answers: [], consents: [],
+          gift: { recipient_phone: "0911000103", note: "First note" }
+        } ]
+        first = call_selection(items: first_items, key:)
+        changed_items = first_items.deep_dup
+        changed_items.sole[:gift][:note] = "Changed note"
+
+        conflict = call_selection(items: changed_items, key:)
+
+        assert_predicate first, :success?, error_detail(first)
+        assert_predicate conflict, :failure?
+        assert_equal "idempotency_conflict", conflict.error.code
+        assert_equal 1, Orders::Order.where(event: @event, buyer_user: @buyer).count
+        assert_equal 1, Orders::GiftPurchase.count
+      end
+
+      test "keeps self-purchase registrations and gift registrations separate in one basket" do
+        self_product = create_ticket_product(name: "Self and gift ticket", etb_minor: 1_000)
+        gift_product = create_ticket_product(name: "Gift and self ticket", etb_minor: 1_200)
+
+        result = call_selection(
+          items: [
+            { event_product_id: self_product.id, quantity: 1, answers: [], consents: [] },
+            { event_product_id: gift_product.id, quantity: 1, answers: [], consents: [],
+              gift: { recipient_phone: "0911000104", note: "Mixed gift" } }
+          ],
+          key: "mixed-self-gift-#{SecureRandom.hex(6)}"
+        )
+
+        assert_predicate result, :success?, error_detail(result)
+        items = result.value.order.order_items.includes(:registration, :gift_purchase).index_by(&:event_product_id)
+        assert_equal @buyer.id, items.fetch(self_product.id).registration.user_id
+        assert_not_equal @buyer.id, items.fetch(gift_product.id).registration.user_id
+        assert_equal [ items.fetch(self_product.id).registration.id ], result.value.registrations.map(&:id)
+        assert_equal [ items.fetch(gift_product.id).gift_purchase.id ], result.value.gift_purchases.map { |gift| gift.fetch(:id) }
       end
 
       test "creates one order for ticket and merchandise with a ticket registration only" do
@@ -799,6 +1004,30 @@ module Orders
         assert_empty Orders::Order.where(event: @event, buyer_user: @buyer)
       end
 
+      test "rejects gift intent on a non-ticket product without partial writes" do
+        merchandise = create_add_on_product(
+          name: "Gifted merchandise is not a ticket",
+          type: "merchandise",
+          amount_minor: 500,
+          inventory_mode: "event_wide",
+          capacity: 5
+        )
+
+        result = call_selection(
+          items: [ {
+            event_product_id: merchandise.id,
+            quantity: 1,
+            gift: { recipient_phone: "0911000105", note: "This must not be a gift ticket" }
+          } ],
+          key: "non-ticket-gift-#{SecureRandom.hex(4)}"
+        )
+
+        assert_predicate result, :failure?
+        assert_equal "admission_selection_invalid", result.error.code
+        assert_nil Core::User.find_by(phone: "+251911000105")
+        assert_empty Orders::Order.where(event: @event, buyer_user: @buyer)
+      end
+
       test "returns waitlist availability before registration or proof consumption when sold out" do
         product = create_ticket_product(
           name: "Sold-out selectable ticket",
@@ -1088,7 +1317,8 @@ module Orders
           event_date_ids: [],
           answers: [],
           consents: [],
-          audience_proof: {}
+          audience_proof: {},
+          gift: nil
         )
       end
 
@@ -1143,7 +1373,8 @@ module Orders
           event_date_ids: [],
           answers: [],
           consents: [],
-          audience_proof: {}
+          audience_proof: {},
+          gift: nil
         )
       end
 

@@ -7,7 +7,8 @@ module Orders
     # Orders::CreateCheckout; Ticketing retains registration and proof rules.
     class Create < Core::BaseService
       Result = Data.define(
-        :order, :registration, :registrations, :next_action, :waitlist_product_ids, :guest_order_token
+        :order, :registration, :registrations, :gift_purchases, :next_action,
+        :waitlist_product_ids, :guest_order_token
       )
 
       class Abort < Core::Error
@@ -67,7 +68,8 @@ module Orders
           context = command_context
           assembly = RegistrationAssembler.call(context:, products:)
           abort_with(assembly.error) if assembly.failure?
-          registrations_by_product_id = assembly.value
+          registrations_by_product_id = assembly.value.registrations_by_product_id
+          gift_intents_by_product_id = assembly.value.gift_intents_by_product_id
           if manual_request_without_checkout?(products, registrations_by_product_id)
             registration = registrations_by_product_id.values.sole
             record_registration_request!(registration)
@@ -78,6 +80,7 @@ module Orders
           dispatch = CheckoutDispatcher.call(
             context:,
             registrations_by_product_id:,
+            gift_intents_by_product_id:,
             inventory_lines_by_product_id: @inventory_lines_by_product_id
           )
           abort_with(dispatch.error) if dispatch.failure?
@@ -292,6 +295,7 @@ module Orders
           order: nil,
           registration: nil,
           registrations: [],
+          gift_purchases: [],
           next_action: "waitlist_available",
           waitlist_product_ids: product_ids,
           guest_order_token: nil
@@ -365,11 +369,28 @@ module Orders
       end
 
       def result_for_order(order)
-        registrations = order.order_items.includes(:registration).filter_map(&:registration)
+        items = order.order_items.includes(:registration, :gift_purchase).to_a
+        gift_items, regular_items = items.partition { |item| item.gift_purchase.present? }
+        registrations = regular_items.filter_map(&:registration)
+        gifts = gift_items.map do |item|
+          gift = item.gift_purchase
+          {
+            id: gift.id,
+            status: gift.status,
+            expires_at: gift.expires_at,
+            delivery_status: gift.delivery_status
+          }
+        end
+        credential_items = regular_items.select do |item|
+          Catalog::EventProduct::CREDENTIAL_PRODUCT_TYPES.include?(item.type_snapshot)
+        end
         action = if order.status == "pending_payment"
           "checkout_required"
-        elsif order.status.in?(%w[paid fulfilled]) && issued_credential_count(order) < expected_credential_count(order)
+        elsif order.status.in?(%w[paid fulfilled]) &&
+            issued_credential_count(credential_items) < expected_credential_count(credential_items)
           "issuing"
+        elsif gifts.any? { |gift| gift.fetch(:status).in?(%w[ready pending_recipient_consent]) }
+          "gift_claim_pending"
         elsif order.status.in?(%w[paid fulfilled])
           "confirmed"
         else
@@ -379,23 +400,19 @@ module Orders
           order:,
           registration: nil,
           registrations:,
+          gift_purchases: gifts,
           next_action: action,
           waitlist_product_ids: [],
           guest_order_token: guest_order_token_for(order)
         )
       end
 
-      def issued_credential_count(order)
-        credential_item_ids = order.order_items
-          .where(type_snapshot: Catalog::EventProduct::CREDENTIAL_PRODUCT_TYPES)
-          .select(:id)
-        Ticketing::Ticket.where(order_item_id: credential_item_ids).count
+      def issued_credential_count(items)
+        Ticketing::Ticket.where(order_item_id: items.map(&:id)).count
       end
 
-      def expected_credential_count(order)
-        order.order_items
-          .where(type_snapshot: Catalog::EventProduct::CREDENTIAL_PRODUCT_TYPES)
-          .sum(:quantity)
+      def expected_credential_count(items)
+        items.sum(&:quantity)
       end
 
       def result_for_registration(registration)
@@ -403,6 +420,7 @@ module Orders
           order: nil,
           registration:,
           registrations: [ registration ],
+          gift_purchases: [],
           next_action: Ticketing::RegistrationNextAction.for(registration).type,
           waitlist_product_ids: [],
           guest_order_token: nil
