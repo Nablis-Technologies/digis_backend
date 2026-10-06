@@ -1,0 +1,28 @@
+en:
+  orders:
+    gift_purchases:
+      errors:
+        recipient_phone_invalid: "Enter a valid recipient phone number"
+        recipient_email_invalid: "Enter a valid recipient email address"
+        recipient_is_purchaser: "Choose someone other than the purchaser as the gift recipient"
+        note_too_long: "The gift note must be 500 characters or fewer"
+        event_date_unavailable: "The ticket has no eligible event date for this gift"
+        quantity_invalid: "A gift must contain exactly one ticket package"
+        gift_invalid: "This gift link is invalid"
+        gift_not_ready: "This gift is not ready to be claimed"
+        gift_expired: "This gift link has expired"
+        gift_revoked: "This gift link is no longer available"
+        gift_recipient_mismatch: "Only the intended gift recipient can claim this ticket"
+        gift_recipient_authentication_required: "Sign in to the account this gift was sent to"
+        gift_already_claimed: "This gift has already been claimed"
+        gift_refund_in_progress: "This gift cannot be claimed while its refund is being processed"
+        gift_claim_failed: "The gift could not be claimed"
+        gift_delivery_failed: "The gift message could not be delivered yet"
+        gift_delivery_request_failed: "The gift delivery request could not be queued"
+        gift_expiry_failed: "The unused gift could not be expired"
+        gift_revoke_failed: "The gift link could not be revoked"
+        gift_revoke_forbidden: "This gift cannot be revoked by this account"
+        gift_resend_forbidden: "Only the original purchaser can resend this gift"
+        event_cancelled: "This gift is unavailable because the event was cancelled"
+        invalid_idempotency_key: "The gift claim idempotency key is invalid"
+        idempotency_conflict: "This gift claim key was already used for another request"

@@ -47,6 +47,7 @@ en:
         errors:
           order_not_paid: "The order is not ready for fulfillment"
           fulfillment_failed: "The order could not be fulfilled"
+          gift_purchase_unavailable: "The gift purchase cannot be made available"
           promotion_reservation_invalid: "The order promotion reservation is no longer available"
       grace:
         errors:

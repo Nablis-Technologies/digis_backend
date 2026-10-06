@@ -1,0 +1,17 @@
+en:
+  ticketing:
+    gift_purchases:
+      errors:
+        offer_unsupported: "Gifts are not available for this ticket offer"
+        quantity_invalid: "A gift must contain exactly one ticket package"
+        registration_conflict: "The recipient already has an active registration for this ticket"
+        idempotency_conflict: "This gift registration request conflicts with an earlier request"
+        invalid_idempotency_key: "The gift registration idempotency key is invalid"
+        invalid_registration: "The recipient gift registration is invalid"
+        gift_claim_invalid: "This gift registration cannot be completed"
+        gift_order_not_fulfilled: "The gift ticket order is not fulfilled"
+        gift_recipient_mismatch: "Only the intended gift recipient can complete registration"
+        gift_registration_not_pending: "The gift registration is no longer awaiting recipient details"
+        gift_claim_expiry_invalid: "The incomplete gift claim could not be expired"
+        gift_claim_expiry_not_pending: "The gift claim no longer has pending recipient requirements"
+        event_cancelled: "This gift is unavailable because the event was cancelled"
