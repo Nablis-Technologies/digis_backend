@@ -151,6 +151,78 @@ module Orders
       assert_equal "no-store", response.headers.fetch("Cache-Control")
     end
 
+    test "gift checkout response exposes safe gift status without recipient details" do
+      product = create_ticket_product(name: "Gift response ticket", amount_minor: 1_500)
+      payload = selection_payload(product)
+      payload.dig(:admission_selection, :items).sole[:gift] = {
+        recipient_phone: "0911000199",
+        recipient_email: "recipient@example.com",
+        note: "A private gift note"
+      }
+
+      post selection_path,
+           params: payload,
+           headers: user_headers.merge("Idempotency-Key" => "gift-response-safe"),
+           as: :json
+
+      assert_response :created
+      gift = response.parsed_body.dig("data", "gift_purchases").sole
+      assert_equal %w[delivery_status expires_at id status], gift.keys.sort
+      assert_equal "pending_payment", gift.fetch("status")
+      refute_includes response.body, "0911000199"
+      refute_includes response.body, "recipient@example.com"
+      refute_includes response.body, "A private gift note"
+    end
+
+    test "accepted payment keeps a gift registration pending and commits limits for the recipient" do
+      product = create_ticket_product(name: "Paid gift recipient limit", amount_minor: 1_500)
+      product.ticket_type.update!(max_packages_per_user: 1)
+      payload = selection_payload(product)
+      payload.dig(:admission_selection, :items).sole[:gift] = {
+        recipient_phone: "0911000198",
+        note: "Recipient-only admission"
+      }
+
+      post selection_path,
+           params: payload,
+           headers: user_headers.merge("Idempotency-Key" => "gift-paid-limit-create"),
+           as: :json
+      assert_response :created
+
+      order = Orders::Order.find(response.parsed_body.dig("data", "order", "id"))
+      item = order.order_items.sole
+      recipient = Core::User.find_by(phone: "+251911000198")
+      assert recipient, "expected checkout to resolve the intended recipient"
+      registration = item.registration
+      allocation = Ticketing::PurchaseLimitAllocation.find_by!(registration:)
+      assert_equal recipient.id, allocation.user_id
+      assert_equal "reserved", allocation.status
+
+      Payments::Providers::Registry.register(
+        "chapa",
+        Payments::Providers::FakePaymentProvider.new(
+          outcomes: { create: [ Payments::Providers::Result.success(provider_reference: "gift-#{order.id}") ] }
+        )
+      )
+      post "/orders/#{order.id}/payment_attempts",
+           params: { payment_attempt: { provider: "chapa", payment_method: "telebirr" } },
+           headers: user_headers.merge("Idempotency-Key" => "gift-paid-limit-attempt"),
+           as: :json
+      assert_response :created
+      payment = Orders::Payment.find(response.parsed_body.dig("data", "id"))
+
+      accepted = Orders::AcceptPayment.call(payment:)
+
+      assert_predicate accepted, :success?, accepted.error&.message
+      assert_equal "fulfilled", order.reload.status
+      assert_equal "gift_pending_claim", registration.reload.status
+      assert_equal "ready", item.gift_purchase.reload.status
+      assert_equal "committed", allocation.reload.status
+      assert_equal recipient.id, allocation.user_id
+      assert_empty Ticketing::Ticket.where(order_item_id: item.id)
+      assert Core::OutboxEvent.exists?(aggregate: item.gift_purchase, event_type: "orders.gift_purchase.ready")
+    end
+
     test "fresh authenticated buyer can check out an access-code admission" do
       buyer = Core::User.create!(
         email: "admission-buyer-#{SecureRandom.hex(4)}@example.test",

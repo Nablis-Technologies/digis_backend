@@ -69,6 +69,7 @@ module Orders
         order: outcome.order,
         registration: outcome.registration,
         registrations: outcome.registrations.map { |registration| registration_summary(registration) },
+        gift_purchases: outcome.gift_purchases,
         next_action: action
       }
       data[:guest_order_token] = outcome.guest_order_token if outcome.guest_order_token.present?
