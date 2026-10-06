@@ -32,4 +32,10 @@ Rails.application.config.after_initialize do
       result
     end
   end
+
+  %w[orders.gift_purchase.ready orders.gift_purchase.delivery_requested].each do |event_type|
+    Rails.application.config.x.outbox_handlers.register(event_type, priority: 200) do |outbox_event|
+      Messaging::DeliverGiftPurchaseJob.perform_later(outbox_event.payload.fetch("gift_purchase_id"))
+    end
+  end
 end

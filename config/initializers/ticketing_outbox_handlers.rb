@@ -27,6 +27,15 @@ Rails.application.config.x.outbox_handlers.register("ticketing.registration_cons
     requirement_id: outbox_event.payload.fetch("requirement_id")
   )
 end
+Rails.application.config.x.outbox_handlers.register("ticketing.gift_claim.expired", priority: 100) do |outbox_event|
+  result = Ticketing::Registrations::ExpireGiftClaim.call(
+    registration_id: outbox_event.payload.fetch("registration_id"),
+    ticket_id: outbox_event.payload.fetch("ticket_id"),
+    at: Time.zone.parse(outbox_event.payload.fetch("expires_at"))
+  )
+  raise result.error if result.failure?
+  result
+end
 Rails.application.config.x.outbox_handlers.register("ticketing.consent_credential_requirements_changed", priority: 100) do |outbox_event|
   Rails.application.config.x.credential_requirement_status_adapter.call(
     event_id: outbox_event.id,
