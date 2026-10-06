@@ -15,10 +15,11 @@ module Ticketing
         end
       end
 
-      def initialize(registration:, acceptances: [], actor: nil, **_unused)
+      def initialize(registration:, acceptances: [], actor: nil, allow_unverified: false, **_unused)
         @registration = registration
         @acceptances = acceptances || []
         @actor = actor || registration.user
+        @allow_unverified = allow_unverified
       end
 
       def call
@@ -177,7 +178,7 @@ module Ticketing
       def apply_acceptances!(requirements)
         requests = Array(acceptances).map do |raw_acceptance|
           acceptance = normalize_acceptance(raw_acceptance)
-          requirement = buyer_requirement_for(requirements, acceptance)
+          requirement = requirement_for(requirements, acceptance)
           raise_halt("invalid_submission_consent") unless requirement
 
           key = acceptance_idempotency_key(acceptance, requirement)
@@ -185,8 +186,10 @@ module Ticketing
         end
         requirement_ids = requests.map { |_acceptance, requirement, _key, _digest| requirement.id }
         raise_halt("invalid_submission_consent") if requirement_ids.uniq.length != requirement_ids.length
+        # Accepted buyer evidence is durable; a continuation only needs new
+        # acceptances for still-pending required buyer requirements.
         required_ids = requirements.filter_map do |requirement|
-          requirement.id if requirement.required? && requirement.acceptance_scope == "buyer"
+          requirement.id if requirement.required? && requirement.pending? && requirement.acceptance_scope == "buyer"
         end
         raise_halt("missing_required_buyer_consent") unless (required_ids - requirement_ids).empty?
 
@@ -195,6 +198,8 @@ module Ticketing
 
         existing_by_digest = load_idempotency_acceptances(digests)
         requests.each do |acceptance, requirement, key, digest|
+          assign_admission_slot_subject!(requirement)
+
           result = Accept.call(
             requirement:,
             actor:,
@@ -203,19 +208,37 @@ module Ticketing
             content_sha256: acceptance[:content_sha256],
             idempotency_key: key,
             requirement_locked: true,
-            idempotency_lookup: digest ? existing_by_digest.fetch(digest, :not_found) : :unchecked
+            idempotency_lookup: digest ? existing_by_digest.fetch(digest, :not_found) : :unchecked,
+            allow_unverified: @allow_unverified
           )
           raise_halt(result.error.code, result) if result.failure?
         end
       end
 
-      def buyer_requirement_for(requirements, acceptance)
+      def assign_admission_slot_subject!(requirement)
+        return unless requirement.acceptance_scope == "admission_slot" && requirement.subject_user_id.nil?
+
+        # The exact package coordinate is resolved before this assignment; keep
+        # subject binding in the same locked transaction as consent acceptance.
+        requirement.update!(subject_user_id: actor.id)
+      end
+
+      def requirement_for(requirements, acceptance)
         version_id = acceptance[:consent_document_version_id] || acceptance[:version_id]
         return unless version_id
-        return if acceptance[:package_unit_number].present? || acceptance[:admission_position].present?
 
-        requirements.find do |requirement|
-          requirement.acceptance_scope == "buyer" && requirement.consent_document_version_id.to_s == version_id.to_s
+        if acceptance[:package_unit_number].present? || acceptance[:admission_position].present?
+          requirements.find do |requirement|
+            requirement.acceptance_scope == "admission_slot" &&
+              requirement.consent_document_version_id.to_s == version_id.to_s &&
+              requirement.package_unit_number == acceptance[:package_unit_number].to_i &&
+              requirement.admission_position == acceptance[:admission_position].to_i
+          end
+        else
+          requirements.find do |requirement|
+            requirement.acceptance_scope == "buyer" &&
+              requirement.consent_document_version_id.to_s == version_id.to_s
+          end
         end
       end
 
