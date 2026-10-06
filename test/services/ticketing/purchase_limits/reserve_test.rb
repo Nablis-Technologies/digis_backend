@@ -28,6 +28,31 @@ module Ticketing
         assert_equal [ @ticket_type.id ], result.value.map(&:ticket_type_id).uniq
       end
 
+      test "reserves a gift-pending registration against the recipient rather than the purchaser" do
+        recipient = core_users(:support)
+        registration = create_registration(status: "gift_pending_claim", user: recipient)
+
+        result = Reserve.call(
+          registration:,
+          user: recipient,
+          quantity: 1,
+          expires_at: 10.minutes.from_now,
+          idempotency_key: "reserve-recipient-gift"
+        )
+        payer_attempt = Reserve.call(
+          registration:,
+          user: @actor,
+          quantity: 1,
+          expires_at: 10.minutes.from_now,
+          idempotency_key: "reserve-gift-as-payer"
+        )
+
+        assert_predicate result, :success?, result.error&.message
+        assert_equal [ recipient.id ], result.value.map(&:user_id).uniq
+        assert_predicate payer_attempt, :failure?
+        assert_equal "purchase_limit_user_mismatch", payer_attempt.error.code
+      end
+
       test "rejects a reservation when reserved and committed units reach the limit" do
         first = Reserve.call(
           registration: @registration,
@@ -194,12 +219,12 @@ module Ticketing
 
       private
 
-      def create_registration(status:, selected_event_date: nil)
+      def create_registration(status:, selected_event_date: nil, user: @actor)
         Ticketing::Registration.create!(
           event: @event,
           ticket_type: @ticket_type,
-          user: @actor,
-          created_by: @actor,
+          user:,
+          created_by: user,
           source: "self_service",
           identity_digest: SecureRandom.hex(32),
           package_quantity: 1,

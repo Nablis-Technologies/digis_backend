@@ -5,6 +5,7 @@ require "test_helper"
 module Orders
   class FulfillOrderTest < ActiveSupport::TestCase
     include ActiveJob::TestHelper
+    include Orders::GiftPurchaseTestHelpers
 
     setup do
       @event = events_events(:ready_listing)
@@ -52,6 +53,40 @@ module Orders
       assert_equal 1, Core::OutboxEvent.where(
         aggregate_id: @order.id, event_type: "orders.payment.fulfilled"
       ).count
+    end
+
+    test "expires a gift already past event end before queuing recipient delivery" do
+      setup_gift_purchase_context
+      @gift_order.update_columns(status: "paid", paid_at: Time.current)
+      @gift_order_item.update_columns(fulfillment_status: "pending")
+      @gift_purchase.update_columns(status: "pending_payment", ready_at: nil, expires_at: 1.minute.ago)
+      allocation = Ticketing::PurchaseLimitAllocation.create!(
+        ticket_type: @gift_ticket_type,
+        user: @gift_purchase.recipient_user,
+        registration: @gift_registration,
+        unit_number: 1,
+        status: "committed",
+        committed_at: Time.current,
+        idempotency_key: "late-gift-fulfillment-limit"
+      )
+      payment = create_gift_payment
+
+      result = Orders::FulfillOrder.call(
+        order: @gift_order,
+        payment:,
+        idempotency_key: "late-gift-fulfillment"
+      )
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "fulfilled", @gift_order.reload.status
+      assert_equal "expired", @gift_purchase.reload.status
+      assert_equal "expired", @gift_registration.reload.status
+      assert_equal "released", allocation.reload.status
+      assert_empty Ticketing::Ticket.where(order_item_id: @gift_order_item.id)
+      assert_empty Core::OutboxEvent.where(
+        aggregate_id: @gift_purchase.id,
+        event_type: "orders.gift_purchase.ready"
+      )
     end
 
     private
@@ -119,6 +154,27 @@ module Orders
         discount_minor: 0,
         total_minor: 0,
         fulfillment_status: "pending"
+      )
+    end
+
+    def create_gift_payment
+      Orders::Payment.create!(
+        order: @gift_order,
+        attempt_number: 1,
+        provider: "chapa",
+        payment_method: "telebirr",
+        status: "succeeded",
+        amount_minor: @gift_order.total_minor,
+        currency: @gift_order.charge_currency,
+        commercial_signature: @gift_order.commercial_signature,
+        buyer_fee_minor: 0,
+        organizer_fee_minor: 0,
+        idempotency_key: "late-gift-payment-#{SecureRandom.hex(4)}",
+        provider_reference: "late-gift-provider-#{SecureRandom.hex(4)}",
+        accepted_at: Time.current,
+        succeeded_at: Time.current,
+        settlement_grace_minutes: 5,
+        settlement_grace_expires_at: @gift_order.expires_at + 5.minutes
       )
     end
   end

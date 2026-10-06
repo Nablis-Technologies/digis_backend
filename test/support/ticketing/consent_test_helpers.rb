@@ -20,15 +20,16 @@ module Ticketing
         status: "pending_payment",
         submitted_at: Time.current
       )
-      @retention_policy = Core::DataRetentionPolicy.create!(
+      @retention_policy = Core::DataRetentionPolicy.find_or_create_by!(
         category: "consent_evidence",
-        version: 1,
-        retention_days: 30,
-        action: "erase_payload",
-        status: "active",
-        effective_at: 1.minute.ago,
-        created_by: core_users(:super_admin)
-      )
+        status: "active"
+      ) do |policy|
+        policy.version = 1
+        policy.retention_days = 30
+        policy.action = "erase_payload"
+        policy.effective_at = 1.minute.ago
+        policy.created_by = core_users(:super_admin)
+      end
     end
 
     def create_consent_ticket_type(admissions_per_unit: 1)
@@ -44,6 +45,17 @@ module Ticketing
     end
 
     def create_consent_document(scope:, required: true, product_scoped: false, name: nil)
+      @retention_policy ||= Core::DataRetentionPolicy.find_or_create_by!(
+        category: "consent_evidence",
+        status: "active"
+      ) do |policy|
+        policy.version = 1
+        policy.retention_days = 30
+        policy.action = "erase_payload"
+        policy.effective_at = 1.minute.ago
+        policy.created_by = core_users(:super_admin)
+      end
+
       document = Events::ConsentDocument.create!(
         event: @event,
         name: name || "Consent #{SecureRandom.hex(4)}",

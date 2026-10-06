@@ -188,6 +188,43 @@ module Orders
       assert_equal "registration_not_payable", result.error.code
     end
 
+    test "accepts a recipient-owned gift registration only with explicit trusted scope" do
+      product, registration = create_ticket_registration(
+        status: "gift_pending_claim",
+        user: core_users(:support)
+      )
+
+      result = Orders::BuildQuote.call(
+        event: @event,
+        buyer: @buyer,
+        items: [ { product:, registration_id: registration.id, quantity: 1 } ],
+        gift_registration_ids: [ registration.id ],
+        charge_currency: "ETB",
+        quoted_at: @quoted_at
+      )
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal registration.id, result.value.items.sole.registration_id
+    end
+
+    test "rejects a recipient-owned gift registration when trusted scope is absent" do
+      product, registration = create_ticket_registration(
+        status: "gift_pending_claim",
+        user: core_users(:support)
+      )
+
+      result = Orders::BuildQuote.call(
+        event: @event,
+        buyer: @buyer,
+        items: [ { product:, registration_id: registration.id, quantity: 1 } ],
+        charge_currency: "ETB",
+        quoted_at: @quoted_at
+      )
+
+      assert_predicate result, :failure?
+      assert_equal "registration_scope_invalid", result.error.code
+    end
+
     test "can preflight a ticket quote without constructing a registration" do
       product, persisted_registration = create_ticket_registration(status: "pending_payment")
       registrations_before = Ticketing::Registration.count
@@ -433,7 +470,7 @@ module Orders
       )
     end
 
-    def create_ticket_registration(status:)
+    def create_ticket_registration(status:, user: @buyer)
       product_result = Catalog::Products::CreateDraft.call(
         event: @event,
         actor: core_users(:super_admin),
@@ -462,8 +499,8 @@ module Orders
       registration = Ticketing::Registration.create!(
         event: @event,
         ticket_type:,
-        user: @buyer,
-        created_by: @buyer,
+        user:,
+        created_by: user,
         source: "self_service",
         identity_digest: SecureRandom.hex(32),
         package_quantity: 1,

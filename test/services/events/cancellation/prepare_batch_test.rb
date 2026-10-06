@@ -8,6 +8,7 @@ module Events
       include ActiveJob::TestHelper
       include Events::CancellationTestHelpers
       include Ticketing::PackageWorkflowTestHelpers
+      include Orders::GiftPurchaseTestHelpers
 
       setup do
         @event = events_events(:ready_listing)
@@ -93,6 +94,17 @@ module Events
         assert_predicate result, :success?, result.error&.message
         assert_equal "ended", stream.reload.status
         assert_equal "cancelled", registration.reload.status
+      end
+
+      test "event cancellation immediately revokes the gift link and cancels its pending registration" do
+        setup_gift_purchase_context
+        cancellation = initiate_cancellation
+
+        result = PrepareBatch.call(cancellation:)
+
+        assert_predicate result, :success?, result.error&.message
+        assert_equal "revoked", @gift_purchase.reload.status
+        assert_equal "cancelled", @gift_registration.reload.status
       end
     end
   end

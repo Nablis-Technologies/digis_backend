@@ -61,3 +61,36 @@ module Orders
     end
   end
 end
+
+module Orders
+  class ReleaseGiftCheckoutTest < ActiveSupport::TestCase
+    include Orders::GiftPurchaseTestHelpers
+
+    setup do
+      setup_gift_purchase_context
+      @gift_order.update_columns(status: "pending_payment", paid_at: nil)
+      @gift_order_item.update!(fulfillment_status: "pending")
+      @gift_purchase.update!(status: "pending_payment", ready_at: nil)
+      @allocation = Ticketing::PurchaseLimitAllocation.create!(
+        ticket_type: @gift_ticket_type,
+        user: @gift_purchase.recipient_user,
+        registration: @gift_registration,
+        unit_number: 1,
+        status: "reserved",
+        expires_at: 1.hour.from_now,
+        idempotency_key: "gift-checkout-release-#{SecureRandom.hex(5)}"
+      )
+    end
+
+    test "checkout expiry revokes the gift capability and releases recipient-owned registration limits" do
+      result = ReleaseCheckout.call(order: @gift_order)
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "expired", @gift_order.reload.status
+      assert_equal "revoked", @gift_purchase.reload.status
+      assert_equal "expired", @gift_registration.reload.status
+      assert_equal "released", @allocation.reload.status
+      assert_equal "checkout_expired", @allocation.release_reason
+    end
+  end
+end

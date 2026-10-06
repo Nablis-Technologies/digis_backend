@@ -4,7 +4,10 @@ require "test_helper"
 
 module Orders
   class CreateItemRefundTest < ActiveSupport::TestCase
+    include ActiveJob::TestHelper
     include Ticketing::PackageWorkflowTestHelpers
+    include Ticketing::ConsentTestHelpers
+    include Orders::GiftPurchaseTestHelpers
 
     test "accepts an event cancellation reason" do
       assert_approved_reason("event_cancellation")
@@ -108,6 +111,95 @@ module Orders
       assert_equal @ticket.id, result.value.refund_items.sole.ticket_id
       assert_equal ticket_status, @ticket.reload.status
       assert_equal ticket_version, @ticket.credential_version
+    end
+
+    test "accepts an event-cancellation refund for an unclaimed paid gift without a ticket row" do
+      setup_gift_purchase_context
+      payment = create_payment_for(@gift_order_item, amount_minor: @gift_order.total_minor)
+
+      result = Orders::CreateItemRefund.call(
+        payment:,
+        order_item: @gift_order_item,
+        quantity: 1,
+        reason_code: "event_cancellation",
+        idempotency_key: "unclaimed-gift-refund"
+      )
+
+      assert_predicate result, :success?, result.error&.message
+      assert_nil result.value.refund_items.sole.ticket_id
+      assert_equal @gift_order_item.id, result.value.refund_items.sole.order_item_id
+    end
+
+    test "discovers and records an already-issued gift ticket when the caller omits ticket" do
+      setup_gift_purchase_context
+      claim = Orders::GiftPurchases::Claim.call(
+        gift_purchase_id: @gift_purchase.id,
+        token: @gift_token,
+        submission: Ticketing::RegistrationSubmission.new(
+          package_quantity: 1, selected_event_date_id: nil, answers: [], consents: []
+        ),
+        idempotency_key: "claimed-gift-before-refund"
+      )
+      assert_predicate claim, :success?, claim.error&.message
+      payment = create_payment_for(@gift_order_item, amount_minor: @gift_order.total_minor)
+
+      result = Orders::CreateItemRefund.call(
+        payment:,
+        order_item: @gift_order_item,
+        quantity: 1,
+        reason_code: "event_cancellation",
+        idempotency_key: "claimed-gift-refund-without-explicit-ticket"
+      )
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal claim.value.ticket.id, result.value.refund_items.sole.ticket_id
+      assert_equal @gift_order_item.id, result.value.refund_items.sole.order_item_id
+    end
+
+    test "event cancellation can refund the payer after an incomplete gift expires" do
+      setup_gift_purchase_context
+      create_consent_document(scope: "admission_slot", required: true)
+      claim = Orders::GiftPurchases::Claim.call(
+        gift_purchase_id: @gift_purchase.id,
+        token: @gift_token,
+        submission: Ticketing::RegistrationSubmission.new(
+          package_quantity: 1, selected_event_date_id: nil, answers: [], consents: []
+        ),
+        idempotency_key: "expire-gift-before-event-cancellation-refund"
+      )
+      assert_predicate claim, :success?, claim.error&.message
+      ticket = claim.value.ticket
+      expiration = Orders::GiftPurchases::Expire.call(
+        gift_purchase: @gift_purchase,
+        at: @gift_purchase.expires_at
+      )
+      assert_predicate expiration, :success?, expiration.error&.message
+      expiry_event = Core::OutboxEvent.find_by!(
+        event_type: "ticketing.gift_claim.expired",
+        aggregate_id: @gift_registration.id
+      )
+      perform_enqueued_jobs { Core::Outbox::Dispatch.call(event_id: expiry_event.id) }
+      assert_equal "void", ticket.reload.status
+
+      payment = create_payment_for(@gift_order_item, amount_minor: @gift_order.total_minor)
+      refund_result = Orders::CreateItemRefund.call(
+        payment:,
+        order_item: @gift_order_item,
+        quantity: 1,
+        reason_code: "event_cancellation",
+        idempotency_key: "cancel-expired-incomplete-gift"
+      )
+
+      assert_predicate refund_result, :success?, refund_result.error&.message
+      refund = refund_result.value
+      assert_equal @gift_purchaser.id, refund.payment.order.buyer_user_id
+      assert_equal ticket.id, refund.refund_items.sole.ticket_id
+      refund.update_columns(status: "succeeded", provider_reference: "gift-expiry-refund")
+
+      finalized = Ticketing::CancelPaidPackage.call(ticket:, refund:)
+
+      assert_predicate finalized, :success?, finalized.error&.message
+      assert_equal "void", ticket.reload.status
     end
 
     test "rejects a second refund for the same date access" do
