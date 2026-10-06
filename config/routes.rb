@@ -178,6 +178,8 @@ Rails.application.routes.draw do
   post "guest/payments/:payment_id/refresh", to: "orders/guest_payment_refresh#create"
 
   get "public/tickets/:ticket_id", to: "ticketing/public_ticket_views#show"
+  post "public/gift_purchases/:id/resolve", to: "orders/public_gift_purchases#resolve"
+  post "public/gift_purchases/:id/claim", to: "orders/public_gift_purchases#claim"
   get "public/ticket_transfers/:id", to: "ticketing/public_ticket_transfers#show"
   post "public/ticket_transfers/:id/request_otp", to: "ticketing/public_ticket_transfers#request_otp"
   post "public/ticket_transfers/:id/accept_guest", to: "ticketing/public_ticket_transfers#accept_guest"
@@ -191,6 +193,9 @@ Rails.application.routes.draw do
 
   resources :orders, only: [] do
     resources :payment_attempts, only: :create, controller: "orders/payment_attempts"
+    resources :gift_purchases, only: :index, controller: "orders/gift_purchases" do
+      post :resend, on: :member
+    end
     post :restart, on: :member, controller: "orders/orders"
   end
 
