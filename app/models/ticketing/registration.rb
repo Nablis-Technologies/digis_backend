@@ -9,7 +9,7 @@ module Ticketing
 
     SOURCES = %w[self_service organizer_complimentary walk_up].freeze
     STATUSES = %w[
-      pending_payment pending_approval waitlisted offered confirmed rejected cancelled expired
+      pending_payment gift_pending_claim pending_approval waitlisted offered confirmed rejected cancelled expired
     ].freeze
     COMPLIMENTARY_REASONS = %w[
       accessibility accommodation community_partner service_recovery sponsor_guest staff_guest
@@ -63,8 +63,8 @@ module Ticketing
     validate :source_immutable
     validate :scope_immutable_after_submission
 
-    scope :active, -> { where(status: %w[pending_payment pending_approval waitlisted offered confirmed]) }
-    scope :blocking_duplicate, -> { where(status: %w[pending_payment pending_approval waitlisted offered]) }
+    scope :active, -> { where(status: %w[pending_payment gift_pending_claim pending_approval waitlisted offered confirmed]) }
+    scope :blocking_duplicate, -> { where(status: %w[pending_payment gift_pending_claim pending_approval waitlisted offered]) }
     scope :for_event, ->(event) { where(event_id: event.id) }
 
     def pending_payment?

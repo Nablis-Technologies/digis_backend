@@ -7,7 +7,7 @@ module Ticketing
     self.table_name = "ticketing_registration_consent_requirements"
 
     ACCEPTANCE_SCOPES = %w[buyer admission_slot].freeze
-    STATUSES = %w[pending accepted withdrawn superseded].freeze
+    STATUSES = %w[pending accepted withdrawn superseded expired].freeze
     REQUIRED_REASONS = %w[initial_submission reconsent].freeze
 
     belongs_to :registration, class_name: "Ticketing::Registration"
@@ -52,6 +52,7 @@ module Ticketing
     def accepted? = status == "accepted"
     def withdrawn? = status == "withdrawn"
     def superseded? = status == "superseded"
+    def expired? = status == "expired"
 
     def self.ransackable_attributes(_auth_object = nil)
       %w[
@@ -140,16 +141,23 @@ module Ticketing
       elsif !superseded? && superseded_at.present?
         errors.add(:superseded_at, :invalid)
       end
+
+      if expired? && expired_at.blank?
+        errors.add(:expired_at, :blank)
+      elsif !expired? && expired_at.present?
+        errors.add(:expired_at, :invalid)
+      end
     end
 
     def status_transition
       return unless persisted? && will_save_change_to_status?
 
       allowed = {
-        "pending" => %w[pending accepted withdrawn superseded],
+        "pending" => %w[pending accepted withdrawn superseded expired],
         "accepted" => %w[accepted withdrawn superseded],
         "withdrawn" => %w[withdrawn],
-        "superseded" => %w[superseded]
+        "superseded" => %w[superseded],
+        "expired" => %w[expired]
       }
       return if allowed.fetch(status_in_database, []).include?(status)
 
@@ -169,6 +177,9 @@ module Ticketing
 
       if will_save_change_to_superseded_at? && superseded_at_in_database.present?
         errors.add(:superseded_at, :immutable)
+      end
+      if will_save_change_to_expired_at? && expired_at_in_database.present?
+        errors.add(:expired_at, :immutable)
       end
 
       return unless subject_user_id_changed? && status_in_database != "pending"
