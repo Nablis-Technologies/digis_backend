@@ -20,6 +20,14 @@ module Ticketing
             outcome = failure(event_error)
             raise ActiveRecord::Rollback
           end
+          gift_order_item_ids = Array(@event.payload["gift_order_item_ids"]).map(&:to_s)
+          item_ids = items.map { |item| item.id.to_s }
+          if gift_order_item_ids.uniq.length != gift_order_item_ids.length ||
+              (gift_order_item_ids - item_ids).any? ||
+              items.any? { |item| gift_order_item_ids.include?(item.id.to_s) && item.type_snapshot != "ticket" }
+            outcome = failure(event_error)
+            raise ActiveRecord::Rollback
+          end
 
           event_id = items.first&.order&.event_id || @event.payload.fetch("event_id")
           event = Events::Event.lock.find(event_id)
@@ -27,11 +35,19 @@ module Ticketing
           Core::Database::AdvisoryLock.acquire!("ticketing-package-issuance", event_id)
           Core::Database::AdvisoryLock.acquire!("ticketing-attendee-index", event_id)
           context = issuance_context(event_id)
-          existing_tickets = Ticketing::Ticket.where(order_item_id: items.map(&:id)).to_a.index_by do |ticket|
+          existing_tickets = Ticketing::Ticket.includes(
+            :event,
+            :admission_slots,
+            { current_credential_generation: :credentials },
+            registration: :consent_requirements,
+            event_product: [ :ticket_type, { product_accesses: :event_date } ]
+          ).where(order_item_id: items.map(&:id)).to_a.index_by do |ticket|
             [ ticket.order_item_id, ticket.unit_number ]
           end
 
           items.each do |item|
+            next if gift_order_item_ids.include?(item.id.to_s)
+
             if item.type_snapshot == "parking"
               parking = Parking::FulfillOrderItem.call(
                 order_item: item,

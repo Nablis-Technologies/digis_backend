@@ -17,7 +17,13 @@ module Parking
       return failure(error(:source_not_fulfillable)) unless fulfillable?(item)
       return failure(error(:product_access_missing, :unprocessable_entity)) if parking_accesses(item).empty?
 
-      existing = @existing_tickets || Ticketing::Ticket.where(order_item_id: item.id).to_a.index_by(&:unit_number)
+      existing = @existing_tickets || Ticketing::Ticket.includes(
+        :event,
+        :admission_slots,
+        { current_credential_generation: :credentials },
+        registration: :consent_requirements,
+        event_product: [ :ticket_type, { product_accesses: :event_date } ]
+      ).where(order_item_id: item.id).to_a.index_by(&:unit_number)
       tickets = (1..item.quantity).map do |unit_number|
         result = Parking::IssuePackage.call(
           order_item: item,
