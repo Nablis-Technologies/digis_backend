@@ -11,29 +11,14 @@ module Ticketing
       setup do
         setup_package_workflow(admissions_per_unit: 2)
         @operator = @other_user
-        @raw_token = SecureRandom.hex(32)
-        @device = Ticketing::ScannerDevice.create!(
-          organization: @event.organization,
-          device_identifier: "sync-scanner-#{SecureRandom.hex(4)}",
-          token_digest: Ticketing::ScannerDevice.token_digest_for(token: @raw_token)
-        )
-        @assignment = Ticketing::ScannerDeviceAssignment.create!(
-          scanner_device: @device,
-          event: @event,
-          assigned_by: @manager
-        )
-        Events::EventStaffAssignment.create!(
-          event: @event,
-          user: @operator,
-          organization: @event.organization,
-          role: "scanner",
-          status: "active"
-        )
+        @pairing = pair_scanner(event: @event, actor: @manager, operator: @operator)
+        @assignment = @pairing.session.scanner_device_assignment
+        @device = @assignment.scanner_device
       end
 
       test "returns a full snapshot to an authenticated scanner" do
         process :get, "/scanner/events/#{@event.id}/sync",
-            params: { mode: "full", device_identifier: @device.device_identifier },
+            params: { mode: "full" },
             headers: scanner_headers
 
         assert_equal 200, response.status, response.body
@@ -46,7 +31,6 @@ module Ticketing
         process :get, "/scanner/events/#{@event.id}/sync",
             params: {
               mode: "delta",
-              device_identifier: @device.device_identifier,
               cursors: { revocations: 0, attendee_index: 0, schedule: 0, reversals: 0 }.to_json
             },
             headers: scanner_headers
@@ -59,7 +43,6 @@ module Ticketing
         process :get, "/scanner/events/#{@event.id}/sync",
             params: {
               mode: "delta",
-              device_identifier: @device.device_identifier,
               cursors: { revocations: 0 }.to_json
             },
             headers: scanner_headers
@@ -71,13 +54,7 @@ module Ticketing
       private
 
       def scanner_headers
-        headers_for(@operator).merge("X-Scanner-Token" => @raw_token)
-      end
-
-      def headers_for(user)
-        {
-          "Authorization" => "Bearer #{Core::TokenService.issue(Core::TokenService.access_token_payload(user))}"
-        }
+        { "Authorization" => "Bearer #{@pairing.scanner_session_token}" }
       end
     end
   end

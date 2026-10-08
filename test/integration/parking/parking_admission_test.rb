@@ -110,14 +110,10 @@ module Parking
     end
 
     def create_scanner_assignment
-      Ticketing::ScannerDeviceAssignment.create!(
-        scanner_device: Ticketing::ScannerDevice.create!(
-          organization: @event.organization,
-          device_identifier: "parking-scanner-#{SecureRandom.hex(4)}",
-          token_digest: Ticketing::ScannerDevice.token_digest_for(token: SecureRandom.hex(32))
-        ),
+      build_scanner_assignment(
         event: @event,
-        assigned_by: @manager
+        assigned_by: @manager,
+        device_identifier: "parking-scanner-#{SecureRandom.hex(4)}"
       )
     end
   end

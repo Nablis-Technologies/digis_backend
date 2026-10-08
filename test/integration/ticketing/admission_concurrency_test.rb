@@ -15,14 +15,10 @@ module Ticketing
       @event_date.update_columns(starts_at: 1.hour.ago, ends_at: 2.hours.from_now)
       @order_item = Orders::OrderItem.find(@ticket.order_item_id)
       @order = @order_item.order
-      @assignment = Ticketing::ScannerDeviceAssignment.create!(
-        scanner_device: Ticketing::ScannerDevice.create!(
-          organization: @event.organization,
-          device_identifier: "race-scanner-#{SecureRandom.hex(4)}",
-          token_digest: Ticketing::ScannerDevice.token_digest_for(token: SecureRandom.hex(32))
-        ),
+      @assignment = build_scanner_assignment(
         event: @event,
-        assigned_by: @manager
+        assigned_by: @manager,
+        device_identifier: "race-scanner-#{SecureRandom.hex(4)}"
       )
     end
 
