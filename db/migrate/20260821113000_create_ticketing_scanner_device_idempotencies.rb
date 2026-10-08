@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class CreateTicketingScannerDeviceIdempotencies < ActiveRecord::Migration[8.1]
-  OPERATIONS = %w[rotate_token revoke].freeze
+  OPERATIONS = %w[revoke].freeze
 
   def change
     create_table :ticketing_scanner_device_idempotencies, id: :uuid, default: -> { "uuidv7()" } do |t|

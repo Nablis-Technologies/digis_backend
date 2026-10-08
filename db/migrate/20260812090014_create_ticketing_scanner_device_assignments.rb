@@ -5,6 +5,7 @@ class CreateTicketingScannerDeviceAssignments < ActiveRecord::Migration[8.1]
     create_table :ticketing_scanner_device_assignments, id: :uuid, default: -> { "uuidv7()" } do |t|
       t.uuid :scanner_device_id, null: false
       t.uuid :event_id, null: false
+      t.uuid :event_staff_assignment_id, null: false
       t.uuid :assigned_by_id, null: false
       t.string :status, null: false, default: "active"
       t.timestamptz :starts_at
@@ -40,6 +41,8 @@ class CreateTicketingScannerDeviceAssignments < ActiveRecord::Migration[8.1]
                     column: :scanner_device_id
     add_foreign_key :ticketing_scanner_device_assignments, :events_events,
                     column: :event_id
+    add_foreign_key :ticketing_scanner_device_assignments, :events_event_staff_assignments,
+                    column: :event_staff_assignment_id
     add_foreign_key :ticketing_scanner_device_assignments, :core_users,
                     column: :assigned_by_id
   end
