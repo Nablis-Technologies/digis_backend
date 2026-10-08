@@ -10,31 +10,12 @@ module Ticketing
 
       setup do
         setup_package_workflow(admissions_per_unit: 2)
-        @raw_token = SecureRandom.hex(32)
-        @device = Ticketing::ScannerDevice.create!(
-          organization: @event.organization,
-          device_identifier: "controller-scanner-#{SecureRandom.hex(4)}",
-          token_digest: Ticketing::ScannerDevice.token_digest_for(token: @raw_token)
-        )
-        @assignment = Ticketing::ScannerDeviceAssignment.create!(
-          scanner_device: @device,
+        @assignment = build_scanner_assignment(
           event: @event,
-          assigned_by: @manager
+          assigned_by: @manager,
+          device_identifier: "controller-scanner-#{SecureRandom.hex(4)}"
         )
-      end
-
-      test "organization administrator can rotate a scanner token" do
-        post "/scanner_devices/#{@device.id}/rotate_token",
-             headers: owner_headers.merge("Idempotency-Key" => "controller-rotate-token"), as: :json
-
-        assert_response :success
-        body = response.parsed_body
-        assert_equal true, body["success"]
-        token = body.dig("data", "token")
-        assert_equal 64, token.length
-        assert body.dig("data", "scanner_device", "id").present?
-        refute @device.reload.token_matches?(@raw_token)
-        assert @device.token_matches?(token)
+        @device = @assignment.scanner_device
       end
 
       test "organization administrator can discover safe scanner device fields" do
@@ -64,11 +45,7 @@ module Ticketing
         assert_equal "revoked", @assignment.reload.status
       end
 
-      test "unauthorized user cannot rotate or revoke a scanner device" do
-        post "/scanner_devices/#{@device.id}/rotate_token",
-             headers: user_headers.merge("Idempotency-Key" => "unauthorized-rotate"), as: :json
-        assert_response :forbidden
-
+      test "unauthorized user cannot revoke a scanner device" do
         post "/scanner_devices/#{@device.id}/revoke",
              params: { reason: "lost device" },
              headers: user_headers.merge("Idempotency-Key" => "unauthorized-revoke"), as: :json
@@ -76,10 +53,6 @@ module Ticketing
       end
 
       test "mutations require an idempotency key" do
-        post "/scanner_devices/#{@device.id}/rotate_token", headers: owner_headers, as: :json
-        assert_response :bad_request
-        assert_equal "missing_idempotency_key", response.parsed_body["code"]
-
         post "/scanner_devices/#{@device.id}/revoke",
              params: { reason: "lost device" }, headers: owner_headers, as: :json
         assert_response :bad_request

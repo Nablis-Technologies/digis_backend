@@ -62,7 +62,7 @@ module Ticketing
           event: current_scanner_assignment.event,
           product_access:,
           assignment: current_scanner_assignment,
-          operator: current_user,
+          operator: current_scanner_operator,
           access_zone:,
           reason_code: values[:reason_code],
           client_scan_id: values[:client_scan_id],

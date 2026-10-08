@@ -266,10 +266,17 @@ Rails.application.routes.draw do
   end
 
   post "ticketing/audience_authorizations", to: "ticketing/audience_authorizations#create"
+  post "events/:event_id/scanner_invitations", to: "ticketing/scanner_invitations#create"
+  get "events/:event_id/scanners", to: "ticketing/scanner_rosters#index"
+  patch "events/:event_id/scanner_device_assignments/:id", to: "ticketing/scanner_device_assignments#update"
+  resources :scanner_invitations, only: [], controller: "ticketing/scanner_invitations" do
+    post :resend, on: :member
+    post :reset_pairing, on: :member
+    post :revoke, on: :member
+  end
   get "organizations/:organization_id/scanner_devices", to: "ticketing/scanner_devices#index"
-  post "scanner/auth", to: "ticketing/scanner/auth#create"
+  post "scanner/pair", to: "ticketing/scanner/pair#create"
   resources :scanner_devices, only: [] do
-    post :rotate_token, on: :member, controller: "ticketing/scanner_devices"
     post :revoke, on: :member, controller: "ticketing/scanner_devices"
   end
   get "scanner/events/:event_id/sync", to: "ticketing/scanner/event_sync#show"

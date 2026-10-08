@@ -14,7 +14,7 @@ module Ticketing
         values = upload_params
         result = Ticketing::ScannerSync::ProcessUpload.call(
           assignment: current_scanner_assignment,
-          operator: current_user,
+          operator: current_scanner_operator,
           client_upload_id: values.fetch(:client_upload_id),
           scans: values.fetch(:scans, []),
           cursors: values.fetch(:cursors),

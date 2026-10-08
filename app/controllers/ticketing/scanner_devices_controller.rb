@@ -9,7 +9,7 @@ module Ticketing
 
     before_action :set_organization, only: :index
     before_action :set_device, except: :index
-    before_action :ensure_idempotency_key_present, only: %i[rotate_token revoke]
+    before_action :ensure_idempotency_key_present, only: :revoke
 
     def index
       scope = policy_scope(@organization.scanner_devices).order(:created_at, :id)
@@ -18,22 +18,6 @@ module Ticketing
       render_success(
         data: scope,
         serializer_options: { serializer: Ticketing::ScannerDeviceSerializer }
-      )
-    end
-
-    def rotate_token
-      result = Ticketing::Scanners::RotateToken.call(
-        device: @device, actor: current_user, idempotency_key:
-      )
-      return render_business_error(result.error) if result.failure?
-
-      render_success(
-        result.value.replayed? ? :"ticketing.scanner.success.token_rotation_replayed" :
-          :"ticketing.scanner.success.token_rotated",
-        data: { scanner_device: result.value.device, token: result.value.token },
-        serializer_options: {
-          scanner_device: { serializer: Ticketing::ScannerDeviceSerializer }
-        }
       )
     end
 

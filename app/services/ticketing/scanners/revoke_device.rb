@@ -27,7 +27,13 @@ module Ticketing
 
           now = Time.current
           device.update!(status: "revoked", revoked_at: now)
-          device.assignments.where(status: "active").find_each do |assignment|
+          device.assignments.lock.find_each do |assignment|
+            Ticketing::ScannerSession.where(
+              scanner_device_assignment_id: assignment.id,
+              revoked_at: nil
+            ).update_all(revoked_at: now, updated_at: now)
+            next unless assignment.status == "active"
+
             assignment.update!(status: "revoked")
             assignment.record_audit!(
               "ticketing.scanner_device_assignment.revoked",
