@@ -9,9 +9,13 @@ en:
         suspend: "Staff suspended successfully"
         revoke: "Staff revoked successfully"
       errors:
+        invalid_idempotency_key: "The staff assignment revocation idempotency key is invalid"
+        idempotency_conflict: "The staff assignment revocation key was reused for a different request"
         assign: "Failed to assign staff"
         change_role: "Failed to change staff role"
         suspend: "Failed to suspend staff"
         revoke: "Failed to revoke staff"
         duplicate_assignment: "User already has this role on the event"
+        assignment_inactive: "The existing scanner assignment is not active"
+        delegated_grant_invalid: "The delegated assignment grant is invalid"
         invalid_role: "Invalid staff role"

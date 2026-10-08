@@ -13,6 +13,7 @@ module Events
     self.default_serializer = Events::EventStaffAssignmentSerializer
 
     before_action :set_assignment, only: %i[show update destroy suspend revoke activate change_role]
+    before_action :ensure_idempotency_key_present, only: :revoke
 
     def create
       @parent = Events::Event.find(params[:event_id])
@@ -33,7 +34,9 @@ module Events
     end
 
     def revoke
-      result = Events::StaffAssignments::Revoke.call(assignment: @assignment, actor: current_user)
+      result = Events::StaffAssignments::Revoke.call(
+        assignment: @assignment, actor: current_user, idempotency_key:
+      )
       render_service_result(result, serializer_options: { serializer: Events::EventStaffAssignmentSerializer })
     end
 

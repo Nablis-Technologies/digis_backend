@@ -84,9 +84,36 @@ module Events
         event: @event, user: @attendee, organization: @event.organization, role: "staff", status: "active"
       )
       post "/events/#{@event.id}/event_staff_assignments/#{assignment.id}/revoke",
-           headers: owner_headers, as: :json
+           headers: owner_headers.merge("Idempotency-Key" => "staff-revoke-#{assignment.id}"), as: :json
       assert_response :success
       assert_equal I18n.t("event_staff_assignment.success.revoke"), JSON.parse(response.body)["message"]
+      assert_equal "revoked", assignment.reload.status
+    end
+
+    test "scanner revoke requires idempotency and replays without duplicate outbox events" do
+      assignment = Events::EventStaffAssignment.create!(
+        event: @event, user: @attendee, organization: @event.organization, role: "scanner", status: "active"
+      )
+      post "/events/#{@event.id}/event_staff_assignments/#{assignment.id}/revoke",
+           headers: owner_headers, as: :json
+
+      assert_response :bad_request
+      assert_equal "missing_idempotency_key", response.parsed_body.fetch("code")
+      assert_equal "active", assignment.reload.status
+
+      headers = owner_headers.merge("Idempotency-Key" => "scanner-revoke-#{assignment.id}")
+      Prosopite.pause do
+        assert_difference -> {
+          Core::OutboxEvent.where(
+            event_type: "events.staff_assignment.revoked", aggregate_id: assignment.id
+          ).count
+        }, 1 do
+          2.times do
+            post "/events/#{@event.id}/event_staff_assignments/#{assignment.id}/revoke", headers:, as: :json
+            assert_response :success
+          end
+        end
+      end
       assert_equal "revoked", assignment.reload.status
     end
 
