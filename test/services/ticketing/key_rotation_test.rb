@@ -37,24 +37,19 @@ module Ticketing
     end
 
     test "revoked devices cannot authenticate and revocation deltas remain versioned" do
-      token = SecureRandom.hex(32)
-      device = Ticketing::ScannerDevice.create!(
-        organization: @event.organization,
-        device_identifier: "rotation-scanner-#{SecureRandom.hex(4)}",
-        token_digest: Ticketing::ScannerDevice.token_digest_for(token:)
-      )
-      assignment = Ticketing::ScannerDeviceAssignment.create!(
-        scanner_device: device, event: @event, assigned_by: @manager
-      )
+      pairing = pair_scanner(event: @event, actor: @manager, operator: @other_user)
+      session = pairing.session
+      assignment = session.scanner_device_assignment
+      device = assignment.scanner_device
 
-      authenticated = Ticketing::Scanners::Authenticate.call(
-        operator: @manager, device_identifier: device.device_identifier, token:, event: @event
+      authenticated = Ticketing::Scanners::AuthenticateSession.call(
+        token: pairing.scanner_session_token, event: @event
       )
       assert_predicate authenticated, :success?, authenticated.error&.message
 
       device.update!(status: "revoked", revoked_at: Time.current)
-      revoked = Ticketing::Scanners::Authenticate.call(
-        operator: @manager, device_identifier: device.device_identifier, token:, event: @event
+      revoked = Ticketing::Scanners::AuthenticateSession.call(
+        token: pairing.scanner_session_token, event: @event
       )
       assert_predicate revoked, :failure?
       assert_equal "device_inactive", revoked.error.code

@@ -59,16 +59,12 @@ module Ticketing
         @product_access = @product.product_accesses.first
         @event_date = @product_access.event_date
         @event_date.update_columns(starts_at: 1.hour.ago, ends_at: 2.hours.from_now)
-        @device = Ticketing::ScannerDevice.create!(
-          organization: @event.organization,
-          device_identifier: "manual-phone-#{SecureRandom.hex(4)}",
-          token_digest: Ticketing::ScannerDevice.token_digest_for(token: SecureRandom.hex(32))
-        )
-        @assignment = Ticketing::ScannerDeviceAssignment.create!(
-          scanner_device: @device,
+        @assignment = build_scanner_assignment(
           event: @event,
-          assigned_by: @manager
+          assigned_by: @manager,
+          device_identifier: "manual-phone-#{SecureRandom.hex(4)}"
         )
+        @device = @assignment.scanner_device
       end
 
       def lookup(raw_phone:, selected_credential_id: nil)
