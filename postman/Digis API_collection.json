@@ -256,17 +256,52 @@
       "type": "string"
     },
     {
-      "key": "scannerDeviceIdentifier",
-      "value": "",
-      "type": "string"
-    },
-    {
       "key": "scannerDeviceId",
       "value": "",
       "type": "string"
     },
     {
-      "key": "scannerToken",
+      "key": "scannerSessionToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "scannerInvitationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "scannerPairingToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "scannerPairingUrl",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "scannerPairingCode",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "scannerInstallationId",
+      "value": "{{$guid}}",
+      "type": "string"
+    },
+    {
+      "key": "scannerAssignmentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "scannerAccessStartsAt",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "scannerAccessEndsAt",
       "value": "",
       "type": "string"
     },
@@ -869,64 +904,6 @@
       "name": "Scanner",
       "item": [
         {
-          "name": "Authenticate Scanner",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              },
-              {
-                "key": "X-Scanner-Token",
-                "value": "{{scannerToken}}",
-                "type": "text"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"event_id\": \"{{eventId}}\",\n  \"device_identifier\": \"{{scannerDeviceIdentifier}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/scanner/auth",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "scanner",
-                "auth"
-              ]
-            },
-            "description": "Authenticate the scanner device for an event using the signed-in operator JWT and the scanner token returned at registration."
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status code is 200\", function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Response contains scanner context\", function () {",
-                  "  const json = pm.response.json();",
-                  "  pm.expect(json).to.have.property(\"success\", true);",
-                  "  pm.expect(json.data).to.have.property(\"device_id\");",
-                  "  pm.expect(json.data).to.have.property(\"assignment_id\");",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
-        },
-        {
           "name": "Verify Online Admission",
           "request": {
             "method": "POST",
@@ -937,8 +914,8 @@
                 "type": "text"
               },
               {
-                "key": "X-Scanner-Token",
-                "value": "{{scannerToken}}",
+                "key": "Authorization",
+                "value": "Bearer {{scannerSessionToken}}",
                 "type": "text"
               }
             ],
@@ -952,7 +929,7 @@
               }
             },
             "url": {
-              "raw": "{{baseUrl}}/scanner/events/{{eventId}}/verifications?device_identifier={{scannerDeviceIdentifier}}",
+              "raw": "{{baseUrl}}/scanner/events/{{eventId}}/verifications",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -961,15 +938,12 @@
                 "events",
                 "{{eventId}}",
                 "verifications"
-              ],
-              "query": [
-                {
-                  "key": "device_identifier",
-                  "value": "{{scannerDeviceIdentifier}}"
-                }
               ]
             },
-            "description": "Verify one signed QR credential against the selected product access and atomically record the online admission attempt. Retries with the same client_scan_id return the stored attempt."
+            "description": "Verify one signed QR credential using only the event-scoped scanner bearer; the session supplies the device and operator context.",
+            "auth": {
+              "type": "noauth"
+            }
           },
           "response": []
         },
@@ -984,8 +958,8 @@
                 "type": "text"
               },
               {
-                "key": "X-Scanner-Token",
-                "value": "{{scannerToken}}",
+                "key": "Authorization",
+                "value": "Bearer {{scannerSessionToken}}",
                 "type": "text"
               }
             ],
@@ -999,7 +973,7 @@
               }
             },
             "url": {
-              "raw": "{{baseUrl}}/scanner/events/{{eventId}}/scan_uploads?device_identifier={{scannerDeviceIdentifier}}",
+              "raw": "{{baseUrl}}/scanner/events/{{eventId}}/scan_uploads",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1008,15 +982,12 @@
                 "events",
                 "{{eventId}}",
                 "scan_uploads"
-              ],
-              "query": [
-                {
-                  "key": "device_identifier",
-                  "value": "{{scannerDeviceIdentifier}}"
-                }
               ]
             },
-            "description": "Upload at most 500 offline scans. Retry the same client_upload_id after an interrupted request to receive the stored snapshot; each client_scan_id is independently idempotent. Send an empty scans array for a heartbeat and synchronization delta. The reported result is advisory and the server reconciles the credential, revocations, zones, and admission uses authoritatively."
+            "description": "Upload at most 500 offline scans using Authorization: Bearer {{scannerSessionToken}}. Retry the same client_upload_id after an interrupted request; each client_scan_id is independently idempotent. The server reconciles credentials, revocations, zones, and admission uses authoritatively.",
+            "auth": {
+              "type": "noauth"
+            }
           },
           "response": []
         },
@@ -1031,8 +1002,8 @@
                 "type": "text"
               },
               {
-                "key": "X-Scanner-Token",
-                "value": "{{scannerToken}}",
+                "key": "Authorization",
+                "value": "Bearer {{scannerSessionToken}}",
                 "type": "text"
               }
             ],
@@ -1046,7 +1017,7 @@
               }
             },
             "url": {
-              "raw": "{{baseUrl}}/scanner/events/{{eventId}}/lookups?device_identifier={{scannerDeviceIdentifier}}",
+              "raw": "{{baseUrl}}/scanner/events/{{eventId}}/lookups",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1055,15 +1026,12 @@
                 "events",
                 "{{eventId}}",
                 "lookups"
-              ],
-              "query": [
-                {
-                  "key": "device_identifier",
-                  "value": "{{scannerDeviceIdentifier}}"
-                }
               ]
             },
-            "description": "Recover an active credential by checksummed PNR, canonical Ethiopian phone, or authorized online help-desk search. Every manual admission requires a controlled reason code, returns minimal disambiguation, and sends the selected credential through the same admission validator as QR. For phone use method=phone; for online help-desk search use method=online and omit admission fields until a result is selected."
+            "description": "Recover an active credential by PNR, phone, or authorized online help-desk search using Authorization: Bearer {{scannerSessionToken}}. Every manual admission requires a controlled reason code and uses the same admission validator as QR.",
+            "auth": {
+              "type": "noauth"
+            }
           },
           "response": []
         },
@@ -1178,7 +1146,86 @@
           "response": []
         },
         {
-          "name": "Rotate Scanner Token",
+          "name": "Create Scanner Invitation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scanner_invitation\": {\n    \"phone\": \"+251911234567\",\n    \"display_label\": \"Abel - Main Gate\",\n    \"note\": \"Main entrance\",\n    \"zone_mode\": \"all_current_zones\",\n    \"zone_ids\": []\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/events/{{eventId}}/scanner_invitations",
+              "host": ["{{baseUrl}}"],
+              "path": ["events", "{{eventId}}", "scanner_invitations"]
+            },
+            "description": "Create an event-owned phone invitation. The authorized organizer receives one-time pairing material; it is not included in roster responses."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Invitation created\", function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([201, 200]);",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set(\"scannerInvitationId\", data.scanner_invitation.id);",
+                  "  if (data.pairing_material) {",
+                  "    pm.collectionVariables.set(\"scannerPairingToken\", data.pairing_material.token);",
+                  "    pm.collectionVariables.set(\"scannerPairingCode\", data.pairing_material.pairing_code);",
+                  "    pm.collectionVariables.set(\"scannerPairingUrl\", data.pairing_material.pairing_url);",
+                  "  }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Event Scanner Roster",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/events/{{eventId}}/scanners",
+              "host": ["{{baseUrl}}"],
+              "path": ["events", "{{eventId}}", "scanners"]
+            },
+            "description": "List pending invitations and paired assignments with masked phones, zone scope, delivery state, and server-reconciled scan counts. Pairing and session secrets are never returned."
+          },
+          "response": []
+        },
+        {
+          "name": "Resend Scanner Invitation",
           "request": {
             "method": "POST",
             "header": [
@@ -1194,11 +1241,156 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/scanner_devices/{{scannerDeviceId}}/rotate_token",
+              "raw": "{{baseUrl}}/scanner_invitations/{{scannerInvitationId}}/resend",
               "host": ["{{baseUrl}}"],
-              "path": ["scanner_devices", "{{scannerDeviceId}}", "rotate_token"]
+              "path": ["scanner_invitations", "{{scannerInvitationId}}", "resend"]
             },
-            "description": "Rotate a scanner credential as an authorized organization administrator. Requires Idempotency-Key. The plaintext token is returned once; an exact replay does not rotate again or recover plaintext, so use a new key for a new rotation."
+            "description": "Rotate pending invitation capabilities and enqueue delivery for the new revision."
+          },
+          "response": []
+        },
+        {
+          "name": "Reset Scanner Pairing",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/scanner_invitations/{{scannerInvitationId}}/reset_pairing",
+              "host": ["{{baseUrl}}"],
+              "path": ["scanner_invitations", "{{scannerInvitationId}}", "reset_pairing"]
+            },
+            "description": "Revoke the old session/assignment while preserving the event staff grant, then issue fresh pairing material."
+          },
+          "response": []
+        },
+        {
+          "name": "Revoke Scanner Invitation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/scanner_invitations/{{scannerInvitationId}}/revoke",
+              "host": ["{{baseUrl}}"],
+              "path": ["scanner_invitations", "{{scannerInvitationId}}", "revoke"]
+            },
+            "description": "Revoke an unclaimed invitation and invalidate its pairing capabilities."
+          },
+          "response": []
+        },
+        {
+          "name": "Pair Scanner Installation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pairing_token\": \"{{scannerPairingToken}}\",\n  \"pairing_method\": \"sms_link\",\n  \"installation_id\": \"{{scannerInstallationId}}\",\n  \"device_name\": \"Main Gate Android\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/scanner/pair",
+              "host": ["{{baseUrl}}"],
+              "path": ["scanner", "pair"]
+            },
+            "description": "Exchange one high-entropy invitation capability for an event-scoped session. No user JWT or OTP is required. For a manual code, send pairing_code and use pairing_method short_code instead. An exact retry returns safe state without another plaintext session token.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Scanner paired\", function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([201, 200]);",
+                  "  const data = pm.response.json().data;",
+                  "  if (data.scanner_session_token) {",
+                  "    pm.collectionVariables.set(\"scannerSessionToken\", data.scanner_session_token);",
+                  "    pm.collectionVariables.set(\"scannerAssignmentId\", data.assignment.id);",
+                  "    pm.collectionVariables.set(\"scannerDeviceId\", data.device.id);",
+                  "  }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Scanner Assignment Scope",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scanner_device_assignment\": {\n    \"zone_mode\": \"selected_zones\",\n    \"zone_ids\": [\"{{accessZoneId}}\"],\n    \"starts_at\": \"{{scannerAccessStartsAt}}\",\n    \"ends_at\": \"{{scannerAccessEndsAt}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/events/{{eventId}}/scanner_device_assignments/{{scannerAssignmentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["events", "{{eventId}}", "scanner_device_assignments", "{{scannerAssignmentId}}"]
+            },
+            "description": "Replace a scanner assignment's zone scope and finite access window. An empty selected zone list grants no zone access."
           },
           "response": []
         },
@@ -6456,13 +6648,13 @@
             "method": "GET",
             "header": [
               {
-                "key": "X-Scanner-Token",
-                "value": "{{scannerToken}}",
+                "key": "Authorization",
+                "value": "Bearer {{scannerSessionToken}}",
                 "type": "text"
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/scanner/events/{{eventId}}/sync?mode=full&device_identifier={{scannerDeviceIdentifier}}",
+              "raw": "{{baseUrl}}/scanner/events/{{eventId}}/sync?mode=full",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -6476,14 +6668,13 @@
                 {
                   "key": "mode",
                   "value": "full"
-                },
-                {
-                  "key": "device_identifier",
-                  "value": "{{scannerDeviceIdentifier}}"
                 }
               ]
             },
-            "description": "Download the complete scanner-safe event snapshot. The response contains public signing keys, revocations, attendee index, schedule/access mappings, server use IDs, and reversal rows without advancing server cursors."
+            "description": "Download the complete scanner-safe event snapshot using Authorization: Bearer {{scannerSessionToken}}. The response contains public signing keys, revocations, attendee index, schedule/access mappings, server use IDs, and reversal rows without advancing server cursors.",
+            "auth": {
+              "type": "noauth"
+            }
           },
           "response": []
         },
@@ -6493,13 +6684,13 @@
             "method": "GET",
             "header": [
               {
-                "key": "X-Scanner-Token",
-                "value": "{{scannerToken}}",
+                "key": "Authorization",
+                "value": "Bearer {{scannerSessionToken}}",
                 "type": "text"
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/scanner/events/{{eventId}}/sync?mode=delta&device_identifier={{scannerDeviceIdentifier}}&cursors=%7B%22revocations%22%3A0%2C%22attendee_index%22%3A0%2C%22schedule%22%3A0%2C%22reversals%22%3A0%7D",
+              "raw": "{{baseUrl}}/scanner/events/{{eventId}}/sync?mode=delta&cursors=%7B%22revocations%22%3A0%2C%22attendee_index%22%3A0%2C%22schedule%22%3A0%2C%22reversals%22%3A0%7D",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -6515,16 +6706,15 @@
                   "value": "delta"
                 },
                 {
-                  "key": "device_identifier",
-                  "value": "{{scannerDeviceIdentifier}}"
-                },
-                {
                   "key": "cursors",
                   "value": "{\"revocations\":0,\"attendee_index\":0,\"schedule\":0,\"reversals\":0}"
                 }
               ]
             },
-            "description": "Download scanner synchronization changes after applying the previous response locally. Revocations and attendee tombstones must be applied before active attendee additions."
+            "description": "Download scanner synchronization changes after applying the previous response locally using Authorization: Bearer {{scannerSessionToken}}. Revocations and attendee tombstones must be applied before active attendee additions.",
+            "auth": {
+              "type": "noauth"
+            }
           },
           "response": []
         }
@@ -7533,8 +7723,14 @@
                 {
                   "name": "Revoke Event Staff Assignment",
                   "request": {
-                    "description": "Revoke a staff member permanently.",
-                    "header": [],
+                    "description": "Revoke event staff access. Scanner roles are denied immediately and Ticketing closes their bound session and device assignment through the outbox. Requires Idempotency-Key.",
+                    "header": [
+                      {
+                        "key": "Idempotency-Key",
+                        "value": "{{idempotencyKey}}",
+                        "type": "text"
+                      }
+                    ],
                     "method": "POST",
                     "url": {
                       "host": [
