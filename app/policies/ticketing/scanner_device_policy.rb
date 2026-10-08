@@ -13,12 +13,10 @@ module Ticketing
     end
 
     alias index? show?
-    alias rotate_token? show?
     alias revoke? show?
 
     VISIBILITY = {
       index: { default: { fields: SAFE_FIELDS, include: [] }, admin: { fields: SAFE_FIELDS, include: [] } },
-      rotate_token: { default: { fields: SAFE_FIELDS, include: [] }, admin: { fields: SAFE_FIELDS, include: [] } },
       revoke: { default: { fields: SAFE_FIELDS, include: [] }, admin: { fields: SAFE_FIELDS, include: [] } }
     }.freeze
 
