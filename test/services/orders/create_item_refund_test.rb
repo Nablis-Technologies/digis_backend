@@ -304,13 +304,10 @@ module Orders
     end
 
     def create_scanner_assignment
-      device = Ticketing::ScannerDevice.create!(
-        organization: @event.organization,
-        device_identifier: "refund-date-scanner-#{SecureRandom.hex(4)}",
-        token_digest: Ticketing::ScannerDevice.token_digest_for(token: SecureRandom.hex(32))
-      )
-      Ticketing::ScannerDeviceAssignment.create!(
-        scanner_device: device, event: @event, assigned_by: @manager
+      build_scanner_assignment(
+        event: @event,
+        assigned_by: @manager,
+        device_identifier: "refund-date-scanner-#{SecureRandom.hex(4)}"
       )
     end
 

@@ -11,24 +11,9 @@ module Ticketing
       setup_package_workflow(admissions_per_unit: 1)
       @event_date = @product.product_accesses.first.event_date
       @event_date.update_columns(starts_at: 1.hour.ago, ends_at: 2.hours.from_now)
-      @raw_token = SecureRandom.hex(32)
-      @device = Ticketing::ScannerDevice.create!(
-        organization: @event.organization,
-        device_identifier: "upload-controller-#{SecureRandom.hex(4)}",
-        token_digest: Ticketing::ScannerDevice.token_digest_for(token: @raw_token)
-      )
-      @assignment = Ticketing::ScannerDeviceAssignment.create!(
-        scanner_device: @device,
-        event: @event,
-        assigned_by: @manager
-      )
-      Events::EventStaffAssignment.create!(
-        event: @event,
-        user: @other_user,
-        organization: @event.organization,
-        role: "scanner",
-        status: "active"
-      )
+      @pairing = pair_scanner(event: @event, actor: @manager, operator: @other_user)
+      @assignment = @pairing.session.scanner_device_assignment
+      @device = @assignment.scanner_device
     end
 
     test "retries an upload and reconciles competing offline scans" do
@@ -86,17 +71,11 @@ module Ticketing
     end
 
     def scanner_headers
-      headers_for(@other_user).merge("X-Scanner-Token" => @raw_token)
+      { "Authorization" => "Bearer #{@pairing.scanner_session_token}" }
     end
 
     def upload_path
-      "/scanner/events/#{@event.id}/scan_uploads?device_identifier=#{@device.device_identifier}"
-    end
-
-    def headers_for(user)
-      {
-        "Authorization" => "Bearer #{Core::TokenService.issue(Core::TokenService.access_token_payload(user))}"
-      }
+      "/scanner/events/#{@event.id}/scan_uploads"
     end
   end
 end

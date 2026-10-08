@@ -85,14 +85,9 @@ class SeedsTest < ActiveSupport::TestCase
     assert_equal "delivered", ticket_notification.deliveries.find_by!(channel: "in_app").status
     assert Messaging::Notification.exists?(user: organizer_user, notification_type: "schedule_changed")
 
-    scanner = Ticketing::ScannerDevice.find_by!(device_identifier: "preview-chapa-scanner-001")
-    assert_equal organization.id, scanner.organization_id
-    assert scanner.token_matches?("preview-scanner-token-v1")
-    assert scanner.assignments.exists?(event: event, status: "active")
-
-    scanner.assignments.find_by!(event: event).update!(status: "revoked")
+    refute Ticketing::ScannerDevice.exists?(device_identifier: "preview-chapa-scanner-001")
     load_seed
-    assert scanner.assignments.find_by!(event: event).active?
+    refute Ticketing::ScannerDevice.exists?(device_identifier: "preview-chapa-scanner-001")
 
     quote = Orders::BuildQuote.call(
       event: event,

@@ -179,13 +179,10 @@ module Ticketing
       access = @product.product_accesses.first
       date = access.event_date
       date.update_columns(starts_at: 1.hour.ago, ends_at: 2.hours.from_now)
-      device = Ticketing::ScannerDevice.create!(
-        organization: @event.organization,
-        device_identifier: "cancel-package-scanner-#{SecureRandom.hex(4)}",
-        token_digest: Ticketing::ScannerDevice.token_digest_for(token: SecureRandom.hex(32))
-      )
-      assignment = Ticketing::ScannerDeviceAssignment.create!(
-        scanner_device: device, event: @event, assigned_by: @manager
+      assignment = build_scanner_assignment(
+        event: @event,
+        assigned_by: @manager,
+        device_identifier: "cancel-package-scanner-#{SecureRandom.hex(4)}"
       )
       claims = Ticketing::Qr::Verifier.call(
         token: @ticket.current_credential_generation.credentials.first.qr_token
