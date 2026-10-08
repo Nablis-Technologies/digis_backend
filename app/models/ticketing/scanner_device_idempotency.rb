@@ -6,7 +6,7 @@ module Ticketing
   class ScannerDeviceIdempotency < Ticketing::ApplicationRecord
     self.table_name = "ticketing_scanner_device_idempotencies"
 
-    OPERATIONS = %w[rotate_token revoke].freeze
+    OPERATIONS = %w[revoke].freeze
 
     belongs_to :scanner_device, class_name: "Ticketing::ScannerDevice"
 
