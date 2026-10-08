@@ -3,111 +3,93 @@
 ## Operating boundary
 
 - Owner: Ticketing security/on-call and event operations.
-- Severity: SEV-1 when a device or private key may be compromised; SEV-2 for a
-  lost device with no evidence of credential extraction.
-- Authority: Organization administrator or platform administrator may rotate a
-  device token. Platform security decides whether gates require online
-  validation.
+- Treat a lost or stolen device as compromised until its event/device access is
+  revoked. A disconnected scanner may continue against its last synchronized
+  offline projection until it reconnects or its local session expires.
+- Scanner sessions are event-scoped bearer credentials. They are stored as
+  keyed digests and cannot be recovered from the database or replayed from a
+  plaintext device token.
 
 ## Detect
 
-Use scanner authentication failures, unexpected `last_seen_at`, duplicate or
-out-of-scope scan uploads, operator reports, and audit events. A disconnected
-device may continue using its last synchronized public keys and revocation
-projection until it reconnects.
+Review the scanner roster, device last_seen_at, active event assignments,
+session expiry/revocation, scan uploads, and audit evidence. Reconcile
+unuploaded offline scans before declaring the incident fully contained.
 
 ## Immediate action
 
 1. Identify the device, organization, event assignments, last sync versions,
    and possible exposure window.
-2. Stop assigning the device to a gate and require online validation for the
-   affected gate if the event is high security.
-3. Rotate the device token through `POST /scanner_devices/:id/rotate_token` as
-   an authorized organization/platform administrator, always sending a fresh
-   `Idempotency-Key`. Deliver the returned plaintext token only through the
-   approved secure channel. Replaying the same key never rotates again and
-   cannot recover the one-time plaintext token; use a new key to rotate again.
-4. If signing-key compromise is suspected, follow
+2. For a lost or stolen device, revoke the whole device with
+   POST /scanner_devices/:id/revoke, an Idempotency-Key, and a required
+   reason. This revokes all active device assignments and bound sessions in
+   one transaction. Every subsequent online scanner request is denied.
+3. If the device is safe but its PWA session was lost, use the event roster's
+   POST /scanner_invitations/:id/reset_pairing recovery action. It revokes the
+   old assignment/session and rotates the invitation capability while
+   preserving the event-owned scanner staff grant. Pair the replacement
+   installation through POST /scanner/pair; the old session token is never
+   revealed again.
+4. If the scanner operator's event role must be removed, use the existing
+   event-staff POST /events/:event_id/event_staff_assignments/:id/revoke route
+   with an Idempotency-Key. The next connected scanner request is denied from
+   the authoritative Events assignment state; a Ticketing outbox handler then
+   closes the linked device assignment and sessions.
+5. If the event is cancelled, scanner authorization is denied immediately by
+   event state. Durable outbox cleanup revokes pending invitations and all
+   paired scanner sessions/assignments.
+6. If signing-key compromise is suspected, follow
    [security-key-rotation.md](security-key-rotation.md) and treat cached,
    disconnected scanners as untrusted until synchronized.
 
 ## Prohibited action
 
-- Do not place a scanner token, QR token, private signing seed, or attendee
-  payload in a ticket, log, or job argument.
+- Do not try to rotate or recover a device token; that authentication scheme
+  has been removed.
+- Do not place a pairing token, pairing code, scanner session token, QR token,
+  private signing seed, or attendee payload in a ticket, log, audit metadata,
+  or job argument.
 - Do not edit revocation or attendee-index rows directly to hide a scan.
-- Do not assume a signed QR is fresh while the device is disconnected.
+- Do not promise an instant offline kill switch. Offline devices can retain
+  their existing synchronized snapshot until connectivity returns or local
+  session expiry.
 
 ## Diagnostics
 
 Discover devices for an organization as an authorized owner/admin or platform
-administrator:
+administrator with GET /organizations/:organization_id/scanner_devices.
+Responses include safe lifecycle fields only; session digests and pairing
+material are never serialized.
 
-```bash
-curl -H "Authorization: Bearer $ACCESS_TOKEN" \
-  "$BASE_URL/organizations/$ORGANIZATION_ID/scanner_devices"
-```
-
-The response includes lifecycle fields only; token digests and idempotency
-receipts are never serialized.
-
-```bash
-DEVICE_IDENTIFIER="..." PATH="$HOME/.asdf/shims:$PATH" bundle exec rails runner '
-device = Ticketing::ScannerDevice.find_by!(device_identifier: ENV.fetch("DEVICE_IDENTIFIER"))
-puts device.attributes.slice("id", "organization_id", "device_identifier", "status",
-  "last_seen_at", "revoked_at").inspect
-puts device.assignments.order(created_at: :desc)
-  .pluck(:id, :event_id, :status, :last_synced_at, :last_revocation_version,
-         :last_attendee_index_version).inspect
-'
-```
+For database diagnostics, inspect the device row, assignments including their
+event_staff_assignment_id, and sessions' expiry/revoked timestamps. Never
+select or print scanner token digests, invitation ciphertext, pairing
+capabilities, or request headers.
 
 ## Recovery
 
-Rotate the device token with an authorized actor:
+Use the organizer API/UI to revoke the compromised device or reset one
+invitation's pairing. A newly paired PWA receives a new scanner_session_token
+once; persist it in the PWA's secure local session storage. Subsequent sync,
+lookup, verification, and upload calls send only
+Authorization: Bearer <scanner_session_token>.
 
-```bash
-DEVICE_ID="..." ACTOR_ID="..." IDEMPOTENCY_KEY="..." PATH="$HOME/.asdf/shims:$PATH" bundle exec rails runner '
-device = Ticketing::ScannerDevice.find(ENV.fetch("DEVICE_ID"))
-actor = Core::User.find(ENV.fetch("ACTOR_ID"))
-result = Ticketing::Scanners::RotateToken.call(
-  device:, actor:, idempotency_key: ENV.fetch("IDEMPOTENCY_KEY")
-)
-raise result.error unless result.success?
-puts "New scanner token must be delivered through the secure operator channel."
-'
-```
+Relevant management routes:
 
-The device-management surface is:
-
-- `GET /organizations/:organization_id/scanner_devices` — lists safe scanner
-  lifecycle fields for an authorized organization or platform administrator.
-- `POST /scanner_devices/:id/rotate_token` with `Idempotency-Key` — returns the
-  new plaintext token once and never serializes token digests.
-- `POST /scanner_devices/:id/revoke` with `Idempotency-Key` and
-  `{ "reason": "..." }` — revokes the device and its active event assignments
-  atomically.
-
-Both endpoints require an authorized organization administrator or platform
-administrator. Offline scanners may continue using their last synchronized
-public keys and ticket-revocation projection until they reconnect; device
-revocation blocks subsequent online authentication and does not rewrite prior
-scan history. Do not substitute raw SQL.
-
-After recovery, authenticate the replacement device, download a full or delta
-sync, and acknowledge cursors only after the scanner commits its local
-transaction.
-
-## Communication and verification
-
-Event operations owns gate instructions; Ticketing security owns the incident;
-Support communicates any attendee impact. Verify token rotation audit evidence,
-device authentication failure for the old token, current signing keys,
-revocation versions, and scan-upload reconciliation.
+- GET /events/:event_id/scanners — shows invitation and assignment state.
+- POST /scanner_invitations/:id/reset_pairing — rotates an invitation's
+  pairing capability and invalidates the prior device assignment/session.
+- POST /events/:event_id/event_staff_assignments/:id/revoke — revokes the
+  authoritative event role and publishes Ticketing cleanup for scanner roles.
+- POST /scanner_devices/:id/revoke — revokes the whole device and every bound
+  active session/assignment.
 
 ## Staging drill
 
-Authenticate a device, rotate its token, submit an old-token request, revoke a
-credential while the simulated scanner is disconnected, reconnect it, and
-apply the delta. Confirm the old device token fails, the stale offline window
-is documented, and the synchronized scanner rejects the revoked credential.
+Pair a scanner, call sync using only the returned scanner bearer, revoke the
+event staff assignment, and verify the old bearer is denied immediately and
+the cleanup outbox revokes its device assignment/session. Reset another
+invitation, pair a replacement installation, and verify the previous bearer
+still fails while the new bearer can sync. Finally, disconnect a paired
+scanner, revoke access, and confirm the operator guidance accurately explains
+that the offline snapshot is usable only until reconnect or local expiry.

@@ -8,6 +8,20 @@
 
 ## REVISION HISTORY
 
+### v3.5 — October 8, 2026 — Phone-Based Scanner Invitations and Scoped Sessions
+
+Replaces manual-device-token onboarding with organizer-authorized event-owned
+phone invitations. Pairing uses a one-use high-entropy link or organizer QR,
+or a short code with strict attempt limits; none of these paths claims phone
+verification or grants a global organizer role. Each successful pairing
+creates a bounded event-staff/device assignment and a ScannerSession. Scanner
+APIs use only its Authorization bearer token; the old user-JWT plus
+X-Scanner-Token and /scanner/auth contracts are removed. Organizer staff
+revocation, event cancellation, invitation expiry, and device revocation close
+sessions. A disconnected PWA can still use its synchronized offline
+projection until it reconnects or its local session expires; revocation is
+immediate only for connected requests.
+
 ### v3.4 — July 17, 2026 — Commercial Packages and All-or-Nothing Delegation
 
 Adds a credential layer beneath the purchased commercial package.
@@ -1933,37 +1947,36 @@ Implementation rules:
 ### Scanner Endpoints
 
 ```
-POST /api/v1/scanner/auth
-  → Register/authenticate scanner device
-  → Returns: device_token, current revocation_version, signing public keys
+POST /events/:event_id/scanner_invitations
+  → Organizer creates an event-owned phone invitation with finite scope and expiry
 
-GET /api/v1/scanner/events/:event_id/revocations
-  → Download full or delta revocation list
-  → Headers: X-Scanner-Version: 0 (or last known version)
-  → Returns: revocation_version, signing_keys, revocations[] (or changes{})
+GET /events/:event_id/scanners
+  → Safe roster of pending invitations and paired assignments
 
-POST /api/v1/scanner/events/:event_id/scans
-  → Upload scan logs from offline period
-  → Returns: { accepted[], rejected[], revocation_version, revocation_changes }
+POST /scanner_invitations/:id/resend
+  → Rotate pending link/code capabilities and enqueue the new delivery revision
 
-POST /api/v1/scanner/verify
-  → Online verification (fallback when offline validation is uncertain)
-  → Returns: ticket status, owner info, entry history
+POST /scanner_invitations/:id/reset_pairing
+  → Revoke the old session and assignment, preserve the event staff grant, and issue fresh pairing material
 
-POST /api/v1/scanner/events/:event_id/refresh-revocations
-  → Force revocation refresh (admin action)
+POST /scanner/pair
+  → Exchange one link/QR token or short code for a bounded ScannerSession
+  → No user JWT or OTP; returns scanner_session_token only on initial success
 
-GET /api/v1/scanner/events/:event_id/attendee-index
-  → Download full or delta hashed phone index for manual lookup (NEW in v3)
-  → Headers: X-Index-Version: 0 (or last known version)
-  → Returns: index_version, entries[] (or changes{})
-  → Entries contain: phone_hash, ticket_id, ticket_type, ticket_type_label, perks, version, valid_days, policy
+GET /scanner/events/:event_id/sync
+POST /scanner/events/:event_id/verifications
+POST /scanner/events/:event_id/lookups
+POST /scanner/events/:event_id/scan_uploads
+  → Every request uses only Authorization: Bearer <scanner_session_token>
 
-POST /api/v1/scanner/events/:event_id/lookup
-  → Online name/phone search (NEW in v3, requires network)
-  → Body: { query: "Abebe" } or { query: "+251911234567" }
-  → Returns: matching active credential claims plus minimal disambiguating holder data
-  → Restricted to trusted help-desk devices; access and result selection are audited
+PATCH /events/:event_id/scanner_device_assignments/:id
+  → Update selected zones and finite access window; empty selected zones mean no zone access
+
+POST /events/:event_id/event_staff_assignments/:id/revoke
+  → Revoke event role; Ticketing closes scanner sessions through the outbox
+
+POST /scanner_devices/:id/revoke
+  → Revoke a physical device and its bound assignments/sessions
 ```
 
 ### Commercial Package and Credential Endpoints
