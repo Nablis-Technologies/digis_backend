@@ -3,11 +3,31 @@
 # Registers ticketing handlers without replacing handlers owned by other
 # domains. Messaging can replace the sender seam when its adapter is ready.
 Rails.application.config.x.invitation_delivery_sender ||= ->(**_details) { nil }
+Rails.application.config.x.scanner_invitation_delivery_sender ||= ->(**_details) { nil }
 Rails.application.config.x.consent_reminder_sender ||= ->(**_details) { nil }
 Rails.application.config.x.credential_delivery_sender ||= ->(**_details) { nil }
 Rails.application.config.x.credential_requirement_status_adapter ||= Ticketing::Credentials::NullRequirementStatusAdapter.new
 Rails.application.config.x.outbox_handlers.register("ticketing.invitation.created", priority: 100) do |outbox_event|
   Ticketing::DeliverInvitationJob.perform_later(outbox_event.payload.fetch("invitation_id"))
+end
+Rails.application.config.x.outbox_handlers.register("ticketing.scanner_invitation.delivery_requested", priority: 100) do |outbox_event|
+  Ticketing::DeliverScannerInvitationJob.perform_later(
+    outbox_event.payload.fetch("invitation_id"),
+    outbox_event.payload.fetch("delivery_revision")
+  )
+end
+Rails.application.config.x.outbox_handlers.register("ticketing.scanner_invitation.expired", priority: 100) do |outbox_event|
+  outbox_event.payload.fetch("invitation_id")
+end
+Rails.application.config.x.outbox_handlers.register("events.staff_assignment.revoked", priority: 100) do |outbox_event|
+  result = Ticketing::OutboxHandlers::RevokeScannerAssignment.call(event: outbox_event)
+  raise result.error if result.failure?
+  result
+end
+Rails.application.config.x.outbox_handlers.register("events.cancellation_initiated", priority: 200) do |outbox_event|
+  result = Ticketing::OutboxHandlers::CancelEventScannerAccess.call(event: outbox_event)
+  raise result.error if result.failure?
+  result
 end
 Rails.application.config.x.outbox_handlers.register("ticketing.ticket_transfer.initiated", priority: 100) do |outbox_event|
   Ticketing::TicketTransferDeliveryJob.perform_later(outbox_event.payload.fetch("transfer_id"))

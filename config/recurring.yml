@@ -57,6 +57,10 @@ production:
     class: Ticketing::ExpireCredentialClaimsJob
     queue: default
     schedule: every minute
+  expire_scanner_invitations:
+    class: Ticketing::ExpireScannerInvitationsJob
+    queue: default
+    schedule: every minute
   expire_ticket_transfers:
     class: Ticketing::ExpireTransfersJob
     queue: default
