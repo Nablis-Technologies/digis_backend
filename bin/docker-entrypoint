@@ -50,41 +50,14 @@ if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
     fi
 
     echo "Resetting the disposable Render preview database and rebuilding its seed"
-    DISABLE_DATABASE_ENVIRONMENT_CHECK=1 ./bin/rails db:schema:load db:seed
+    DISABLE_DATABASE_ENVIRONMENT_CHECK=1 ./bin/rails db:seed:replant
     return 0
-  }
-
-  sync_preview_scanner_schema() {
-    if [ -n "$RENDER_PREVIEW_DATABASE_URL" ]; then
-      psql "$RENDER_PREVIEW_DATABASE_URL" --tuples-only --no-align --quiet --command "
-        DO \$\$
-        BEGIN
-          IF NOT EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_name = 'ticketing_scanner_device_assignments'
-              AND column_name = 'event_staff_assignment_id'
-          ) THEN
-            ALTER TABLE ticketing_scanner_device_assignments
-              ADD COLUMN event_staff_assignment_id uuid REFERENCES events_event_staff_assignments(id);
-          END IF;
-
-          IF EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_name = 'ticketing_scanner_devices'
-              AND column_name = 'token_digest'
-          ) THEN
-            ALTER TABLE ticketing_scanner_devices DROP COLUMN token_digest CASCADE;
-          END IF;
-        END \$\$;
-      " >/dev/null 2>&1 || true
-    fi
   }
 
   if [ "${RENDER_PREVIEW}" == "true" ]; then
     prepare_preview_schema "cache" "solid_cache_entries"
     prepare_preview_schema "queue" "solid_queue_recurring_tasks"
     prepare_preview_schema "cable" "solid_cable_messages"
-    sync_preview_scanner_schema
 
     # Free Render services do not support one-off shell jobs. A reset is
     # explicitly opt-in and guarded to the disposable preview database.
