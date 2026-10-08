@@ -23,3 +23,4 @@ raise "PUBLIC_APP_URL must be configured in production" if Rails.env.production?
 config.public_app_url = public_app_url || "http://localhost:3000"
 Rails.application.config.x.short_links = config
 Rails.application.config.x.public_app_url = config.public_app_url
+Rails.application.config.x.scanner_app_url = ENV["SCANNER_APP_URL"].presence || config.public_app_url

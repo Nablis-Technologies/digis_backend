@@ -63,6 +63,12 @@ module Links
         "#{public_app_url.to_s.delete_suffix("/")}/#gift/#{gift_purchase.id}?token=#{ERB::Util.url_encode(capability)}"
       end
 
+      # Keeps the one-time scanner capability out of HTTP request paths and
+      # query logs; the PWA exchanges the fragment through a POST body.
+      def scanner_pairing(invitation, token:)
+        "#{scanner_app_url.to_s.delete_suffix("/")}/pair#invitation_id=#{invitation.id}&token=#{ERB::Util.url_encode(token)}"
+      end
+
       private
 
       def canonical_ticket_link(ticket)
@@ -151,6 +157,10 @@ module Links
       def public_app_url
         Rails.application.config.x.public_app_url.presence ||
           Rails.application.config.x.short_links.public_app_url.presence
+      end
+
+      def scanner_app_url
+        Rails.application.config.x.scanner_app_url.presence || public_app_url
       end
 
       def enabled?
