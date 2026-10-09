@@ -74,15 +74,6 @@ module Ticketing
 
     test "registration submission snapshots and accepts supplied buyer consent" do
       _document, version = create_consent_document(scope: "buyer", name: "API registration terms")
-      Core::DataRetentionPolicy.create!(
-        category: "consent_evidence",
-        version: 1,
-        retention_days: 30,
-        action: "erase_payload",
-        status: "active",
-        effective_at: 1.minute.ago,
-        created_by: core_users(:super_admin)
-      )
 
       post "/ticket_types/#{@ticket_type.id}/registrations",
            params: registration_params.merge(

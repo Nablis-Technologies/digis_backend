@@ -33,12 +33,12 @@ module Messaging
         end
 
         test "rejects an import over the row limit in the asynchronous job" do
-          blob = csv_blob(rows: 10_001)
+          blob = csv_blob(rows: 3)
           result = Import.call(list: @list, blob:, actor: @actor, idempotency_key: "import-rows")
 
           assert result.success?
           import = result.value
-          ImportCampaignContactListJob.perform_now(import.id)
+          with_row_limit(2) { ImportCampaignContactListJob.perform_now(import.id) }
 
           assert_equal "failed", import.reload.status
           assert_equal "contact_list_row_limit_exceeded", import.error_detail
@@ -107,6 +107,14 @@ module Messaging
         end
 
         private
+
+        def with_row_limit(limit)
+          original = ImportCampaignContactListJob::MAX_ROWS
+          silence_warnings { ImportCampaignContactListJob.const_set(:MAX_ROWS, limit) }
+          yield
+        ensure
+          silence_warnings { ImportCampaignContactListJob.const_set(:MAX_ROWS, original) }
+        end
 
         def csv_blob(rows:)
           csv = CSV.generate do |output|
