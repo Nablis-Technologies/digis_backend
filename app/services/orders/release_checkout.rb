@@ -60,7 +60,7 @@ module Orders
       items = OrderItem.where(order_id: locked_order.id)
         .includes(:gift_purchase, registration: :user).lock.order(:id).to_a
       release_inventory!(items)
-      release_purchase_limits!(items)
+      release_purchase_limits!(locked_order, items)
       revoke_gift_purchases!(items)
       release_promotion!(locked_order)
       release_subsidies!(locked_order)
@@ -87,7 +87,7 @@ module Orders
       end
     end
 
-    def release_purchase_limits!(items)
+    def release_purchase_limits!(locked_order, items)
       registrations = items.filter_map(&:registration).uniq(&:id)
       registrations.each do |registration|
         next if items.any? { |item| item.gift_purchase && item.registration_id == registration.id }

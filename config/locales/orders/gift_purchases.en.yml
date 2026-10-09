@@ -17,6 +17,7 @@ en:
         gift_already_claimed: "This gift has already been claimed"
         gift_refund_in_progress: "This gift cannot be claimed while its refund is being processed"
         gift_claim_failed: "The gift could not be claimed"
+        gift_claim_invalid: "This gift registration cannot be completed"
         gift_delivery_failed: "The gift message could not be delivered yet"
         gift_delivery_request_failed: "The gift delivery request could not be queued"
         gift_expiry_failed: "The unused gift could not be expired"
