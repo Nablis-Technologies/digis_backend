@@ -79,6 +79,57 @@ class EventStaffAssignmentModelTest < ActiveSupport::TestCase
       assert other.valid?
     end
 
+    test "one active general role is allowed while a scanner assignment remains independent" do
+      Events::EventStaffAssignment.create!(
+        event: @event_one,
+        user: @attendee,
+        organization: @org_one,
+        role: "staff",
+        status: "active"
+      )
+      manager = Events::EventStaffAssignment.new(
+        event: @event_one,
+        user: @attendee,
+        organization: @org_one,
+        role: "manager",
+        status: "active"
+      )
+      scanner = Events::EventStaffAssignment.new(
+        event: @event_one,
+        user: @attendee,
+        organization: @org_one,
+        role: "scanner",
+        status: "active"
+      )
+
+      refute manager.valid?
+      assert manager.errors[:role].present?
+      assert_predicate scanner, :valid?
+    end
+
+    test "database rejects a concurrent active general role that bypasses validations" do
+      Events::EventStaffAssignment.create!(
+        event: @event_one,
+        user: @attendee,
+        organization: @org_one,
+        role: "staff",
+        status: "active"
+      )
+
+      assert_raises(ActiveRecord::RecordNotUnique) do
+        Events::EventStaffAssignment.insert_all!([ {
+          id: SecureRandom.uuid,
+          event_id: @event_one.id,
+          user_id: @attendee.id,
+          organization_id: @org_one.id,
+          role: "manager",
+          status: "active",
+          created_at: Time.current,
+          updated_at: Time.current
+        } ])
+      end
+    end
+
     test "active? is true only for active status" do
       assignment = Events::EventStaffAssignment.new(status: "active")
       assert assignment.active?
