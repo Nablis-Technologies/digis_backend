@@ -69,6 +69,14 @@ module Links
         "#{scanner_app_url.to_s.delete_suffix("/")}/pair#invitation_id=#{invitation.id}&token=#{ERB::Util.url_encode(token)}"
       end
 
+      def membership_invitation(invitation, token:)
+        "#{public_app_url.to_s.delete_suffix("/")}/organizations/membership-invitations/claim#token=#{ERB::Util.url_encode(token)}"
+      end
+
+      def staff_invitation(invitation, token:)
+        "#{public_app_url.to_s.delete_suffix("/")}/events/staff-invitations/claim#token=#{ERB::Util.url_encode(token)}"
+      end
+
       private
 
       def canonical_ticket_link(ticket)
