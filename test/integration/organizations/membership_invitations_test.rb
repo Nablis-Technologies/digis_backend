@@ -188,6 +188,24 @@ module Organizations
       assert_equal "invitation_contact_mismatch", response.parsed_body.fetch("code")
     end
 
+    test "preview fails closed when the encrypted invitation contact cannot be decrypted" do
+      invitation = create_invitation
+      connection = ActiveRecord::Base.connection
+      connection.execute(
+        "UPDATE organizations_membership_invitations " \
+        "SET contact_ciphertext = #{connection.quote("not-encrypted")} " \
+        "WHERE id = #{connection.quote(invitation.id)}"
+      )
+
+      post "/organizations/membership_invitations/preview",
+           params: { token: invitation.claim_token_ciphertext },
+           headers: @invitee_headers,
+           as: :json
+
+      assert_response :unauthorized
+      assert_equal "membership_invitation_claim_invalid", response.parsed_body.fetch("code")
+    end
+
     test "direct UUID membership creation is retired" do
       post "/organizations/owner/#{@organization.id}/memberships",
            params: { membership: { user_id: @invitee.id, role: "staff" } },

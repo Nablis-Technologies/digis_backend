@@ -19,6 +19,10 @@ module Organizations
       assert_not owner_invitation.valid?
       assert_includes owner_invitation.errors[:role], "is not included in the list"
 
+      missing_contact = build_invitation(contact_ciphertext: nil)
+      assert_not missing_contact.valid?
+      assert_includes missing_contact.errors[:contact_ciphertext], "can't be blank"
+
       unsupported_contact = build_invitation(contact_type: "fax")
       assert_not unsupported_contact.valid?
       assert_includes unsupported_contact.errors[:contact_type], "is not included in the list"
@@ -42,6 +46,17 @@ module Organizations
       refute_includes Organizations::MembershipInvitation.ransackable_attributes, "contact_ciphertext"
       refute_includes Organizations::MembershipInvitation.ransackable_attributes, "claim_token_ciphertext"
       refute_includes Organizations::MembershipInvitation.ransackable_attributes, "contact_digest"
+    end
+
+    test "fails validation and masks safely when persisted contact ciphertext is corrupt" do
+      invitation = build_invitation
+      assert invitation.save!, invitation.errors.full_messages.join(", ")
+      corrupt_contact_ciphertext!(invitation)
+      invitation.reload
+
+      assert_nil invitation.masked_contact
+      assert_not invitation.valid?
+      assert_includes invitation.errors.full_messages, "Contact ciphertext is invalid"
     end
 
     test "allows at most one pending invitation for an organization and contact" do
@@ -96,6 +111,15 @@ module Organizations
           claim_request_digest: nil,
           expires_at: 7.days.from_now
         }.merge(attributes)
+      )
+    end
+
+    def corrupt_contact_ciphertext!(invitation)
+      connection = ActiveRecord::Base.connection
+      connection.execute(
+        "UPDATE organizations_membership_invitations " \
+        "SET contact_ciphertext = #{connection.quote("not-encrypted")} " \
+        "WHERE id = #{connection.quote(invitation.id)}"
       )
     end
   end

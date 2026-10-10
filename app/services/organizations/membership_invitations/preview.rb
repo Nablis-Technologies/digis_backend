@@ -42,7 +42,7 @@ module Organizations
           masked_contact: invitation.masked_contact,
           expires_at: invitation.expires_at
         ))
-      rescue ArgumentError
+      rescue ArgumentError, ActiveRecord::Encryption::Errors::Decryption
         failure(invalid_claim)
       rescue ActiveRecord::RecordNotFound
         failure(invalid_claim)

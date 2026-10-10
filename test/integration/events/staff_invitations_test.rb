@@ -100,6 +100,24 @@ module Events
       assert_equal "invitation_contact_mismatch", response.parsed_body.fetch("code")
     end
 
+    test "preview fails closed when the encrypted invitation contact cannot be decrypted" do
+      invitation = create_invitation
+      connection = ActiveRecord::Base.connection
+      connection.execute(
+        "UPDATE events_staff_invitations " \
+        "SET contact_ciphertext = #{connection.quote("not-encrypted")} " \
+        "WHERE id = #{connection.quote(invitation.id)}"
+      )
+
+      post "/events/staff_invitations/preview",
+           params: { token: invitation.claim_token_ciphertext },
+           headers: @invitee_headers,
+           as: :json
+
+      assert_response :unauthorized
+      assert_equal "staff_invitation_claim_invalid", response.parsed_body.fetch("code")
+    end
+
     test "rejects missing idempotency, scanner role, email, and unauthorized creation" do
       post invitations_path,
            params: { staff_invitation: { phone: @invitee.phone, role: "staff" } },

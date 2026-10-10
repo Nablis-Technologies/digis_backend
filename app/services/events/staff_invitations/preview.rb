@@ -45,7 +45,7 @@ module Events
           expires_at: invitation.expires_at,
           assignment_expires_at: invitation.assignment_expires_at
         ))
-      rescue ArgumentError
+      rescue ArgumentError, ActiveRecord::Encryption::Errors::Decryption
         failure(invalid_claim)
       rescue ActiveRecord::RecordNotFound
         failure(invalid_claim)

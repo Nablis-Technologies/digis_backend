@@ -20,7 +20,6 @@ module Events
 
     validates :role, presence: true, inclusion: { in: ROLES }
     validates :contact_type, presence: true, inclusion: { in: CONTACT_TYPES }
-    validates :contact_ciphertext, presence: true
     validates :contact_digest, :claim_token_digest, :create_idempotency_key_digest, :create_request_digest,
               presence: true, format: { with: /\A[0-9a-f]{64}\z/ }
     validates :status, presence: true, inclusion: { in: STATUSES }
@@ -56,7 +55,7 @@ module Events
         Core::InvitationContact.parse(email: contact_ciphertext)
       end
       contact.masked_value
-    rescue ArgumentError
+    rescue ArgumentError, ActiveRecord::Encryption::Errors::Decryption
       nil
     end
 
@@ -79,13 +78,19 @@ module Events
     private
 
     def contact_matches_type
-      return if contact_ciphertext.blank? || !CONTACT_TYPES.include?(contact_type)
+      if contact_ciphertext.blank?
+        errors.add(:contact_ciphertext, :blank)
+        return
+      end
+      return unless CONTACT_TYPES.include?(contact_type)
 
       if contact_type == "phone"
         Core::InvitationContact.parse(phone: contact_ciphertext)
       else
         Core::InvitationContact.parse(email: contact_ciphertext)
       end
+    rescue ActiveRecord::Encryption::Errors::Decryption
+      errors.add(:contact_ciphertext, I18n.t("errors.messages.invalid"))
     rescue ArgumentError
       errors.add(:contact_ciphertext, :invalid)
     end
