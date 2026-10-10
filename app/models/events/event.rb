@@ -27,6 +27,8 @@ module Events
     has_many :collaborators, through: :event_organizations, source: :organization
     has_many :event_staff_assignments, class_name: "Events::EventStaffAssignment",
               dependent: :destroy, inverse_of: :event
+    has_many :staff_invitations, class_name: "Events::StaffInvitation",
+             dependent: :destroy, inverse_of: :event
     has_many :event_dates, class_name: "Events::EventDate",
              dependent: :destroy, inverse_of: :event
     has_many :finance_ledger_entries,
