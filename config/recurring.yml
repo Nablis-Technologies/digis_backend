@@ -53,12 +53,20 @@ production:
     class: Ticketing::ExpireInvitationsJob
     queue: default
     schedule: every minute
+  expire_organization_membership_invitations:
+    class: Organizations::ExpireMembershipInvitationsJob
+    queue: default
+    schedule: every minute
   expire_credential_claims:
     class: Ticketing::ExpireCredentialClaimsJob
     queue: default
     schedule: every minute
   expire_scanner_invitations:
     class: Ticketing::ExpireScannerInvitationsJob
+    queue: default
+    schedule: every minute
+  expire_staff_invitations:
+    class: Events::ExpireStaffInvitationsJob
     queue: default
     schedule: every minute
   expire_ticket_transfers:

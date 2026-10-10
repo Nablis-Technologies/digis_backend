@@ -29,3 +29,10 @@ Rails.application.config.x.outbox_handlers.register("events.cancellation_initiat
 
   result
 end
+
+Rails.application.config.x.outbox_handlers.register("events.staff_invitation.delivery_requested", priority: 100) do |outbox_event|
+  Events::DeliverStaffInvitationJob.perform_later(
+    outbox_event.payload.fetch("invitation_id"),
+    outbox_event.payload.fetch("delivery_revision")
+  )
+end
