@@ -46,6 +46,12 @@
       "type": "string"
     },
     {
+      "key": "invitationToken",
+      "value": "",
+      "type": "string",
+      "description": "Set only in a local Postman environment for a one-time invitation capability. Never commit or share a populated value."
+    },
+    {
       "key": "signupPhone",
       "value": "",
       "type": "string"
@@ -7570,98 +7576,6 @@
                   }
                 },
                 {
-                  "name": "Create Event Staff Assignment",
-                  "request": {
-                    "description": "Assign a staff member to the event.",
-                    "header": [
-                      {
-                        "key": "Content-Type",
-                        "value": "application/json",
-                        "type": "text"
-                      }
-                    ],
-                    "method": "POST",
-                    "url": {
-                      "host": [
-                        "{{baseUrl}}"
-                      ],
-                      "path": [
-                        "events",
-                        "{{eventId}}",
-                        "event_staff_assignments"
-                      ],
-                      "raw": "{{baseUrl}}/events/{{eventId}}/event_staff_assignments"
-                    },
-                    "response": [],
-                    "body": {
-                      "mode": "raw",
-                      "raw": "{\n  \"event_staff_assignment\": {\n    \"user_id\": \"{{userId}}\",\n    \"role\": \"staff\"\n  }\n}",
-                      "options": {
-                        "raw": {
-                          "language": "json"
-                        }
-                      }
-                    }
-                  }
-                },
-                {
-                  "name": "Update Event Staff Assignment",
-                  "request": {
-                    "description": "Update a staff assignment.",
-                    "header": [
-                      {
-                        "key": "Content-Type",
-                        "value": "application/json",
-                        "type": "text"
-                      }
-                    ],
-                    "method": "PATCH",
-                    "url": {
-                      "host": [
-                        "{{baseUrl}}"
-                      ],
-                      "path": [
-                        "events",
-                        "{{eventId}}",
-                        "event_staff_assignments",
-                        "{{eventStaffAssignmentId}}"
-                      ],
-                      "raw": "{{baseUrl}}/events/{{eventId}}/event_staff_assignments/{{eventStaffAssignmentId}}"
-                    },
-                    "response": [],
-                    "body": {
-                      "mode": "raw",
-                      "raw": "{\n  \"event_staff_assignment\": {\n    \"user_id\": \"{{userId}}\",\n    \"organization_id\": \"{{organizationId}}\"\n  }\n}",
-                      "options": {
-                        "raw": {
-                          "language": "json"
-                        }
-                      }
-                    }
-                  }
-                },
-                {
-                  "name": "Delete Event Staff Assignment",
-                  "request": {
-                    "description": "Revoke a staff assignment.",
-                    "header": [],
-                    "method": "DELETE",
-                    "url": {
-                      "host": [
-                        "{{baseUrl}}"
-                      ],
-                      "path": [
-                        "events",
-                        "{{eventId}}",
-                        "event_staff_assignments",
-                        "{{eventStaffAssignmentId}}"
-                      ],
-                      "raw": "{{baseUrl}}/events/{{eventId}}/event_staff_assignments/{{eventStaffAssignmentId}}"
-                    },
-                    "response": []
-                  }
-                },
-                {
                   "name": "Activate Event Staff Assignment",
                   "request": {
                     "description": "",
@@ -7783,6 +7697,154 @@
                   "type": "string"
                 }
               ]
+            },
+            {
+              "name": "Staff Invitations",
+              "item": [
+                {
+                  "name": "List Event Staff Invitations",
+                  "request": {
+                    "method": "GET",
+                    "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }],
+                    "url": {
+                      "raw": "{{baseUrl}}/events/{{eventId}}/staff_invitations?page=1&per_page=25",
+                      "host": ["{{baseUrl}}"],
+                      "path": ["events", "{{eventId}}", "staff_invitations"],
+                      "query": [{ "key": "page", "value": "1" }, { "key": "per_page", "value": "25" }]
+                    },
+                    "description": "List event-owned general staff invitations. Contacts are masked; claim capabilities and encrypted fields are never returned."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Create Event Staff Invitation",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+                      { "key": "Content-Type", "value": "application/json", "type": "text" },
+                      { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+                    ],
+                    "url": { "raw": "{{baseUrl}}/events/{{eventId}}/staff_invitations", "host": ["{{baseUrl}}"], "path": ["events", "{{eventId}}", "staff_invitations"] },
+                    "body": { "mode": "raw", "raw": "{\n  \"staff_invitation\": {\n    \"phone\": \"+251911223344\",\n    \"role\": \"staff\",\n    \"assignment_expires_at\": \"2026-10-12T18:00:00Z\"\n  }\n}", "options": { "raw": { "language": "json" } } },
+                    "description": "Creates a pending phone invitation without creating a Core user or event assignment. One active general role (manager/staff/contractor) is allowed per user/event; scanner pairing is a separate grant and may coexist. A different-role claim conflicts and requires the authorized Change Role action. The no-store response contains a one-time fragment share URL; no SMS is claimed unless a real provider is configured. Same Idempotency-Key and payload replays; changed payload conflicts."
+                  },
+                  "response": [
+                    {
+                      "name": "Pending invitation created",
+                      "status": "Created",
+                      "code": 201,
+                      "_postman_previewlanguage": "json",
+                      "header": [],
+                      "cookie": [],
+                      "body": "{\n  \"success\": true,\n  \"data\": {\n    \"invitation\": { \"id\": \"inv_01HXExample\", \"role\": \"staff\", \"masked_contact\": \"+2519***44\", \"status\": \"pending\", \"delivery_status\": \"queued\" },\n    \"claim_url\": \"https://app.example/events/staff-invitations/claim#token=<one-time-capability>\"\n  }\n}"
+                    },
+                    {
+                      "name": "Duplicate pending destination",
+                      "status": "Conflict",
+                      "code": 409,
+                      "_postman_previewlanguage": "json",
+                      "header": [],
+                      "cookie": [],
+                      "body": "{\n  \"success\": false,\n  \"code\": \"invitation_already_pending\",\n  \"error\": \"An invitation is already pending for this phone number\"\n}"
+                    },
+                    {
+                      "name": "Email channel disabled in Phase 1",
+                      "status": "Unprocessable Entity",
+                      "code": 422,
+                      "_postman_previewlanguage": "json",
+                      "header": [],
+                      "cookie": [],
+                      "body": "{\n  \"success\": false,\n  \"code\": \"invitation_channel_not_enabled\",\n  \"error\": \"Email invitations are not available yet\"\n}"
+                    }
+                  ]
+                },
+                {
+                  "name": "Resend Event Staff Invitation",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+                      { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+                    ],
+                    "url": { "raw": "{{baseUrl}}/events/{{eventId}}/staff_invitations/{{staffInvitationId}}/resend", "host": ["{{baseUrl}}"], "path": ["events", "{{eventId}}", "staff_invitations", "{{staffInvitationId}}", "resend"] },
+                    "description": "Rotates the capability and queues a new delivery revision without extending the seven-day invitation expiry. Response is no-store."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Revoke Event Staff Invitation",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+                      { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+                    ],
+                    "url": { "raw": "{{baseUrl}}/events/{{eventId}}/staff_invitations/{{staffInvitationId}}/revoke", "host": ["{{baseUrl}}"], "path": ["events", "{{eventId}}", "staff_invitations", "{{staffInvitationId}}", "revoke"] }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Preview Event Staff Invitation",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+                      { "key": "Content-Type", "value": "application/json", "type": "text" }
+                    ],
+                    "url": { "raw": "{{baseUrl}}/events/staff_invitations/preview", "host": ["{{baseUrl}}"], "path": ["events", "staff_invitations", "preview"] },
+                    "body": { "mode": "raw", "raw": "{\n  \"token\": \"{{invitationToken}}\"\n}", "options": { "raw": { "language": "json" } } },
+                    "description": "Authenticated, verified-phone-gated read used to show event, inviter, role, and expiry before the recipient explicitly accepts. No Idempotency-Key is needed; response is no-store."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Claim Event Staff Invitation",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+                      { "key": "Content-Type", "value": "application/json", "type": "text" },
+                      { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+                    ],
+                    "url": { "raw": "{{baseUrl}}/events/staff_invitations/claim", "host": ["{{baseUrl}}"], "path": ["events", "staff_invitations", "claim"] },
+                    "body": { "mode": "raw", "raw": "{\n  \"token\": \"{{invitationToken}}\"\n}", "options": { "raw": { "language": "json" } } },
+                    "description": "Accept after preview. The authenticated account's verified phone must match the invited number; this creates only the event-scoped assignment. Reusing the same key/token safely replays the accepted assignment.",
+                    "response": [
+                      {
+                        "name": "Invitation accepted",
+                        "status": "OK",
+                        "code": 200,
+                        "_postman_previewlanguage": "json",
+                        "header": [],
+                        "cookie": [],
+                        "body": "{\n  \"success\": true,\n  \"data\": {\n    \"assignment\": { \"id\": \"assignment_01HXExample\", \"event_id\": \"{{eventId}}\", \"role\": \"staff\", \"status\": \"active\" },\n    \"already_assigned\": false\n  }\n}"
+                      },
+                      {
+                        "name": "Invalid or expired invitation",
+                        "status": "Unauthorized",
+                        "code": 401,
+                        "_postman_previewlanguage": "json",
+                        "header": [],
+                        "cookie": [],
+                        "body": "{\n  \"success\": false,\n  \"code\": \"staff_invitation_claim_invalid\",\n  \"error\": \"This invitation is invalid, expired, or no longer available\"\n}"
+                      }
+                    ]
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Get Event Staff Roster",
+                  "request": {
+                    "method": "GET",
+                    "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }],
+                    "url": { "raw": "{{baseUrl}}/events/{{eventId}}/staff_roster?assignments_page=1&assignments_per_page=25&invitations_page=1&invitations_per_page=25", "host": ["{{baseUrl}}"], "path": ["events", "{{eventId}}", "staff_roster"], "query": [{ "key": "assignments_page", "value": "1" }, { "key": "assignments_per_page", "value": "25" }, { "key": "invitations_page", "value": "1" }, { "key": "invitations_per_page", "value": "25" }] },
+                    "description": "One read model with separately paginated non-scanner assignments and pending staff invitations. Scanner access remains on the scanner roster."
+                  },
+                  "response": []
+                }
+              ],
+              "variable": [{ "key": "staffInvitationId", "value": "", "type": "string" }]
             },
             {
               "name": "Event Video Links",
@@ -8265,55 +8327,6 @@
                   "event": []
                 },
                 {
-                  "name": "Create Owner Membership",
-                  "request": {
-                    "method": "POST",
-                    "header": [
-                      {
-                        "key": "Content-Type",
-                        "value": "application/json",
-                        "type": "text"
-                      }
-                    ],
-                    "url": {
-                      "raw": "{{baseUrl}}/organizations/owner/{{organizationId}}/memberships",
-                      "host": [
-                        "{{baseUrl}}"
-                      ],
-                      "path": [
-                        "organizations",
-                        "owner",
-                        "{{organizationId}}",
-                        "memberships"
-                      ]
-                    },
-                    "description": "Add a user to an organization you own",
-                    "body": {
-                      "mode": "raw",
-                      "raw": "{\n  \"membership\": {\n    \"user_id\": \"{{userId}}\",\n    \"role\": \"staff\"\n  }\n}",
-                      "options": {
-                        "raw": {
-                          "language": "json"
-                        }
-                      }
-                    }
-                  },
-                  "response": [],
-                  "event": [
-                    {
-                      "listen": "test",
-                      "script": {
-                        "exec": [
-                          "pm.test(\"Status code check\", function () {",
-                          "  pm.response.to.have.status(200);",
-                          "});"
-                        ],
-                        "type": "text/javascript"
-                      }
-                    }
-                  ]
-                },
-                {
                   "name": "Update Owner Membership",
                   "request": {
                     "method": "PATCH",
@@ -8455,6 +8468,149 @@
                   "type": "string"
                 }
               ]
+            },
+            {
+              "name": "Membership Invitations",
+              "item": [
+                {
+                  "name": "Create Owner Membership Invitation",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+                      { "key": "Content-Type", "value": "application/json", "type": "text" },
+                      { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+                    ],
+                    "url": { "raw": "{{baseUrl}}/organizations/owner/{{organizationId}}/membership_invitations", "host": ["{{baseUrl}}"], "path": ["organizations", "owner", "{{organizationId}}", "membership_invitations"] },
+                    "body": { "mode": "raw", "raw": "{\n  \"membership_invitation\": {\n    \"phone\": \"+251911223344\",\n    \"role\": \"staff\"\n  }\n}", "options": { "raw": { "language": "json" } } },
+                    "description": "Creates a pending phone invitation without creating a user or membership. The no-store response contains a one-time fragment share URL. Email is disabled in Phase 1; no SMS is claimed unless a real provider is configured. Same Idempotency-Key and payload replays; changed payload conflicts."
+                  },
+                  "response": [
+                    {
+                      "name": "Pending invitation created",
+                      "status": "Created",
+                      "code": 201,
+                      "_postman_previewlanguage": "json",
+                      "header": [{ "key": "Cache-Control", "value": "no-store, private" }],
+                      "cookie": [],
+                      "body": "{\n  \"success\": true,\n  \"data\": {\n    \"invitation\": { \"id\": \"inv_01HXExample\", \"role\": \"staff\", \"masked_contact\": \"+2519***44\", \"status\": \"pending\", \"delivery_status\": \"queued\" },\n    \"claim_url\": \"https://app.example/organizations/membership-invitations/claim#token=<one-time-capability>\"\n  }\n}"
+                    },
+                    {
+                      "name": "Duplicate pending destination",
+                      "status": "Conflict",
+                      "code": 409,
+                      "_postman_previewlanguage": "json",
+                      "header": [],
+                      "cookie": [],
+                      "body": "{\n  \"success\": false,\n  \"code\": \"invitation_already_pending\",\n  \"error\": \"An invitation is already pending for this phone number\"\n}"
+                    },
+                    {
+                      "name": "Email channel disabled in Phase 1",
+                      "status": "Unprocessable Entity",
+                      "code": 422,
+                      "_postman_previewlanguage": "json",
+                      "header": [],
+                      "cookie": [],
+                      "body": "{\n  \"success\": false,\n  \"code\": \"invitation_channel_not_enabled\",\n  \"error\": \"Email invitations are not available yet\"\n}"
+                    }
+                  ]
+                },
+                {
+                  "name": "List Owner Membership Invitations",
+                  "request": {
+                    "method": "GET",
+                    "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }],
+                    "url": { "raw": "{{baseUrl}}/organizations/owner/{{organizationId}}/membership_invitations?page=1&per_page=25", "host": ["{{baseUrl}}"], "path": ["organizations", "owner", "{{organizationId}}", "membership_invitations"], "query": [{ "key": "page", "value": "1" }, { "key": "per_page", "value": "25" }] },
+                    "description": "Lists invitation records with masked destinations only."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Resend Owner Membership Invitation",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+                      { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+                    ],
+                    "url": { "raw": "{{baseUrl}}/organizations/owner/{{organizationId}}/membership_invitations/{{membershipInvitationId}}/resend", "host": ["{{baseUrl}}"], "path": ["organizations", "owner", "{{organizationId}}", "membership_invitations", "{{membershipInvitationId}}", "resend"] },
+                    "description": "Rotates the capability and queues a new delivery revision without extending expiry. Response is no-store."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Revoke Owner Membership Invitation",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+                      { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+                    ],
+                    "url": { "raw": "{{baseUrl}}/organizations/owner/{{organizationId}}/membership_invitations/{{membershipInvitationId}}/revoke", "host": ["{{baseUrl}}"], "path": ["organizations", "owner", "{{organizationId}}", "membership_invitations", "{{membershipInvitationId}}", "revoke"] }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Preview Owner Membership Invitation",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+                      { "key": "Content-Type", "value": "application/json", "type": "text" }
+                    ],
+                    "url": { "raw": "{{baseUrl}}/organizations/membership_invitations/preview", "host": ["{{baseUrl}}"], "path": ["organizations", "membership_invitations", "preview"] },
+                    "body": { "mode": "raw", "raw": "{\n  \"token\": \"{{invitationToken}}\"\n}", "options": { "raw": { "language": "json" } } },
+                    "description": "Authenticated and verified-phone-gated read that displays organization, inviter, role, and expiry before explicit acceptance. No Idempotency-Key is needed; response is no-store."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Claim Owner Membership Invitation",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+                      { "key": "Content-Type", "value": "application/json", "type": "text" },
+                      { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+                    ],
+                    "url": { "raw": "{{baseUrl}}/organizations/membership_invitations/claim", "host": ["{{baseUrl}}"], "path": ["organizations", "membership_invitations", "claim"] },
+                    "body": { "mode": "raw", "raw": "{\n  \"token\": \"{{invitationToken}}\"\n}", "options": { "raw": { "language": "json" } } },
+                    "description": "Accept after preview. The authenticated account's verified phone must match; this creates only the organization membership. Reusing the same key/token safely replays the accepted membership.",
+                    "response": [
+                      {
+                        "name": "Invitation accepted",
+                        "status": "OK",
+                        "code": 200,
+                        "_postman_previewlanguage": "json",
+                        "header": [],
+                        "cookie": [],
+                        "body": "{\n  \"success\": true,\n  \"data\": {\n    \"membership\": { \"id\": \"membership_01HXExample\", \"role\": \"staff\", \"status\": \"active\" },\n    \"already_member\": false\n  }\n}"
+                      },
+                      {
+                        "name": "Invalid or expired invitation",
+                        "status": "Unauthorized",
+                        "code": 401,
+                        "_postman_previewlanguage": "json",
+                        "header": [],
+                        "cookie": [],
+                        "body": "{\n  \"success\": false,\n  \"code\": \"membership_invitation_claim_invalid\",\n  \"error\": \"This invitation is invalid, expired, or no longer available\"\n}"
+                      }
+                    ]
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Get Owner Team Roster",
+                  "request": {
+                    "method": "GET",
+                    "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }],
+                    "url": { "raw": "{{baseUrl}}/organizations/owner/{{organizationId}}/team_roster?memberships_page=1&memberships_per_page=25&invitations_page=1&invitations_per_page=25", "host": ["{{baseUrl}}"], "path": ["organizations", "owner", "{{organizationId}}", "team_roster"], "query": [{ "key": "memberships_page", "value": "1" }, { "key": "memberships_per_page", "value": "25" }, { "key": "invitations_page", "value": "1" }, { "key": "invitations_per_page", "value": "25" }] },
+                    "description": "One read model with independently paginated memberships and pending invitations."
+                  },
+                  "response": []
+                }
+              ],
+              "variable": [{ "key": "membershipInvitationId", "value": "", "type": "string" }]
             },
             {
               "name": "Owner Organizations",
