@@ -75,6 +75,9 @@ Rails.application.routes.draw do
   end
 
   scope module: :events do
+    post "events/staff_invitations/claim", to: "staff_invitations#claim"
+    post "events/staff_invitations/preview", to: "staff_invitations#preview"
+
     resources :categories, only: %i[index show]
     resources :venues, only: %i[index show]
     resources :artists, only: %i[index show]
@@ -85,12 +88,17 @@ Rails.application.routes.draw do
         post :revoke, on: :member
         post :activate, on: :member
       end
-      resources :event_staff_assignments, only: %i[index show create update destroy] do
+      resources :event_staff_assignments, only: %i[index show] do
         post :suspend, on: :member
         post :revoke, on: :member
         post :activate, on: :member
         post :change_role, on: :member
       end
+      resources :staff_invitations, only: %i[index create] do
+        post :resend, on: :member
+        post :revoke, on: :member
+      end
+      get :staff_roster, on: :member, to: "staff_rosters#show"
       resources :event_dates, only: %i[index show create update destroy]
       resources :event_participants, only: %i[index show create update destroy]
       resources :access_zones, only: %i[index show create update destroy]
@@ -450,15 +458,23 @@ Rails.application.routes.draw do
   end
 
   scope module: :organizations do
+    post "organizations/membership_invitations/claim", to: "owner_membership_invitations#claim"
+    post "organizations/membership_invitations/preview", to: "owner_membership_invitations#preview"
+
     resources :owner_organizations, only: %i[index show create update destroy],
               path: "organizations/owner" do
-      resources :memberships, only: %i[index show create update destroy],
+      resources :memberships, only: %i[index show update destroy],
                 controller: "owner_memberships" do
         member do
           patch :suspend
           patch :activate
         end
       end
+      resources :membership_invitations, only: %i[index create], controller: "owner_membership_invitations" do
+        post :resend, on: :member
+        post :revoke, on: :member
+      end
+      get :team_roster, on: :member, to: "owner_team_rosters#show"
       member do
         patch :documents
         get "documents/:document_type", to: "owner_organizations#download", as: :download_document

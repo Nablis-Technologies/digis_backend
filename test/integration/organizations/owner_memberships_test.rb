@@ -19,10 +19,6 @@ class OrganizationsOwnerMembershipsTest < ActionDispatch::IntegrationTest
     @org.memberships.create!(user: @target_user, role: role)
   end
 
-  def member_create_params
-    { membership: { user_id: @target_user.id, role: "staff" } }
-  end
-
   # ===== Unauthenticated =====
 
   test "index requires authentication" do
@@ -33,12 +29,6 @@ class OrganizationsOwnerMembershipsTest < ActionDispatch::IntegrationTest
   test "show requires authentication" do
     member = create_member!
     get "/organizations/owner/#{@org.id}/memberships/#{member.id}", as: :json
-    assert_response :unauthorized
-  end
-
-  test "create requires authentication" do
-    post "/organizations/owner/#{@org.id}/memberships",
-         params: member_create_params, as: :json
     assert_response :unauthorized
   end
 
@@ -65,13 +55,6 @@ class OrganizationsOwnerMembershipsTest < ActionDispatch::IntegrationTest
   test "show returns 403 for non-owner" do
     member = create_member!
     get "/organizations/owner/#{@org.id}/memberships/#{member.id}", headers: @non_owner_headers, as: :json
-    assert_response :forbidden
-  end
-
-  test "create returns 403 for non-owner" do
-    post "/organizations/owner/#{@org.id}/memberships",
-         params: member_create_params,
-         headers: @non_owner_headers, as: :json
     assert_response :forbidden
   end
 
@@ -109,17 +92,6 @@ class OrganizationsOwnerMembershipsTest < ActionDispatch::IntegrationTest
     assert data.key?("user")
   end
 
-  test "create adds a member" do
-    assert_difference("@org.memberships.count", 1) do
-      post "/organizations/owner/#{@org.id}/memberships",
-           params: member_create_params,
-           headers: @owner_headers, as: :json
-    end
-    assert_response :created
-    data = JSON.parse(response.body).dig("data")
-    assert_equal "staff", data["role"]
-  end
-
   test "update changes membership role" do
     member = create_member!
     patch "/organizations/owner/#{@org.id}/memberships/#{member.id}",
@@ -139,16 +111,6 @@ class OrganizationsOwnerMembershipsTest < ActionDispatch::IntegrationTest
   end
 
   # ===== Owner role guard =====
-
-  test "create with owner role returns 422" do
-    params = { membership: { user_id: @target_user.id, role: "owner" } }
-    post "/organizations/owner/#{@org.id}/memberships",
-         params: params,
-         headers: @owner_headers, as: :json
-    assert_response :unprocessable_entity
-    body = JSON.parse(response.body)
-    assert body.key?("error")
-  end
 
   test "update to owner role returns 422" do
     member = create_member!
@@ -183,17 +145,6 @@ class OrganizationsOwnerMembershipsTest < ActionDispatch::IntegrationTest
   end
 
   # ===== Auditing =====
-
-  test "create logs an audit" do
-    perform_enqueued_jobs do
-      post "/organizations/owner/#{@org.id}/memberships",
-           params: member_create_params,
-           headers: @owner_headers, as: :json
-    end
-    assert_response :created
-    membership = Organizations::Membership.find(JSON.parse(response.body).dig("data", "id"))
-    assert_audit_logged(action: "create", auditable: membership, actor: @owner)
-  end
 
   test "update logs an audit" do
     member = create_member!

@@ -12,21 +12,8 @@ module Events
     self.parent_association = :event_staff_assignments
     self.default_serializer = Events::EventStaffAssignmentSerializer
 
-    before_action :set_assignment, only: %i[show update destroy suspend revoke activate change_role]
+    before_action :set_assignment, only: %i[show suspend revoke activate change_role]
     before_action :ensure_idempotency_key_present, only: :revoke
-
-    def create
-      @parent = Events::Event.find(params[:event_id])
-      result = Events::StaffAssignments::Assign.call(
-        event: @parent, actor: current_user,
-        user: Core::User.find(staff_params[:user_id]),
-        organization: @parent.organization,
-        role: staff_params[:role]
-      )
-      render_service_result(result,
-        serializer_options: { serializer: Events::EventStaffAssignmentSerializer },
-        success_status: :created)
-    end
 
     def suspend
       result = Events::StaffAssignments::Suspend.call(assignment: @assignment, actor: current_user)
@@ -54,14 +41,6 @@ module Events
 
     def set_assignment
       @assignment = Events::Event.find(params[:event_id]).event_staff_assignments.find(params[:id])
-    end
-
-    def staff_params
-      params.require(:event_staff_assignment).permit(:user_id, :role)
-    end
-
-    def model_params
-      params.require(:event_staff_assignment).permit(:user_id, :organization_id)
     end
 
     def eager_load_config

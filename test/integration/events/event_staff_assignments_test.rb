@@ -35,39 +35,6 @@ module Events
       refute payload.key?("password_digest")
     end
 
-    test "owner can assign staff" do
-      assert_difference -> { Events::EventStaffAssignment.count }, 1 do
-        post "/events/#{@event.id}/event_staff_assignments",
-             params: { event_staff_assignment: { user_id: @attendee.id, role: "staff" } },
-             headers: owner_headers,
-             as: :json
-      end
-      assert_response :created
-      assignment = Events::EventStaffAssignment.find(JSON.parse(response.body).dig("data", "id"))
-      assert_equal @event.id, assignment.event_id
-      assert_equal @attendee.id, assignment.user_id
-      assert_equal "staff", assignment.role
-    end
-
-    test "owner assign staff response includes a success message" do
-      post "/events/#{@event.id}/event_staff_assignments",
-           params: { event_staff_assignment: { user_id: @attendee.id, role: "staff" } },
-           headers: owner_headers,
-           as: :json
-      assert_response :created
-      body = JSON.parse(response.body)
-      assert_equal true, body["success"]
-      assert_equal I18n.t("event_staff_assignment.success.create"), body["message"]
-    end
-
-    test "outsider cannot assign staff" do
-      post "/events/#{@event.id}/event_staff_assignments",
-           params: { event_staff_assignment: { user_id: @attendee.id, role: "staff" } },
-           headers: user_headers,
-           as: :json
-      assert_response :forbidden
-    end
-
     test "owner can suspend a staff assignment" do
       assignment = Events::EventStaffAssignment.create!(
         event: @event, user: @attendee, organization: @event.organization, role: "staff", status: "active"
@@ -162,17 +129,36 @@ module Events
       refute Events::AuthorizationResolver.access_granted?(org_three_owner, @event)
     end
 
-    test "update cannot change status or type through the request body" do
+    test "generic assignment update is unavailable so user UUIDs cannot bypass invitation claim" do
       assignment = Events::EventStaffAssignment.create!(
         event: @event, user: @attendee, organization: @event.organization, role: "staff", status: "active"
       )
       patch "/events/#{@event.id}/event_staff_assignments/#{assignment.id}",
-            params: { event_staff_assignment: { role: "scanner", status: "revoked" } },
+            params: {
+              event_staff_assignment: {
+                user_id: core_users(:support).id,
+                organization_id: organizations_organizations(:three).id
+              }
+            },
             headers: owner_headers, as: :json
-      assert_response :ok
+      assert_response :not_found
       assignment.reload
-      assert_equal "staff", assignment.role
+      assert_equal @attendee.id, assignment.user_id
+      assert_equal @event.organization_id, assignment.organization_id
       assert_equal "active", assignment.status
+    end
+
+    test "physical assignment deletion is unavailable in favor of audited revoke" do
+      assignment = Events::EventStaffAssignment.create!(
+        event: @event, user: @attendee, organization: @event.organization, role: "scanner", status: "active"
+      )
+
+      delete "/events/#{@event.id}/event_staff_assignments/#{assignment.id}",
+             headers: owner_headers,
+             as: :json
+
+      assert_response :not_found
+      assert_equal "active", assignment.reload.status
     end
   end
 end

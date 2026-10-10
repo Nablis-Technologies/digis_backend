@@ -4,9 +4,6 @@ module Events
   class EventStaffAssignmentPolicy < Core::ApplicationPolicy
     def index? = Events::AuthorizationResolver.access_granted?(user, record.event)
     def show?  = Events::AuthorizationResolver.access_granted?(user, record.event)
-    def create? = Events::AuthorizationResolver.can_assign?(user, record.event, record.role)
-    def update? = Events::AuthorizationResolver.can_assign?(user, record.event, record.role)
-    def destroy? = Events::AuthorizationResolver.can_assign?(user, record.event, record.role)
 
     VISIBILITY = {
       index: { default: { fields: :all, include: :all }, admin: { fields: :all, include: :all } },
