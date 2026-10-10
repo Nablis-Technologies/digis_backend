@@ -5165,6 +5165,47 @@ CREATE TABLE public.events_recurrence_rules (
 
 
 --
+-- Name: events_staff_invitations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.events_staff_invitations (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    event_id uuid NOT NULL,
+    invited_by_id uuid NOT NULL,
+    accepted_user_id uuid,
+    role character varying NOT NULL,
+    contact_type character varying NOT NULL,
+    contact_ciphertext text NOT NULL,
+    contact_digest character varying(64) NOT NULL,
+    status character varying DEFAULT 'pending'::character varying NOT NULL,
+    claim_token_ciphertext text,
+    claim_token_digest character varying(64) NOT NULL,
+    delivery_status character varying DEFAULT 'queued'::character varying NOT NULL,
+    delivery_revision integer DEFAULT 1 NOT NULL,
+    delivery_attempts integer DEFAULT 0 NOT NULL,
+    last_delivery_at timestamp with time zone,
+    expires_at timestamp with time zone NOT NULL,
+    assignment_expires_at timestamp with time zone,
+    accepted_at timestamp with time zone,
+    revoked_at timestamp with time zone,
+    expired_at timestamp with time zone,
+    create_idempotency_key_digest character varying(64) NOT NULL,
+    create_request_digest character varying(64) NOT NULL,
+    claim_idempotency_key_digest character varying(64),
+    claim_request_digest character varying(64),
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT events_staff_invitations_contact_type_check CHECK (((contact_type)::text = ANY (ARRAY[('phone'::character varying)::text, ('email'::character varying)::text]))),
+    CONSTRAINT events_staff_invitations_delivery_status_check CHECK (((delivery_status)::text = ANY (ARRAY[('queued'::character varying)::text, ('accepted'::character varying)::text, ('delivered'::character varying)::text, ('failed'::character varying)::text, ('unknown'::character varying)::text]))),
+    CONSTRAINT events_staff_invitations_digest_check CHECK ((((contact_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((claim_token_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((create_idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((create_request_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((claim_idempotency_key_digest IS NULL) OR ((claim_idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text)) AND ((claim_request_digest IS NULL) OR ((claim_request_digest)::text ~ '^[0-9a-f]{64}$'::text)))),
+    CONSTRAINT events_staff_invitations_lifecycle_check CHECK (((delivery_revision > 0) AND (delivery_attempts >= 0) AND (expires_at > created_at) AND ((assignment_expires_at IS NULL) OR (assignment_expires_at > created_at)))),
+    CONSTRAINT events_staff_invitations_role_check CHECK (((role)::text = ANY (ARRAY[('manager'::character varying)::text, ('staff'::character varying)::text, ('contractor'::character varying)::text]))),
+    CONSTRAINT events_staff_invitations_state_check CHECK (((((status)::text = 'pending'::text) AND (claim_token_ciphertext IS NOT NULL) AND (accepted_user_id IS NULL) AND (accepted_at IS NULL) AND (revoked_at IS NULL) AND (expired_at IS NULL) AND (claim_idempotency_key_digest IS NULL) AND (claim_request_digest IS NULL)) OR (((status)::text = 'accepted'::text) AND (claim_token_ciphertext IS NULL) AND (accepted_user_id IS NOT NULL) AND (accepted_at IS NOT NULL) AND (revoked_at IS NULL) AND (expired_at IS NULL) AND (claim_idempotency_key_digest IS NOT NULL) AND (claim_request_digest IS NOT NULL)) OR (((status)::text = 'revoked'::text) AND (claim_token_ciphertext IS NULL) AND (accepted_user_id IS NULL) AND (accepted_at IS NULL) AND (revoked_at IS NOT NULL) AND (expired_at IS NULL)) OR (((status)::text = 'expired'::text) AND (claim_token_ciphertext IS NULL) AND (accepted_user_id IS NULL) AND (accepted_at IS NULL) AND (revoked_at IS NULL) AND (expired_at IS NOT NULL)))),
+    CONSTRAINT events_staff_invitations_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('accepted'::character varying)::text, ('revoked'::character varying)::text, ('expired'::character varying)::text])))
+);
+
+
+--
 -- Name: events_venues; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6572,6 +6613,46 @@ CREATE TABLE public.orders_refunds (
     CONSTRAINT pending_funds_has_reason CHECK ((((status)::text <> 'pending_funds'::text) OR (pending_reason IS NOT NULL))),
     CONSTRAINT refund_amount_positive CHECK ((amount_minor > 0)),
     CONSTRAINT refund_currency_iso CHECK (((currency)::text ~ '^[A-Z]{3}$'::text))
+);
+
+
+--
+-- Name: organizations_membership_invitations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.organizations_membership_invitations (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    invited_by_id uuid NOT NULL,
+    accepted_user_id uuid,
+    role character varying NOT NULL,
+    contact_type character varying NOT NULL,
+    contact_ciphertext text CONSTRAINT organizations_membership_invitation_contact_ciphertext_not_null NOT NULL,
+    contact_digest character varying(64) NOT NULL,
+    status character varying DEFAULT 'pending'::character varying NOT NULL,
+    claim_token_ciphertext text,
+    claim_token_digest character varying(64) CONSTRAINT organizations_membership_invitation_claim_token_digest_not_null NOT NULL,
+    delivery_status character varying DEFAULT 'queued'::character varying NOT NULL,
+    delivery_revision integer DEFAULT 1 NOT NULL,
+    delivery_attempts integer DEFAULT 0 NOT NULL,
+    last_delivery_at timestamp with time zone,
+    expires_at timestamp with time zone NOT NULL,
+    accepted_at timestamp with time zone,
+    revoked_at timestamp with time zone,
+    expired_at timestamp with time zone,
+    create_idempotency_key_digest character varying(64) CONSTRAINT organizations_membership_in_create_idempotency_key_dig_not_null NOT NULL,
+    create_request_digest character varying(64) CONSTRAINT organizations_membership_invitat_create_request_digest_not_null NOT NULL,
+    claim_idempotency_key_digest character varying(64),
+    claim_request_digest character varying(64),
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT org_membership_invitations_contact_type_check CHECK (((contact_type)::text = ANY (ARRAY[('phone'::character varying)::text, ('email'::character varying)::text]))),
+    CONSTRAINT org_membership_invitations_delivery_status_check CHECK (((delivery_status)::text = ANY (ARRAY[('queued'::character varying)::text, ('accepted'::character varying)::text, ('delivered'::character varying)::text, ('failed'::character varying)::text, ('unknown'::character varying)::text]))),
+    CONSTRAINT org_membership_invitations_digest_check CHECK ((((contact_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((claim_token_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((create_idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((create_request_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((claim_idempotency_key_digest IS NULL) OR ((claim_idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text)) AND ((claim_request_digest IS NULL) OR ((claim_request_digest)::text ~ '^[0-9a-f]{64}$'::text)))),
+    CONSTRAINT org_membership_invitations_lifecycle_check CHECK (((delivery_revision > 0) AND (delivery_attempts >= 0) AND (expires_at > created_at))),
+    CONSTRAINT org_membership_invitations_role_check CHECK (((role)::text = ANY (ARRAY[('admin'::character varying)::text, ('staff'::character varying)::text]))),
+    CONSTRAINT org_membership_invitations_state_check CHECK (((((status)::text = 'pending'::text) AND (claim_token_ciphertext IS NOT NULL) AND (accepted_user_id IS NULL) AND (accepted_at IS NULL) AND (revoked_at IS NULL) AND (expired_at IS NULL) AND (claim_idempotency_key_digest IS NULL) AND (claim_request_digest IS NULL)) OR (((status)::text = 'accepted'::text) AND (claim_token_ciphertext IS NULL) AND (accepted_user_id IS NOT NULL) AND (accepted_at IS NOT NULL) AND (revoked_at IS NULL) AND (expired_at IS NULL) AND (claim_idempotency_key_digest IS NOT NULL) AND (claim_request_digest IS NOT NULL)) OR (((status)::text = 'revoked'::text) AND (claim_token_ciphertext IS NULL) AND (accepted_user_id IS NULL) AND (accepted_at IS NULL) AND (revoked_at IS NOT NULL) AND (expired_at IS NULL)) OR (((status)::text = 'expired'::text) AND (claim_token_ciphertext IS NULL) AND (accepted_user_id IS NULL) AND (accepted_at IS NULL) AND (revoked_at IS NULL) AND (expired_at IS NOT NULL)))),
+    CONSTRAINT org_membership_invitations_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('accepted'::character varying)::text, ('revoked'::character varying)::text, ('expired'::character varying)::text])))
 );
 
 
@@ -8168,6 +8249,14 @@ ALTER TABLE ONLY public.events_recurrence_rules
 
 
 --
+-- Name: events_staff_invitations events_staff_invitations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.events_staff_invitations
+    ADD CONSTRAINT events_staff_invitations_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: events_venues events_venues_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8573,6 +8662,14 @@ ALTER TABLE ONLY public.orders_refund_items
 
 ALTER TABLE ONLY public.orders_refunds
     ADD CONSTRAINT orders_refunds_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: organizations_membership_invitations organizations_membership_invitations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organizations_membership_invitations
+    ADD CONSTRAINT organizations_membership_invitations_pkey PRIMARY KEY (id);
 
 
 --
@@ -9155,10 +9252,31 @@ CREATE UNIQUE INDEX idx_event_payer_selections_on_event_component ON public.comm
 
 
 --
+-- Name: idx_event_staff_one_active_general_role; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_event_staff_one_active_general_role ON public.events_event_staff_assignments USING btree (event_id, user_id) WHERE (((status)::text = 'active'::text) AND ((role)::text = ANY ((ARRAY['manager'::character varying, 'staff'::character varying, 'contractor'::character varying])::text[])));
+
+
+--
 -- Name: idx_events_events_lower_slug; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX idx_events_events_lower_slug ON public.events_events USING btree (lower((slug)::text));
+
+
+--
+-- Name: idx_events_staff_invitations_create_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_events_staff_invitations_create_key ON public.events_staff_invitations USING btree (event_id, invited_by_id, create_idempotency_key_digest);
+
+
+--
+-- Name: idx_events_staff_invitations_pending_contact; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_events_staff_invitations_pending_contact ON public.events_staff_invitations USING btree (event_id, contact_digest) WHERE ((status)::text = 'pending'::text);
 
 
 --
@@ -9785,6 +9903,13 @@ CREATE INDEX idx_on_checkin_log_id_admission_slot_id_ff8a25c365 ON public.ticket
 
 
 --
+-- Name: idx_on_claim_token_digest_ddcc231aef; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_on_claim_token_digest_ddcc231aef ON public.organizations_membership_invitations USING btree (claim_token_digest);
+
+
+--
 -- Name: idx_on_component_type_product_type_sale_context_76dde5288d; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9855,6 +9980,13 @@ CREATE INDEX idx_on_event_id_status_29a4ce38db ON public.ticketing_scanner_devic
 
 
 --
+-- Name: idx_on_event_id_status_created_at_8c2723ea81; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_event_id_status_created_at_8c2723ea81 ON public.events_staff_invitations USING btree (event_id, status, created_at);
+
+
+--
 -- Name: idx_on_event_id_status_created_at_96db20f4f7; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9915,6 +10047,13 @@ CREATE INDEX idx_on_organization_id_status_123cd634e8 ON public.ticketing_scanne
 --
 
 CREATE INDEX idx_on_organization_id_status_ab96da78ad ON public.commercial_program_entitlements USING btree (organization_id, status);
+
+
+--
+-- Name: idx_on_organization_id_status_created_at_9a3b4e83b4; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_on_organization_id_status_created_at_9a3b4e83b4 ON public.organizations_membership_invitations USING btree (organization_id, status, created_at);
 
 
 --
@@ -10356,6 +10495,20 @@ CREATE UNIQUE INDEX idx_orders_on_idempotency_digest ON public.orders_orders USI
 --
 
 CREATE UNIQUE INDEX idx_orders_on_replacement ON public.orders_orders USING btree (replaces_order_id) WHERE (replaces_order_id IS NOT NULL);
+
+
+--
+-- Name: idx_org_membership_invitations_create_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_org_membership_invitations_create_key ON public.organizations_membership_invitations USING btree (organization_id, invited_by_id, create_idempotency_key_digest);
+
+
+--
+-- Name: idx_org_membership_invitations_pending_contact; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_org_membership_invitations_pending_contact ON public.organizations_membership_invitations USING btree (organization_id, contact_digest) WHERE ((status)::text = 'pending'::text);
 
 
 --
@@ -11710,6 +11863,27 @@ CREATE UNIQUE INDEX index_events_recurrence_rules_on_event_id ON public.events_r
 
 
 --
+-- Name: index_events_staff_invitations_on_accepted_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_events_staff_invitations_on_accepted_user_id ON public.events_staff_invitations USING btree (accepted_user_id);
+
+
+--
+-- Name: index_events_staff_invitations_on_claim_token_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_events_staff_invitations_on_claim_token_digest ON public.events_staff_invitations USING btree (claim_token_digest);
+
+
+--
+-- Name: index_events_staff_invitations_on_expires_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_events_staff_invitations_on_expires_at ON public.events_staff_invitations USING btree (expires_at) WHERE ((status)::text = 'pending'::text);
+
+
+--
 -- Name: index_events_venues_on_active; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -11910,6 +12084,20 @@ CREATE INDEX index_orders_refunds_on_payment_id ON public.orders_refunds USING b
 --
 
 CREATE INDEX index_orders_refunds_on_status_and_next_retry_at ON public.orders_refunds USING btree (status, next_retry_at);
+
+
+--
+-- Name: index_organizations_membership_invitations_on_accepted_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_organizations_membership_invitations_on_accepted_user_id ON public.organizations_membership_invitations USING btree (accepted_user_id);
+
+
+--
+-- Name: index_organizations_membership_invitations_on_expires_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_organizations_membership_invitations_on_expires_at ON public.organizations_membership_invitations USING btree (expires_at) WHERE ((status)::text = 'pending'::text);
 
 
 --
@@ -13210,6 +13398,14 @@ ALTER TABLE ONLY public.commercial_assignments
 
 
 --
+-- Name: events_staff_invitations fk_rails_1465ce697c; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.events_staff_invitations
+    ADD CONSTRAINT fk_rails_1465ce697c FOREIGN KEY (accepted_user_id) REFERENCES public.core_users(id);
+
+
+--
 -- Name: ticketing_scanner_device_idempotencies fk_rails_14ababaeee; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13594,6 +13790,14 @@ ALTER TABLE ONLY public.finance_ledger_entries
 
 
 --
+-- Name: events_staff_invitations fk_rails_313fc39872; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.events_staff_invitations
+    ADD CONSTRAINT fk_rails_313fc39872 FOREIGN KEY (invited_by_id) REFERENCES public.core_users(id);
+
+
+--
 -- Name: ticketing_registrations fk_rails_31b1d71371; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13783,6 +13987,14 @@ ALTER TABLE ONLY public.ticketing_purchase_limit_overrides
 
 ALTER TABLE ONLY public.ticketing_registration_consent_requirements
     ADD CONSTRAINT fk_rails_43273f1434 FOREIGN KEY (subject_user_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: organizations_membership_invitations fk_rails_45a1c42989; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organizations_membership_invitations
+    ADD CONSTRAINT fk_rails_45a1c42989 FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id);
 
 
 --
@@ -14962,6 +15174,14 @@ ALTER TABLE ONLY public.ticketing_ticket_transfers
 
 
 --
+-- Name: organizations_membership_invitations fk_rails_b92f3e5619; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organizations_membership_invitations
+    ADD CONSTRAINT fk_rails_b92f3e5619 FOREIGN KEY (accepted_user_id) REFERENCES public.core_users(id);
+
+
+--
 -- Name: finance_payout_allocations fk_rails_b963fb8d84; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14983,6 +15203,14 @@ ALTER TABLE ONLY public.events_event_video_links
 
 ALTER TABLE ONLY public.orders_refund_items
     ADD CONSTRAINT fk_rails_ba2e281656 FOREIGN KEY (event_date_id) REFERENCES public.events_event_dates(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: organizations_membership_invitations fk_rails_ba2f1b8fd9; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organizations_membership_invitations
+    ADD CONSTRAINT fk_rails_ba2f1b8fd9 FOREIGN KEY (invited_by_id) REFERENCES public.core_users(id);
 
 
 --
@@ -15039,6 +15267,14 @@ ALTER TABLE ONLY public.messaging_credit_top_ups
 
 ALTER TABLE ONLY public.commercial_simulations
     ADD CONSTRAINT fk_rails_be1844990e FOREIGN KEY (run_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: events_staff_invitations fk_rails_bfb6b3df42; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.events_staff_invitations
+    ADD CONSTRAINT fk_rails_bfb6b3df42 FOREIGN KEY (event_id) REFERENCES public.events_events(id);
 
 
 --
@@ -15888,6 +16124,8 @@ ALTER TABLE ONLY public.ticketing_ticket_suspensions
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261009090001'),
+('20261009090000'),
 ('20261007090001'),
 ('20261007090000'),
 ('20261005090000'),

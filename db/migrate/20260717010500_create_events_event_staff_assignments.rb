@@ -14,6 +14,9 @@ class CreateEventsEventStaffAssignments < ActiveRecord::Migration[8.1]
       t.timestamps
 
       t.index [ :event_id, :user_id, :role ], unique: true
+      t.index [ :event_id, :user_id ], unique: true,
+              where: "status = 'active' AND role IN ('manager', 'staff', 'contractor')",
+              name: "idx_event_staff_one_active_general_role"
       t.index :user_id
       t.index :organization_id
     end
