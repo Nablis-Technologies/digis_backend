@@ -1,6 +1,8 @@
 require "test_helper"
 
 class CoreAuthTest < ActionDispatch::IntegrationTest
+  include Core::CurrentUserProjectionTestHelpers
+
   test "signup rejects a phone without verified ownership proof" do
     phone = "+251911123456"
 
@@ -52,7 +54,7 @@ class CoreAuthTest < ActionDispatch::IntegrationTest
       assert_equal 1, deliveries.length
       assert_equal 1, Core::User.where(phone:).count
 
-      challenge = Core::PhoneVerificationChallenge.find(data.fetch("challenge_id"))
+      challenge = Core::PhoneVerificationChallenge.includes(:user).find(data.fetch("challenge_id"))
       assert_equal "account_signup", challenge.purpose
       assert_nil challenge.user.password_digest
       assert_nil challenge.user.verified_at
@@ -240,7 +242,13 @@ class CoreAuthTest < ActionDispatch::IntegrationTest
 
       post "/auth/signup",
            params: {
-             user: { phone:, password: "password123", password_confirmation: "password123" },
+             user: {
+               phone:,
+               first_name: "Aster",
+               last_name: "Bekele",
+               password: "password123",
+               password_confirmation: "password123"
+             },
              verification_token: token
            },
            headers: { "Idempotency-Key" => "signup-single-password-check-complete" },
@@ -255,6 +263,8 @@ class CoreAuthTest < ActionDispatch::IntegrationTest
     phone = "+251911123477"
     signup_attributes = {
       phone:,
+      first_name: "Aster",
+      last_name: "Bekele",
       password: "original-password",
       password_confirmation: "original-password"
     }
@@ -299,6 +309,8 @@ class CoreAuthTest < ActionDispatch::IntegrationTest
                user: {
                  phone:,
                  email: "signup-shadow@example.com",
+                 first_name: "Aster",
+                 last_name: "Bekele",
                  password: "password123",
                  password_confirmation: "password123"
                },
@@ -324,6 +336,8 @@ class CoreAuthTest < ActionDispatch::IntegrationTest
              user: {
                phone:,
                email: "signup-shadow@example.com",
+                 first_name: "Aster",
+                 last_name: "Bekele",
                password: "password123",
                password_confirmation: "password123"
              },
@@ -341,16 +355,18 @@ class CoreAuthTest < ActionDispatch::IntegrationTest
         action: "core.user.signup_completed", auditable_id: upgraded.id
       ).count
 
-      get "/auth/me", headers: { "Authorization" => "Bearer #{replayed_access_token}" }, as: :json
+      get "/user", headers: { "Authorization" => "Bearer #{replayed_access_token}" }, as: :json
 
       assert_response :success
-      assert_equal upgraded.id, response.parsed_body.dig("data", "user", "id")
+      assert_equal upgraded.id, response.parsed_body.dig("data", "id")
 
       post "/auth/signup",
            params: {
              user: {
                phone:,
                email: "different@example.com",
+                 first_name: "Aster",
+                 last_name: "Bekele",
                password: "different123",
                password_confirmation: "different123"
              },
@@ -365,10 +381,116 @@ class CoreAuthTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "signup persists profile names and replays without creating another profile" do
+    phone = "+251911123476"
+    key = "signup-profile-names"
+
+    with_phone_verification_sender do |deliveries|
+      verification_token = request_signup_verification(phone:, key:, deliveries:)
+      signup_params = {
+        user: {
+          phone:,
+          first_name: "አስቴር",
+          last_name: "በቀለ",
+          password: "password123",
+          password_confirmation: "password123"
+        },
+        verification_token: verification_token
+      }
+
+      assert_difference("Core::UserProfile.count", 1) do
+        with_strict_current_user_projection do
+          post "/auth/signup",
+               params: signup_params,
+               headers: { "Idempotency-Key" => key },
+               as: :json
+        end
+      end
+
+      assert_response :created
+      assert_equal(
+        {
+          "first_name" => "አስቴር",
+          "last_name" => "በቀለ",
+          "full_name" => "አስቴር በቀለ",
+          "avatar_url" => nil
+        },
+        response.parsed_body.dig("data", "user", "profile")
+      )
+      user_id = response.parsed_body.dig("data", "user", "id")
+      profile = Core::UserProfile.find_by(user_id: user_id)
+      assert_not_nil profile
+      assert_equal "አስቴር", profile.first_name
+      assert_equal "በቀለ", profile.last_name
+
+      assert_no_difference("Core::UserProfile.count") do
+        with_strict_current_user_projection do
+          post "/auth/signup",
+               params: signup_params,
+               headers: { "Idempotency-Key" => key },
+               as: :json
+        end
+      end
+
+      assert_response :created
+      assert_equal profile.id, Core::UserProfile.find_by(user_id: user_id).id
+
+      changed_params = signup_params.deep_dup
+      changed_params[:user][:first_name] = "Selam"
+      with_strict_current_user_projection do
+        post "/auth/signup",
+             params: changed_params,
+             headers: { "Idempotency-Key" => key },
+             as: :json
+      end
+
+      assert_response :conflict
+      assert_equal "idempotency_conflict", response.parsed_body.fetch("code")
+      assert_equal "አስቴር", profile.reload.first_name
+      audit = Core::AuditLog.find_by!(action: "core.user.signup_completed", auditable_id: user_id)
+      refute_includes audit.audited_changes.to_json, "አስቴር"
+      refute_includes audit.audited_changes.to_json, "በቀለ"
+      refute_includes audit.metadata.to_json, "አስቴር"
+      refute_includes audit.metadata.to_json, "በቀለ"
+    end
+  end
+
+  test "signup rejects missing profile names without upgrading the shadow user" do
+    phone = "+251911123478"
+
+    with_phone_verification_sender do |deliveries|
+      token = request_signup_verification(phone:, key: "signup-profile-required", deliveries:)
+      post "/auth/signup",
+           params: {
+             user: {
+               phone:,
+               password: "password123",
+               password_confirmation: "password123"
+             },
+             verification_token: token
+           },
+           headers: { "Idempotency-Key" => "signup-profile-required-complete" },
+           as: :json
+
+      assert_response :unprocessable_entity
+      assert_equal "signup_failed", response.parsed_body.fetch("code")
+      errors = response.parsed_body.fetch("errors")
+      assert_includes errors.keys, "first_name"
+      assert_includes errors.keys, "last_name"
+      shadow = Core::User.find_by!(phone:)
+      assert_nil shadow.password_digest
+      assert_nil shadow.verified_at
+      assert_not Core::UserProfile.exists?(user_id: shadow.id)
+      assert_empty Core::AuditLog.where(action: "core.user.signup_completed", auditable_id: shadow.id)
+    end
+  end
+
   test "signup replay cannot authenticate with a password changed after signup" do
     phone = "+251911123474"
     signup_attributes = {
       phone:,
+      first_name: "Aster",
+      last_name: "Bekele",
       password: "original-password",
       password_confirmation: "original-password"
     }
@@ -524,13 +646,17 @@ class CoreAuthTest < ActionDispatch::IntegrationTest
   end
 
   test "login with phone returns access and refresh tokens" do
-    post "/auth/login",
-         params: {
-           identifier: core_users(:attendee).phone,
-           password: "password123",
-           device_id: "web-browser"
-         },
-         as: :json
+    Core::UserProfile.create!(user: core_users(:attendee), first_name: "Aster", last_name: "Bekele")
+
+    with_strict_current_user_projection do
+      post "/auth/login",
+           params: {
+             identifier: core_users(:attendee).phone,
+             password: "password123",
+             device_id: "web-browser"
+           },
+           as: :json
+    end
 
     assert_response :success
 
@@ -541,30 +667,21 @@ class CoreAuthTest < ActionDispatch::IntegrationTest
     assert_equal core_users(:attendee).id, payload.dig("data", "user", "id")
     assert_kind_of Array, payload.dig("data", "user", "permissions")
     assert_kind_of Array, payload.dig("data", "user", "roles")
-  end
-
-  test "me returns the authenticated user" do
-    user = core_users(:attendee)
-    jti = core_refresh_tokens(:attendee_web_token).jti
-    token = Core::TokenService.issue(Core::TokenService.access_token_payload(user, jti: jti))
-
-    get "/auth/me", headers: { "Authorization" => "Bearer #{token}" }, as: :json
-
-    assert_response :success
-
-    payload = JSON.parse(response.body)
-    assert_equal user.id, payload.dig("data", "user", "id")
+    assert_equal "Aster Bekele", payload.dig("data", "user", "profile", "full_name")
   end
 
   test "refresh returns a new access token when the refresh token is valid" do
     old_refresh_token = "attendee-refresh-token-secure-value"
+    Core::UserProfile.create!(user: core_users(:attendee), first_name: "Aster", last_name: "Bekele")
 
-    post "/auth/refresh",
-         params: {
-           refresh_token: old_refresh_token,
-           device_id: "web-browser"
-         },
-         as: :json
+    with_strict_current_user_projection do
+      post "/auth/refresh",
+           params: {
+             refresh_token: old_refresh_token,
+             device_id: "web-browser"
+           },
+           as: :json
+    end
 
     assert_response :success
 
@@ -572,6 +689,7 @@ class CoreAuthTest < ActionDispatch::IntegrationTest
     assert payload.dig("data", "access_token").present?, "Should return new access token"
     assert payload.dig("data", "refresh_token").present?, "Should return new refresh token"
     assert_not_equal old_refresh_token, payload.dig("data", "refresh_token"), "Should be a different token"
+    assert_equal "Aster Bekele", payload.dig("data", "user", "profile", "full_name")
 
     # Verify old token is revoked
     old_record = Core::RefreshToken.find_by(token_fingerprint: Digest::SHA256.hexdigest(old_refresh_token))
@@ -679,7 +797,7 @@ class CoreAuthTest < ActionDispatch::IntegrationTest
     assert revoked_record.revoked?, "Token should be revoked"
 
     # Verify the access token is now invalid (JTI revoked)
-    get "/auth/me", headers: { "Authorization" => "Bearer #{token}" }, as: :json
+    get "/user", headers: { "Authorization" => "Bearer #{token}" }, as: :json
     assert_response :unauthorized, "Access token should be invalid after logout"
   end
 

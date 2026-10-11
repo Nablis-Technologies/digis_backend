@@ -123,6 +123,11 @@ module Core
           user.assign_attributes(signup_attributes(phone))
           user.verified_at = Time.current
           user.save!
+          Core::UserProfile.create!(
+            user: user,
+            first_name: @attributes[:first_name],
+            last_name: @attributes[:last_name]
+          )
           assign_default_role!(user)
           record_signup!(user, audit_key:, request_digest:)
           outcome = success(Upgrade.new(user:, replayed: false))
@@ -206,6 +211,8 @@ module Core
         request = [
           Core::PhoneIdentity::ResolveOrCreate.digest_for(phone),
           @attributes[:email].to_s.strip.downcase,
+          Core::UserProfile.normalize_name(@attributes[:first_name]).to_s,
+          Core::UserProfile.normalize_name(@attributes[:last_name]).to_s,
           @attributes[:password].to_s,
           @attributes[:password_confirmation].to_s,
           proof_digest,

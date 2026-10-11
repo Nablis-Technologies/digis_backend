@@ -1,5 +1,7 @@
 module Core
   class AuthController < Core::ApplicationController
+    include Core::CurrentUserPreloading
+
     skip_before_action :authenticate_user, only: %i[login signup signup_request_otp refresh]
     skip_before_action :authorize_action!, only: %i[login signup signup_request_otp refresh]
     before_action :throttle_auth_request, only: %i[login signup signup_request_otp refresh]
@@ -15,7 +17,7 @@ module Core
       user = auth_result.value
 
       if auth_result.success? && user&.valid_for_authentication?
-        auth_user = preloaded_auth_user(user)
+        auth_user = preload_current_user(user)
         tokens = sign_in(auth_user, request)
         render_success(
           :"auth.success.login",
@@ -25,7 +27,7 @@ module Core
             refresh_token: tokens[:refresh_token]
           },
           serializer_options: {
-            user: { serializer: Core::UserAuthSerializer }
+            user: { serializer: Core::CurrentUserSerializer }
           }
         )
       else
@@ -51,13 +53,13 @@ module Core
       render_success(
         :"auth.success.signup",
         data: {
-          user: preloaded_auth_user(result.value.user),
+          user: preload_current_user(result.value.user),
           access_token: result.value.access_token,
           refresh_token: result.value.refresh_token
         },
         status: :created,
         serializer_options: {
-          user: { serializer: Core::UserAuthSerializer }
+          user: { serializer: Core::CurrentUserSerializer }
         }
       )
     end
@@ -87,19 +89,6 @@ module Core
       render_success(:"auth.success.logout")
     end
 
-    def me
-      skip_authorization
-      render_success(
-        :"auth.success.me",
-        data: {
-          user: preloaded_auth_user(current_user)
-        },
-        serializer_options: {
-          user: { serializer: Core::UserAuthSerializer }
-        }
-      )
-    end
-
     def reauthenticate
       skip_authorization
       response.set_header("Cache-Control", "no-store")
@@ -125,10 +114,10 @@ module Core
         data: {
           access_token: new_tokens[:access_token],
           refresh_token: new_tokens[:refresh_token],
-          user: preloaded_auth_user(new_tokens[:user])
+          user: preload_current_user(new_tokens[:user])
         },
         serializer_options: {
-          user: { serializer: Core::UserAuthSerializer }
+          user: { serializer: Core::CurrentUserSerializer }
         }
       )
     rescue Core::AuthenticationError => e
@@ -142,6 +131,8 @@ module Core
       params.require(:user).permit(
         :email,
         :phone,
+        :first_name,
+        :last_name,
         :password,
         :password_confirmation
       )
@@ -149,15 +140,6 @@ module Core
 
     def identifier_param
       params[:identifier]
-    end
-
-    def preloaded_auth_user(user)
-      return user unless user.is_a?(Core::User)
-
-      unless user.association(:roles).loaded?
-        ActiveRecord::Associations::Preloader.new(records: [ user ], associations: { roles: :permissions }).call
-      end
-      user
     end
 
     def throttle_auth_request
