@@ -6,12 +6,19 @@ module Core
   module UserProfiles
     class AvatarUpload < Core::BaseService
       MAX_SIZE = 5.megabytes
+      MAX_DIMENSION = 6_000
+      MAX_PIXELS = 12_000_000
       CONTENT_TYPES = %w[image/jpeg image/png image/webp].freeze
+      PROCESSING_LOCK = Mutex.new
 
       Result = Data.define(:blob, :content_sha256)
 
       class InvalidUpload < StandardError; end
       class Unavailable < StandardError; end
+
+      def self.with_processing_lock(&block)
+        PROCESSING_LOCK.synchronize(&block)
+      end
 
       def self.fingerprint(upload)
         return if upload.blank?
@@ -38,23 +45,20 @@ module Core
       def call
         tempfile = upload.tempfile
         tempfile.rewind
-        blob = ActiveStorage::Blob.create_after_unfurling!(
+        blob = ActiveStorage::Blob.build_after_unfurling(
           io: tempfile,
           filename: "profile-avatar",
           content_type: upload.content_type,
           identify: true
         )
-        blob.upload_without_unfurling(tempfile)
+        return failure(error(:invalid_avatar, :unprocessable_entity)) if CONTENT_TYPES.exclude?(blob.content_type)
+        return failure(error(:invalid_avatar, :unprocessable_entity)) unless self.class.with_processing_lock { valid_image?(tempfile) }
 
-        if CONTENT_TYPES.exclude?(blob.content_type)
-          result = failure(error(:invalid_avatar, :unprocessable_entity))
-        elsif !valid_image?(blob)
-          result = failure(error(:invalid_avatar, :unprocessable_entity))
-        else
-          blob.variant(Core::UserProfile::THUMB_VARIANT).processed
-          result = success(Result.new(blob: blob, content_sha256: content_sha256))
-        end
-        result
+        tempfile.rewind
+        blob.save!
+        blob.upload_without_unfurling(tempfile)
+        self.class.with_processing_lock { blob.variant(Core::UserProfile::THUMB_VARIANT).processed }
+        success(Result.new(blob: blob, content_sha256: content_sha256))
       rescue ActiveStorage::InvariableError
         result = failure(error(:invalid_avatar, :unprocessable_entity))
       rescue StandardError => exception
@@ -68,12 +72,25 @@ module Core
 
       attr_reader :upload, :content_sha256
 
-      def valid_image?(blob)
-        blob.open do |file|
-          ImageProcessing::Vips.valid_image?(file)
-        end
-      rescue LoadError, ActiveStorage::Error, IOError, SystemCallError => exception
+      def valid_image?(file)
+        file.rewind
+        image = ::Vips::Image.new_from_file(file.path, access: :sequential)
+        return false unless image_dimensions_allowed?(image.width, image.height)
+
+        image.avg
+        true
+      rescue ::Vips::Error
+        false
+      rescue LoadError, IOError, SystemCallError => exception
         raise Unavailable, exception.class.name
+      ensure
+        file.rewind if file.respond_to?(:rewind)
+      end
+
+      def image_dimensions_allowed?(width, height)
+        width.positive? && height.positive? &&
+          width <= MAX_DIMENSION && height <= MAX_DIMENSION &&
+          width * height <= MAX_PIXELS
       end
 
       def purge_blob(blob)

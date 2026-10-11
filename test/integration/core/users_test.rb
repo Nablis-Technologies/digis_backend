@@ -223,6 +223,57 @@ class CoreUsersTest < ActionDispatch::IntegrationTest
     assert_equal 0, ActiveStorage::Blob.where(filename: "profile-avatar").count
   end
 
+  test "update rejects unsupported TIFF before uploading it to storage" do
+    user = core_users(:attendee)
+    ActiveStorage::Blob.any_instance.expects(:upload_without_unfurling).never
+
+    Tempfile.create([ "unsupported-avatar", ".tif" ]) do |file|
+      Vips::Image.black(10, 10).write_to_file(file.path)
+      patch "/user",
+            params: {
+              profile: { avatar: Rack::Test::UploadedFile.new(file.path, "image/tiff") }
+            },
+            headers: auth_headers(user).merge("Idempotency-Key" => "user-profile-avatar-unsupported-tiff"),
+            as: :multipart
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "invalid_avatar", response.parsed_body.fetch("code")
+    assert_nil user.reload.profile
+  end
+
+  test "update rejects an avatar above the pixel budget before storage upload" do
+    user = core_users(:attendee)
+    ActiveStorage::Blob.any_instance.expects(:upload_without_unfurling).never
+
+    with_vips_avatar(width: 4_001, height: 3_001) do |upload|
+      patch "/user",
+            params: { profile: { avatar: upload } },
+            headers: auth_headers(user).merge("Idempotency-Key" => "user-profile-avatar-pixel-limit"),
+            as: :multipart
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "invalid_avatar", response.parsed_body.fetch("code")
+    assert_nil user.reload.profile
+  end
+
+  test "update rejects an avatar dimension above the side limit before storage upload" do
+    user = core_users(:attendee)
+    ActiveStorage::Blob.any_instance.expects(:upload_without_unfurling).never
+
+    with_vips_avatar(width: 6_001, height: 1) do |upload|
+      patch "/user",
+            params: { profile: { avatar: upload } },
+            headers: auth_headers(user).merge("Idempotency-Key" => "user-profile-avatar-dimension-limit"),
+            as: :multipart
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "invalid_avatar", response.parsed_body.fetch("code")
+    assert_nil user.reload.profile
+  end
+
   test "update rejects malformed image bytes without replacing the existing avatar" do
     user = core_users(:attendee)
     profile = Core::UserProfile.create!(user: user, first_name: "Aster", last_name: "Bekele")
@@ -406,6 +457,13 @@ class CoreUsersTest < ActionDispatch::IntegrationTest
       image = image.invert if invert
       image.write_to_file(file.path)
       yield Rack::Test::UploadedFile.new(file.path, content_type)
+    end
+  end
+
+  def with_vips_avatar(width:, height:)
+    Tempfile.create([ "dimension-limited-avatar", ".jpg" ]) do |file|
+      Vips::Image.black(width, height).write_to_file(file.path, Q: 10)
+      yield Rack::Test::UploadedFile.new(file.path, "image/jpeg")
     end
   end
 
