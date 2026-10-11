@@ -46,6 +46,12 @@
       "type": "string"
     },
     {
+      "key": "avatarEtag",
+      "value": "",
+      "type": "string",
+      "description": "Copy the ETag response header from GET /user/avatar to test conditional revalidation."
+    },
+    {
       "key": "invitationToken",
       "value": "",
       "type": "string",
@@ -402,19 +408,15 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/auth/me",
+              "raw": "{{baseUrl}}/user",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "auth",
-                "me"
+                "user"
               ]
             },
-            "description": "Get the currently authenticated user's profile. Requires valid access token.",
-            "auth": {
-              "type": "noauth"
-            }
+            "description": "Get the authenticated user's private account projection. The user object is directly in data; profile is null until names are completed."
           },
           "response": [],
           "event": [
@@ -429,14 +431,105 @@
                   "  const json = pm.response.json();",
                   "  pm.expect(json).to.have.property(\"success\", true);",
                   "  pm.expect(json).to.have.property(\"data\");",
-                  "  pm.expect(json.data).to.have.property(\"user\");",
-                  "  pm.expect(json.data.user).to.have.property(\"id\");",
+                  "  pm.expect(json.data).to.have.property(\"id\");",
+                  "  pm.expect(json.data).to.have.property(\"profile\");",
+                  "  if (json.data.profile !== null) {",
+                  "    pm.expect(json.data.profile).to.have.property(\"full_name\");",
+                  "    pm.expect(json.data.profile).to.have.property(\"avatar_url\");",
+                  "  }",
                   "});"
                 ],
                 "type": "text/javascript"
               }
             }
           ]
+        },
+        {
+          "name": "Update Current User Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"profile\": {\n    \"first_name\": \"Aster\",\n    \"last_name\": \"Bekele\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "user" ]
+            },
+            "description": "Update the authenticated user's names. Reuse the same Idempotency-Key only for an exact retry; identity and account-state fields are not editable here."
+          },
+          "response": []
+        },
+        {
+          "name": "Upload Current User Avatar",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "profile[avatar]", "type": "file", "src": "" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "user" ]
+            },
+            "description": "Upload a JPEG, PNG, or WebP avatar up to 5 MiB. Let Postman set the multipart Content-Type boundary."
+          },
+          "response": []
+        },
+        {
+          "name": "Remove Current User Avatar",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "profile[remove_avatar]", "value": "true", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "user" ]
+            },
+            "description": "Remove the current user's avatar. Do not include profile[avatar] in the same request."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User Avatar",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "If-None-Match",
+                "value": "{{avatarEtag}}",
+                "type": "text",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user/avatar",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "user", "avatar" ]
+            },
+            "description": "Authenticated endpoint for the fixed private 200x200 thumbnail. Copy the response ETag into avatarEtag and enable If-None-Match to verify a bodyless 304."
+          },
+          "response": []
         },
         {
           "name": "Reauthenticate",
@@ -855,7 +948,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"user\": {\n    \"email\": \"user@example.com\",\n    \"phone\": \"{{signupPhone}}\",\n    \"password\": \"securepassword123\",\n    \"password_confirmation\": \"securepassword123\"\n  },\n  \"verification_token\": \"{{signupVerificationToken}}\"\n}",
+              "raw": "{\n  \"user\": {\n    \"email\": \"user@example.com\",\n    \"phone\": \"{{signupPhone}}\",\n    \"first_name\": \"Aster\",\n    \"last_name\": \"Bekele\",\n    \"password\": \"securepassword123\",\n    \"password_confirmation\": \"securepassword123\"\n  },\n  \"verification_token\": \"{{signupVerificationToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -12978,7 +13071,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"row_mode\": \"registration\",\n  \"field_keys\": [\n    \"registration_id\",\n    \"registration_status\"\n  ],\n  \"filters\": {},\n  \"reason_code\": \"event_operations\",\n  \"proof\": \"{{reauthenticationProof}}\"\n}",
+              "raw": "{\n  \"row_mode\": \"registration\",\n  \"field_keys\": [\n    \"registration_id\",\n    \"registration_status\",\n    \"registration_user_full_name\"\n  ],\n  \"filters\": {},\n  \"reason_code\": \"event_operations\",\n  \"proof\": \"{{reauthenticationProof}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
