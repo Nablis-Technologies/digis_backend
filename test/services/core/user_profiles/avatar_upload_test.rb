@@ -1,9 +1,24 @@
 require "test_helper"
+require "tempfile"
 require "timeout"
+require "vips"
 
 module Core
   module UserProfiles
     class AvatarUploadTest < ActiveSupport::TestCase
+      test "inspects display dimensions after a quarter-turn EXIF orientation" do
+        image = Object.new
+        image.define_singleton_method(:width) { 40 }
+        image.define_singleton_method(:height) { 20 }
+        image.define_singleton_method(:get) { |_field| "Right-top" }
+        image.define_singleton_method(:avg) { 0 }
+        ::Vips::Image.stubs(:new_from_file).returns(image)
+
+        Tempfile.create([ "oriented-avatar", ".jpg" ]) do |file|
+          assert_equal({ width: 20, height: 40 }, AvatarUpload.allocate.send(:inspect_image, file))
+        end
+      end
+
       test "serializes image-processing work within the web process" do
         assert_respond_to AvatarUpload, :with_processing_lock
 

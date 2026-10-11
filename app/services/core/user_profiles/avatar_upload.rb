@@ -9,6 +9,7 @@ module Core
       MAX_DIMENSION = 6_000
       MAX_PIXELS = 12_000_000
       CONTENT_TYPES = %w[image/jpeg image/png image/webp].freeze
+      ROTATED_EXIF_ORIENTATIONS = %w[Right-top Left-bottom Top-right Bottom-left].freeze
       PROCESSING_LOCK = Mutex.new
 
       Result = Data.define(:blob, :content_sha256)
@@ -52,8 +53,12 @@ module Core
           identify: true
         )
         return failure(error(:invalid_avatar, :unprocessable_entity)) if CONTENT_TYPES.exclude?(blob.content_type)
-        return failure(error(:invalid_avatar, :unprocessable_entity)) unless self.class.with_processing_lock { valid_image?(tempfile) }
+        dimensions = self.class.with_processing_lock { inspect_image(tempfile) }
+        return failure(error(:invalid_avatar, :unprocessable_entity)) unless dimensions
 
+        # The preflight already extracted display geometry, so skip Active Storage's duplicate blob download.
+        blob.metadata = blob.metadata.merge(width: dimensions[:width], height: dimensions[:height])
+        blob.analyzed = true
         tempfile.rewind
         blob.save!
         blob.upload_without_unfurling(tempfile)
@@ -72,15 +77,16 @@ module Core
 
       attr_reader :upload, :content_sha256
 
-      def valid_image?(file)
+      def inspect_image(file)
         file.rewind
         image = ::Vips::Image.new_from_file(file.path, access: :sequential)
-        return false unless image_dimensions_allowed?(image.width, image.height)
+        width, height = display_dimensions(image)
+        return nil unless image_dimensions_allowed?(width, height)
 
         image.avg
-        true
+        { width:, height: }
       rescue ::Vips::Error
-        false
+        nil
       rescue LoadError, IOError, SystemCallError => exception
         raise Unavailable, exception.class.name
       ensure
@@ -91,6 +97,19 @@ module Core
         width.positive? && height.positive? &&
           width <= MAX_DIMENSION && height <= MAX_DIMENSION &&
           width * height <= MAX_PIXELS
+      end
+
+      def display_dimensions(image)
+        width, height = image.width, image.height
+        return [ height, width ] if rotated_image?(image)
+
+        [ width, height ]
+      end
+
+      def rotated_image?(image)
+        ROTATED_EXIF_ORIENTATIONS.include?(image.get("exif-ifd0-Orientation"))
+      rescue ::Vips::Error
+        false
       end
 
       def purge_blob(blob)

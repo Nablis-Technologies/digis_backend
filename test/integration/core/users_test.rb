@@ -173,8 +173,18 @@ class CoreUsersTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
-    assert_predicate user.reload.profile.avatar, :attached?
+    avatar = user.reload.profile.avatar
+    assert_predicate avatar, :attached?
     assert_equal "/user/avatar", response.parsed_body.dig("data", "profile", "avatar_url")
+    assert_predicate avatar.blob, :analyzed?
+    assert_equal 2, avatar.blob.metadata["width"]
+    assert_equal 2, avatar.blob.metadata["height"]
+    analyzed_blob_ids = ActiveJob::Base.queue_adapter.enqueued_jobs.filter_map do |job|
+      next unless job[:job] == ActiveStorage::AnalyzeJob
+
+      job[:args].filter_map { |argument| argument["_aj_globalid"] }
+    end.flatten
+    assert_not_includes analyzed_blob_ids, avatar.blob.to_global_id.to_s
   end
 
   test "avatar PUT detects supported bytes when the client MIME header is wrong" do
