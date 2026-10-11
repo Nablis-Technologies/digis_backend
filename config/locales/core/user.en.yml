@@ -11,3 +11,13 @@ en:
     errors:
       email_or_phone_required: "Either email or phone must be provided"
       invalid_phone: "The phone number is not a valid Ethiopian mobile number"
+      invalid_idempotency_key: "The idempotency key is invalid"
+      idempotency_conflict: "This idempotency key was already used for a different profile update"
+      profile_invalid: "The profile details are invalid"
+      profile_update_failed: "The profile could not be updated"
+      user_not_found: "The user could not be found"
+      avatar_operation_conflict: "Choose either an avatar upload or avatar removal, not both"
+      invalid_avatar: "The avatar must be a valid JPEG, PNG, or WebP image no larger than 5 MB"
+      avatar_processing_unavailable: "The avatar could not be processed right now"
+      avatar_unavailable: "The avatar is temporarily unavailable"
+      avatar_not_found: "No avatar is set for this account"
