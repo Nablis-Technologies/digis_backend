@@ -4,7 +4,7 @@ module Core
   class UsersController < Core::ApplicationController
     include Core::CurrentUserPreloading
 
-    before_action :ensure_idempotency_key_present, only: :update
+    before_action :ensure_idempotency_key_present, only: %i[update update_avatar remove_avatar]
 
     def show
       response.set_header("Cache-Control", "private, no-store")
@@ -16,18 +16,22 @@ module Core
 
     def update
       response.set_header("Cache-Control", "private, no-store")
-      result = Core::UserProfiles::Update.call(
-        user: current_user,
-        attributes: profile_params,
-        idempotency_key:,
-        request:
-      )
-      return render_service_result(result) if result.failure?
+      return render_avatar_route_required if avatar_fields_in_profile_update?
 
-      render_success(
-        data: preload_current_user(result.value.user),
-        serializer_options: { serializer: Core::CurrentUserSerializer }
-      )
+      perform_profile_update(profile_params)
+    end
+
+    def update_avatar
+      response.set_header("Cache-Control", "private, no-store")
+      upload = params.permit(:avatar)[:avatar]
+      return render_invalid_avatar unless upload.present?
+
+      perform_profile_update(avatar: upload)
+    end
+
+    def remove_avatar
+      response.set_header("Cache-Control", "private, no-store")
+      perform_profile_update(remove_avatar: true)
     end
 
     def avatar
@@ -53,7 +57,43 @@ module Core
     private
 
     def profile_params
-      params.require(:profile).permit(:first_name, :last_name, :avatar, :remove_avatar)
+      params.require(:profile).permit(:first_name, :last_name)
+    end
+
+    def perform_profile_update(attributes)
+      result = Core::UserProfiles::Update.call(
+        user: current_user,
+        attributes: attributes,
+        idempotency_key:,
+        request:
+      )
+      return render_service_result(result) if result.failure?
+
+      render_success(
+        data: preload_current_user(result.value.user),
+        serializer_options: { serializer: Core::CurrentUserSerializer }
+      )
+    end
+
+    def avatar_fields_in_profile_update?
+      profile = params[:profile]
+      profile.respond_to?(:key?) && (profile.key?(:avatar) || profile.key?(:remove_avatar))
+    end
+
+    def render_avatar_route_required
+      render_error(
+        I18n.t("user.errors.avatar_route_required"),
+        status: :unprocessable_entity,
+        code: "avatar_route_required"
+      )
+    end
+
+    def render_invalid_avatar
+      render_error(
+        I18n.t("user.errors.invalid_avatar"),
+        status: :unprocessable_entity,
+        code: "invalid_avatar"
+      )
     end
 
     def policy_target_for_authorization

@@ -9,7 +9,9 @@ Rails.application.routes.draw do
     post "auth/logout", to: "auth#logout"
     post "auth/reauthenticate", to: "auth#reauthenticate"
     resource :user, only: %i[show update], controller: "users"
-    get "user/avatar", to: "users#avatar"
+    get "user/avatar", to: "users#avatar", as: :user_avatar
+    put "user/avatar", to: "users#update_avatar", as: :update_user_avatar
+    delete "user/avatar", to: "users#remove_avatar", as: :remove_user_avatar
     post "auth/phone_verifications", to: "phone_verifications#create"
   end
 

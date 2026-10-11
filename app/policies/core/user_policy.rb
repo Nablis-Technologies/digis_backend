@@ -5,6 +5,8 @@ module Core
     def show? = owns_record?
     def update? = owns_record?
     def avatar? = owns_record?
+    def update_avatar? = owns_record?
+    def remove_avatar? = owns_record?
 
     private
 

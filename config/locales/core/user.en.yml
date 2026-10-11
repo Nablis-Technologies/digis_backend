@@ -17,6 +17,8 @@ en:
       profile_update_failed: "The profile could not be updated"
       user_not_found: "The user could not be found"
       avatar_operation_conflict: "Choose either an avatar upload or avatar removal, not both"
+      avatar_route_required: "Upload or remove your avatar through the dedicated avatar endpoint"
+      profile_required: "Complete your first and last name before uploading an avatar"
       invalid_avatar: "Use a JPEG, PNG, or WebP image up to 5 MB and 12 megapixels, with no side longer than 6,000 pixels"
       avatar_processing_unavailable: "The avatar could not be processed right now"
       avatar_unavailable: "The avatar is temporarily unavailable"

@@ -26,6 +26,8 @@ module Core
         audit_key = "core-user-profile-update-#{user.id}-#{key.digest}"
         replay = replay_result(user, audit_key:, request_digest:)
         return replay if replay
+        return failure(error(:profile_required, :unprocessable_entity)) if
+          upload && !Core::UserProfile.exists?(user_id: user.id)
 
         if upload
           upload_result = AvatarUpload.call(upload:, content_sha256:)
