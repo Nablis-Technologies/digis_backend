@@ -8,7 +8,8 @@ Rails.application.routes.draw do
     post "auth/refresh", to: "auth#refresh"
     post "auth/logout", to: "auth#logout"
     post "auth/reauthenticate", to: "auth#reauthenticate"
-    get "auth/me", to: "auth#me"
+    resource :user, only: %i[show update], controller: "users"
+    get "user/avatar", to: "users#avatar"
     post "auth/phone_verifications", to: "phone_verifications#create"
   end
 
