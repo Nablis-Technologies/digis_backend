@@ -41,6 +41,12 @@ module Ticketing
           heading_key: "ticketing.attendee_exports.fields.admission_position",
           extractor: ->(row) { row.admission_position }
         },
+        "registration_user_full_name" => {
+          authorization: "attendee_export.contact",
+          row_modes: %w[registration admission],
+          heading_key: "ticketing.attendee_exports.fields.registration_user_full_name",
+          extractor: ->(row) { row.registration.user&.profile&.full_name }
+        },
         "registration_user_email" => {
           authorization: "attendee_export.contact",
           row_modes: %w[registration admission],

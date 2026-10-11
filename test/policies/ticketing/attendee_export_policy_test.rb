@@ -113,10 +113,13 @@ module Ticketing
       assert policy_for(manager, build_export(requested_by: manager)).create?
 
       contact_export = build_export(requested_by: manager, field_keys: [ "registration_user_email" ])
+      account_name_export = build_export(requested_by: manager, field_keys: [ "registration_user_full_name" ])
       assert_not policy_for(manager, contact_export).create?
+      assert_not policy_for(manager, account_name_export).create?
 
       grant(manager, "attendee_export.contact")
       assert policy_for(manager, contact_export).create?
+      assert policy_for(manager, account_name_export).create?
 
       assignment.update!(status: "suspended")
       assert_not policy_for(manager, build_export(requested_by: manager)).create?

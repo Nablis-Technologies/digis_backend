@@ -54,6 +54,7 @@ module Ticketing
           "selected_event_date_id" => [ :event_manager, %w[registration admission] ],
           "package_unit_number" => [ :event_manager, [ "admission" ] ],
           "admission_position" => [ :event_manager, [ "admission" ] ],
+          "registration_user_full_name" => [ "attendee_export.contact", %w[registration admission] ],
           "registration_user_email" => [ "attendee_export.contact", %w[registration admission] ],
           "registration_user_phone" => [ "attendee_export.contact", %w[registration admission] ]
         }
@@ -90,9 +91,11 @@ module Ticketing
           "selected_event_date_id" => @registration.selected_event_date_id,
           "package_unit_number" => 1,
           "admission_position" => 1,
+          "registration_user_full_name" => "Aster Bekele",
           "registration_user_email" => @registration.user.email,
           "registration_user_phone" => @registration.user.phone
         }
+        Core::UserProfile.create!(user: @registration.user, first_name: "Aster", last_name: "Bekele")
         definitions = resolve!(expected.keys, row_mode: "admission").index_by { |definition| definition.fetch(:selector) }
 
         expected.each do |selector, value|
@@ -112,7 +115,7 @@ module Ticketing
       test "registration rows exclude admission-only built-ins" do
         selectors = %w[
           registration_id registration_status ticket_type_id selected_event_date_id
-          registration_user_email registration_user_phone
+          registration_user_full_name registration_user_email registration_user_phone
         ]
 
         definitions = resolve!(selectors, row_mode: "registration")
@@ -147,9 +150,11 @@ module Ticketing
 
       test "marks standard fields as event-scoped and contact fields as explicitly gated" do
         standard = definition_for("registration_id")
+        account_name = definition_for("registration_user_full_name")
         contact = definition_for("registration_user_email")
 
         assert_equal :event_manager, standard.fetch(:authorization)
+        assert_equal "attendee_export.contact", account_name.fetch(:authorization)
         assert_equal "attendee_export.contact", contact.fetch(:authorization)
         refute_equal standard.fetch(:authorization), contact.fetch(:authorization)
       end

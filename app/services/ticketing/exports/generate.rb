@@ -133,7 +133,7 @@ module Ticketing
           .where(event_id: export.event_id)
           .where("ticketing_registrations.created_at <= ?", export.data_cutoff_at)
           .includes(
-            :user,
+            user: :profile,
             ticket_type: { event_product: { product_accesses: :event_date } },
             form_submissions: {
               registration_form_version: :registration_form,
