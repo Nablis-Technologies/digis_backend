@@ -5,6 +5,7 @@ module Ticketing
   # command creates or reuses a passwordless shadow identity; payment and
   # credential issuance remain separate downstream workflows.
   class GuestRegistrationsController < Ticketing::ApplicationController
+    include Core::CurrentUserPreloading
     include Core::GuestRequestThrottling
 
     skip_before_action :authenticate_user
@@ -59,11 +60,11 @@ module Ticketing
 
       render_success(
         data: {
-          user: result.value.user,
+          user: preload_current_user(result.value.user),
           access_token: result.value.access_token,
           refresh_token: result.value.refresh_token
         },
-        serializer_options: { user: { serializer: Core::UserAuthSerializer } }
+        serializer_options: { user: { serializer: Core::CurrentUserSerializer } }
       )
     end
 

@@ -4,6 +4,7 @@ module Ticketing
   # Public transfer landing and OTP acceptance. A random transfer token is
   # required for every action; ownership changes only after a matching OTP.
   class PublicTicketTransfersController < Ticketing::ApplicationController
+    include Core::CurrentUserPreloading
     include Core::CommandResponse
     include Core::GuestRequestThrottling
 
@@ -63,7 +64,7 @@ module Ticketing
         transfer: PublicTicketTransferSerializer.new(value.transfer).attributes,
         ticket: PublicTicketViewSerializer.new(value.ticket).attributes,
         ticket_view_url: value.ticket_view_url,
-        user: value.user && Core::UserAuthSerializer.new(value.user).attributes,
+        user: value.user && Core::CurrentUserSerializer.new(preload_current_user(value.user)).attributes,
         access_token: value.access_token,
         refresh_token: value.refresh_token
       }.compact

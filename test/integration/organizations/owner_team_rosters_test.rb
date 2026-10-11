@@ -55,6 +55,21 @@ module Organizations
       assert_response :forbidden
     end
 
+    test "membership summaries expose scoped contacts without profile or RBAC data" do
+      Core::UserProfile.create!(user: @active_member, first_name: "Aster", last_name: "Bekele")
+
+      get roster_path, headers: @headers, as: :json
+
+      assert_response :success
+      membership = response.parsed_body.dig("data", "memberships", "data")
+        .find { |entry| entry.dig("user", "id") == @active_member.id }
+
+      assert_equal %w[email id phone], membership.fetch("user").keys.sort
+      refute membership.fetch("user").key?("profile")
+      refute membership.fetch("user").key?("permissions")
+      refute membership.fetch("user").key?("roles")
+    end
+
     private
 
     def roster_path
