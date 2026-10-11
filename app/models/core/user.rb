@@ -8,6 +8,11 @@ module Core
              foreign_key: :user_id,
              dependent: :destroy,
              inverse_of: :user
+    has_one :profile,
+            class_name: "Core::UserProfile",
+            foreign_key: :user_id,
+            dependent: :destroy,
+            inverse_of: :user
     has_many :roles,
              through: :user_roles,
              class_name: "Core::Role"

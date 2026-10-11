@@ -4715,6 +4715,20 @@ CREATE TABLE public.core_roles (
 
 
 --
+-- Name: core_user_profiles; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.core_user_profiles (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    user_id uuid NOT NULL,
+    first_name character varying(100) NOT NULL,
+    last_name character varying(100) NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL
+);
+
+
+--
 -- Name: core_user_roles; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -8070,6 +8084,14 @@ ALTER TABLE ONLY public.core_role_permissions
 
 ALTER TABLE ONLY public.core_roles
     ADD CONSTRAINT core_roles_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: core_user_profiles core_user_profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.core_user_profiles
+    ADD CONSTRAINT core_user_profiles_pkey PRIMARY KEY (id);
 
 
 --
@@ -11590,6 +11612,13 @@ CREATE INDEX index_core_user_roles_on_role_id ON public.core_user_roles USING bt
 
 
 --
+-- Name: index_core_user_profiles_on_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_core_user_profiles_on_user_id ON public.core_user_profiles USING btree (user_id);
+
+
+--
 -- Name: index_core_user_roles_on_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -13982,6 +14011,14 @@ ALTER TABLE ONLY public.ticketing_purchase_limit_overrides
 
 
 --
+-- Name: core_user_profiles fk_rails_42f601ce6b; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.core_user_profiles
+    ADD CONSTRAINT fk_rails_42f601ce6b FOREIGN KEY (user_id) REFERENCES public.core_users(id);
+
+
+--
 -- Name: ticketing_registration_consent_requirements fk_rails_43273f1434; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -16124,6 +16161,7 @@ ALTER TABLE ONLY public.ticketing_ticket_suspensions
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261011090000'),
 ('20261009090001'),
 ('20261009090000'),
 ('20261007090001'),
