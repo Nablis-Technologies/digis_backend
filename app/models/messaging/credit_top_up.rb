@@ -18,12 +18,10 @@ module Messaging
     belongs_to :billing_purchase,
                class_name: "Orders::BillingPurchase",
                foreign_key: :orders_billing_purchase_id,
-               optional: true,
-               inverse_of: :credit_top_up
+               optional: true
     belongs_to :accepted_payment,
                class_name: "Orders::Payment",
-               optional: true,
-               inverse_of: :accepted_credit_top_up
+               optional: true
 
     before_validation :normalize_fields
     validate :immutable_snapshot, on: :update

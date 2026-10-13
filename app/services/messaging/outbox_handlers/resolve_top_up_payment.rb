@@ -12,6 +12,9 @@ module Messaging
 
       def call
         payload = @event.payload
+        source_type = payload["source_type"]
+        return success(nil) if other_known_source?(source_type)
+
         validate_source_type!(payload)
         top_up = resolve_top_up(payload)
         payment = Orders::Payment.find(payload.fetch("payment_id"))
@@ -25,6 +28,11 @@ module Messaging
       end
 
       private
+
+      def other_known_source?(source_type)
+        source_type.present? && source_type != "Messaging::CreditTopUp" &&
+          Orders::BillingPurchase::SOURCE_TYPES.include?(source_type)
+      end
 
       def validate_source_type!(payload)
         return if payload["source_type"].blank? || payload["source_type"] == "Messaging::CreditTopUp"

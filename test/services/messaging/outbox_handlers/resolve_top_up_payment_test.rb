@@ -52,6 +52,20 @@ module Messaging
         assert_predicate result, :success?, result.error&.message
         assert_equal "failed", @top_up.reload.status
       end
+
+      test "ignores a billing event owned by another product" do
+        event = Event.new(
+          payload: {
+            "source_type" => "Marketing::FeaturedPlacement", "source_id" => "missing",
+            "billing_purchase_id" => "missing", "payment_id" => "missing"
+          }, event_type: "orders.billing_payment.failed"
+        )
+
+        result = ResolveTopUpPayment.call(event:)
+
+        assert_predicate result, :success?, result.error&.message
+        assert_nil result.value
+      end
     end
   end
 end
