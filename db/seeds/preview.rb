@@ -1635,6 +1635,21 @@ puts "✓ Campaign fixture #{preview_campaign.id} prepared with #{preview_campai
 puts "✓ #{chapa_event.title} published with #{chapa_product.name} and " \
      "#{chapa_ticket_product.name} and #{chapa_rsvp_product.name} active"
 
+# Explicitly test-priced offer for preview only. Production offers remain
+# disabled until the platform rate, terms, and discovery capacity are approved.
+Marketing::PlacementOffer.find_or_create_by!(code: "public_discovery_preview", version: 1) do |offer|
+  offer.daily_rate_minor = 50_000
+  offer.currency = "ETB"
+  offer.minimum_duration_seconds = 24.hours.to_i
+  offer.maximum_duration_seconds = 14.days.to_i
+  offer.surface = "public_discovery"
+  offer.terms_version = "preview-v1"
+  offer.active = true
+  offer.starts_at = 1.day.ago
+  offer.ends_at = 365.days.from_now
+end
+puts "✓ Added preview-only public Featured offer"
+
 pazimo_events = PreviewPazimoCatalog.seed!(actor: admin)
 puts "✓ Added #{pazimo_events.length} additive Pazimo catalog events"
 
