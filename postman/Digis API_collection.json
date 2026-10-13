@@ -469,44 +469,38 @@
         {
           "name": "Upload Current User Avatar",
           "request": {
-            "method": "PATCH",
+            "method": "PUT",
             "header": [
               { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
             ],
             "body": {
               "mode": "formdata",
               "formdata": [
-                { "key": "profile[avatar]", "type": "file", "src": "" }
+                { "key": "avatar", "type": "file", "src": "" }
               ]
             },
             "url": {
-              "raw": "{{baseUrl}}/user",
+              "raw": "{{baseUrl}}/user/avatar",
               "host": [ "{{baseUrl}}" ],
-              "path": [ "user" ]
+              "path": [ "user", "avatar" ]
             },
-            "description": "Upload a JPEG, PNG, or WebP avatar up to 5 MiB. Let Postman set the multipart Content-Type boundary."
+            "description": "Replace the authenticated user's avatar. Requires a completed profile and an Idempotency-Key. Upload a JPEG, PNG, or WebP image up to 5 MiB and 12 megapixels; neither side may exceed 6,000 pixels. Let Postman set the multipart Content-Type boundary."
           },
           "response": []
         },
         {
           "name": "Remove Current User Avatar",
           "request": {
-            "method": "PATCH",
+            "method": "DELETE",
             "header": [
               { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" }
             ],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                { "key": "profile[remove_avatar]", "value": "true", "type": "text" }
-              ]
-            },
             "url": {
-              "raw": "{{baseUrl}}/user",
+              "raw": "{{baseUrl}}/user/avatar",
               "host": [ "{{baseUrl}}" ],
-              "path": [ "user" ]
+              "path": [ "user", "avatar" ]
             },
-            "description": "Remove the current user's avatar. Do not include profile[avatar] in the same request."
+            "description": "Remove the authenticated user's avatar. Deleting an already-absent avatar succeeds as a no-op; reuse the same Idempotency-Key only for an exact retry."
           },
           "response": []
         },
@@ -16947,6 +16941,132 @@
             { "name": "Waitlisted registration", "status": "Created", "code": 201, "_postman_previewlanguage": "json", "header": [{ "key": "Cache-Control", "value": "no-store" }], "body": "{\n  \"success\": true,\n  \"data\": { \"registration\": { \"id\": \"registration_01HX\", \"status\": \"waitlisted\" }, \"next_action\": { \"type\": \"waitlisted\" } }\n}" },
             { "name": "Offer still available", "status": "Unprocessable Entity", "code": 422, "_postman_previewlanguage": "json", "body": "{\n  \"success\": false,\n  \"code\": \"waitlist_not_sold_out\"\n}" }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Featured Event Placements",
+      "item": [
+        {
+          "name": "List Featured Placement Offers",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }],
+            "url": "{{baseUrl}}/events/{{eventId}}/featured_placements/offers",
+            "description": "Lists the platform-managed offers and whether this public event is currently eligible. Quote before purchase; the client never chooses the price or end time."
+          },
+          "response": []
+        },
+        {
+          "name": "Quote Featured Placement",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"featured_placement\": {\n    \"offer_id\": \"{{featuredOfferId}}\",\n    \"starts_at\": \"{{featuredStartsAt}}\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/events/{{eventId}}/featured_placements/quote",
+            "description": "Read-only quote. The server derives doors time and duration, rounds ETB minor-unit pricing upward, and reports capacity/next_available_at. This does not reserve a slot."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Featured Placement Checkout",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{featuredPlacementIdempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"featured_placement\": {\n    \"offer_id\": \"{{featuredOfferId}}\",\n    \"starts_at\": \"{{featuredStartsAt}}\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/events/{{eventId}}/featured_placements",
+            "description": "Creates a pending payment hold for an event owner/admin and returns the Chapa checkout URL. The placement response includes its immutable offer_code, offer_version, daily_rate_minor, amount_minor, currency, and terms_version snapshot. Only offer_id and starts_at are accepted; amount/duration are always recomputed. Reuse the same Idempotency-Key for an exact retry."
+          },
+          "response": []
+        },
+        {
+          "name": "List Event Featured Placements",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }],
+            "url": "{{baseUrl}}/events/{{eventId}}/featured_placements",
+            "description": "Lists placements and safe payment/refund status for an authorized event owner/admin. Each placement includes its immutable offer_code, offer_version, daily_rate_minor, amount_minor, currency, and terms_version snapshot."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Featured Placement",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" }],
+            "url": "{{baseUrl}}/events/{{eventId}}/featured_placements/{{featuredPlacementId}}",
+            "description": "Reads one placement scoped to its event and owning organization, including its immutable offer pricing/terms snapshot. Provider payloads and payment references are not exposed."
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Featured Placement",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{featuredPlacementCancelIdempotencyKey}}", "type": "text" }
+            ],
+            "url": "{{baseUrl}}/events/{{eventId}}/featured_placements/{{featuredPlacementId}}/cancel",
+            "description": "Stops serving immediately. Refund amount is based on the unserved interval; a zero-minor refund creates no provider request. Provider failure remains a durable manual-review obligation."
+          },
+          "response": []
+        },
+        {
+          "name": "List Public Featured Events",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/public/featured_events",
+            "description": "Returns a bounded, payment-backed Featured event-card projection. Each card includes placement_label=featured; unpaid, ended, private, and non-registration-accepting events are excluded."
+          },
+          "response": []
+        },
+        {
+          "name": "List Public Events Filtered to Featured",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/public/events?featured=true&page=1&per_page=25",
+            "description": "Uses the same public event-list action and paginated contract as organic discovery, filtering to currently serving paid placements before total_count and pagination. If featured resolution returns a typed failure, responds with 503 featured_events_unavailable and never falls back to organic results. Any additional list filters are implemented once in this shared action and apply to both organic and featured requests. Omitting featured or setting it false preserves organic discovery."
+          },
+          "response": []
+        },
+        {
+          "name": "Resolve Manual Billing Refund",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}", "type": "text" },
+              { "key": "Idempotency-Key", "value": "{{manualRefundResolutionIdempotencyKey}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resolution\": {\n    \"reason\": \"Confirmed refund in the provider dashboard\",\n    \"evidence_reference\": \"PROVIDER-REF-123\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/admin/orders/refunds/{{refundId}}/resolve_manual",
+            "description": "Super-admin-only attestation after confirming the external refund completed. This records an audit and posts the platform refund journal fact; it never calls the provider. Evidence reference must be non-sensitive."
+          },
+          "response": []
         }
       ]
     },

@@ -192,3 +192,14 @@
   size in addition to SQL query count. Inventory checks must distinguish access
   dates (including stream) from physical venue demand; lock/validate all access
   dates, but consume venue capacity only for physical accesses.
+
+- When the user explicitly asks to keep feature work in the current branch and
+  not create a worktree, follow that scope; preserve unrelated dirty/untracked
+  files and do not move the implementation into another checkout.
+
+- Do not turn a feature's focused strict-loading verification into a
+  repository-wide cleanup by enabling `strict_loading_by_default` globally.
+  If a proposed test guard exposes failures across unrelated modules, stop at
+  the evidence, report the scope and baseline impact, and get explicit
+  direction before expanding the implementation; green focused tests do not
+  justify broad cleanup.

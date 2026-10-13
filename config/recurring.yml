@@ -123,6 +123,14 @@ production:
     class: Messaging::ReconcileCreditTopUpsJob
     queue: maintenance
     schedule: every 10 minutes
+  reconcile_platform_billing_entries:
+    class: Finance::ReconcilePlatformBillingEntriesJob
+    queue: maintenance
+    schedule: every 10 minutes
+  reconcile_marketing_featured_placements:
+    class: Marketing::ReconcileFeaturedPlacementsJob
+    queue: maintenance
+    schedule: every 10 minutes
   reconcile_messaging_credit_reservations:
     class: Messaging::ReconcileCreditReservationsJob
     queue: maintenance
