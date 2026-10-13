@@ -226,6 +226,11 @@ permissions << {
   description: I18n.t("marketplace.permissions.seller_payout_account_verify")
 }
 
+permissions << {
+  resource: "billing_refund", action: "resolve_manual", namespace: "orders",
+  description: I18n.t("orders.permissions.billing_refund_resolve_manual")
+}
+
 permissions.concat([
   { resource: "messaging_credit_account", action: "index", namespace: "messaging", description: "View messaging credit balances" },
   { resource: "messaging_credit_account", action: "show", namespace: "messaging", description: "View a messaging credit account" },
@@ -283,6 +288,7 @@ end
 admin_permissions = Core::Permission
   .where.not(resource: "permission", action: "destroy")
   .where.not(resource: "commercial", action: "break_glass")
+  .where.not(resource: "billing_refund", action: "resolve_manual", namespace: "orders")
 admin_permissions.find_each do |perm|
   Core::RolePermission.find_or_create_by!(role: admin_role, permission: perm)
 end
