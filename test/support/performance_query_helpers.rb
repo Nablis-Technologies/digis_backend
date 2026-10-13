@@ -8,16 +8,18 @@ module PerformanceQueryHelpers
 
   private
 
-  def count_database_queries
-    count = 0
+  def capture_database_queries
+    statements = []
     subscriber = lambda do |_name, _started, _finished, _unique_id, payload|
       next if IGNORED_SQL_NAMES.include?(payload[:name].to_s)
       next if payload[:cached]
 
-      count += 1
+      statements << payload[:sql]
     end
 
     ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") { yield }
-    count
+    statements
   end
+
+  def count_database_queries = capture_database_queries { yield }.length
 end
