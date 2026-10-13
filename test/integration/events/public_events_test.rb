@@ -127,6 +127,21 @@ class EventsPublicEventsTest < ActionDispatch::IntegrationTest
     assert_equal 50_000, event.fetch("price_from_minor")
   end
 
+  test "featured discovery does not fall back to organic events when featured resolution fails" do
+    failure = Core::BusinessError.new(
+      "internal featured query failure", code: "internal_failure", status: :unprocessable_entity
+    )
+    Marketing::FeaturedPlacements::PublicQuery.stubs(:call)
+      .returns(Core::BaseService::Result.failure(failure))
+
+    get "/public/events?featured=true", as: :json
+
+    assert_response :service_unavailable
+    assert_equal "featured_events_unavailable", response.parsed_body.fetch("code")
+    refute response.parsed_body.key?("data")
+    refute_includes response.body, "internal featured query failure"
+  end
+
   test "private draft events are excluded from public discovery" do
     get "/public/events", as: :json
     bodies = JSON.parse(response.body).dig("data")
@@ -146,6 +161,10 @@ class EventsPublicEventsTest < ActionDispatch::IntegrationTest
   end
 
   test "public event detail exposes only attendee-safe fields" do
+    route = Rails.application.routes.recognize_path("/public/events/#{@event.slug}", method: :get)
+    assert_equal "public/events", route.fetch(:controller)
+    assert_equal "show", route.fetch(:action)
+
     get "/public/events/#{@event.slug}", as: :json
     assert_response :success
     body = JSON.parse(response.body).dig("data")

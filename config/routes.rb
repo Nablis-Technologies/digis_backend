@@ -55,6 +55,15 @@ Rails.application.routes.draw do
   get "messaging/unsubscribe/:token", to: "messaging/campaign_unsubscribes#show"
   post "messaging/unsubscribe/:token", to: "messaging/campaign_unsubscribes#create"
 
+  scope "events/:event_id/featured_placements", module: :marketing do
+    get "offers", to: "featured_placements#offers"
+    post "quote", to: "featured_placements#quote"
+    get "", to: "featured_placements#index"
+    post "", to: "featured_placements#create"
+    get ":id", to: "featured_placements#show"
+    post ":id/cancel", to: "featured_placements#cancel"
+  end
+
   namespace :admin do
     namespace :messaging do
       resources :credit_rates, only: %i[index show create] do
@@ -76,6 +85,12 @@ Rails.application.routes.draw do
       get    "followers", to: "core/followers#index",   as: :followers
     end
   end
+
+  get "public/featured_events", to: "public/events#featured"
+  get "public/events", to: "public/events#index", as: :public_events
+  get "public/events/:slug", to: "public/events#show", as: :public_event
+  post "admin/orders/refunds/:id/resolve_manual",
+    to: "admin/orders/refund_resolutions#resolve_manual"
 
   scope module: :events do
     post "events/staff_invitations/claim", to: "staff_invitations#claim"
@@ -121,8 +136,6 @@ Rails.application.routes.draw do
         post :deactivate, on: :member
       end
     end
-    resources :public_events, only: :index, path: "public/events"
-    get "public/events/:slug", to: "public_events#public_show", as: :public_event
   end
 
   get "public/events/:event_slug/products", to: "catalog/public_products#index"

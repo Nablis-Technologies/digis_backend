@@ -1,0 +1,6 @@
+# frozen_string_literal: true
+
+en:
+  event:
+    errors:
+      featured_events_unavailable: "Featured events are temporarily unavailable"
