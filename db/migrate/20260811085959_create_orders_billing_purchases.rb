@@ -20,10 +20,10 @@ class CreateOrdersBillingPurchases < ActiveRecord::Migration[8.1]
     end
 
     add_check_constraint :orders_billing_purchases,
-      "kind IN ('messaging_credit_top_up')",
+      "kind IN ('messaging_credit_top_up','featured_placement')",
       name: "orders_billing_purchases_kind_check"
     add_check_constraint :orders_billing_purchases,
-      "source_type IN ('Messaging::CreditTopUp')",
+      "source_type IN ('Messaging::CreditTopUp','Marketing::FeaturedPlacement')",
       name: "orders_billing_purchases_source_type_check"
     add_check_constraint :orders_billing_purchases,
       "currency ~ '^[A-Z]{3}$' AND amount_minor > 0 AND price_digest ~ '^[0-9a-f]{64}$'",

@@ -817,6 +817,19 @@ $$;
 
 
 --
+-- Name: finance_platform_billing_entries_immutable(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.finance_platform_billing_entries_immutable() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  RAISE EXCEPTION 'finance_platform_billing_entries_are_immutable' USING ERRCODE = '23514';
+END;
+$$;
+
+
+--
 -- Name: legal_version_delete_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1699,13 +1712,13 @@ CREATE FUNCTION public.orders_refund_integrity() RETURNS trigger
 DECLARE
   payment_status text;
   accepted_at timestamptz;
-  billing_purchase_id uuid;
+  payment_billing_purchase_id uuid;
   payment_amount bigint;
   payment_currency text;
 BEGIN
   SELECT payments.status, payments.accepted_at, payments.billing_purchase_id,
          payments.amount_minor, payments.currency
-    INTO payment_status, accepted_at, billing_purchase_id, payment_amount, payment_currency
+    INTO payment_status, accepted_at, payment_billing_purchase_id, payment_amount, payment_currency
   FROM orders_payments AS payments
   WHERE payments.id = NEW.payment_id;
 
@@ -1715,10 +1728,17 @@ BEGIN
 
   IF NEW.type = 'payment_reversal' AND
      (payment_status IS DISTINCT FROM 'succeeded' OR
-      (accepted_at IS NOT NULL AND billing_purchase_id IS NULL) OR
+      (accepted_at IS NOT NULL AND payment_billing_purchase_id IS NULL) OR
       NEW.amount_minor IS DISTINCT FROM payment_amount OR
       NEW.currency IS DISTINCT FROM payment_currency) THEN
     RAISE EXCEPTION 'orders_payment_reversal_integrity' USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.type = 'billing_purchase_refund' AND
+     (payment_status IS DISTINCT FROM 'succeeded' OR accepted_at IS NULL OR
+      payment_billing_purchase_id IS DISTINCT FROM NEW.billing_purchase_id OR
+      NEW.amount_minor > payment_amount) THEN
+    RAISE EXCEPTION 'orders_billing_purchase_refund_integrity' USING ERRCODE = '23514';
   END IF;
 
   IF NEW.event_cancellation_id IS NOT NULL AND EXISTS (
@@ -1734,11 +1754,11 @@ BEGIN
     RAISE EXCEPTION 'orders_refund_cancellation_event_scope' USING ERRCODE = '23514';
   END IF;
 
-  IF NEW.status IN ('created', 'pending_funds', 'processing', 'succeeded') AND
+  IF NEW.status IN ('created', 'pending_funds', 'processing', 'manual_review', 'succeeded') AND
      (SELECT COALESCE(SUM(amount_minor), 0)
       FROM orders_refunds
       WHERE payment_id = NEW.payment_id
-        AND status IN ('created', 'pending_funds', 'processing', 'succeeded')
+        AND status IN ('created', 'pending_funds', 'processing', 'manual_review', 'succeeded')
         AND id IS DISTINCT FROM NEW.id) + NEW.amount_minor > payment_amount THEN
     RAISE EXCEPTION 'orders_refunds_payment_amount_exceeded' USING ERRCODE = '23514';
   END IF;
@@ -5358,6 +5378,27 @@ CREATE TABLE public.finance_payouts (
 
 
 --
+-- Name: finance_platform_billing_entries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.finance_platform_billing_entries (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    billing_purchase_id uuid NOT NULL,
+    payment_id uuid NOT NULL,
+    refund_id uuid,
+    type character varying NOT NULL,
+    amount_minor bigint NOT NULL,
+    currency character varying(3) NOT NULL,
+    idempotency_key character varying(64) NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT finance_platform_billing_entries_shape_check CHECK (((((type)::text = 'featured_placement_charge'::text) AND (amount_minor > 0) AND (refund_id IS NULL)) OR (((type)::text = 'provider_fee'::text) AND (amount_minor < 0) AND (refund_id IS NULL)) OR (((type)::text = 'featured_placement_refund'::text) AND (amount_minor < 0) AND (refund_id IS NOT NULL)))),
+    CONSTRAINT finance_platform_billing_entries_snapshot_check CHECK (((amount_minor <> 0) AND ((currency)::text = 'ETB'::text) AND ((idempotency_key)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT finance_platform_billing_entries_type_check CHECK (((type)::text = ANY (ARRAY[('featured_placement_charge'::character varying)::text, ('provider_fee'::character varying)::text, ('featured_placement_refund'::character varying)::text])))
+);
+
+
+--
 -- Name: finance_provider_reserve_policies; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5478,6 +5519,68 @@ CREATE TABLE public.links_short_links (
     CONSTRAINT links_short_links_https_url_check CHECK (((custom_url IS NULL) OR (custom_url ~~ 'https://%'::text))),
     CONSTRAINT links_short_links_target_type_check CHECK (((target_type IS NULL) OR ((target_type)::text = ANY (ARRAY[('event'::character varying)::text, ('ticket'::character varying)::text, ('organization'::character varying)::text, ('ticket_transfer'::character varying)::text])))),
     CONSTRAINT links_short_links_target_xor_check CHECK ((((target_type IS NOT NULL) AND (target_id IS NOT NULL) AND (custom_url IS NULL)) OR ((target_type IS NULL) AND (target_id IS NULL) AND (custom_url IS NOT NULL))))
+);
+
+
+--
+-- Name: marketing_featured_placements; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.marketing_featured_placements (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    event_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    placement_offer_id uuid NOT NULL,
+    refund_id uuid,
+    status character varying DEFAULT 'pending_payment'::character varying NOT NULL,
+    surface character varying NOT NULL,
+    starts_at timestamp with time zone NOT NULL,
+    ends_at timestamp with time zone NOT NULL,
+    duration_seconds integer NOT NULL,
+    offer_code character varying NOT NULL,
+    offer_version integer NOT NULL,
+    daily_rate_minor bigint NOT NULL,
+    amount_minor bigint NOT NULL,
+    currency character varying(3) NOT NULL,
+    terms_version character varying NOT NULL,
+    price_digest character varying(64) NOT NULL,
+    idempotency_key_digest character varying(64) NOT NULL,
+    request_digest character varying(64) NOT NULL,
+    failure_code character varying,
+    cancelled_at timestamp with time zone,
+    completed_at timestamp with time zone,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT marketing_featured_placements_digest_check CHECK ((((price_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((request_digest)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT marketing_featured_placements_price_snapshot_check CHECK (((duration_seconds >= 86400) AND (duration_seconds <= 1209600) AND (daily_rate_minor > 0) AND (amount_minor > 0) AND (amount_minor = (ceil((((daily_rate_minor)::numeric * (duration_seconds)::numeric) / (86400)::numeric)))::bigint) AND ((currency)::text = 'ETB'::text) AND (offer_version > 0) AND (btrim((offer_code)::text) <> ''::text) AND (btrim((terms_version)::text) <> ''::text))),
+    CONSTRAINT marketing_featured_placements_status_check CHECK (((status)::text = ANY (ARRAY[('pending_payment'::character varying)::text, ('scheduled'::character varying)::text, ('active'::character varying)::text, ('completed'::character varying)::text, ('cancelled'::character varying)::text, ('failed'::character varying)::text]))),
+    CONSTRAINT marketing_featured_placements_window_check CHECK ((((surface)::text = 'public_discovery'::text) AND (ends_at > starts_at) AND (duration_seconds = (floor(EXTRACT(epoch FROM (ends_at - starts_at))))::integer)))
+);
+
+
+--
+-- Name: marketing_placement_offers; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.marketing_placement_offers (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    code character varying NOT NULL,
+    version integer NOT NULL,
+    daily_rate_minor bigint NOT NULL,
+    currency character varying(3) NOT NULL,
+    minimum_duration_seconds integer NOT NULL,
+    maximum_duration_seconds integer NOT NULL,
+    surface character varying NOT NULL,
+    terms_version character varying NOT NULL,
+    active boolean DEFAULT false NOT NULL,
+    starts_at timestamp with time zone NOT NULL,
+    ends_at timestamp with time zone NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT marketing_placement_offers_duration_check CHECK (((minimum_duration_seconds >= 86400) AND (maximum_duration_seconds >= minimum_duration_seconds) AND (maximum_duration_seconds <= 1209600))),
+    CONSTRAINT marketing_placement_offers_identity_check CHECK (((btrim((code)::text) <> ''::text) AND (version > 0) AND (btrim((terms_version)::text) <> ''::text))),
+    CONSTRAINT marketing_placement_offers_price_check CHECK (((daily_rate_minor > 0) AND ((currency)::text = 'ETB'::text))),
+    CONSTRAINT marketing_placement_offers_surface_window_check CHECK ((((surface)::text = 'public_discovery'::text) AND (ends_at > starts_at)))
 );
 
 
@@ -6279,10 +6382,10 @@ CREATE TABLE public.orders_billing_purchases (
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
     CONSTRAINT orders_billing_purchases_idempotency_check CHECK (((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text)),
-    CONSTRAINT orders_billing_purchases_kind_check CHECK (((kind)::text = 'messaging_credit_top_up'::text)),
+    CONSTRAINT orders_billing_purchases_kind_check CHECK (((kind)::text = ANY (ARRAY[('messaging_credit_top_up'::character varying)::text, ('featured_placement'::character varying)::text]))),
     CONSTRAINT orders_billing_purchases_snapshot_check CHECK ((((currency)::text ~ '^[A-Z]{3}$'::text) AND (amount_minor > 0) AND ((price_digest)::text ~ '^[0-9a-f]{64}$'::text))),
     CONSTRAINT orders_billing_purchases_source_check CHECK ((btrim((source_id)::text) <> ''::text)),
-    CONSTRAINT orders_billing_purchases_source_type_check CHECK (((source_type)::text = 'Messaging::CreditTopUp'::text)),
+    CONSTRAINT orders_billing_purchases_source_type_check CHECK (((source_type)::text = ANY (ARRAY[('Messaging::CreditTopUp'::character varying)::text, ('Marketing::FeaturedPlacement'::character varying)::text]))),
     CONSTRAINT orders_billing_purchases_status_check CHECK (((status)::text = ANY (ARRAY[('created'::character varying)::text, ('pending_payment'::character varying)::text, ('paid'::character varying)::text, ('cancelled'::character varying)::text, ('failed'::character varying)::text, ('reversed'::character varying)::text])))
 );
 
@@ -6605,6 +6708,7 @@ CREATE TABLE public.orders_refund_items (
 CREATE TABLE public.orders_refunds (
     id uuid DEFAULT uuidv7() NOT NULL,
     payment_id uuid NOT NULL,
+    billing_purchase_id uuid,
     event_cancellation_id uuid,
     type character varying NOT NULL,
     idempotency_key character varying NOT NULL,
@@ -6619,11 +6723,18 @@ CREATE TABLE public.orders_refunds (
     next_retry_at timestamp with time zone,
     reason_code character varying NOT NULL,
     reason text,
+    manual_resolved_by_id uuid,
+    manual_resolution_reason character varying,
+    manual_evidence_reference character varying,
+    manual_resolved_at timestamp with time zone,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT orders_refunds_billing_purchase_reason_check CHECK ((((type)::text <> 'billing_purchase_refund'::text) OR ((reason_code)::text = ANY (ARRAY[('featured_placement_cancelled'::character varying)::text, ('event_cancelled'::character varying)::text])))),
+    CONSTRAINT orders_refunds_billing_purchase_shape_check CHECK (((((type)::text = 'billing_purchase_refund'::text) AND (billing_purchase_id IS NOT NULL) AND (event_cancellation_id IS NULL)) OR (((type)::text <> 'billing_purchase_refund'::text) AND (billing_purchase_id IS NULL)))),
+    CONSTRAINT orders_refunds_manual_resolution_check CHECK (((manual_resolved_at IS NULL) OR ((manual_resolved_by_id IS NOT NULL) AND (btrim((manual_resolution_reason)::text) <> ''::text) AND (btrim((manual_evidence_reference)::text) <> ''::text)))),
     CONSTRAINT orders_refunds_provider_fee_pair_check CHECK ((((provider_fee_minor IS NULL) AND (provider_fee_currency IS NULL) AND (provider_fee_recorded_at IS NULL)) OR ((provider_fee_minor IS NOT NULL) AND (provider_fee_minor >= 0) AND (provider_fee_currency IS NOT NULL) AND ((provider_fee_currency)::text ~ '^[A-Z]{3}$'::text) AND (provider_fee_recorded_at IS NOT NULL)))),
-    CONSTRAINT orders_refunds_status_check CHECK (((status)::text = ANY (ARRAY[('created'::character varying)::text, ('pending_funds'::character varying)::text, ('processing'::character varying)::text, ('succeeded'::character varying)::text, ('failed'::character varying)::text]))),
-    CONSTRAINT orders_refunds_type_check CHECK (((type)::text = ANY (ARRAY[('item_refund'::character varying)::text, ('payment_reversal'::character varying)::text]))),
+    CONSTRAINT orders_refunds_status_check CHECK (((status)::text = ANY (ARRAY[('created'::character varying)::text, ('pending_funds'::character varying)::text, ('processing'::character varying)::text, ('manual_review'::character varying)::text, ('succeeded'::character varying)::text, ('failed'::character varying)::text]))),
+    CONSTRAINT orders_refunds_type_check CHECK (((type)::text = ANY (ARRAY[('item_refund'::character varying)::text, ('payment_reversal'::character varying)::text, ('billing_purchase_refund'::character varying)::text]))),
     CONSTRAINT pending_funds_has_reason CHECK ((((status)::text <> 'pending_funds'::text) OR (pending_reason IS NOT NULL))),
     CONSTRAINT refund_amount_positive CHECK ((amount_minor > 0)),
     CONSTRAINT refund_currency_iso CHECK (((currency)::text ~ '^[A-Z]{3}$'::text))
@@ -8319,6 +8430,14 @@ ALTER TABLE ONLY public.finance_payouts
 
 
 --
+-- Name: finance_platform_billing_entries finance_platform_billing_entries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_platform_billing_entries
+    ADD CONSTRAINT finance_platform_billing_entries_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: finance_provider_reserve_policies finance_provider_reserve_policies_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8364,6 +8483,22 @@ ALTER TABLE ONLY public.links_short_link_clicks
 
 ALTER TABLE ONLY public.links_short_links
     ADD CONSTRAINT links_short_links_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: marketing_featured_placements marketing_featured_placements_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.marketing_featured_placements
+    ADD CONSTRAINT marketing_featured_placements_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: marketing_placement_offers marketing_placement_offers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.marketing_placement_offers
+    ADD CONSTRAINT marketing_placement_offers_pkey PRIMARY KEY (id);
 
 
 --
@@ -9277,7 +9412,7 @@ CREATE UNIQUE INDEX idx_event_payer_selections_on_event_component ON public.comm
 -- Name: idx_event_staff_one_active_general_role; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_event_staff_one_active_general_role ON public.events_event_staff_assignments USING btree (event_id, user_id) WHERE (((status)::text = 'active'::text) AND ((role)::text = ANY ((ARRAY['manager'::character varying, 'staff'::character varying, 'contractor'::character varying])::text[])));
+CREATE UNIQUE INDEX idx_event_staff_one_active_general_role ON public.events_event_staff_assignments USING btree (event_id, user_id) WHERE (((status)::text = 'active'::text) AND ((role)::text = ANY (ARRAY[('manager'::character varying)::text, ('staff'::character varying)::text, ('contractor'::character varying)::text])));
 
 
 --
@@ -9446,6 +9581,34 @@ CREATE UNIQUE INDEX idx_live_ticketing_scanner_invitation_code ON public.ticketi
 --
 
 CREATE UNIQUE INDEX idx_live_ticketing_scanner_invitation_phone ON public.ticketing_scanner_invitations USING btree (event_id, phone_digest) WHERE ((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('paired'::character varying)::text, ('pairing_reset'::character varying)::text]));
+
+
+--
+-- Name: idx_marketing_featured_placements_event_window; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_marketing_featured_placements_event_window ON public.marketing_featured_placements USING btree (event_id, status, starts_at, ends_at);
+
+
+--
+-- Name: idx_marketing_featured_placements_idempotency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_marketing_featured_placements_idempotency ON public.marketing_featured_placements USING btree (organization_id, idempotency_key_digest);
+
+
+--
+-- Name: idx_marketing_featured_placements_surface_window; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_marketing_featured_placements_surface_window ON public.marketing_featured_placements USING btree (surface, status, starts_at, ends_at);
+
+
+--
+-- Name: idx_marketing_placement_offers_active_window; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_marketing_placement_offers_active_window ON public.marketing_placement_offers USING btree (surface, active, starts_at, ends_at);
 
 
 --
@@ -10604,6 +10767,13 @@ CREATE INDEX idx_payments_on_status_and_grace_expiry ON public.orders_payments U
 
 
 --
+-- Name: idx_platform_billing_entries_payment_type; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_platform_billing_entries_payment_type ON public.finance_platform_billing_entries USING btree (payment_id, type) WHERE ((type)::text = ANY (ARRAY[('featured_placement_charge'::character varying)::text, ('provider_fee'::character varying)::text]));
+
+
+--
 -- Name: idx_product_accesses_on_product_date_type; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -11591,6 +11761,13 @@ CREATE UNIQUE INDEX index_core_roles_on_code ON public.core_roles USING btree (c
 
 
 --
+-- Name: index_core_user_profiles_on_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_core_user_profiles_on_user_id ON public.core_user_profiles USING btree (user_id);
+
+
+--
 -- Name: index_core_user_roles_on_assigned_by_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -11609,13 +11786,6 @@ CREATE INDEX index_core_user_roles_on_expires_at ON public.core_user_roles USING
 --
 
 CREATE INDEX index_core_user_roles_on_role_id ON public.core_user_roles USING btree (role_id);
-
-
---
--- Name: index_core_user_profiles_on_user_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX index_core_user_profiles_on_user_id ON public.core_user_profiles USING btree (user_id);
 
 
 --
@@ -11983,6 +12153,20 @@ CREATE INDEX index_finance_payouts_on_payout_account_id ON public.finance_payout
 
 
 --
+-- Name: index_finance_platform_billing_entries_on_idempotency_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_finance_platform_billing_entries_on_idempotency_key ON public.finance_platform_billing_entries USING btree (idempotency_key);
+
+
+--
+-- Name: index_finance_platform_billing_entries_on_refund_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_finance_platform_billing_entries_on_refund_id ON public.finance_platform_billing_entries USING btree (refund_id) WHERE (refund_id IS NOT NULL);
+
+
+--
 -- Name: index_follows_followable; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -12029,6 +12213,20 @@ CREATE INDEX index_links_short_links_on_creator_id ON public.links_short_links U
 --
 
 CREATE INDEX index_links_short_links_on_target_type_and_target_id ON public.links_short_links USING btree (target_type, target_id);
+
+
+--
+-- Name: index_marketing_featured_placements_on_refund_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_marketing_featured_placements_on_refund_id ON public.marketing_featured_placements USING btree (refund_id) WHERE (refund_id IS NOT NULL);
+
+
+--
+-- Name: index_marketing_placement_offers_on_code_and_version; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_marketing_placement_offers_on_code_and_version ON public.marketing_placement_offers USING btree (code, version);
 
 
 --
@@ -12085,6 +12283,13 @@ CREATE INDEX index_orders_refund_items_on_refund_id ON public.orders_refund_item
 --
 
 CREATE INDEX index_orders_refund_items_on_ticket_id_and_event_date_id ON public.orders_refund_items USING btree (ticket_id, event_date_id);
+
+
+--
+-- Name: index_orders_refunds_on_billing_purchase_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_orders_refunds_on_billing_purchase_id ON public.orders_refunds USING btree (billing_purchase_id);
 
 
 --
@@ -12645,6 +12850,13 @@ CREATE CONSTRAINT TRIGGER trg_finance_payout_allocation_integrity AFTER INSERT O
 --
 
 CREATE TRIGGER trg_finance_payout_allocation_scope BEFORE INSERT OR UPDATE ON public.finance_payout_allocations FOR EACH ROW EXECUTE FUNCTION public.finance_payout_allocation_integrity();
+
+
+--
+-- Name: finance_platform_billing_entries trg_finance_platform_billing_entries_immutable; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_finance_platform_billing_entries_immutable BEFORE DELETE OR UPDATE ON public.finance_platform_billing_entries FOR EACH ROW EXECUTE FUNCTION public.finance_platform_billing_entries_immutable();
 
 
 --
@@ -13339,6 +13551,14 @@ ALTER TABLE ONLY public.messaging_credit_reservations
 
 
 --
+-- Name: orders_refunds fk_rails_0eea68c1d9; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_refunds
+    ADD CONSTRAINT fk_rails_0eea68c1d9 FOREIGN KEY (billing_purchase_id) REFERENCES public.orders_billing_purchases(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: messaging_campaigns fk_rails_0f095fd52f; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13416,6 +13636,14 @@ ALTER TABLE ONLY public.marketplace_resale_sales
 
 ALTER TABLE ONLY public.commercial_term_notices
     ADD CONSTRAINT fk_rails_13717644e2 FOREIGN KEY (legal_document_version_id) REFERENCES public.legal_document_versions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: finance_platform_billing_entries fk_rails_1391365307; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_platform_billing_entries
+    ADD CONSTRAINT fk_rails_1391365307 FOREIGN KEY (refund_id) REFERENCES public.orders_refunds(id) ON DELETE RESTRICT;
 
 
 --
@@ -13592,6 +13820,14 @@ ALTER TABLE ONLY public.catalog_promotions
 
 ALTER TABLE ONLY public.ticketing_admission_use_reversals
     ADD CONSTRAINT fk_rails_1fe67bbf01 FOREIGN KEY (checkin_log_id) REFERENCES public.ticketing_checkin_logs(id);
+
+
+--
+-- Name: marketing_featured_placements fk_rails_2045958987; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.marketing_featured_placements
+    ADD CONSTRAINT fk_rails_2045958987 FOREIGN KEY (refund_id) REFERENCES public.orders_refunds(id) ON DELETE RESTRICT;
 
 
 --
@@ -14275,6 +14511,22 @@ ALTER TABLE ONLY public.messaging_campaign_contact_list_imports
 
 
 --
+-- Name: finance_platform_billing_entries fk_rails_5cbb304f93; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_platform_billing_entries
+    ADD CONSTRAINT fk_rails_5cbb304f93 FOREIGN KEY (payment_id) REFERENCES public.orders_payments(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: orders_refunds fk_rails_5dfaa98735; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.orders_refunds
+    ADD CONSTRAINT fk_rails_5dfaa98735 FOREIGN KEY (manual_resolved_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: ticketing_ticket_types fk_rails_5e4a0f5f12; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14312,6 +14564,14 @@ ALTER TABLE ONLY public.events_event_streams
 
 ALTER TABLE ONLY public.ticketing_registration_questions
     ADD CONSTRAINT fk_rails_605ad621df FOREIGN KEY (registration_form_version_id) REFERENCES public.ticketing_registration_form_versions(id);
+
+
+--
+-- Name: marketing_featured_placements fk_rails_60a52f6767; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.marketing_featured_placements
+    ADD CONSTRAINT fk_rails_60a52f6767 FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE RESTRICT;
 
 
 --
@@ -14552,6 +14812,14 @@ ALTER TABLE ONLY public.marketplace_resale_sales
 
 ALTER TABLE ONLY public.commercial_fee_schedule_versions
     ADD CONSTRAINT fk_rails_75ae623228 FOREIGN KEY (submitted_by_id) REFERENCES public.core_users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: marketing_featured_placements fk_rails_7606b9e767; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.marketing_featured_placements
+    ADD CONSTRAINT fk_rails_7606b9e767 FOREIGN KEY (placement_offer_id) REFERENCES public.marketing_placement_offers(id) ON DELETE RESTRICT;
 
 
 --
@@ -15187,6 +15455,14 @@ ALTER TABLE ONLY public.orders_refund_adjustment_allocations
 
 
 --
+-- Name: finance_platform_billing_entries fk_rails_b5c335f33a; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.finance_platform_billing_entries
+    ADD CONSTRAINT fk_rails_b5c335f33a FOREIGN KEY (billing_purchase_id) REFERENCES public.orders_billing_purchases(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: ticketing_admission_slots fk_rails_b631cde906; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15520,6 +15796,14 @@ ALTER TABLE ONLY public.ticketing_invitations
 
 ALTER TABLE ONLY public.finance_payouts
     ADD CONSTRAINT fk_rails_cd5e6335fc FOREIGN KEY (organization_id) REFERENCES public.organizations_organizations(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: marketing_featured_placements fk_rails_cda45f6858; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.marketing_featured_placements
+    ADD CONSTRAINT fk_rails_cda45f6858 FOREIGN KEY (event_id) REFERENCES public.events_events(id) ON DELETE RESTRICT;
 
 
 --
@@ -16161,6 +16445,9 @@ ALTER TABLE ONLY public.ticketing_ticket_suspensions
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261013090003'),
+('20261013090002'),
+('20261013090001'),
 ('20261011090000'),
 ('20261009090001'),
 ('20261009090000'),

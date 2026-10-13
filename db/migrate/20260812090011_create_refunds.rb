@@ -4,6 +4,7 @@ class CreateRefunds < ActiveRecord::Migration[8.1]
   def up
     create_table :orders_refunds, id: :uuid, default: -> { "uuidv7()" } do |t|
       t.uuid :payment_id, null: false
+      t.uuid :billing_purchase_id
       t.uuid :event_cancellation_id
       t.string :type, null: false
       t.string :idempotency_key, null: false
@@ -18,11 +19,16 @@ class CreateRefunds < ActiveRecord::Migration[8.1]
       t.timestamptz :next_retry_at
       t.string :reason_code, null: false
       t.text :reason
+      t.uuid :manual_resolved_by_id
+      t.string :manual_resolution_reason
+      t.string :manual_evidence_reference
+      t.timestamptz :manual_resolved_at
 
       t.timestamps
     end
 
     add_index :orders_refunds, :payment_id
+    add_index :orders_refunds, :billing_purchase_id
     add_index :orders_refunds, :event_cancellation_id
     add_index :orders_refunds, %i[event_cancellation_id status],
               where: "event_cancellation_id IS NOT NULL",
@@ -35,11 +41,18 @@ class CreateRefunds < ActiveRecord::Migration[8.1]
               name: "idx_one_payment_reversal_per_payment"
 
     add_check_constraint :orders_refunds,
-      "type IN ('item_refund','payment_reversal')",
+      "type IN ('item_refund','payment_reversal','billing_purchase_refund')",
       name: "orders_refunds_type_check"
     add_check_constraint :orders_refunds,
-      "status IN ('created','pending_funds','processing','succeeded','failed')",
+      "status IN ('created','pending_funds','processing','manual_review','succeeded','failed')",
       name: "orders_refunds_status_check"
+    add_check_constraint :orders_refunds,
+      "(type = 'billing_purchase_refund' AND billing_purchase_id IS NOT NULL AND event_cancellation_id IS NULL) OR " \
+      "(type <> 'billing_purchase_refund' AND billing_purchase_id IS NULL)",
+      name: "orders_refunds_billing_purchase_shape_check"
+    add_check_constraint :orders_refunds,
+      "type <> 'billing_purchase_refund' OR reason_code IN ('featured_placement_cancelled','event_cancelled')",
+      name: "orders_refunds_billing_purchase_reason_check"
     add_check_constraint :orders_refunds,
       "amount_minor > 0",
       name: "refund_amount_positive"
@@ -54,11 +67,19 @@ class CreateRefunds < ActiveRecord::Migration[8.1]
     add_check_constraint :orders_refunds,
       "status <> 'pending_funds' OR pending_reason IS NOT NULL",
       name: "pending_funds_has_reason"
+    add_check_constraint :orders_refunds,
+      "manual_resolved_at IS NULL OR (manual_resolved_by_id IS NOT NULL AND " \
+      "btrim(manual_resolution_reason) <> '' AND btrim(manual_evidence_reference) <> '')",
+      name: "orders_refunds_manual_resolution_check"
 
     add_foreign_key :orders_refunds, :orders_payments,
                     column: :payment_id, on_delete: :restrict
+    add_foreign_key :orders_refunds, :orders_billing_purchases,
+                    column: :billing_purchase_id, on_delete: :restrict
     add_foreign_key :orders_refunds, :events_event_cancellations,
                     column: :event_cancellation_id, on_delete: :restrict
+    add_foreign_key :orders_refunds, :core_users,
+                    column: :manual_resolved_by_id, on_delete: :restrict
 
     execute <<~SQL
       CREATE OR REPLACE FUNCTION orders_refund_integrity()
@@ -68,13 +89,13 @@ class CreateRefunds < ActiveRecord::Migration[8.1]
       DECLARE
         payment_status text;
         accepted_at timestamptz;
-        billing_purchase_id uuid;
+        payment_billing_purchase_id uuid;
         payment_amount bigint;
         payment_currency text;
       BEGIN
         SELECT payments.status, payments.accepted_at, payments.billing_purchase_id,
                payments.amount_minor, payments.currency
-          INTO payment_status, accepted_at, billing_purchase_id, payment_amount, payment_currency
+          INTO payment_status, accepted_at, payment_billing_purchase_id, payment_amount, payment_currency
         FROM orders_payments AS payments
         WHERE payments.id = NEW.payment_id;
 
@@ -84,10 +105,17 @@ class CreateRefunds < ActiveRecord::Migration[8.1]
 
         IF NEW.type = 'payment_reversal' AND
            (payment_status IS DISTINCT FROM 'succeeded' OR
-            (accepted_at IS NOT NULL AND billing_purchase_id IS NULL) OR
+            (accepted_at IS NOT NULL AND payment_billing_purchase_id IS NULL) OR
             NEW.amount_minor IS DISTINCT FROM payment_amount OR
             NEW.currency IS DISTINCT FROM payment_currency) THEN
           RAISE EXCEPTION 'orders_payment_reversal_integrity' USING ERRCODE = '23514';
+        END IF;
+
+        IF NEW.type = 'billing_purchase_refund' AND
+           (payment_status IS DISTINCT FROM 'succeeded' OR accepted_at IS NULL OR
+            payment_billing_purchase_id IS DISTINCT FROM NEW.billing_purchase_id OR
+            NEW.amount_minor > payment_amount) THEN
+          RAISE EXCEPTION 'orders_billing_purchase_refund_integrity' USING ERRCODE = '23514';
         END IF;
 
         IF NEW.event_cancellation_id IS NOT NULL AND EXISTS (
@@ -103,11 +131,11 @@ class CreateRefunds < ActiveRecord::Migration[8.1]
           RAISE EXCEPTION 'orders_refund_cancellation_event_scope' USING ERRCODE = '23514';
         END IF;
 
-        IF NEW.status IN ('created', 'pending_funds', 'processing', 'succeeded') AND
+        IF NEW.status IN ('created', 'pending_funds', 'processing', 'manual_review', 'succeeded') AND
            (SELECT COALESCE(SUM(amount_minor), 0)
             FROM orders_refunds
             WHERE payment_id = NEW.payment_id
-              AND status IN ('created', 'pending_funds', 'processing', 'succeeded')
+              AND status IN ('created', 'pending_funds', 'processing', 'manual_review', 'succeeded')
               AND id IS DISTINCT FROM NEW.id) + NEW.amount_minor > payment_amount THEN
           RAISE EXCEPTION 'orders_refunds_payment_amount_exceeded' USING ERRCODE = '23514';
         END IF;
