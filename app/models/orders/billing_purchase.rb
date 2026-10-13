@@ -7,9 +7,9 @@ module Orders
   class BillingPurchase < Orders::ApplicationRecord
     self.table_name = "orders_billing_purchases"
 
-    KINDS = %w[messaging_credit_top_up].freeze
+    KINDS = %w[messaging_credit_top_up featured_placement].freeze
     STATUSES = %w[created pending_payment paid cancelled failed reversed].freeze
-    SOURCE_TYPES = %w[Messaging::CreditTopUp].freeze
+    SOURCE_TYPES = %w[Messaging::CreditTopUp Marketing::FeaturedPlacement].freeze
 
     belongs_to :organization, class_name: "Organizations::Organization"
     belongs_to :requested_by, class_name: "Core::User"
@@ -18,11 +18,6 @@ module Orders
              foreign_key: :billing_purchase_id,
              inverse_of: :billing_purchase,
              dependent: :restrict_with_exception
-    has_one :credit_top_up,
-            class_name: "Messaging::CreditTopUp",
-            foreign_key: :orders_billing_purchase_id,
-            inverse_of: :billing_purchase
-
     before_validation :normalize_fields
 
     validates :organization, :requested_by, :kind, :source_type, :source_id,

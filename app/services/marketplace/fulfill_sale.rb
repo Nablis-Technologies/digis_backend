@@ -423,7 +423,7 @@ module Marketplace
     def active_refund?(ticket)
       Orders::RefundItem
         .joins(:refund)
-        .where(ticket_id: ticket.id, orders_refunds: { status: %w[created pending_funds processing succeeded] })
+        .where(ticket_id: ticket.id, orders_refunds: { status: Orders::Refund::OUTSTANDING_STATUSES })
         .exists?
     end
 

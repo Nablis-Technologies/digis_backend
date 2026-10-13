@@ -155,7 +155,7 @@ module Orders
 
       def refund_in_progress?(order_item_id)
         Orders::RefundItem.joins(:refund).where(order_item_id:)
-          .where(orders_refunds: { status: %w[created pending_funds processing succeeded] }).exists?
+          .where(orders_refunds: { status: Orders::Refund::OUTSTANDING_STATUSES }).exists?
       end
 
       def recipient_requires_authentication?(recipient)

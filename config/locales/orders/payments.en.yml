@@ -1,5 +1,7 @@
 en:
   orders:
+    permissions:
+      billing_refund_resolve_manual: "Resolve manually reviewed billing purchase refunds"
     payments:
       errors:
         commercial_requote_required: "This payment option requires a new checkout quote"
@@ -84,6 +86,13 @@ en:
         idempotency_conflict: "The refund idempotency key conflicts with another obligation"
         refund_failed: "The item refund could not be recorded"
         refund_not_found: "The refund obligation could not be found"
+        refund_source_not_found: "The paid billing purchase could not be found"
+        refund_source_not_paid: "The billing purchase has not been paid"
+        refund_amount_exceeded: "The refund exceeds the remaining refundable amount"
+        invalid_refund: "The billing purchase refund is invalid"
+        manual_resolution_forbidden: "You are not authorized to resolve billing purchase refunds"
+        manual_resolution_invalid: "The manual refund resolution details are invalid"
+        refund_not_in_manual_review: "The refund is not awaiting manual review"
         invalid_provider_result: "The refund provider returned invalid evidence"
         provider_unavailable: "The refund provider is unavailable"
         provider_refund_unsupported: "The refund provider does not support refunds"
@@ -110,6 +119,9 @@ en:
         schedule_change: "The event schedule changed"
         legal_remedy: "A legal remedy requires this refund"
         platform_admin_correction: "The platform recorded an administrative correction"
+      billing_purchase_reasons:
+        featured_placement_cancelled: "The featured placement was cancelled"
+        event_cancelled: "The event was cancelled"
   payments:
     providers:
       errors:

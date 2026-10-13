@@ -23,7 +23,12 @@ module Orders
       adapter = fetch_adapter(snapshot[:provider])
       capabilities = refund_capabilities(adapter)
       capability_failure = validate_capabilities(snapshot, capabilities)
-      return failure(capability_failure) if capability_failure
+      if capability_failure
+        return mark_manual_review(snapshot[:refund_id], capability_failure.code) if
+          snapshot[:refund_type] == "billing_purchase_refund"
+
+        return failure(capability_failure)
+      end
 
       if insufficient_balance?(adapter, snapshot, capabilities)
         pending = mark_pending_funds(snapshot[:refund_id])
@@ -60,7 +65,7 @@ module Orders
     def load_snapshot
       ActiveRecord::Base.transaction do
         locked_refund = Orders::Refund.lock.find(refund.id)
-        if locked_refund.status.in?(%w[succeeded failed processing])
+        if locked_refund.status.in?(%w[succeeded failed processing manual_review])
           next { skip: true, refund: locked_refund }
         end
         if locked_refund.status == "pending_funds" &&
@@ -124,6 +129,35 @@ module Orders
           ) if locked_refund.status.in?(%w[created pending_funds])
         end
       end
+    end
+
+    def mark_manual_review(refund_id, failure_code)
+      refund = ActiveRecord::Base.transaction do
+        locked_refund = Orders::Refund.lock.find(refund_id)
+        next locked_refund if locked_refund.status.in?(%w[succeeded failed manual_review])
+
+        previous_status = locked_refund.status
+        locked_refund.update!(
+          status: "manual_review", pending_reason: failure_code.to_s.presence || "provider_refund_unsupported",
+          next_retry_at: nil
+        )
+        audit = Core::Audit::Record.call(
+          audit_key: "orders-billing-refund-manual-review-#{locked_refund.id}",
+          action: "orders.billing_purchase_refund.manual_review",
+          auditable_type: locked_refund.class.name, auditable_id: locked_refund.id,
+          audited_changes: { status: [ previous_status, "manual_review" ] },
+          metadata: { failure_code: locked_refund.pending_reason }
+        )
+        raise audit.error if audit.failure?
+        locked_refund
+      end
+      success(refund)
+    rescue ActiveRecord::RecordNotFound
+      failure(refund_error(:refund_not_found, code: "refund_not_found"))
+    rescue ActiveRecord::RecordInvalid => exception
+      failure(refund_error(:invalid_provider_result, code: "invalid_provider_result", errors: exception.record.errors.to_hash))
+    rescue Core::Error => exception
+      failure(exception)
     end
 
     def mark_processing(refund_id)

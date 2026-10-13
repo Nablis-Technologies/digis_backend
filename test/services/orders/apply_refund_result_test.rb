@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "digest"
 require "test_helper"
 
 module Orders
@@ -75,6 +76,22 @@ module Orders
       assert_equal "failed", result.value.status
       assert_equal "declined", result.value.pending_reason
       assert_equal 1_000, result.value.amount_minor
+    end
+
+    test "routes a definitive featured billing refund refusal to manual review" do
+      refund = create_featured_billing_refund
+      refund.update!(status: "processing")
+
+      result = Orders::ApplyRefundResult.call(
+        refund:, result: Payments::Providers::Result.failure(failure_code: "rail_partial_refund_unsupported")
+      )
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "manual_review", refund.reload.status
+      assert_equal "rail_partial_refund_unsupported", refund.pending_reason
+      assert_equal 1, Core::AuditLog.where(
+        action: "orders.billing_purchase_refund.manual_review", auditable_id: refund.id
+      ).count
     end
 
     test "rejects provider fee evidence without a currency and preserves processing state" do
@@ -225,6 +242,29 @@ module Orders
       )
       assert_predicate result, :success?, result.error&.message
       result.value
+    end
+
+    def create_featured_billing_refund
+      price_digest = Digest::SHA256.hexdigest("apply-featured-price")
+      purchase = Orders::BillingPurchase.create!(
+        organization_id: @event.organization_id, requested_by: @buyer,
+        kind: "featured_placement", source_type: "Marketing::FeaturedPlacement", source_id: SecureRandom.uuid,
+        currency: "ETB", amount_minor: 1_000, price_digest:, status: "paid",
+        idempotency_key_digest: Digest::SHA256.hexdigest("apply-featured-purchase"),
+        expires_at: 30.minutes.from_now
+      )
+      payment = Orders::Payment.create!(
+        billing_purchase: purchase, attempt_number: 1, provider: "chapa", payment_method: "telebirr",
+        status: "succeeded", amount_minor: 1_000, currency: "ETB", accepted_at: Time.current,
+        succeeded_at: Time.current, billing_purchase_price_digest: price_digest,
+        buyer_fee_minor: 0, organizer_fee_minor: 0, idempotency_key: "apply-featured-payment",
+        settlement_grace_minutes: 5, settlement_grace_expires_at: purchase.expires_at + 5.minutes
+      )
+      Orders::Refund.create!(
+        payment:, billing_purchase: purchase, type: "billing_purchase_refund",
+        idempotency_key: Digest::SHA256.hexdigest("apply-featured-refund"), amount_minor: 500,
+        currency: "ETB", status: "created", reason_code: "featured_placement_cancelled"
+      )
     end
 
     def create_gift_payment

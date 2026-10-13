@@ -21,10 +21,6 @@ module Orders
     belongs_to :order, class_name: "Orders::Order", inverse_of: :payments, optional: true
     belongs_to :billing_purchase, class_name: "Orders::BillingPurchase",
                inverse_of: :payments, optional: true
-    has_one :accepted_credit_top_up,
-            class_name: "Messaging::CreditTopUp",
-            foreign_key: :accepted_payment_id,
-            inverse_of: :accepted_payment
     has_many :payment_events,
              class_name: "Orders::PaymentEvent",
              inverse_of: :payment,

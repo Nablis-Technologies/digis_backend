@@ -42,12 +42,8 @@ module Orders
             next_retry_at: nil
           )
         when "failure", "cancelled"
-          locked_refund.update!(
-            status: "failed",
-            provider_reference: @result.provider_reference.presence || locked_refund.provider_reference,
-            pending_reason: @result.failure_code.presence || "provider_#{@result.status}",
-            next_retry_at: nil
-          )
+          update_definitive_failure!(locked_refund)
+          record_manual_review!(locked_refund) if locked_refund.status == "manual_review"
         when "unknown", "timeout"
           locked_refund.update!(
             status: "processing",
@@ -133,6 +129,27 @@ module Orders
         idempotency_key: "orders-refund-#{locked_refund.status}-#{locked_refund.id}"
       )
       raise result.error if result.failure?
+    end
+
+    def update_definitive_failure!(locked_refund)
+      billing_refund = locked_refund.type == "billing_purchase_refund"
+      locked_refund.update!(
+        status: billing_refund ? "manual_review" : "failed",
+        provider_reference: @result.provider_reference.presence || locked_refund.provider_reference,
+        pending_reason: @result.failure_code.presence || "provider_#{@result.status}",
+        next_retry_at: nil
+      )
+    end
+
+    def record_manual_review!(locked_refund)
+      audit = Core::Audit::Record.call(
+        audit_key: "orders-billing-refund-manual-review-#{locked_refund.id}",
+        action: "orders.billing_purchase_refund.manual_review",
+        auditable_type: locked_refund.class.name, auditable_id: locked_refund.id,
+        audited_changes: { status: [ "processing", "manual_review" ] },
+        metadata: { failure_code: locked_refund.pending_reason }
+      )
+      raise audit.error if audit.failure?
     end
 
     # Refund state and its organizer reversal are committed together; a retry

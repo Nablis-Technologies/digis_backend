@@ -53,7 +53,7 @@ module Orders
           statuses[refund.id] = refund.status
         end
         refundable_prior_items = prior_items.select do |prior_item|
-          refundable_statuses[prior_item.refund_id].in?(%w[created pending_funds processing succeeded])
+          refundable_statuses[prior_item.refund_id].in?(Orders::Refund::OUTSTANDING_STATUSES)
         end
         locked_adjustments = scope.fetch(:locked_adjustments)
 

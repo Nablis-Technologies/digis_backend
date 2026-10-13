@@ -59,7 +59,7 @@ module Ticketing
       return false unless refund && item
 
       refund.type == "item_refund" &&
-        refund.status.in?(%w[created pending_funds processing succeeded]) &&
+        refund.status.in?(Orders::Refund::OUTSTANDING_STATUSES) &&
         item.ticket_id.present? && item.event_date_id.present?
     end
 
