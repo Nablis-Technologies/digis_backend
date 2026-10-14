@@ -5,8 +5,7 @@ module Marketing
     # The canonical bounded, payment-backed public Featured placement read model.
     class PublicQuery < Core::BaseService
       ROTATION_WINDOW_SECONDS = 1.hour.to_i
-      MAX_FETCH_MULTIPLIER = 4
-      MAX_FETCH_SIZE = 100
+      MAX_FETCH_SIZE = PlacementCapacityPolicy::MAX_CONCURRENT
 
       Result = Data.define(:placements, :event_statuses) do
         def event_ids = placements.map(&:event_id).uniq
@@ -17,15 +16,16 @@ module Marketing
       end
 
       def call
-        limit = Capacity.limit_for("public_discovery")
-        return success(Result.new([], {})) unless limit
+        placements = serving_placements(limit: MAX_FETCH_SIZE + 2)
+        return failure(featured_unavailable_error) if placements.length > MAX_FETCH_SIZE + 1
 
-        placements = serving_placements(limit:)
         events = placements.map(&:event).uniq(&:id)
         statuses = Catalog::Public::EventAvailabilitySummary.call(events:, at:)
         eligible = placements.select do |placement|
           statuses.dig(placement.event_id, :ticket_availability) == "available"
-        end.uniq(&:event_id).first(limit)
+        end.uniq(&:event_id)
+        return failure(featured_unavailable_error) if eligible.length > MAX_FETCH_SIZE
+
         rotated = rotate(eligible)
         success(Result.new(rotated, statuses.slice(*rotated.map(&:event_id))))
       end
@@ -34,8 +34,15 @@ module Marketing
 
       attr_reader :at
 
+      def featured_unavailable_error
+        Rails.logger.error("[marketing.featured_events_unavailable] eligible_or_scan_bound_exceeded hard_limit=#{MAX_FETCH_SIZE}")
+        Core::BusinessError.new(
+          I18n.t("event.errors.featured_events_unavailable"),
+          code: "featured_events_unavailable", status: :service_unavailable
+        )
+      end
+
       def serving_placements(limit:)
-        fetch_limit = [ limit * MAX_FETCH_MULTIPLIER, MAX_FETCH_SIZE ].min
         Marketing::FeaturedPlacement.joins(:event)
           .joins(<<~SQL.squish)
             INNER JOIN orders_billing_purchases AS featured_purchases
@@ -62,7 +69,8 @@ module Marketing
             { event_organizations: :organization }
           ])
           .order(:starts_at, :id)
-          .limit(fetch_limit)
+          .distinct
+          .limit(limit)
           .to_a
       end
 

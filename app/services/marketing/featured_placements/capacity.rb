@@ -7,10 +7,11 @@ module Marketing
       Snapshot = Data.define(:available, :limit, :next_available_at, :reason)
       Reservation = Data.define(:event_id, :starts_at, :ends_at)
 
-      def self.limit_for(surface)
-        limits = Rails.application.config.x.marketing_featured_max_concurrent_by_surface || {}
-        value = limits[surface.to_s]
-        value if value.is_a?(Integer) && value.positive?
+      def self.limit_for(surface:, at: Time.current)
+        PlacementCapacityPolicy.active_for(surface:, at:)&.max_concurrent
+      rescue PlacementCapacityPolicy::AmbiguousActivePoliciesError
+        Rails.logger.error("[marketing.capacity_policy_ambiguous] surface=#{surface}")
+        nil
       end
 
       def initialize(event_id:, surface:, starts_at:, ends_at:, at: Time.current)
@@ -38,7 +39,7 @@ module Marketing
       attr_reader :event_id, :surface, :starts_at, :ends_at, :at
 
       def configured_limit
-        self.class.limit_for(surface)
+        self.class.limit_for(surface:, at:)
       end
 
       def reservations_for(window_start, window_end)
