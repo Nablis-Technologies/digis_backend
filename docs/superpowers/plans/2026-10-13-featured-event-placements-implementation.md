@@ -299,7 +299,7 @@ N_PLUS_ONE=1 bin/rails test \
 
 **Files:** Preview seed, initializer/config, Render env declaration, locales, Postman, schema dump.
 
-- [x] **Step 1: Seed preview-only offer data idempotently.** Use an explicitly labeled test daily rate; production daily rate remains disabled until approved. The preview Render service explicitly enables test-mode placement sales; `MARKETING_FEATURED_PUBLIC_DISCOVERY_MAX_CONCURRENT` remains an operator-configured `sync:false` value and missing/invalid configuration fails closed.
+- [x] **Step 1: Seed preview-only offer data idempotently.** Use an explicitly labeled test daily rate; production daily rate remains disabled until approved. The preview Render service explicitly enables test-mode placement sales. Capacity is managed through the audited admin policy API; no capacity policy is silently seeded.
 - [x] **Step 2: Add locale strings for offer unavailable, event ineligible, capacity full, checkout pending, refund processing, manual review, and manual resolution.** All controllers return typed `Core::BusinessError` through standard JSON helpers.
 - [x] **Step 3: Update Postman.** Add offers, quote, create, list/show/cancel, manual resolution, `GET /public/featured_events`, and `GET /public/events?featured=true`; include required Idempotency-Key examples and no live secrets.
 - [x] **Step 4: Validate seed idempotency, route names, locales, and Postman JSON.**
