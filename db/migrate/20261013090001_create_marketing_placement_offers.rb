@@ -11,16 +11,25 @@ class CreateMarketingPlacementOffers < ActiveRecord::Migration[8.1]
       t.integer :maximum_duration_seconds, null: false
       t.string :surface, null: false
       t.string :terms_version, null: false
-      t.boolean :active, null: false, default: false
+      t.string :status, null: false, default: "draft"
       t.timestamptz :starts_at, null: false
       t.timestamptz :ends_at, null: false
+      t.references :created_by, type: :uuid, null: false, foreign_key: { to_table: :core_users }
+      t.references :activated_by, type: :uuid, foreign_key: { to_table: :core_users }
+      t.references :retired_by, type: :uuid, foreign_key: { to_table: :core_users }
+      t.timestamptz :activated_at
+      t.timestamptz :retired_at
+      t.string :idempotency_key_digest, limit: 64, null: false
+      t.string :request_digest, limit: 64, null: false
 
       t.timestamps
     end
 
     add_index :marketing_placement_offers, %i[code version], unique: true
-    add_index :marketing_placement_offers, %i[surface active starts_at ends_at],
-      name: "idx_marketing_placement_offers_active_window"
+    add_index :marketing_placement_offers, :idempotency_key_digest, unique: true,
+      name: "idx_marketing_placement_offers_idempotency_digest"
+    add_index :marketing_placement_offers, %i[surface starts_at ends_at],
+      where: "status = 'active'", name: "idx_marketing_placement_offers_active_window"
 
     add_check_constraint :marketing_placement_offers,
       "btrim(code) <> '' AND version > 0 AND btrim(terms_version) <> ''",
@@ -35,5 +44,17 @@ class CreateMarketingPlacementOffers < ActiveRecord::Migration[8.1]
     add_check_constraint :marketing_placement_offers,
       "surface = 'public_discovery' AND ends_at > starts_at",
       name: "marketing_placement_offers_surface_window_check"
+    add_check_constraint :marketing_placement_offers,
+      "status IN ('draft', 'active', 'retired')",
+      name: "marketing_placement_offers_status_check"
+    add_check_constraint :marketing_placement_offers,
+      "((status = 'draft' AND activated_by_id IS NULL AND activated_at IS NULL AND retired_by_id IS NULL AND retired_at IS NULL) " \
+      "OR (status = 'active' AND activated_by_id IS NOT NULL AND activated_at IS NOT NULL AND retired_by_id IS NULL AND retired_at IS NULL) " \
+      "OR (status = 'retired' AND retired_by_id IS NOT NULL AND retired_at IS NOT NULL " \
+      "AND ((activated_by_id IS NULL AND activated_at IS NULL) OR (activated_by_id IS NOT NULL AND activated_at IS NOT NULL))))",
+      name: "marketing_placement_offers_lifecycle_check"
+    add_check_constraint :marketing_placement_offers,
+      "idempotency_key_digest ~ '^[0-9a-f]{64}$' AND request_digest ~ '^[0-9a-f]{64}$'",
+      name: "marketing_placement_offers_digest_check"
   end
 end

@@ -5559,6 +5559,36 @@ CREATE TABLE public.marketing_featured_placements (
 
 
 --
+-- Name: marketing_placement_capacity_policies; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.marketing_placement_capacity_policies (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    surface character varying NOT NULL,
+    version integer NOT NULL,
+    max_concurrent integer NOT NULL,
+    status character varying DEFAULT 'draft'::character varying NOT NULL,
+    effective_from timestamp with time zone NOT NULL,
+    effective_until timestamp with time zone,
+    created_by_id uuid NOT NULL,
+    activated_by_id uuid,
+    retired_by_id uuid,
+    activated_at timestamp with time zone,
+    retired_at timestamp with time zone,
+    idempotency_key_digest character varying(64) CONSTRAINT marketing_placement_capacity_po_idempotency_key_digest_not_null NOT NULL,
+    request_digest character varying(64) NOT NULL,
+    created_at timestamp(6) with time zone NOT NULL,
+    updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT marketing_capacity_policies_digest_check CHECK ((((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((request_digest)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT marketing_capacity_policies_identity_check CHECK ((((surface)::text = 'public_discovery'::text) AND (version > 0))),
+    CONSTRAINT marketing_capacity_policies_lifecycle_check CHECK (((((status)::text = 'draft'::text) AND (activated_by_id IS NULL) AND (activated_at IS NULL) AND (retired_by_id IS NULL) AND (retired_at IS NULL)) OR (((status)::text = 'active'::text) AND (activated_by_id IS NOT NULL) AND (activated_at IS NOT NULL) AND (retired_by_id IS NULL) AND (retired_at IS NULL)) OR (((status)::text = 'retired'::text) AND (retired_by_id IS NOT NULL) AND (retired_at IS NOT NULL) AND (((activated_by_id IS NULL) AND (activated_at IS NULL)) OR ((activated_by_id IS NOT NULL) AND (activated_at IS NOT NULL)))))),
+    CONSTRAINT marketing_capacity_policies_limit_check CHECK (((max_concurrent >= 1) AND (max_concurrent <= 100))),
+    CONSTRAINT marketing_capacity_policies_status_check CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('active'::character varying)::text, ('retired'::character varying)::text]))),
+    CONSTRAINT marketing_capacity_policies_window_check CHECK (((effective_until IS NULL) OR (effective_until > effective_from)))
+);
+
+
+--
 -- Name: marketing_placement_offers; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5572,14 +5602,24 @@ CREATE TABLE public.marketing_placement_offers (
     maximum_duration_seconds integer NOT NULL,
     surface character varying NOT NULL,
     terms_version character varying NOT NULL,
-    active boolean DEFAULT false NOT NULL,
+    status character varying DEFAULT 'draft'::character varying NOT NULL,
     starts_at timestamp with time zone NOT NULL,
     ends_at timestamp with time zone NOT NULL,
+    created_by_id uuid NOT NULL,
+    activated_by_id uuid,
+    retired_by_id uuid,
+    activated_at timestamp with time zone,
+    retired_at timestamp with time zone,
+    idempotency_key_digest character varying(64) NOT NULL,
+    request_digest character varying(64) NOT NULL,
     created_at timestamp(6) with time zone NOT NULL,
     updated_at timestamp(6) with time zone NOT NULL,
+    CONSTRAINT marketing_placement_offers_digest_check CHECK ((((idempotency_key_digest)::text ~ '^[0-9a-f]{64}$'::text) AND ((request_digest)::text ~ '^[0-9a-f]{64}$'::text))),
     CONSTRAINT marketing_placement_offers_duration_check CHECK (((minimum_duration_seconds >= 86400) AND (maximum_duration_seconds >= minimum_duration_seconds) AND (maximum_duration_seconds <= 1209600))),
     CONSTRAINT marketing_placement_offers_identity_check CHECK (((btrim((code)::text) <> ''::text) AND (version > 0) AND (btrim((terms_version)::text) <> ''::text))),
+    CONSTRAINT marketing_placement_offers_lifecycle_check CHECK (((((status)::text = 'draft'::text) AND (activated_by_id IS NULL) AND (activated_at IS NULL) AND (retired_by_id IS NULL) AND (retired_at IS NULL)) OR (((status)::text = 'active'::text) AND (activated_by_id IS NOT NULL) AND (activated_at IS NOT NULL) AND (retired_by_id IS NULL) AND (retired_at IS NULL)) OR (((status)::text = 'retired'::text) AND (retired_by_id IS NOT NULL) AND (retired_at IS NOT NULL) AND (((activated_by_id IS NULL) AND (activated_at IS NULL)) OR ((activated_by_id IS NOT NULL) AND (activated_at IS NOT NULL)))))),
     CONSTRAINT marketing_placement_offers_price_check CHECK (((daily_rate_minor > 0) AND ((currency)::text = 'ETB'::text))),
+    CONSTRAINT marketing_placement_offers_status_check CHECK (((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('active'::character varying)::text, ('retired'::character varying)::text]))),
     CONSTRAINT marketing_placement_offers_surface_window_check CHECK ((((surface)::text = 'public_discovery'::text) AND (ends_at > starts_at)))
 );
 
@@ -8494,6 +8534,14 @@ ALTER TABLE ONLY public.marketing_featured_placements
 
 
 --
+-- Name: marketing_placement_capacity_policies marketing_placement_capacity_policies_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.marketing_placement_capacity_policies
+    ADD CONSTRAINT marketing_placement_capacity_policies_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: marketing_placement_offers marketing_placement_offers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9584,6 +9632,27 @@ CREATE UNIQUE INDEX idx_live_ticketing_scanner_invitation_phone ON public.ticket
 
 
 --
+-- Name: idx_marketing_capacity_policies_active_resolution; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_marketing_capacity_policies_active_resolution ON public.marketing_placement_capacity_policies USING btree (surface, effective_from) WHERE ((status)::text = 'active'::text);
+
+
+--
+-- Name: idx_marketing_capacity_policies_idempotency_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_marketing_capacity_policies_idempotency_digest ON public.marketing_placement_capacity_policies USING btree (idempotency_key_digest);
+
+
+--
+-- Name: idx_marketing_capacity_policies_surface_version; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_marketing_capacity_policies_surface_version ON public.marketing_placement_capacity_policies USING btree (surface, version);
+
+
+--
 -- Name: idx_marketing_featured_placements_event_window; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9608,7 +9677,14 @@ CREATE INDEX idx_marketing_featured_placements_surface_window ON public.marketin
 -- Name: idx_marketing_placement_offers_active_window; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_marketing_placement_offers_active_window ON public.marketing_placement_offers USING btree (surface, active, starts_at, ends_at);
+CREATE INDEX idx_marketing_placement_offers_active_window ON public.marketing_placement_offers USING btree (surface, starts_at, ends_at) WHERE ((status)::text = 'active'::text);
+
+
+--
+-- Name: idx_marketing_placement_offers_idempotency_digest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_marketing_placement_offers_idempotency_digest ON public.marketing_placement_offers USING btree (idempotency_key_digest);
 
 
 --
@@ -12223,10 +12299,52 @@ CREATE UNIQUE INDEX index_marketing_featured_placements_on_refund_id ON public.m
 
 
 --
+-- Name: index_marketing_placement_capacity_policies_on_activated_by_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_marketing_placement_capacity_policies_on_activated_by_id ON public.marketing_placement_capacity_policies USING btree (activated_by_id);
+
+
+--
+-- Name: index_marketing_placement_capacity_policies_on_created_by_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_marketing_placement_capacity_policies_on_created_by_id ON public.marketing_placement_capacity_policies USING btree (created_by_id);
+
+
+--
+-- Name: index_marketing_placement_capacity_policies_on_retired_by_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_marketing_placement_capacity_policies_on_retired_by_id ON public.marketing_placement_capacity_policies USING btree (retired_by_id);
+
+
+--
+-- Name: index_marketing_placement_offers_on_activated_by_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_marketing_placement_offers_on_activated_by_id ON public.marketing_placement_offers USING btree (activated_by_id);
+
+
+--
 -- Name: index_marketing_placement_offers_on_code_and_version; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX index_marketing_placement_offers_on_code_and_version ON public.marketing_placement_offers USING btree (code, version);
+
+
+--
+-- Name: index_marketing_placement_offers_on_created_by_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_marketing_placement_offers_on_created_by_id ON public.marketing_placement_offers USING btree (created_by_id);
+
+
+--
+-- Name: index_marketing_placement_offers_on_retired_by_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_marketing_placement_offers_on_retired_by_id ON public.marketing_placement_offers USING btree (retired_by_id);
 
 
 --
@@ -13807,6 +13925,14 @@ ALTER TABLE ONLY public.messaging_credit_rate_versions
 
 
 --
+-- Name: marketing_placement_offers fk_rails_1f7b1a089a; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.marketing_placement_offers
+    ADD CONSTRAINT fk_rails_1f7b1a089a FOREIGN KEY (activated_by_id) REFERENCES public.core_users(id);
+
+
+--
 -- Name: catalog_promotions fk_rails_1f9d62eca8; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14116,6 +14242,14 @@ ALTER TABLE ONLY public.events_access_zones
 
 ALTER TABLE ONLY public.ticketing_credentials
     ADD CONSTRAINT fk_rails_35843446bb FOREIGN KEY (event_id) REFERENCES public.events_events(id);
+
+
+--
+-- Name: marketing_placement_capacity_policies fk_rails_3588c0f711; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.marketing_placement_capacity_policies
+    ADD CONSTRAINT fk_rails_3588c0f711 FOREIGN KEY (retired_by_id) REFERENCES public.core_users(id);
 
 
 --
@@ -15055,6 +15189,14 @@ ALTER TABLE ONLY public.ticketing_checkin_logs
 
 
 --
+-- Name: marketing_placement_capacity_policies fk_rails_87b7e0487d; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.marketing_placement_capacity_policies
+    ADD CONSTRAINT fk_rails_87b7e0487d FOREIGN KEY (created_by_id) REFERENCES public.core_users(id);
+
+
+--
 -- Name: events_event_cancellations fk_rails_88de6f6294; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15207,6 +15349,14 @@ ALTER TABLE ONLY public.active_storage_variant_records
 
 
 --
+-- Name: marketing_placement_offers fk_rails_9984acbb89; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.marketing_placement_offers
+    ADD CONSTRAINT fk_rails_9984acbb89 FOREIGN KEY (retired_by_id) REFERENCES public.core_users(id);
+
+
+--
 -- Name: ticketing_credential_revocations fk_rails_9a62d49bf9; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15324,6 +15474,14 @@ ALTER TABLE ONLY public.commercial_fee_schedule_versions
 
 ALTER TABLE ONLY public.ticketing_purchase_limit_allocations
     ADD CONSTRAINT fk_rails_a6be58a1a3 FOREIGN KEY (user_id) REFERENCES public.core_users(id);
+
+
+--
+-- Name: marketing_placement_offers fk_rails_ab019ed29c; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.marketing_placement_offers
+    ADD CONSTRAINT fk_rails_ab019ed29c FOREIGN KEY (created_by_id) REFERENCES public.core_users(id);
 
 
 --
@@ -15612,6 +15770,14 @@ ALTER TABLE ONLY public.orders_orders
 
 ALTER TABLE ONLY public.ticketing_admission_uses
     ADD CONSTRAINT fk_rails_c15631a62f FOREIGN KEY (admission_slot_id) REFERENCES public.ticketing_admission_slots(id);
+
+
+--
+-- Name: marketing_placement_capacity_policies fk_rails_c213ae89d1; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.marketing_placement_capacity_policies
+    ADD CONSTRAINT fk_rails_c213ae89d1 FOREIGN KEY (activated_by_id) REFERENCES public.core_users(id);
 
 
 --
@@ -16445,6 +16611,7 @@ ALTER TABLE ONLY public.ticketing_ticket_suspensions
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261013203620'),
 ('20261013090003'),
 ('20261013090002'),
 ('20261013090001'),
