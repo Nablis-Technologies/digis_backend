@@ -6,8 +6,9 @@ require "test_helper"
 module Marketing
   module FeaturedPlacements
     class PublicQueryTest < ActiveSupport::TestCase
+      include Marketing::FeaturedPlacementTestHelpers
+
       setup do
-        @previous_capacity = Rails.application.config.x.marketing_featured_max_concurrent_by_surface
         @event = events_events(:ready_listing)
         Core::Review.create!(reviewable: @event.organization, context: "verification", status: "approved")
         make_publishable(@event)
@@ -21,15 +22,13 @@ module Marketing
         @offer = PlacementOffer.create!(
           code: "public_query_#{SecureRandom.hex(3)}", version: 1, daily_rate_minor: 10_000,
           currency: "ETB", minimum_duration_seconds: 24.hours.to_i, maximum_duration_seconds: 14.days.to_i,
-          surface: "public_discovery", terms_version: "v1", active: true,
+          surface: "public_discovery", terms_version: "v1", status: "active",
+          created_by: core_users(:super_admin), activated_by: core_users(:super_admin), activated_at: Time.current,
+          idempotency_key_digest: SecureRandom.hex(32), request_digest: SecureRandom.hex(32),
           starts_at: 1.day.ago, ends_at: 30.days.from_now
         )
-        Rails.application.config.x.marketing_featured_max_concurrent_by_surface = { "public_discovery" => 4 }
+        @capacity_policy = create_active_capacity_policy!(max_concurrent: 4)
         @placement, @purchase, @payment = create_paid_serving_placement
-      end
-
-      teardown do
-        Rails.application.config.x.marketing_featured_max_concurrent_by_surface = @previous_capacity
       end
 
       test "serves a paid, current placement with the shared public availability projection" do
@@ -51,10 +50,105 @@ module Marketing
         assert_empty PublicQuery.call.value.placements
       end
 
-      test "fails closed for missing capacity and never returns more than the configured cap" do
-        Rails.application.config.x.marketing_featured_max_concurrent_by_surface = {}
+      test "keeps serving paid placements when no admission capacity policy exists" do
+        retire_capacity_policy_for_test!(@capacity_policy)
 
-        assert_empty PublicQuery.call.value.placements
+        result = PublicQuery.call
+
+        assert_predicate result, :success?, result.error&.message
+        assert_equal [ @placement.id ], result.value.placements.map(&:id)
+      end
+
+      test "does not truncate paid placements to a lower admission cap" do
+        event_class = Struct.new(:id)
+        candidate_class = Struct.new(:event_id, :event)
+        placements = %w[event-1 event-2].map do |event_id|
+          candidate_class.new(event_id, event_class.new(event_id))
+        end
+        statuses = placements.to_h { |placement| [ placement.event_id, { ticket_availability: "available" } ] }
+        query = PublicQuery.new(at: Time.current)
+        query.define_singleton_method(:serving_placements) { |limit:| placements }
+        Catalog::Public::EventAvailabilitySummary.stubs(:call).returns(statuses)
+
+        result = query.call
+
+        assert_predicate result, :success?, result.error&.message
+        assert_equal %w[event-1 event-2], result.value.event_ids.sort
+      end
+
+      test "filters unavailable candidates before applying the public response limit" do
+        event_class = Struct.new(:id)
+        candidate_class = Struct.new(:event_id, :event)
+        placements = (PublicQuery::MAX_FETCH_SIZE + 1).times.map do |index|
+          event_id = "eligible-event-#{index}"
+          candidate_class.new(event_id, event_class.new(event_id))
+        end
+        statuses = placements.to_h do |placement|
+          availability = placement.event_id == "eligible-event-0" ? "sold_out" : "available"
+          [ placement.event_id, { ticket_availability: availability } ]
+        end
+        requests = []
+        query = PublicQuery.new(at: Time.current)
+        query.define_singleton_method(:serving_placements) do |limit:, offset: 0|
+          requests << { limit:, offset: }
+          offset.zero? ? placements.first(limit) : []
+        end
+        Catalog::Public::EventAvailabilitySummary.stubs(:call).returns(statuses)
+
+        result = query.call
+
+        assert_predicate result, :success?, result.error&.message
+        assert_equal PublicQuery::MAX_FETCH_SIZE, result.value.placements.length
+        assert_equal [ { limit: PublicQuery::MAX_FETCH_SIZE + 2, offset: 0 } ], requests
+      end
+
+      test "fails safely with one bounded read when candidates exceed the scan" do
+        event_class = Struct.new(:id)
+        candidate_class = Struct.new(:event_id, :event)
+        placements = (PublicQuery::MAX_FETCH_SIZE + 2).times.map do |index|
+          event_id = "bounded-event-#{index}"
+          candidate_class.new(event_id, event_class.new(event_id))
+        end
+        statuses = placements.to_h do |placement|
+          availability = placement.event_id == "bounded-event-0" ? "sold_out" : "available"
+          [ placement.event_id, { ticket_availability: availability } ]
+        end
+        requests = []
+        query = PublicQuery.new(at: Time.current)
+        query.define_singleton_method(:serving_placements) do |limit:, offset: 0|
+          requests << { limit:, offset: }
+          offset.zero? ? placements.first(limit) : placements.drop(offset).first(limit)
+        end
+        Catalog::Public::EventAvailabilitySummary.stubs(:call).returns(statuses)
+
+        result = query.call
+
+        assert_predicate result, :failure?
+        assert_equal "featured_events_unavailable", result.error.code
+        assert_equal [ { limit: PublicQuery::MAX_FETCH_SIZE + 2, offset: 0 } ], requests
+      end
+
+      test "fails safely rather than truncating paid candidates beyond the hard serving bound" do
+        candidate_class = Struct.new(:event_id, :event)
+        event_class = Struct.new(:id)
+        placements = (PublicQuery::MAX_FETCH_SIZE + 1).times.map do |index|
+          event_id = "event-#{index}"
+          candidate_class.new(event_id, event_class.new(event_id))
+        end
+        statuses = placements.to_h { |placement| [ placement.event_id, { ticket_availability: "available" } ] }
+        query = PublicQuery.new(at: Time.current)
+        requested_limit = nil
+        query.define_singleton_method(:serving_placements) do |limit:|
+          requested_limit = limit
+          placements
+        end
+        Catalog::Public::EventAvailabilitySummary.stubs(:call).returns(statuses)
+
+        result = query.call
+
+        assert_predicate result, :failure?
+        assert_equal "featured_events_unavailable", result.error.code
+        assert_equal PublicQuery::MAX_FETCH_SIZE + 2, requested_limit
       end
 
       private

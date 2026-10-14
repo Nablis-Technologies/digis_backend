@@ -10,15 +10,17 @@ module Admin
 
       setup do
         event = events_events(:ready_listing)
-        offer = Marketing::PlacementOffer.create!(
+        offer = ::Marketing::PlacementOffer.create!(
           code: "admin_refund_#{SecureRandom.hex(3)}", version: 1, daily_rate_minor: 10_000,
           currency: "ETB", minimum_duration_seconds: 24.hours.to_i, maximum_duration_seconds: 14.days.to_i,
-          surface: "public_discovery", terms_version: "v1", active: true,
+          surface: "public_discovery", terms_version: "v1", status: "active",
+          created_by: core_users(:super_admin), activated_by: core_users(:super_admin), activated_at: Time.current,
+          idempotency_key_digest: SecureRandom.hex(32), request_digest: SecureRandom.hex(32),
           starts_at: 1.day.ago, ends_at: 30.days.from_now
         )
         starts_at = 1.hour.from_now.change(usec: 0)
         price_digest = Digest::SHA256.hexdigest("admin-manual-price")
-        placement = Marketing::FeaturedPlacement.create!(
+        placement = ::Marketing::FeaturedPlacement.create!(
           event:, organization_id: event.organization_id, placement_offer: offer,
           status: "cancelled", surface: "public_discovery", starts_at:, ends_at: starts_at + 24.hours,
           duration_seconds: 24.hours.to_i, offer_code: offer.code, offer_version: offer.version,

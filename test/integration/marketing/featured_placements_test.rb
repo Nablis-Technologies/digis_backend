@@ -7,6 +7,7 @@ module Marketing
   class FeaturedPlacementsTest < ActionDispatch::IntegrationTest
     include Core::AuthTestHelpers
     include PerformanceQueryHelpers
+    include Marketing::FeaturedPlacementTestHelpers
 
     class FakeAdapter < Payments::Providers::Adapter
       def create(**) = Payments::Providers::Result.unknown(provider_reference: "featured-ref", checkout_url: "https://checkout.test/featured")
@@ -20,7 +21,6 @@ module Marketing
     end
 
     setup do
-      @previous_capacity = Rails.application.config.x.marketing_featured_max_concurrent_by_surface
       @previous_enabled = Rails.application.config.x.marketing_featured_placements_enabled
       @event = events_events(:ready_listing)
       @organizer = core_users(:super_admin)
@@ -36,17 +36,18 @@ module Marketing
       @offer = PlacementOffer.create!(
         code: "api_discovery_#{SecureRandom.hex(3)}", version: 1, daily_rate_minor: 100_001,
         currency: "ETB", minimum_duration_seconds: 24.hours.to_i, maximum_duration_seconds: 14.days.to_i,
-        surface: "public_discovery", terms_version: "v1", active: true,
+        surface: "public_discovery", terms_version: "v1", status: "active",
+        created_by: core_users(:super_admin), activated_by: core_users(:super_admin), activated_at: Time.current,
+        idempotency_key_digest: SecureRandom.hex(32), request_digest: SecureRandom.hex(32),
         starts_at: 1.day.ago, ends_at: 30.days.from_now
       )
-      Rails.application.config.x.marketing_featured_max_concurrent_by_surface = { "public_discovery" => 4 }
+      @capacity_policy = create_active_capacity_policy!(max_concurrent: 4)
       Rails.application.config.x.marketing_featured_placements_enabled = true
       Payments::Providers::Registry.register("chapa", FakeAdapter.new)
     end
 
     teardown do
       Payments::Providers::Registry.instance_variable_set(:@adapters, {})
-      Rails.application.config.x.marketing_featured_max_concurrent_by_surface = @previous_capacity
       Rails.application.config.x.marketing_featured_placements_enabled = @previous_enabled
     end
 

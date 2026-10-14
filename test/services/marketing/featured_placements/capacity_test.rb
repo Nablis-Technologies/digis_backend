@@ -6,8 +6,9 @@ require "test_helper"
 module Marketing
   module FeaturedPlacements
     class CapacityTest < ActiveSupport::TestCase
+      include Marketing::FeaturedPlacementTestHelpers
+
       setup do
-        @previous_capacity = Rails.application.config.x.marketing_featured_max_concurrent_by_surface
         @event = events_events(:ready_listing)
         @other_event = events_events(:draft_concert)
         @third_event = Events::Event.create!(
@@ -18,16 +19,14 @@ module Marketing
         @offer = PlacementOffer.create!(
           code: "capacity_discovery", version: 1, daily_rate_minor: 10_000, currency: "ETB",
           minimum_duration_seconds: 24.hours.to_i, maximum_duration_seconds: 14.days.to_i,
-          surface: "public_discovery", terms_version: "v1", active: true,
+          surface: "public_discovery", terms_version: "v1", status: "active",
+          created_by: core_users(:super_admin), activated_by: core_users(:super_admin), activated_at: Time.current,
+          idempotency_key_digest: SecureRandom.hex(32), request_digest: SecureRandom.hex(32),
           starts_at: 1.day.ago, ends_at: 30.days.from_now
         )
         @starts_at = Time.current.utc.change(usec: 0) + 1.hour
         @ends_at = @starts_at + 72.hours
-        Rails.application.config.x.marketing_featured_max_concurrent_by_surface = { "public_discovery" => 1 }
-      end
-
-      teardown do
-        Rails.application.config.x.marketing_featured_max_concurrent_by_surface = @previous_capacity
+        @capacity_policy = create_active_capacity_policy!(max_concurrent: 1)
       end
 
       test "uses half-open intervals so an immediately adjacent placement does not conflict" do
@@ -43,7 +42,7 @@ module Marketing
       end
 
       test "calculates the maximum concurrent overlap rather than counting any interval that intersects" do
-        Rails.application.config.x.marketing_featured_max_concurrent_by_surface = { "public_discovery" => 2 }
+        replace_active_capacity_policy!(max_concurrent: 2)
         create_placement(event_id: @event.id, starts_at: @starts_at, ends_at: @starts_at + 24.hours)
         create_placement(event_id: @other_event.id, starts_at: @starts_at + 24.hours, ends_at: @starts_at + 48.hours)
 
@@ -53,6 +52,26 @@ module Marketing
 
         assert_predicate result, :success?, result.error&.message
         assert result.value.available
+      end
+
+      test "uses the active database policy instead of the environment capacity value" do
+        create_placement(event_id: @other_event.id, starts_at: @starts_at, ends_at: @starts_at + 24.hours)
+
+        result = capacity_for(@event.id)
+
+        assert_predicate result, :success?, result.error&.message
+        assert_equal 1, result.value.limit
+        refute result.value.available
+      end
+
+      test "fails closed when overlapping active policy data violates the lifecycle invariant" do
+        create_active_capacity_policy!(max_concurrent: 2)
+
+        result = capacity_for(@event.id)
+
+        assert_predicate result, :failure?
+        assert_equal "capacity_unavailable", result.error.code
+        assert_equal :service_unavailable, result.error.status
       end
 
       test "returns the earliest viable next start when same-event capacity is occupied" do
