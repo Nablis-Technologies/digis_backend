@@ -13,7 +13,7 @@ module Marketing
       authorize @event, :manage?, policy_class: FeaturedPlacementPolicy
       result = FeaturedPlacements::EventEligibility.call(event: @event)
       enabled = Rails.application.config.x.marketing_featured_placements_enabled == true
-      configured = enabled && FeaturedPlacements::Capacity.limit_for("public_discovery").present?
+      configured = enabled && FeaturedPlacements::Capacity.limit_for(surface: "public_discovery").present?
       offers = result.success? && configured ? PlacementOffer.active_at(Time.current).order(:code, :version) : []
       render_success(data: {
         offers: offers.map { |offer| offer_payload(offer) },

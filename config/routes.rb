@@ -387,6 +387,17 @@ Rails.application.routes.draw do
   namespace :admin do
     get "system/readiness", to: "system/readiness#show"
 
+    namespace :marketing do
+      resources :placement_offers, only: %i[index show create] do
+        post :activate, on: :member
+        post :retire, on: :member
+      end
+      resources :placement_capacity_policies, only: %i[index show create] do
+        post :activate, on: :member
+        post :retire, on: :member
+      end
+    end
+
     namespace :marketplace do
       resources :seller_payout_accounts, only: %i[index show], controller: "seller_payout_accounts" do
         post :verify, on: :member
