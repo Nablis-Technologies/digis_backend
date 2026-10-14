@@ -3,19 +3,6 @@
 # If running the rails server then create or migrate existing database
 if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
   if [ "${RENDER_PREVIEW}" == "true" ]; then
-    # In pre-production, migrations are edited in-place per project zero-debt rules.
-    # If an existing table predates in-place column changes, drop it and delete its
-    # migration timestamp so db:migrate rebuilds it to the current schema.
-    if [ -n "${RENDER_PREVIEW_DATABASE_URL}" ]; then
-      table_has_status="$(psql "$RENDER_PREVIEW_DATABASE_URL" --tuples-only --no-align --quiet \
-        --command "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'marketing_placement_offers' AND column_name = 'status')" 2>/dev/null || echo "t")"
-      if [ "$table_has_status" == "f" ]; then
-        echo "Rebuilding stale marketing_placement_offers table to current schema..."
-        psql "$RENDER_PREVIEW_DATABASE_URL" --quiet \
-          --command "DROP TABLE IF EXISTS marketing_placement_offers CASCADE; DELETE FROM schema_migrations WHERE version = '20261013090001';"
-      fi
-    fi
-
     # db:prepare seeds a brand-new database before the shared queue schema is
     # available. Preview migrations and fixture seeding therefore run in order.
     ./bin/rails db:migrate
