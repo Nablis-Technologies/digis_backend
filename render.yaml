@@ -76,8 +76,6 @@ services:
         value: https://digis-backend-preview.onrender.com/payments/chapa/callback
       - key: MARKETING_FEATURED_PLACEMENTS_ENABLED
         value: "true"
-      - key: MARKETING_FEATURED_PUBLIC_DISCOVERY_MAX_CONCURRENT
-        sync: false
 
 databases:
   - name: digis-backend-preview-db

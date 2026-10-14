@@ -13009,6 +13009,83 @@
               "type": "string"
             }
           ]
+        },
+        {
+          "name": "Marketing",
+          "item": [
+            {
+              "name": "Placement Offers",
+              "item": [
+                {
+                  "name": "List Placement Offers",
+                  "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/admin/marketing/placement_offers?page=1&per_page=10&order_by=created_at&order_direction=desc", "description": "List versioned offer definitions; supports status, code, and surface filters." },
+                  "response": []
+                },
+                {
+                  "name": "Get Placement Offer",
+                  "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/admin/marketing/placement_offers/{{placementOfferId}}" },
+                  "response": []
+                },
+                {
+                  "name": "Create Placement Offer Draft",
+                  "request": {
+                    "method": "POST",
+                    "header": [ { "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" } ],
+                    "body": { "mode": "raw", "raw": "{\n  \"placement_offer\": {\n    \"code\": \"public_discovery_preview\",\n    \"surface\": \"public_discovery\",\n    \"daily_rate_minor\": 50000,\n    \"currency\": \"ETB\",\n    \"minimum_duration_seconds\": 86400,\n    \"maximum_duration_seconds\": 1209600,\n    \"terms_version\": \"preview-v1\",\n    \"starts_at\": \"{{effectiveFrom}}\",\n    \"ends_at\": \"{{effectiveUntil}}\"\n  },\n  \"reason\": \"Create preview placement pricing\"\n}", "options": { "raw": { "language": "json" } } },
+                    "url": "{{baseUrl}}/admin/marketing/placement_offers",
+                    "description": "Creates an immutable draft. Version is server-assigned; do not send version or digest fields."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Activate Placement Offer",
+                  "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" } ], "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Activate approved placement pricing\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/admin/marketing/placement_offers/{{placementOfferId}}/activate" },
+                  "response": []
+                },
+                {
+                  "name": "Retire Placement Offer",
+                  "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" } ], "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Retire superseded placement pricing\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/admin/marketing/placement_offers/{{placementOfferId}}/retire" },
+                  "response": []
+                }
+              ]
+            },
+            {
+              "name": "Placement Capacity Policies",
+              "item": [
+                {
+                  "name": "List Placement Capacity Policies",
+                  "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/admin/marketing/placement_capacity_policies?page=1&per_page=10&order_by=created_at&order_direction=desc", "description": "List versioned admission limits. Paid serving has a separate hard ceiling." },
+                  "response": []
+                },
+                {
+                  "name": "Get Placement Capacity Policy",
+                  "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/admin/marketing/placement_capacity_policies/{{capacityPolicyId}}" },
+                  "response": []
+                },
+                {
+                  "name": "Create Placement Capacity Policy Draft",
+                  "request": {
+                    "method": "POST",
+                    "header": [ { "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" } ],
+                    "body": { "mode": "raw", "raw": "{\n  \"placement_capacity_policy\": {\n    \"surface\": \"public_discovery\",\n    \"max_concurrent\": 6,\n    \"effective_from\": \"{{effectiveFrom}}\",\n    \"effective_until\": \"{{effectiveUntil}}\"\n  },\n  \"reason\": \"Set preview discovery capacity\"\n}", "options": { "raw": { "language": "json" } } },
+                    "url": "{{baseUrl}}/admin/marketing/placement_capacity_policies",
+                    "description": "Creates an immutable draft. Version is server-assigned and max_concurrent must be 1..100."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Activate Placement Capacity Policy",
+                  "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" } ], "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Activate approved discovery capacity\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/admin/marketing/placement_capacity_policies/{{capacityPolicyId}}/activate" },
+                  "response": []
+                },
+                {
+                  "name": "Retire Placement Capacity Policy",
+                  "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json", "type": "text" }, { "key": "Idempotency-Key", "value": "{{idempotencyKey}}", "type": "text" } ], "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Retire superseded discovery capacity\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/admin/marketing/placement_capacity_policies/{{capacityPolicyId}}/retire" },
+                  "response": []
+                }
+              ]
+            }
+          ]
         }
       ],
       "variable": [
@@ -13040,6 +13117,26 @@
         {
           "key": "payoutAccountId",
           "value": "",
+          "type": "string"
+        },
+        {
+          "key": "placementOfferId",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "capacityPolicyId",
+          "value": "",
+          "type": "string"
+        },
+        {
+          "key": "effectiveFrom",
+          "value": "2026-10-14T00:00:00Z",
+          "type": "string"
+        },
+        {
+          "key": "effectiveUntil",
+          "value": "2026-11-14T00:00:00Z",
           "type": "string"
         }
       ]

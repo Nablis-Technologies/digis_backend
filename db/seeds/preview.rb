@@ -1644,9 +1644,23 @@ Marketing::PlacementOffer.find_or_create_by!(code: "public_discovery_preview", v
   offer.maximum_duration_seconds = 14.days.to_i
   offer.surface = "public_discovery"
   offer.terms_version = "preview-v1"
-  offer.active = true
+  offer.status = "active"
   offer.starts_at = 1.day.ago
   offer.ends_at = 365.days.from_now
+  offer.created_by = admin
+  offer.activated_by = admin
+  offer.activated_at = Time.current
+  offer.idempotency_key_digest = Core::KeyedDigest.digest(
+    namespace: "marketing-placement-offer-preview-seed", value: "public_discovery_preview:v1"
+  )
+  offer.request_digest = Core::KeyedDigest.digest(
+    namespace: "marketing-placement-offer-preview-seed-request",
+    value: ActiveSupport::JSON.encode(
+      code: "public_discovery_preview", version: 1, daily_rate_minor: 50_000, currency: "ETB",
+      minimum_duration_seconds: 24.hours.to_i, maximum_duration_seconds: 14.days.to_i,
+      surface: "public_discovery", terms_version: "preview-v1"
+    )
+  )
 end
 puts "✓ Added preview-only public Featured offer"
 

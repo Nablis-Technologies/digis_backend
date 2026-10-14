@@ -226,6 +226,20 @@ permissions << {
   description: I18n.t("marketplace.permissions.seller_payout_account_verify")
 }
 
+permissions.concat(%w[index show create activate retire].map do |action|
+  {
+    resource: "marketing_placement_offer", action:, namespace: "marketing",
+    description: I18n.t("marketing.permissions.placement_offer.#{action}")
+  }
+end)
+
+permissions.concat(%w[index show create activate retire].map do |action|
+  {
+    resource: "marketing_placement_capacity_policy", action:, namespace: "marketing",
+    description: I18n.t("marketing.permissions.placement_capacity_policy.#{action}")
+  }
+end)
+
 permissions << {
   resource: "billing_refund", action: "resolve_manual", namespace: "orders",
   description: I18n.t("orders.permissions.billing_refund_resolve_manual")
