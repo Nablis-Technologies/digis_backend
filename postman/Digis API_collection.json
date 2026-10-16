@@ -1538,7 +1538,7 @@
                 { "key": "order_direction", "value": "desc", "disabled": true }
               ]
             },
-            "description": "List the authenticated user's owned tickets. The wallet includes event/product/date/venue context, purchased non-ticket add-ons, a server-calculated resale_price_cap_minor when eligible, and safe pending_transfer metadata (id/status/expiry only); acquisition basis, payment, provider, holder, scanner, transfer bearer token/digest, recipient contact, and old-generation fields are never returned. Only the current active credential's static QR and PNR/lookup code are exposed.",
+            "description": "List the authenticated user's owned tickets. The wallet includes event/product/date/venue context, purchased non-ticket add-ons, a server-calculated resale_price_cap_minor when eligible, and safe pending_transfer metadata (id/status/expiry only). Only when the current user is the registration respondent, registration_answers contains registration_id, the authenticated answer-set URL, and answers_editable_until; answer values remain on GET /registrations/:id/answers. Answer context is omitted for transferred tickets owned by non-respondents. Acquisition basis, payment, provider, holder, scanner, transfer bearer token/digest, recipient contact, answer values, and old-generation fields are never returned. Only the current active credential's static QR and PNR/lookup code are exposed.",
             "auth": {
               "type": "bearer",
               "bearer": [ { "key": "token", "value": "{{accessToken}}", "type": "string" } ]
@@ -1552,7 +1552,7 @@
               "_postman_previewlanguage": "json",
               "header": [ { "key": "Content-Type", "value": "application/json" } ],
               "cookie": [],
-              "body": "{\n  \"success\": true,\n  \"data\": [\n    {\n      \"id\": \"ticket_01HXExample\",\n      \"status\": \"active\",\n      \"unit_number\": 1,\n      \"event\": { \"id\": \"evt_01HXExample\", \"slug\": \"summer-music-festival\", \"title\": \"Summer Music Festival\", \"timezone\": \"Africa/Addis_Ababa\", \"currency\": \"ETB\" },\n      \"product\": { \"id\": \"product_01HXExample\", \"name\": \"General Admission\", \"type\": \"ticket\" },\n      \"ticket_type\": { \"id\": \"type_01HXExample\", \"name\": \"General Admission\", \"admissions_per_unit\": 1, \"entry_validation_mode\": \"qr\" },\n      \"event_dates\": [ { \"id\": \"date_01HXExample\", \"name\": \"Festival Day 1\", \"starts_at\": \"2026-08-01T16:00:00.000Z\", \"ends_at\": \"2026-08-01T23:00:00.000Z\", \"status\": \"scheduled\", \"venue\": { \"id\": \"venue_01HXExample\", \"name\": \"Main Hall\", \"city\": \"Addis Ababa\" } } ],\n      \"add_ons\": [ { \"id\": \"order_item_01HXAddon\", \"name\": \"Festival T-shirt\", \"type\": \"merchandise\", \"quantity\": 1, \"unit_amount_minor\": 750 } ],\n      \"admission_slots\": [ { \"id\": \"slot_01HXExample\", \"position\": 1, \"assignment_status\": \"unassigned\" } ],\n      \"pending_transfer\": null,\n      \"credentials\": [ { \"id\": \"credential_01HXExample\", \"credential_generation_id\": \"generation_01HXExample\", \"admission_slot_id\": null, \"slot_positions\": [1], \"entry_limit\": 1, \"status\": \"active\", \"issued_at\": \"2026-07-20T10:00:00.000Z\", \"lookup_code\": \"AB12CD34\", \"qr_token\": \"opaque-static-token-returned-to-owner\" } ]\n    }\n  ]\n}"
+              "body": "{\"success\":true,\"data\":[{\"id\":\"ticket_01HXExample\",\"status\":\"active\",\"unit_number\":1,\"registration_answers\":{\"registration_id\":\"registration_01HXExample\",\"url\":\"/registrations/registration_01HXExample/answers\",\"answers_editable_until\":\"2026-10-30T12:00:00Z\"},\"event\":{\"id\":\"evt_01HXExample\",\"slug\":\"summer-music-festival\",\"title\":\"Summer Music Festival\",\"timezone\":\"Africa/Addis_Ababa\",\"currency\":\"ETB\"},\"product\":{\"id\":\"product_01HXExample\",\"name\":\"General Admission\",\"type\":\"ticket\"},\"add_ons\":[],\"admission_slots\":[],\"pending_transfer\":null,\"credentials\":[{\"id\":\"credential_01HXExample\",\"status\":\"active\",\"lookup_code\":\"AB12CD34\",\"qr_token\":\"opaque-static-token-returned-to-owner\"}]}]}"
             },
             {
               "name": "Outgoing transfer pending acceptance",
@@ -2020,7 +2020,7 @@
                     { "key": "per_page", "value": "25" }
                   ]
                 },
-                "description": "Discover published public events without authentication. The list is paginated (default per_page=25, maximum 100) and returns standard pagination metadata. Each item includes the existing event card fields, the minimum current public-audience ticket price in price_from_minor, event_lifecycle (upcoming, ongoing, ended, unscheduled), and advisory ticket_availability (available, coming_soon, unavailable, sold_out, sales_closed, no_public_tickets, no_eligible_dates). Active public offers are evaluated in fixed batches of 100 without product/date result caps, so page neighbors and large catalogs do not change the event state. Quote/checkout remains authoritative; no inventory counts or buyer-specific limits are exposed.",
+                "description": "Discover published public events without authentication. The list is paginated (default per_page=25, maximum 100); cards include bounded next_event_date, is_recurring, price_from_minor and price_from_currency, lifecycle, advisory ticket availability, and pagination metadata. Optional filters: q, category, city, date_from/date_to, organization_id, venue_id, artist_id, sort=newest|soonest|price_asc|price_desc, currency, min_price_minor, and max_price_minor. Price filters/sorts require an explicit ISO currency; no FX comparison is performed. Filters apply before pagination and also compose with featured=true. Invalid filters return 422 invalid_public_event_filter. Availability remains advisory; checkout is authoritative and no inventory counts or buyer-specific limits are exposed.",
                 "auth": {
                   "type": "noauth"
                 }
@@ -2046,7 +2046,7 @@
                   "_postman_previewlanguage": "json",
                   "header": [{ "key": "Content-Type", "value": "application/json" }],
                   "cookie": [],
-                  "body": "{\n  \"success\": true,\n  \"data\": [\n    {\n      \"id\": \"019e5f69-dfff-7000-8000-000000000099\",\n      \"slug\": \"summer-festival\",\n      \"title\": \"Summer Festival\",\n      \"price_from_minor\": 50000,\n      \"event_lifecycle\": \"upcoming\",\n      \"ticket_availability\": \"available\"\n    }\n  ],\n  \"pagination\": {\n    \"current_page\": 1,\n    \"per_page\": 25,\n    \"total_count\": 42,\n    \"total_pages\": 2,\n    \"links\": {\"first\": \"...\", \"prev\": null, \"next\": \"...\", \"last\": \"...\"}\n  }\n}"
+                  "body": "{\n  \"success\": true,\n  \"data\": [\n    {\n      \"id\": \"019e5f69-dfff-7000-8000-000000000099\",\n      \"slug\": \"summer-festival\",\n      \"title\": \"Summer Festival\",\n      \"price_from_minor\": 50000,\n      \"price_from_currency\": \"ETB\",\n      \"event_lifecycle\": \"upcoming\",\n      \"ticket_availability\": \"available\",\n      \"is_recurring\": false,\n      \"next_event_date\": {\"id\": \"date_01HXDay1\", \"starts_at\": \"2026-11-01T16:00:00Z\", \"series_id\": null}\n    }\n  ],\n  \"pagination\": {\n    \"current_page\": 1,\n    \"per_page\": 25,\n    \"total_count\": 42,\n    \"total_pages\": 2\n  }\n}"
                 }
               ],
               "event": [
@@ -2065,6 +2065,8 @@
                       "  pm.expect(json).to.have.property(\"pagination\");",
                       "  if (json.data[0]) {",
                       "    pm.expect(json.data[0]).to.have.property(\"price_from_minor\");",
+                      "    pm.expect(json.data[0]).to.have.property(\"price_from_currency\");",
+                      "    pm.expect(json.data[0]).to.have.property(\"is_recurring\");",
                       "    pm.expect(json.data[0]).to.have.property(\"event_lifecycle\");",
                       "    pm.expect(json.data[0]).to.have.property(\"ticket_availability\");",
                       "    pm.expect(json.data[0]).not.to.have.property(\"has_available_tickets\");",
@@ -2075,6 +2077,36 @@
                   }
                 }
               ]
+            },
+            {
+              "name": "Search and Filter Public Events",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/public/events?q=music&category=music&city=addis%20ababa&sort=price_asc&currency=ETB&min_price_minor=5000&page=1&per_page=25",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "public", "events" ],
+                  "query": [
+                    { "key": "q", "value": "music" },
+                    { "key": "category", "value": "music" },
+                    { "key": "city", "value": "addis ababa" },
+                    { "key": "sort", "value": "price_asc" },
+                    { "key": "currency", "value": "ETB" },
+                    { "key": "min_price_minor", "value": "5000" },
+                    { "key": "page", "value": "1" },
+                    { "key": "per_page", "value": "25" },
+                    { "key": "organization_id", "value": "{{organizationId}}", "disabled": true },
+                    { "key": "venue_id", "value": "{{venueId}}", "disabled": true },
+                    { "key": "artist_id", "value": "{{artistId}}", "disabled": true },
+                    { "key": "date_from", "value": "2026-10-16T00:00:00Z", "disabled": true },
+                    { "key": "date_to", "value": "2026-10-23T00:00:00Z", "disabled": true },
+                    { "key": "max_price_minor", "value": "100000", "disabled": true }
+                  ]
+                },
+                "description": "All supplied filters combine with AND and apply before pagination. Date filters use event-date overlap with [date_from,date_to). Followable IDs scope to a primary/collaborating organization, event-date venue, or public participant artist. Price bounds or price sorting require currency; no FX conversion is performed."
+              },
+              "response": []
             },
             {
               "name": "Get Public Event",
@@ -2092,7 +2124,7 @@
                     "{{eventSlug}}"
                   ]
                 },
-                "description": "Get a single published event by slug using the attendee-safe public projection: event basics, category summaries, event dates with minimal venue data, safe media variants, active organization summaries, and allowlisted public settings. Never returns internal status/version fields, staff assignments, access codes, event streams, inventory counters, or raw private configuration.",
+                "description": "Get a single published event by slug using the attendee-safe public projection. Schedule data is a bounded event_dates_preview (at most seven upcoming/relevant rows), with is_recurring and event_dates_url. Use GET {{baseUrl}}/public/events/{{eventSlug}}/dates for paginated dates; from defaults to now and optional to creates a [from,to) range, including history. Generated dates may include safe series_id, never source_key or private recurrence rules. Never returns staff assignments, access codes, inventory counters, or raw private configuration.",
                 "auth": {
                   "type": "noauth"
                 }
@@ -2125,7 +2157,7 @@
                     }
                   ],
                   "cookie": [],
-                  "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"evt_01HXPublicExample\",\n    \"slug\": \"summer-music-festival\",\n    \"title\": \"Summer Music Festival\",\n    \"description\": \"A three-day open-air music festival featuring local and international acts.\",\n    \"visibility\": \"public\",\n    \"timezone\": \"Africa/Addis_Ababa\",\n    \"currency\": \"ETB\",\n    \"published_at\": \"2026-07-20T10:00:00.000Z\",\n    \"created_at\": \"2026-06-01T08:30:00.000Z\",\n    \"categories\": [\n      {\n        \"id\": \"cat_01HXMusic\",\n        \"name\": \"Music\",\n        \"description\": \"Live and recorded music events\",\n        \"slug\": \"music\"\n      }\n    ],\n    \"event_dates\": [\n      {\n        \"id\": \"evtd_01HXDay1\",\n        \"name\": \"Festival Day 1\",\n        \"doors_at\": \"2026-08-01T14:00:00.000Z\",\n        \"starts_at\": \"2026-08-01T16:00:00.000Z\",\n        \"ends_at\": \"2026-08-01T23:00:00.000Z\",\n        \"status\": \"scheduled\",\n        \"venue\": {\n          \"id\": \"venue_01HXMain\",\n          \"name\": \"Main Hall\",\n          \"city\": \"Addis Ababa\"\n        }\n      }\n    ],\n    \"event_media\": [\n      {\n        \"id\": \"evtm_01HXCover\",\n        \"type\": \"image\",\n        \"position\": 0,\n        \"alt_text\": \"Crowd at the main stage\",\n        \"caption\": \"Opening night\",\n        \"file\": {\n          \"thumbnail\": \"https://example.test/thumbnail.jpg\",\n          \"medium\": \"https://example.test/medium.jpg\"\n        }\n      }\n    ],\n    \"event_organizations\": [\n      {\n        \"id\": \"evto_01HXHost\",\n        \"type\": \"host\",\n        \"role\": \"organizer\",\n        \"status\": \"active\",\n        \"organization\": {\n          \"id\": \"org_01HXPromoter\",\n          \"name\": \"Example Promoter\",\n          \"slug\": \"example-promoter\"\n        }\n      }\n    ],\n    \"event_setting\": {\n      \"id\": \"setting_01HXExample\",\n      \"config\": {\n        \"public_guest_limit\": 100\n      }\n    },\n    \"organization\": {\n      \"id\": \"org_01HXPromoter\",\n      \"name\": \"Example Promoter\",\n      \"slug\": \"example-promoter\"\n    }\n  }\n}"
+                  "body": "{\"success\":true,\"data\":{\"id\":\"evt_01HXPublicExample\",\"slug\":\"summer-music-festival\",\"title\":\"Summer Music Festival\",\"description\":\"A three-day open-air music festival.\",\"visibility\":\"public\",\"timezone\":\"Africa/Addis_Ababa\",\"currency\":\"ETB\",\"published_at\":\"2026-07-20T10:00:00.000Z\",\"created_at\":\"2026-06-01T08:30:00.000Z\",\"is_recurring\":true,\"event_dates_preview\":[{\"id\":\"evtd_01HXDay1\",\"name\":\"Festival Day 1\",\"doors_at\":\"2026-08-01T14:00:00.000Z\",\"starts_at\":\"2026-08-01T16:00:00.000Z\",\"ends_at\":\"2026-08-01T23:00:00.000Z\",\"status\":\"scheduled\",\"series_id\":\"series_01HXExample\",\"venue\":{\"id\":\"venue_01HXMain\",\"name\":\"Main Hall\",\"city\":\"Addis Ababa\"}}],\"event_dates_url\":\"/public/events/summer-music-festival/dates\",\"categories\":[{\"id\":\"cat_01HXMusic\",\"name\":\"Music\",\"description\":\"Live and recorded music events\",\"slug\":\"music\"}],\"event_media\":[],\"event_organizations\":[],\"event_setting\":{\"id\":\"setting_01HXExample\",\"config\":{\"public_guest_limit\":100}},\"organization\":{\"id\":\"org_01HXPromoter\",\"name\":\"Example Promoter\",\"slug\":\"example-promoter\"}}}"
                 }
               ],
               "event": [
@@ -2149,7 +2181,11 @@
                       "  pm.expect(data).to.have.property(\"published_at\");",
                       "  pm.expect(data).to.have.property(\"created_at\");",
                       "  pm.expect(data).to.have.property(\"categories\");",
-                      "  pm.expect(data).to.have.property(\"event_dates\");",
+                      "  pm.expect(data).to.have.property(\"event_dates_preview\");",
+                      "  pm.expect(data.event_dates_preview).to.be.an(\"array\").with.length.at.most(7);",
+                      "  pm.expect(data).to.have.property(\"event_dates_url\");",
+                      "  pm.expect(data).to.have.property(\"is_recurring\");",
+                      "  pm.expect(data).not.to.have.property(\"event_dates\");",
                       "  pm.expect(data).to.have.property(\"event_media\");",
                       "  pm.expect(data).to.have.property(\"event_organizations\");",
                       "  pm.expect(data).to.have.property(\"event_setting\");",
@@ -2167,6 +2203,27 @@
                   }
                 }
               ]
+            },
+            {
+              "name": "List Public Event Dates",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/public/events/{{eventSlug}}/dates?page=1&per_page=25",
+                  "host": [ "{{baseUrl}}" ],
+                  "path": [ "public", "events", "{{eventSlug}}", "dates" ],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "per_page", "value": "25" },
+                    { "key": "from", "value": "2026-10-16T00:00:00Z", "disabled": true },
+                    { "key": "to", "value": "2026-10-23T00:00:00Z", "disabled": true }
+                  ]
+                },
+                "description": "Returns public event dates in chronological order, paginated with per_page default 25 and maximum 100. from defaults to the current instant; optional ISO-8601 from/to form a [from,to) range and may request historical dates. Fields include safe venue summary and series_id when a generated recurrence source key is valid; source_key and recurrence rule text are never exposed.",
+                "auth": { "type": "noauth" }
+              },
+              "response": []
             },
             {
               "name": "Products",
@@ -2188,7 +2245,7 @@
                         "products"
                       ]
                     },
-                    "description": "List active public products for an event slug. Each product includes active currency-aware price_options, a boolean available projection, and the explicit requires_ticket boolean. Draft and retired products, raw metadata, held/sold counters, and inventory internals are omitted; the order quote remains authoritative for final price and reservation.",
+                    "description": "List active public products for an event slug. Ticket products include covered_event_date_ids derived from access rules (non-ticket products return null), active currency-aware price_options, a boolean available projection, and the explicit requires_ticket boolean. Refund allocation weights are not coverage data. Draft and retired products, raw metadata, held/sold counters, and inventory internals are omitted; the order quote remains authoritative for final price and reservation.",
                     "auth": {
                       "type": "noauth"
                     }
@@ -2207,6 +2264,11 @@
                           "const data = json?.data;",
                           "const items = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : (Array.isArray(data?.records) ? data.records : (Array.isArray(data?.data) ? data.data : [])));",
                           "const first = items[0];",
+                          "items.forEach(function (product) {",
+                          "  pm.expect(product).to.have.property(\"covered_event_date_ids\");",
+                          "  if (product.type === \"ticket\" && product.covered_event_date_ids !== null) pm.expect(product.covered_event_date_ids).to.be.an(\"array\");",
+                          "  pm.expect(product).not.to.have.property(\"allocation_basis_points\");",
+                          "});",
                           "if (first?.id) {",
                           "  pm.collectionVariables.set(\"productId\", first.id);",
                           "}"
@@ -5683,6 +5745,36 @@
               "name": "Registration Answers",
               "item": [
                 {
+                  "name": "List Respondent Registration Answers",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{accessToken}}",
+                        "type": "text"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/registrations/{{registrationId}}/answers",
+                      "host": [ "{{baseUrl}}" ],
+                      "path": [ "registrations", "{{registrationId}}", "answers" ]
+                    },
+                    "description": "Respondent-only answer edit context. Returns registration_id, answers_editable_until, can_edit_answers, and safe current answer rows with question schema. Other users receive the same 404 as an unknown registration. Values are omitted when erased or retention-expired; ciphertext and retention/audit internals are never returned. Response is private, no-store."
+                  },
+                  "response": [
+                    {
+                      "name": "Respondent answer set",
+                      "status": "OK",
+                      "code": 200,
+                      "_postman_previewlanguage": "json",
+                      "header": [ { "key": "Cache-Control", "value": "private, no-store" } ],
+                      "cookie": [],
+                      "body": "{\n  \"success\": true,\n  \"data\": {\n    \"registration_id\": \"registration_01HXExample\",\n    \"answers_editable_until\": \"2026-10-30T12:00:00Z\",\n    \"can_edit_answers\": true,\n    \"answers\": [{\n      \"id\": \"answer_01HXExample\",\n      \"question_key\": \"attendee_name\",\n      \"question_label\": \"Attendee name\",\n      \"question_type\": \"short_text\",\n      \"options\": [],\n      \"validation_rules\": {},\n      \"response_scope\": \"registration\",\n      \"package_unit_number\": null,\n      \"admission_position\": null,\n      \"admission_slot_id\": null,\n      \"value\": \"Aster Bekele\",\n      \"editable\": true\n    }]\n  }\n}"
+                    }
+                  ]
+                },
+                {
                   "name": "Get Registration Answer",
                   "request": {
                     "method": "GET",
@@ -5754,6 +5846,11 @@
                 }
               ],
               "variable": [
+                {
+                  "key": "registrationId",
+                  "value": "",
+                  "type": "string"
+                },
                 {
                   "key": "registrationAnswerId",
                   "value": "",
