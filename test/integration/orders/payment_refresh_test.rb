@@ -65,7 +65,7 @@ module Orders
       assert_response :not_found
     end
 
-    test "returns ready with the owner-scoped wallet serializer when tickets exist" do
+    test "returns ready with respondent answer context in the owner-scoped wallet serializer" do
       product = Catalog::Products::CreateDraft.call(
         event: @event,
         actor: core_users(:super_admin),
@@ -89,12 +89,26 @@ module Orders
       )
       product.product_accesses.create!(event_date: date, type: "venue", usage_limit: 1)
       product = Catalog::Products::Activate.call(product:, actor: core_users(:super_admin)).value
+      registration = Ticketing::Registration.create!(
+        event: @event,
+        ticket_type: product.ticket_type,
+        user: @buyer,
+        created_by: @buyer,
+        source: "self_service",
+        identity_digest: SecureRandom.hex(32),
+        package_quantity: 1,
+        admissions_per_unit_snapshot: 1,
+        party_size: 1,
+        status: "confirmed",
+        submitted_at: Time.current,
+        confirmed_at: Time.current
+      )
       @order.update_columns(status: "fulfilled", paid_at: Time.current)
       wallet_order = Orders::Order.create!(order_attributes.merge(
         status: "draft", idempotency_key_digest: SecureRandom.hex(32), creation_request_digest: SecureRandom.hex(32)
       ))
       item = wallet_order.order_items.create!(
-        event_product: product, name_snapshot: product.name, type_snapshot: "ticket", quantity: 1,
+        event_product: product, registration:, name_snapshot: product.name, type_snapshot: "ticket", quantity: 1,
         admissions_per_unit_snapshot: 1, base_currency: "ETB", base_unit_amount_minor: 10_500,
         charge_currency: "ETB", charge_unit_amount_minor: 10_500, exchange_rate: 1,
         discount_minor: 0, total_minor: 10_500, fulfillment_status: "fulfilled"
@@ -135,6 +149,10 @@ module Orders
       assert_equal "ready", data.fetch("state")
       wallet_ticket = data.fetch("tickets").find { |entry| entry.fetch("id") == ticket.id }
       assert wallet_ticket
+      answer_context = wallet_ticket.fetch("registration_answers")
+      assert_equal registration.id, answer_context.fetch("registration_id")
+      assert_equal "/registrations/#{registration.id}/answers", answer_context.fetch("url")
+      assert answer_context.key?("answers_editable_until")
       assert_equal 7_875, wallet_ticket.dig("ticket_type", "resale_price_cap_minor")
       pending_transfer = wallet_ticket.fetch("pending_transfer")
       assert_equal %w[expires_at id status], pending_transfer.keys.sort

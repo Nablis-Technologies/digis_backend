@@ -18,7 +18,7 @@ module Orders
         serializer_options: {
           payment: { serializer: Orders::PaymentSerializer },
           order: { serializer: Orders::OrderSerializer },
-          tickets: { serializer: Ticketing::TicketWalletSerializer }
+          tickets: ticket_wallet_serializer_options(result)
         }
       )
     end
@@ -33,6 +33,19 @@ module Orders
 
     def set_no_store
       response.set_header("Cache-Control", "no-store")
+    end
+
+    def ticket_wallet_serializer_options(result)
+      options = { serializer: Ticketing::TicketWalletSerializer, current_user: }
+      return options unless result.success?
+
+      tickets = result.value.fetch(:tickets)
+      registrations = Ticketing::Registration.where(
+        id: tickets.where.not(registration_id: nil).select(:registration_id)
+      ).to_a
+      options.merge(
+        correction_window_cutoffs: Ticketing::Answers::CorrectionWindow.cutoffs_for(registrations:)
+      )
     end
   end
 end

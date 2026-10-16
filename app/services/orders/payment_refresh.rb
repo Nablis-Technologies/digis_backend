@@ -110,6 +110,7 @@ module Orders
         .where("order_item_id IN (:ids) OR current_acquisition_order_item_id IN (:ids)", ids: order_item_ids)
         .includes(
           :event,
+          :registration,
           :admission_slots,
           :pending_ticket_transfer,
           { current_credential_generation: :credentials },
