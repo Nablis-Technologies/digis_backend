@@ -8,7 +8,8 @@ module Catalog
       attributes :id, :event_id, :name, :description, :type,
                  :allow_custom_price, :sales_start_at, :sales_end_at,
                  :min_per_order, :max_per_order,
-                 :schedule_change_refund_policy, :sort_order, :price_options, :available
+                 :schedule_change_refund_policy, :sort_order, :price_options, :available,
+                 :covered_event_date_ids
       attribute :requires_ticket
 
       belongs_to :ticket_type, serializer: Catalog::Public::TicketTypeSerializer, optional: true
@@ -26,6 +27,12 @@ module Catalog
 
       def requires_ticket
         object.metadata.to_h.stringify_keys.fetch("requires_ticket", false) == true
+      end
+
+      def covered_event_date_ids
+        return unless object.ticket?
+
+        object.product_accesses.map(&:event_date_id).compact.uniq.sort
       end
 
       private
