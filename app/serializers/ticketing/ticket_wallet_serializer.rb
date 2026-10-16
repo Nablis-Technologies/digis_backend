@@ -7,12 +7,29 @@ module Ticketing
     attributes :id, :status, :unit_number, :admissions_per_unit_snapshot,
                :credential_mode, :credential_version, :event, :product,
                :ticket_type, :event_dates, :admission_slots, :credentials, :add_ons, :pending_transfer
+    attribute :registration_answers, if: :registration_respondent?
 
     def pending_transfer
       transfer = object.pending_ticket_transfer
       return unless transfer
 
       { id: transfer.id, status: transfer.status, expires_at: transfer.expires_at }
+    end
+
+    def registration_respondent?
+      registration = object.registration
+      user = instance_options[:current_user]
+      registration.present? && user.present? && registration.user_id == user.id
+    end
+
+    def registration_answers
+      registration = object.registration
+      cutoff = registration_answer_cutoff(registration)
+      {
+        registration_id: registration.id,
+        url: "/registrations/#{registration.id}/answers",
+        answers_editable_until: cutoff
+      }
     end
 
     def event
@@ -115,6 +132,13 @@ module Ticketing
     end
 
     private
+
+    def registration_answer_cutoff(registration)
+      cutoffs = instance_options[:correction_window_cutoffs]
+      return cutoffs[registration.id] if cutoffs&.key?(registration.id)
+
+      Ticketing::Answers::CorrectionWindow.call(registration:)
+    end
 
     def resale_cap_available?(type)
       return false unless type&.resale_enabled && object.status == "active"

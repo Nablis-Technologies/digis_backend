@@ -75,6 +75,40 @@ module Ticketing
           "unit_amount_minor" => 750
         }
       ], wallet_ticket.fetch("add_ons")
+      refute wallet_ticket.key?("registration_answers")
+    end
+
+    test "wallet exposes answer-edit context only to the registration respondent" do
+      get "/tickets", headers: headers_for(@owner), as: :json
+
+      assert_response :success
+      wallet_ticket = response.parsed_body.fetch("data").sole
+      context = wallet_ticket["registration_answers"]
+      refute_nil context
+      return unless context
+
+      assert_equal @registration.id, context.fetch("registration_id")
+      assert_equal "/registrations/#{@registration.id}/answers", context.fetch("url")
+      assert context.key?("answers_editable_until")
+      refute wallet_ticket.key?("answers")
+
+      @ticket.update_column(:owner_user_id, @recipient.id)
+      get "/tickets", headers: headers_for(@recipient), as: :json
+
+      assert_response :success
+      transferred_wallet_ticket = response.parsed_body.fetch("data").sole
+      refute transferred_wallet_ticket.key?("registration_answers")
+    end
+
+    test "a single wallet serializer can derive its answer cutoff without a batch map" do
+      ticket = Ticketing::Ticket.includes(:registration).find(@ticket.id)
+      serializer = Ticketing::TicketWalletSerializer.new(ticket, current_user: @owner)
+
+      context = serializer.registration_answers
+
+      assert_equal @registration.id, context.fetch(:registration_id)
+      assert_equal Ticketing::Answers::CorrectionWindow.call(registration: @registration),
+                   context.fetch(:answers_editable_until)
     end
 
     private
