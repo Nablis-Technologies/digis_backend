@@ -47,6 +47,58 @@ class EventsPublicEventsTest < ActionDispatch::IntegrationTest
     refute event.dig("event_setting", "config").key?("internal_flag")
   end
 
+  test "public event detail exposes a safe lineup with whole-event and date-specific participants" do
+    event_date = @event.event_dates.first
+    date_participant = @event.event_participants.create!(
+      event_date:,
+      artist_id: events_artists(:teddy).id,
+      name: "Date performer",
+      type: "performer",
+      description: "Appears on this date",
+      display_order: 1,
+      metadata: { internal_note: "not public" }
+    )
+    event_participant = @event.event_participants.create!(
+      name: "Event host",
+      type: "host",
+      description: "Applies to all event dates",
+      display_order: 2,
+      metadata: { internal_note: "also not public" }
+    )
+    tied_participant_ids = %w[
+      018f0000-0000-7000-8000-000000000001
+      018f0000-0000-7000-8000-000000000002
+    ]
+    tied_participant_ids.reverse_each do |id|
+      @event.event_participants.create!(
+        id:,
+        name: "Same-order performer #{id.last}",
+        type: "performer",
+        display_order: 3
+      )
+    end
+
+    get "/public/events/#{@event.slug}", as: :json
+
+    assert_response :success
+    data = response.parsed_body.fetch("data")
+    participants = data.fetch("event_participants")
+    assert_equal [ date_participant.id, event_participant.id, *tied_participant_ids ],
+                 participants.map { |item| item.fetch("id") }
+    assert_equal event_date.id, participants.first.fetch("event_date_id")
+    assert_nil participants[1].fetch("event_date_id")
+    assert_equal events_artists(:teddy).id, participants.first.fetch("artist_id")
+    assert_equal %w[artist_id description display_order event_date_id id name type],
+                 participants.first.keys.sort
+    assert_equal "Applies to all event dates", participants[1].fetch("description")
+
+    get "/public/events", as: :json
+
+    assert_response :success
+    card = response.parsed_body.fetch("data").find { |item| item.fetch("id") == @event.id }
+    refute card.key?("event_participants")
+  end
+
   test "public event list is paginated with stable timestamp and ID ordering" do
     first = create_public_event("Later page one", published_at: 2.hours.from_now)
     second = create_public_event("Later page two", published_at: 1.hour.from_now)

@@ -16,6 +16,7 @@ en:
       capacity_policy_not_draft: Only a draft capacity policy can be activated.
       capacity_policy_window_overlap: Another capacity policy is active for this surface during the same interval.
       capacity_policy_not_retirable: Only a draft or active capacity policy can be retired.
+      ambiguous_active_policies: Multiple active capacity policies match one surface and instant.
     permissions:
       placement_offer:
         index: List featured-placement offer versions

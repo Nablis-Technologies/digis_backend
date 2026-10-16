@@ -63,7 +63,9 @@ module Public
     end
 
     def show
-      event = Events::Event.publicly_visible.includes(public_event_includes).find_by(slug: params[:slug])
+      event = Events::Event.publicly_visible
+        .includes(public_event_includes + [ :event_participants ])
+        .find_by(slug: params[:slug])
       return render_error(I18n.t("errors.not_found", model: "event"), status: :not_found) unless event
 
       date_preview = Events::Public::DatesQuery.preview_for(events: [ event ], at: Time.current)
@@ -74,7 +76,7 @@ module Public
           serializer: Events::Public::EventDetailSerializer,
           event_date_previews: date_preview.dates_by_event_id,
           recurring_event_ids: date_preview.recurring_event_ids.to_a,
-          include: event_serializer_includes
+          include: event_serializer_includes + [ :event_participants ]
         }
       )
     end

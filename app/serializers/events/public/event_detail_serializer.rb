@@ -12,6 +12,9 @@ module Events
       has_many :categories, serializer: Events::Public::CategorySerializer
       has_many :event_media, serializer: Events::Public::EventMediaSerializer
       has_many :event_organizations, serializer: Events::Public::EventOrganizationSerializer
+      has_many :event_participants, serializer: Events::Public::EventParticipantSerializer do
+        object.event_participants.sort_by { |participant| [ participant.display_order, participant.id ] }
+      end
       has_one :event_setting, serializer: Events::Public::EventSettingSerializer
       has_one :organization, serializer: Events::Public::OrganizationSummarySerializer
 

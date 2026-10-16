@@ -41,7 +41,7 @@ module Marketing
     def self.active_for(surface:, at: Time.current)
       policies = active_at(at.to_time.utc).where(surface: surface.to_s.strip.downcase).limit(2).to_a
       return if policies.empty?
-      raise AmbiguousActivePoliciesError, "Multiple active capacity policies match one surface and instant" if policies.many?
+      raise AmbiguousActivePoliciesError, I18n.t("marketing.errors.ambiguous_active_policies") if policies.many?
 
       policies.first
     end
