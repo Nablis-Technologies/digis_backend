@@ -5,11 +5,12 @@ module Events
   # recorded as creator. An accompanying settings row is built so every event
   # always has one (enforced by the one-settings-per-event unique index).
   class Create < Core::BaseService
-    def initialize(organization:, actor:, attributes:, category_ids: [])
+    def initialize(organization:, actor:, attributes:, category_ids: [], age_restriction_attributes: {})
       @organization = organization
       @actor = actor
       @attributes = attributes.to_h.symbolize_keys
       @category_ids = Array(category_ids).map(&:to_s)
+      @age_restriction_attributes = age_restriction_attributes.to_h.symbolize_keys
     end
 
     def call
@@ -21,10 +22,20 @@ module Events
         return failure(invalid(event)) unless event.valid?
 
         event.save!
-        event.create_event_setting!(config: {})
+        event_setting = event.build_event_setting(config: {})
+        if @age_restriction_attributes.key?(:age_restriction)
+          event_setting.age_restriction = @age_restriction_attributes[:age_restriction]
+        end
+        unless event_setting.save
+          outcome = failure(invalid(event_setting))
+          raise ActiveRecord::Rollback
+        end
+
         event.record_audit!(
           "event.created",
-          audited_changes: event.attributes,
+          audited_changes: event.attributes.merge(
+            "event_setting" => { "age_restriction" => event_setting.age_restriction }
+          ),
           actor: @actor
         )
 

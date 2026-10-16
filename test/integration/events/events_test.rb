@@ -40,6 +40,161 @@ class EventsEventsTest < ActionDispatch::IntegrationTest
     assert_equal "Event created successfully", JSON.parse(response.body)["message"]
   end
 
+  test "event creation persists the canonical age restriction and audits the actor" do
+    age_restriction = { "has_restriction" => true, "min_age" => 18, "max_age" => 30 }
+    post "/events", params: event_payload(
+      event_setting: { config: { age_restriction: age_restriction.merge(internal_note: "drop me") } }
+    ), headers: admin_headers, as: :json
+
+    assert_response :created
+    event_id = response.parsed_body.dig("data", "id")
+    setting = Events::EventSetting.find_by!(event_id: event_id)
+    assert_equal age_restriction, setting.config["age_restriction"]
+
+    audit = Core::AuditLog.find_by!(auditable_type: "Events::Event", auditable_id: event_id,
+                                    action: "event.created")
+    assert_equal core_users(:super_admin).id, audit.actor_id
+    assert_equal age_restriction, audit.audited_changes.dig("event_setting", "age_restriction")
+  end
+
+  test "event creation rejects an invalid age restriction without creating an event" do
+    initial_count = Events::Event.count
+    post "/events", params: event_payload(
+      event_setting: { config: { age_restriction: { has_restriction: true, min_age: 121 } } }
+    ), headers: admin_headers, as: :json
+
+    assert_response :unprocessable_entity
+    assert_equal initial_count, Events::Event.count
+  end
+
+  test "event update merges only age restriction, preserves sibling settings, and audits actual changes" do
+    event = events_events(:draft_concert)
+    setting = event.event_setting
+    setting.update!(config: setting.config.merge("internal_flag" => "preserve me"))
+    first_value = { "has_restriction" => true, "min_age" => 18 }
+
+    patch "/events/#{event.id}", params: {
+      event: { event_setting: { config: { age_restriction: first_value } } }
+    }, headers: admin_headers, as: :json
+
+    assert_response :success
+    assert_equal first_value, setting.reload.config["age_restriction"]
+    assert_equal "preserve me", setting.config.fetch("internal_flag")
+
+    audit_scope = Core::AuditLog.where(
+      auditable_type: "Events::Event", auditable_id: event.id, action: "event.age_restriction.updated"
+    )
+    assert_equal 1, audit_scope.count
+    audit = audit_scope.sole
+    assert_equal core_users(:super_admin).id, audit.actor_id
+    assert_equal [ nil, first_value ], audit.audited_changes.fetch("age_restriction")
+
+    patch "/events/#{event.id}", params: {
+      event: { event_setting: { config: { age_restriction: first_value } } }
+    }, headers: admin_headers, as: :json
+
+    assert_response :success
+    assert_equal 1, audit_scope.count, "an unchanged setting must not create audit noise"
+  end
+
+  test "omitting age restriction on event update leaves the current setting unchanged" do
+    event = events_events(:draft_concert)
+    setting = event.event_setting
+    age_restriction = { "has_restriction" => true, "max_age" => 21 }
+    setting.update!(config: setting.config.merge("age_restriction" => age_restriction))
+
+    patch "/events/#{event.id}", params: { event: { title: "Changed without settings" } },
+          headers: admin_headers, as: :json
+
+    assert_response :success
+    assert_equal age_restriction, setting.reload.config.fetch("age_restriction")
+  end
+
+  test "invalid age restriction rolls back other event updates" do
+    event = events_events(:draft_concert)
+    original_title = event.title
+    original_category_ids = event.category_ids
+    original_config = event.event_setting.config
+
+    patch "/events/#{event.id}", params: {
+      event: {
+        title: "Must Roll Back",
+        category_ids: [ events_categories(:conference).id ],
+        event_setting: { config: { age_restriction: { has_restriction: true, min_age: "18" } } }
+      }
+    }, headers: admin_headers, as: :json
+
+    assert_response :unprocessable_entity
+    assert_equal original_title, event.reload.title
+    assert_equal original_category_ids, event.category_ids
+    assert_equal original_config, event.event_setting.reload.config
+    assert_equal 0, Core::AuditLog.where(
+      auditable_type: "Events::Event", auditable_id: event.id, action: "event.age_restriction.updated"
+    ).count
+  end
+
+  test "event update rejects age restriction supplied outside config" do
+    event = events_events(:draft_concert)
+    original_title = event.title
+    original_config = event.event_setting.config
+
+    patch "/events/#{event.id}", params: {
+      event: {
+        title: "Misplaced value must not be ignored",
+        event_setting: { age_restriction: { has_restriction: false } }
+      }
+    }, headers: admin_headers, as: :json
+
+    assert_response :unprocessable_entity
+    assert_equal original_title, event.reload.title
+    assert_equal original_config, event.event_setting.reload.config
+  end
+
+  test "event update rejects an array age bound when another valid bound is present" do
+    event = events_events(:ready_listing)
+    original_config = event.event_setting.config
+
+    patch "/events/#{event.id}", params: {
+      event: { event_setting: { config: { age_restriction: { has_restriction: true, min_age: [], max_age: 18 } } } }
+    }, headers: admin_headers, as: :json
+
+    assert_response :unprocessable_entity
+    assert_equal original_config, event.event_setting.reload.config
+  end
+
+  test "event update rejects an object as an age bound" do
+    event = events_events(:draft_concert)
+    original_config = event.event_setting.config
+
+    patch "/events/#{event.id}", params: {
+      event: { event_setting: { config: { age_restriction: { has_restriction: true, min_age: { value: 18 }, max_age: 21 } } } }
+    }, headers: admin_headers, as: :json
+
+    assert_response :unprocessable_entity
+    assert_equal original_config, event.event_setting.reload.config
+  end
+
+  test "age restriction update locks the current setting row before merging and auditing" do
+    event = events_events(:draft_concert)
+    setting = event.event_setting
+    setting.update!(config: setting.config.merge("concurrent_sibling" => "preserve"))
+    lock_queries = []
+    subscription = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _start, _finish, _id, payload|
+      sql = payload[:sql].to_s
+      lock_queries << sql if sql.include?("events_event_settings") && sql.match?(/FOR UPDATE/i)
+    end
+
+    patch "/events/#{event.id}", params: {
+      event: { event_setting: { config: { age_restriction: { has_restriction: true, min_age: 18 } } } }
+    }, headers: admin_headers, as: :json
+
+    assert_response :success
+    assert_equal "preserve", setting.reload.config.fetch("concurrent_sibling")
+    assert lock_queries.any?, "age restriction write should lock the current event setting row"
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscription) if subscription
+  end
+
   test "an organizer can create an event with categories in one request" do
     payload = {
       event: {
@@ -129,6 +284,83 @@ class EventsEventsTest < ActionDispatch::IntegrationTest
     assert_equal event.organization_id, detail["organization_id"]
     assert_equal 2, detail.fetch("event_media").length
     assert_equal "gallery", detail.dig("event_media", 1, "type")
+  end
+
+  test "organizer age restriction appears on detail and mutations but not event cards" do
+    user = create_event_list_user
+    organization = create_event_list_organization("Age Restriction")
+    make_verified(organization)
+    organization.memberships.create!(user:, role: :owner, status: :active)
+    initial_restriction = { "has_restriction" => true, "min_age" => 18 }
+
+    post "/events", params: event_payload(
+      organization_id: organization.id,
+      event_setting: { config: { age_restriction: initial_restriction } }
+    ), headers: headers_for(user), as: :json
+
+    assert_response :created
+    created = response.parsed_body.fetch("data")
+    event_id = created.fetch("id")
+    assert_equal initial_restriction, created.dig("event_setting", "config", "age_restriction")
+    assert_equal({ "age_restriction" => initial_restriction }, created.dig("event_setting", "config"))
+
+    event = Events::Event.find(event_id)
+    event.event_setting.update_column(:config, {
+      "public_guest_limit" => 100,
+      "internal_flag" => "never serialize",
+      "age_restriction" => initial_restriction.merge("internal_note" => "never serialize")
+    })
+
+    get "/events/#{event_id}", headers: headers_for(user), as: :json
+
+    assert_response :success
+    detail = response.parsed_body.fetch("data")
+    assert_equal({ "age_restriction" => initial_restriction }, detail.dig("event_setting", "config"))
+
+    get "/events", headers: headers_for(user), as: :json
+
+    assert_response :success
+    card = response.parsed_body.fetch("data").find { |item| item.fetch("id") == event_id }
+    refute card.key?("event_setting")
+
+    updated_restriction = { "has_restriction" => true, "min_age" => 21 }
+    patch "/events/#{event_id}", params: {
+      event: { event_setting: { config: { age_restriction: updated_restriction } } }
+    }, headers: headers_for(user), as: :json
+
+    assert_response :success
+    mutation = response.parsed_body.fetch("data")
+    assert_equal({ "age_restriction" => updated_restriction }, mutation.dig("event_setting", "config"))
+  end
+
+  test "organizer event detail safely omits a missing event setting" do
+    event = events_events(:draft_concert)
+    event.event_setting.destroy!
+
+    get "/events/#{event.id}", headers: admin_headers, as: :json
+
+    assert_response :success
+    refute response.parsed_body.fetch("data").key?("event_setting")
+  end
+
+  test "publish response retains the organizer-safe setting projection" do
+    event = events_events(:ready_listing)
+    make_verified(event.organization)
+    make_publishable(event)
+    event.event_setting.update_column(:config, {
+      "age_restriction" => {
+        "has_restriction" => true,
+        "min_age" => 18,
+        "internal_note" => "never serialize"
+      },
+      "internal_flag" => "never serialize"
+    })
+
+    post "/events/#{event.id}/publish", headers: admin_headers.merge("Idempotency-Key" => "publish-age-safe"), as: :json
+
+    assert_response :success
+    config = response.parsed_body.dig("data", "event_setting", "config")
+    assert_equal({ "age_restriction" => { "has_restriction" => true, "min_age" => 18 } }, config)
   end
 
   test "organizer event index excludes unrelated public events" do
@@ -332,6 +564,19 @@ class EventsEventsTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def event_payload(attributes = {})
+    {
+      event: {
+        title: "Age Restricted Event",
+        description: "Age setting integration coverage",
+        visibility: "private",
+        timezone: "Africa/Addis_Ababa",
+        currency: "ETB",
+        organization_id: @organization.id
+      }.merge(attributes)
+    }
+  end
 
   def create_media(event:, type:, position:)
     media = event.event_media.build(
