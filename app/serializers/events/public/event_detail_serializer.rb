@@ -15,7 +15,7 @@ module Events
       has_many :event_participants, serializer: Events::Public::EventParticipantSerializer do
         object.event_participants.sort_by { |participant| [ participant.display_order, participant.id ] }
       end
-      has_one :event_setting, serializer: Events::Public::EventSettingSerializer
+      has_one :event_setting, serializer: Events::Public::EventDetailSettingSerializer
       has_one :organization, serializer: Events::Public::OrganizationSummarySerializer
 
       def is_recurring

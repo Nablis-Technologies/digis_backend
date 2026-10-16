@@ -61,3 +61,11 @@ en:
     event_setting:
       errors:
         config_must_be_object: "must be a JSON object"
+        age_restriction:
+          submission_shape: "must be nested under event_setting.config.age_restriction"
+          object: "must be a JSON object"
+          boolean: "must be true or false"
+          bound_required: "requires at least one of min_age or max_age"
+          bound_not_allowed: "must be omitted when has_restriction is false"
+          bound_range: "must be an integer between 0 and 120"
+          range_order: "must be greater than or equal to min_age"

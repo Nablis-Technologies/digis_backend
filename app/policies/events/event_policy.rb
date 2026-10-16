@@ -6,6 +6,11 @@ module Events
       id title slug description status visibility timezone currency version
       published_at cancelled_at created_at organization_id organization categories event_dates event_media
     ].freeze
+    ORGANIZER_SHOW_FIELDS = (ORGANIZER_FIELDS + [ :event_setting ]).freeze
+    ORGANIZER_MUTATION_FIELDS = %i[
+      id slug title description status visibility timezone currency version
+      published_at cancelled_at created_at updated_at organization_id organization categories event_setting
+    ].freeze
 
     def index?
       user.present?
@@ -56,8 +61,20 @@ module Events
         admin: { fields: :all, include: [] }
       },
       show: {
-        default: { fields: ORGANIZER_FIELDS, include: [] },
+        default: { fields: ORGANIZER_SHOW_FIELDS, include: [] },
         admin: { fields: :all, include: [ :event_setting ] }
+      },
+      create: {
+        default: { fields: ORGANIZER_MUTATION_FIELDS, include: [] },
+        admin: { fields: ORGANIZER_MUTATION_FIELDS, include: [] }
+      },
+      update: {
+        default: { fields: ORGANIZER_MUTATION_FIELDS, include: [] },
+        admin: { fields: ORGANIZER_MUTATION_FIELDS, include: [] }
+      },
+      publish: {
+        default: { fields: ORGANIZER_MUTATION_FIELDS, include: [] },
+        admin: { fields: ORGANIZER_MUTATION_FIELDS, include: [] }
       },
       public_show: {
         default: {

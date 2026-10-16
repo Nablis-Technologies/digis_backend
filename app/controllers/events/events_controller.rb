@@ -33,7 +33,7 @@ module Events
     end
 
     def show
-      @obj = @clazz.includes(organizer_eager_load).find(params[:id])
+      @obj = @clazz.strict_loading.includes(organizer_eager_load + [ :event_setting ]).find(params[:id])
       authorize @obj
       render_success(
         data: @obj,
@@ -51,27 +51,40 @@ module Events
 
       event = Events::Event.new(organization: organization)
       authorize event, :create?
+      return render_invalid_age_restriction_submission if invalid_age_restriction_submission?
 
       result = Events::Create.call(
         organization:,
         actor: current_user,
         attributes: event_params.except(:organization_id, :category_ids),
-        category_ids: event_params[:category_ids]
+        category_ids: event_params[:category_ids],
+        age_restriction_attributes: age_restriction_attributes
       )
-      render_service_result(result, success_status: :created,
-                            serializer_options: { serializer: Events::EventSerializer })
+      return render_service_result(result) if result.failure?
+
+      render_success(
+        I18n.t("event.success.create"),
+        data: mutation_event(result.value.id),
+        status: :created,
+        serializer_options: { serializer: Events::Organizer::EventMutationSerializer }
+      )
     end
 
     def update
-      set_object
+      @obj = Events::Event.includes(:organization, :categories, :event_setting).find(params[:id])
       authorize @obj, :update?
+      return render_invalid_age_restriction_submission if invalid_age_restriction_submission?
 
+      age_attributes = age_restriction_attributes
       error = nil
       Events::Event.transaction do
         unless @obj.update(model_params)
           error = { errors: @obj.errors.to_hash, status: :unprocessable_entity }
           raise ActiveRecord::Rollback
         end
+
+        error = update_age_restriction(age_attributes)
+        raise ActiveRecord::Rollback if error
 
         if category_ids_present?
           result = Events::ReplaceCategories.call(
@@ -89,19 +102,28 @@ module Events
       if error
         render_error(errors: error[:errors], status: error[:status])
       else
-        render_success(data: @obj.reload, serializer_options: { serializer: Events::EventSerializer })
+        render_success(
+          data: mutation_event(@obj.id),
+          serializer_options: { serializer: Events::Organizer::EventMutationSerializer }
+        )
       end
     end
 
     def publish
-      @obj = Events::Event.find_by!(id: params[:id])
+      @obj = Events::Event.includes(:organization, :categories, :event_setting).find_by!(id: params[:id])
       authorize @obj, :publish?
       result = Events::Publish.call(
         event: @obj,
         actor: current_user,
         idempotency_key: idempotency_key
       )
-      render_service_result(result, serializer_options: { serializer: Events::EventSerializer })
+      return render_service_result(result) if result.failure?
+
+      render_success(
+        I18n.t("event.success.publish"),
+        data: mutation_event(result.value.id),
+        serializer_options: { serializer: Events::Organizer::EventMutationSerializer }
+      )
     end
 
     private
@@ -115,6 +137,84 @@ module Events
         :title, :description, :slug, :visibility,
         :timezone, :currency, :organization_id,
         category_ids: []
+      )
+    end
+
+    def mutation_event(event_id)
+      Events::Event.strict_loading.includes(:organization, :categories, :event_setting).find(event_id)
+    end
+
+    def age_restriction_attributes
+      event_input = params[:event]
+      return {} unless event_input.is_a?(ActionController::Parameters)
+      return {} unless event_input.key?(:event_setting)
+
+      setting_input = event_input[:event_setting]
+      return { age_restriction: setting_input } unless setting_input.is_a?(ActionController::Parameters)
+      return {} unless setting_input.key?(:config)
+
+      config_input = setting_input[:config]
+      return { age_restriction: config_input } unless config_input.is_a?(ActionController::Parameters)
+      return {} unless config_input.key?(:age_restriction)
+
+      value = config_input[:age_restriction]
+      # Slice the known fields but preserve malformed supplied values so the
+      # domain validator can return 422 instead of silently accepting omission.
+      value = if value.is_a?(ActionController::Parameters)
+        value.to_unsafe_h.slice(*Events::EventSetting::AGE_RESTRICTION_KEYS)
+      elsif value.is_a?(Hash)
+        value.deep_stringify_keys.slice(*Events::EventSetting::AGE_RESTRICTION_KEYS)
+      else
+        value
+      end
+      { age_restriction: value }
+    end
+
+    def invalid_age_restriction_submission?
+      event_input = params[:event]
+      return false unless event_input.is_a?(ActionController::Parameters)
+      return true if event_input.key?(:age_restriction)
+      return false unless event_input.key?(:event_setting)
+
+      setting_input = event_input[:event_setting]
+      return true unless setting_input.is_a?(ActionController::Parameters)
+      return true if setting_input.key?(:age_restriction)
+      return false unless setting_input.key?(:config)
+
+      !setting_input[:config].is_a?(ActionController::Parameters)
+    end
+
+    def render_invalid_age_restriction_submission
+      message = I18n.t("events.event_setting.errors.age_restriction.submission_shape")
+      render_error(
+        message,
+        status: :unprocessable_entity,
+        code: "invalid_age_restriction",
+        errors: { "event_setting.config.age_restriction" => [ message ] }
+      )
+    end
+
+    def update_age_restriction(attributes)
+      return unless attributes.key?(:age_restriction)
+
+      locked_event = Events::Event.lock.find(@obj.id)
+      setting = Events::EventSetting.lock.find_by(event_id: locked_event.id) ||
+        locked_event.build_event_setting(config: {})
+      previous_value = setting.age_restriction
+      setting.age_restriction = attributes.fetch(:age_restriction)
+      return { errors: setting.errors.to_hash, status: :unprocessable_entity } unless setting.save
+
+      current_value = setting.age_restriction
+      record_age_restriction_change(locked_event, setting, previous_value, current_value) if previous_value != current_value
+      nil
+    end
+
+    def record_age_restriction_change(event, setting, previous_value, current_value)
+      event.record_audit!(
+        "event.age_restriction.updated",
+        audited_changes: { "age_restriction" => [ previous_value, current_value ] },
+        metadata: { event_setting_id: setting.id },
+        actor: current_user
       )
     end
 

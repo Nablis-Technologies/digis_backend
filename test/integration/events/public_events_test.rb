@@ -500,6 +500,48 @@ class EventsPublicEventsTest < ActionDispatch::IntegrationTest
     refute_includes body.keys, "internal_notes"
   end
 
+  test "public event detail exposes age restriction through a nested allowlist only" do
+    @event.event_setting.update_column(:config, {
+      "public_guest_limit" => 10,
+      "age_restriction" => {
+        "has_restriction" => true,
+        "min_age" => 21,
+        "max_age" => nil,
+        "internal_note" => "must not be public"
+      },
+      "internal_flag" => "must not be public"
+    })
+
+    get "/public/events/#{@event.slug}", as: :json
+
+    assert_response :success
+    detail_config = response.parsed_body.dig("data", "event_setting", "config")
+    assert_equal "10", detail_config.fetch("public_guest_limit").to_s
+    assert_equal({ "has_restriction" => true, "min_age" => 21 }, detail_config["age_restriction"])
+    refute detail_config.key?("internal_flag")
+
+    get "/public/events", as: :json
+
+    assert_response :success
+    card = response.parsed_body.fetch("data").find { |event| event.fetch("id") == @event.id }
+    assert_equal "10", card.dig("event_setting", "config", "public_guest_limit").to_s
+    refute card.dig("event_setting", "config").key?("age_restriction")
+  end
+
+  test "public event detail omits malformed legacy age restriction values" do
+    @event.event_setting.update_column(:config, {
+      "public_guest_limit" => 10,
+      "age_restriction" => { "has_restriction" => "true", "min_age" => 121 }
+    })
+
+    get "/public/events/#{@event.slug}", as: :json
+
+    assert_response :success
+    config = response.parsed_body.dig("data", "event_setting", "config")
+    assert_equal "10", config.fetch("public_guest_limit").to_s
+    refute config.key?("age_restriction")
+  end
+
   test "private event is not directly lookupable by unauthenticated user" do
     get "/public/events/#{events_events(:draft_concert).slug}", as: :json
     assert_response :not_found

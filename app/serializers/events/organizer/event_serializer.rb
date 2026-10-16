@@ -12,6 +12,10 @@ module Events
                  :created_at, :updated_at, :organization_id, :organization,
                  :categories, :event_dates, :event_media
 
+      attribute :event_setting, if: :show_projection? do
+        Events::Organizer::EventSettingSerializer.new(object.event_setting).attributes
+      end
+
       def organization
         Events::Public::OrganizationSummarySerializer.new(object.organization).attributes
       end
@@ -32,6 +36,13 @@ module Events
         media = object.event_media.sort_by { |event_media| [ event_media.position, event_media.id ] }
         media = media.select { |event_media| event_media.type == "cover" }.first(1) if list_projection?
         media.map { |event_media| Events::Public::EventMediaSerializer.new(event_media).attributes }
+      end
+
+      def show_projection?
+        return false unless instance_options[:projection].to_s == "show"
+
+        setting_association = object.association(:event_setting)
+        setting_association.loaded? && setting_association.target.present?
       end
 
       private
