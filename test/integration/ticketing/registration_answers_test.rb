@@ -22,6 +22,71 @@ module Ticketing
       refute response.parsed_body.dig("data", "answer")
     end
 
+    test "registration respondent can read effective answers and the edit window" do
+      registration = @answer.registration_form_submission.registration
+
+      get "/registrations/#{registration.id}/answers", headers: user_headers, as: :json
+
+      assert_response :success
+      return unless response.successful?
+
+      data = response.parsed_body.fetch("data")
+      assert_equal registration.id, data.fetch("registration_id")
+      assert data.key?("answers_editable_until")
+      assert_equal true, data.fetch("can_edit_answers")
+      answer = data.fetch("answers").sole
+      assert_equal @answer.id, answer.fetch("id")
+      assert_equal "Name", answer.fetch("question_label")
+      assert_equal "Original", answer.fetch("value")
+      assert_equal true, answer.fetch("editable")
+      refute_includes response.body, "answer_ciphertext"
+      refute_includes response.body, "retention_policy_id"
+      assert_includes response.headers.fetch("Cache-Control"), "no-store"
+    end
+
+    test "answer read returns the effective retained revision and omits expired values" do
+      post "/registration_answers/#{@answer.id}/revise",
+           params: { source: "attendee_correction", value: "Corrected" },
+           headers: user_headers.merge("Idempotency-Key" => "answer-revision-read-1"),
+           as: :json
+      assert_response :ok
+
+      registration = @answer.registration_form_submission.registration
+      get "/registrations/#{registration.id}/answers", headers: user_headers, as: :json
+
+      assert_response :success
+      data = response.parsed_body.fetch("data")
+      assert_equal "Corrected", data.fetch("answers").sole.fetch("value")
+
+      travel_to(@answer.retain_until + 1.second) do
+        expired_headers = {
+          "Authorization" => "Bearer #{Core::TokenService.issue(Core::TokenService.access_token_payload(core_users(:attendee)))}"
+        }
+        get "/registrations/#{registration.id}/answers", headers: expired_headers, as: :json
+
+        assert_response :success
+        data = response.parsed_body.fetch("data")
+        refute data.fetch("answers").sole.key?("value")
+        assert_equal false, data.fetch("can_edit_answers")
+      end
+    end
+
+    test "another user cannot enumerate or read a registration answer set" do
+      registration = @answer.registration_form_submission.registration
+      support_token = Core::TokenService.issue(
+        Core::TokenService.access_token_payload(core_users(:support))
+      )
+
+      get "/registrations/#{registration.id}/answers",
+          headers: { "Authorization" => "Bearer #{support_token}" }, as: :json
+
+      assert_response :not_found
+      return unless response.not_found?
+
+      refute_includes response.body, @answer.id
+      refute_includes response.body, "Original"
+    end
+
     test "answer revision without an idempotency key returns bad request" do
       post "/registration_answers/#{@answer.id}/revise",
            params: { source: "attendee_correction", value: "Corrected" },
