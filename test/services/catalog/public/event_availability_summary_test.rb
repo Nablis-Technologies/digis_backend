@@ -20,7 +20,10 @@ module Catalog
         create_ticket_product(capacity: 2)
 
         assert_equal(
-          { event_lifecycle: "upcoming", ticket_availability: "available", price_from_minor: 1_000 },
+          {
+            event_lifecycle: "upcoming", ticket_availability: "available",
+            price_from_minor: 1_000, price_from_currency: "ETB"
+          },
           summary
         )
       end

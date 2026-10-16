@@ -11,8 +11,9 @@ module Marketing
         def event_ids = placements.map(&:event_id).uniq
       end
 
-      def initialize(at: Time.current)
+      def initialize(at: Time.current, currency: nil)
         @at = at.to_time.utc
+        @currency = currency
       end
 
       def call
@@ -20,7 +21,7 @@ module Marketing
         return failure(featured_unavailable_error) if placements.length > MAX_FETCH_SIZE + 1
 
         events = placements.map(&:event).uniq(&:id)
-        statuses = Catalog::Public::EventAvailabilitySummary.call(events:, at:)
+        statuses = Catalog::Public::EventAvailabilitySummary.call(events:, at:, currency: @currency)
         eligible = placements.select do |placement|
           statuses.dig(placement.event_id, :ticket_availability) == "available"
         end.uniq(&:event_id)
@@ -63,8 +64,7 @@ module Marketing
                 AND featured_dates.status = 'scheduled') > ?
           SQL
           .includes(event: [
-            :categories, :event_setting, :organization,
-            { event_dates: :venue },
+            :categories, :event_setting, :organization, :recurrence_rule,
             { event_media: { file_attachment: :blob } },
             { event_organizations: :organization }
           ])

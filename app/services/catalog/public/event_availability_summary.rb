@@ -8,22 +8,29 @@ module Catalog
       TICKET_STATE_PRECEDENCE = %w[available unavailable coming_soon sold_out sales_closed].freeze
       PRODUCT_BATCH_SIZE = 100
 
-      def self.call(events:, at:)
-        new(events:, at:).call
+      def self.call(events:, at:, currency: nil)
+        new(events:, at:, currency:).call
       end
 
-      def initialize(events:, at:)
+      def initialize(events:, at:, currency: nil)
         @events = Array(events)
         @at = at.to_time
+        @currency = currency.to_s.upcase.presence
       end
 
       def call
         counts = active_public_ticket_counts
+        lifecycle_by_id = event_lifecycle_by_event_id
         summaries = events.to_h { |event| [ event.id, empty_offer_summary ] }
         each_ticket_product_batch do |products|
           event_map = events.index_by { |event| event.id.to_s }
           batch_event_map = event_map.slice(*products.map { |product| product.event_id.to_s }.uniq)
-          states = ProductAvailability.for(products:, events_by_id: batch_event_map, at:)
+          states = ProductAvailability.for(
+            products:,
+            events_by_id: batch_event_map,
+            event_dates_by_id: event_dates_by_event_id(products),
+            at:
+          )
           products.each { |product| record_offer_state!(summaries.fetch(product.event_id), states.fetch(product.id)) }
         end
         prices_by_event = price_from_minor_by_event_id
@@ -32,9 +39,10 @@ module Catalog
           [
             event.id,
             {
-              event_lifecycle: lifecycle_for(event),
+              event_lifecycle: lifecycle_by_id.fetch(event.id, "unscheduled"),
               ticket_availability: ticket_state_for(event, counts, summaries.fetch(event.id)),
-              price_from_minor: prices_by_event[event.id.to_s]
+              price_from_minor: prices_by_event[event.id.to_s],
+              price_from_currency: currency || event.currency
             }
           ]
         end
@@ -42,7 +50,7 @@ module Catalog
 
       private
 
-      attr_reader :events, :at
+      attr_reader :events, :at, :currency
 
       def active_public_ticket_counts
         return {} if events.empty?
@@ -79,35 +87,61 @@ module Catalog
 
         Catalog::EventProduct.active.tickets.joins(:ticket_type)
           .where(event_id: event_ids, ticketing_ticket_types: { audience: "public" })
-          .includes(:ticket_type, :prices, :inventories, :product_accesses)
+          .includes(:ticket_type, :prices, :inventories, product_accesses: :event_date)
           .find_in_batches(batch_size: PRODUCT_BATCH_SIZE) { |batch| yield batch }
+      end
+
+      def event_dates_by_event_id(products)
+        products.flat_map(&:product_accesses)
+          .filter_map(&:event_date)
+          .uniq(&:id)
+          .group_by { |event_date| event_date.event_id.to_s }
       end
 
       def price_from_minor_by_event_id
         return {} if events.empty?
 
-        Catalog::ProductPrice.joins(event_product: :ticket_type)
-          .joins("INNER JOIN events_events ON events_events.id = catalog_event_products.event_id")
+        prices = Catalog::ProductPrice.joins(event_product: :ticket_type)
           .where(catalog_event_products: { event_id: event_ids, status: "active", type: "ticket" })
           .where(ticketing_ticket_types: { audience: "public" })
-          .where("catalog_product_prices.currency = events_events.currency")
           .where("catalog_product_prices.active_from <= ?", at)
           .where("catalog_product_prices.active_to IS NULL OR catalog_product_prices.active_to > ?", at)
+        prices = if currency
+          prices.where(catalog_product_prices: { currency: })
+        else
+          prices.joins("INNER JOIN events_events ON events_events.id = catalog_event_products.event_id")
+            .where("catalog_product_prices.currency = events_events.currency")
+        end
+        prices
           .group("catalog_event_products.event_id")
           .minimum(:amount_minor)
           .transform_keys(&:to_s)
       end
 
-      def lifecycle_for(event)
-        dates = event.event_dates.to_a
-        scheduled_dates = dates.select { |date| date.status == "scheduled" }
-        return "ongoing" if scheduled_dates.any? { |date| date.starts_at <= at && date.ends_at > at }
-        return "upcoming" if scheduled_dates.any? { |date| date.starts_at > at }
+      def event_lifecycle_by_event_id
+        return {} if events.empty?
 
-        ended = dates.any? do |date|
-          date.status == "completed" || (date.status == "scheduled" && date.ends_at <= at)
-        end
-        ended ? "ended" : "unscheduled"
+        ongoing = Arel.sql(
+          "BOOL_OR(status = 'scheduled' AND starts_at <= ? AND ends_at > ?)", at, at
+        )
+        upcoming = Arel.sql("BOOL_OR(status = 'scheduled' AND starts_at > ?)", at)
+        ended = Arel.sql(
+          "BOOL_OR(status = 'completed' OR (status = 'scheduled' AND ends_at <= ?))", at
+        )
+
+        Events::EventDate.where(event_id: event_ids).group(:event_id).pluck(:event_id, ongoing, upcoming, ended)
+          .to_h do |event_id, is_ongoing, is_upcoming, is_ended|
+            state = if is_ongoing
+              "ongoing"
+            elsif is_upcoming
+              "upcoming"
+            elsif is_ended
+              "ended"
+            else
+              "unscheduled"
+            end
+            [ event_id, state ]
+          end
       end
 
       def ticket_state_for(event, counts, summary)
