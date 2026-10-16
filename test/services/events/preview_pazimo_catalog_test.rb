@@ -32,6 +32,22 @@ class PreviewPazimoCatalogTest < ActiveSupport::TestCase
     assert first.drop(4).all? { |record| record.fetch(:starts_at).to_date > REFERENCE_DATE }
   end
 
+  test "projects source age restrictions into the canonical event setting shape" do
+    seed = load_seed_class
+    assert seed, "PreviewPazimoCatalog seed adapter should be defined"
+    return unless seed
+
+    records = seed.records(today: REFERENCE_DATE)
+    source_rows = JSON.parse(File.read(SOURCE_PATH, encoding: "UTF-8")).first(30)
+    restricted_source = source_rows.find { |row| row.dig("age_restriction", "has_restriction") == true }
+    unrestricted_source = source_rows.find { |row| row.dig("age_restriction", "has_restriction") == false }
+    restricted = records.find { |record| record.fetch(:source_id) == restricted_source.fetch("id") }
+    unrestricted = records.find { |record| record.fetch(:source_id) == unrestricted_source.fetch("id") }
+
+    assert_equal({ "has_restriction" => true, "min_age" => 21 }, restricted[:age_restriction])
+    assert_equal({ "has_restriction" => false }, unrestricted[:age_restriction])
+  end
+
   test "seeds the complete first thirty as public events with ticket offers" do
     seed = load_seed_class
     assert seed, "PreviewPazimoCatalog seed adapter should be defined"
@@ -79,6 +95,12 @@ class PreviewPazimoCatalogTest < ActiveSupport::TestCase
     product = Catalog::EventProduct.includes(:ticket_type).where(event: first).sole
     assert_equal "public", product.ticket_type.audience
     assert_equal record.fetch(:ticket_tiers).first.fetch(:amount_minor), product.prices.base.for_currency("ETB").sole.amount_minor
+    setting = first.event_setting
+    assert setting, "seed should create an event setting"
+    return unless setting
+
+    assert_equal record[:age_restriction], setting.age_restriction
+    setting.update!(config: setting.config.merge("seed_test_sibling" => "preserve"))
     products_after_first = Catalog::EventProduct.where(event: first).count
     prices_after_first = Catalog::ProductPrice.joins(:event_product)
       .where(catalog_event_products: { event_id: first.id }).count
@@ -87,9 +109,12 @@ class PreviewPazimoCatalogTest < ActiveSupport::TestCase
     accesses_after_first = Catalog::ProductAccess.joins(:event_product)
       .where(catalog_event_products: { event_id: first.id }).count
 
-    replay = seed.seed!(actor:, records: [ record ], attach_covers: false).sole
+    updated_record = record.merge(age_restriction: { "has_restriction" => false })
+    replay = seed.seed!(actor:, records: [ updated_record ], attach_covers: false).sole
 
     assert_equal first.id, replay.id
+    assert_equal({ "has_restriction" => false }, setting.reload.age_restriction)
+    assert_equal "preserve", setting.config.fetch("seed_test_sibling")
     assert_equal initial_event_count + 1, Events::Event.count
     assert_equal products_after_first, Catalog::EventProduct.where(event: first).count
     assert_equal prices_after_first, Catalog::ProductPrice.joins(:event_product)

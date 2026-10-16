@@ -69,7 +69,7 @@ module PreviewPazimoCatalog
     ends_at = parse_clock(end_date, source["end_time"], default: "22:00")
     ends_at += 1.day while ends_at <= starts_at
 
-    {
+    record = {
       source_id:,
       slug: slug_for(source, source_id),
       title: source.fetch("title").to_s.strip,
@@ -85,6 +85,10 @@ module PreviewPazimoCatalog
       cover_url: Array(source["images"]).first,
       ticket_tiers: ticket_tiers(source)
     }
+    if source.key?("age_restriction")
+      record[:age_restriction] = Events::EventSetting.normalize_age_restriction(source["age_restriction"])
+    end
+    record
   end
   private_class_method :record_for
 
@@ -155,7 +159,7 @@ module PreviewPazimoCatalog
 
   def self.seed_event!(record, actor:, attach_covers:)
     organization = find_or_create_organization(record.fetch(:organizer_name))
-    event = Events::Event.find_or_initialize_by(slug: record.fetch(:slug))
+    event = Events::Event.includes(:event_setting).find_or_initialize_by(slug: record.fetch(:slug))
     if event.new_record?
       event.assign_attributes(
         organization:,
@@ -171,6 +175,7 @@ module PreviewPazimoCatalog
       event.save!
     end
 
+    sync_event_setting!(event, record)
     seed_category!(event, record[:category])
     venue = find_or_create_venue(record)
     event_date = seed_event_date!(event, record, venue)
@@ -179,6 +184,21 @@ module PreviewPazimoCatalog
     event
   end
   private_class_method :seed_event!
+
+  def self.sync_event_setting!(event, record)
+    association = event.association(:event_setting)
+    setting = association.target if association.loaded?
+    setting ||= event.create_event_setting!(config: {})
+
+    if record.key?(:age_restriction)
+      setting.age_restriction = record.fetch(:age_restriction)
+    elsif setting.config.is_a?(Hash) && setting.config.key?("age_restriction")
+      setting.config = setting.config.deep_stringify_keys.except("age_restriction")
+    end
+
+    setting.save! if setting.new_record? || setting.has_changes_to_save?
+  end
+  private_class_method :sync_event_setting!
 
   def self.find_or_create_organization(name)
     Organizations::Organization.find_or_create_by!(name:) do |organization|
