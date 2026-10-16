@@ -33,7 +33,12 @@ class EventsAuthorizationMatrixTest < ActionDispatch::IntegrationTest
     assert_response :success
     data = JSON.parse(response.body)["data"]
     assert data.key?("title")
-    assert data.key?("event_dates")
+    assert data.key?("event_dates_preview")
+    assert_kind_of Array, data.fetch("event_dates_preview")
+    assert_operator data.fetch("event_dates_preview").length, :<=, 7
+    assert data.key?("event_dates_url")
+    assert data.key?("is_recurring")
+    refute data.key?("event_dates")
     assert data.key?("event_setting")
     assert data.dig("event_setting", "config").is_a?(Hash)
     refute data.key?("status")
