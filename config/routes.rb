@@ -88,6 +88,7 @@ Rails.application.routes.draw do
 
   get "public/featured_events", to: "public/events#featured"
   get "public/events", to: "public/events#index", as: :public_events
+  get "public/events/:slug/dates", to: "public/events#dates", as: :public_event_dates
   get "public/events/:slug", to: "public/events#show", as: :public_event
   post "admin/orders/refunds/:id/resolve_manual",
     to: "admin/orders/refund_resolutions#resolve_manual"
@@ -264,6 +265,7 @@ Rails.application.routes.draw do
 
   # Workflow endpoints delegate all state transitions to idempotent commands.
   resources :registrations, only: :show, controller: "ticketing/registrations"
+  get "registrations/:id/answers", to: "ticketing/registration_answers#answers"
   post "registrations/:id/release", to: "orders/registration_checkouts#create"
 
   resources :registrations, only: [] do
