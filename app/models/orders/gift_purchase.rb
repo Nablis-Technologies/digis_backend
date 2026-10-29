@@ -21,6 +21,7 @@ module Orders
     validates :recipient_user, :order_item, presence: true
     validates :recipient_phone_digest, :token_digest, format: { with: /\A[0-9a-f]{64}\z/ }
     validates :recipient_email_digest, format: { with: /\A[0-9a-f]{64}\z/ }, allow_nil: true
+    validates :client_line_id, format: { with: /\A[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\z/ }, allow_nil: true
     validates :token_digest, uniqueness: true
     validates :order_item_id, uniqueness: true
     validates :recipient_email, format: { with: URI::MailTo::EMAIL_REGEXP }, allow_blank: true
@@ -35,6 +36,7 @@ module Orders
     validate :lifecycle_timestamps_match
     validate :delivery_timestamp_matches
     validate :expiry_is_immutable
+    validate :client_line_id_is_immutable
 
     scope :unexpired, ->(at = Time.current) { where("expires_at > ?", at) }
     scope :due_for_expiry, ->(at = Time.current) { where(status: %w[ready pending_recipient_consent claimed]).where("expires_at <= ?", at) }
@@ -42,6 +44,7 @@ module Orders
     def payer_status_payload
       {
         id:,
+        line_id: client_line_id,
         status:,
         expires_at:,
         delivery_status:,
@@ -177,6 +180,12 @@ module Orders
       return unless persisted? && will_save_change_to_expires_at?
 
       errors.add(:expires_at, :immutable)
+    end
+
+    def client_line_id_is_immutable
+      return unless persisted? && will_save_change_to_client_line_id?
+
+      errors.add(:client_line_id, :immutable)
     end
   end
 end
