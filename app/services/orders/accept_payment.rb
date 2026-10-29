@@ -13,8 +13,13 @@ module Orders
     end
 
     def call
+      return failure(payment_error(:event_payment_required, status: :unprocessable_entity)) if @payment.billing_payment?
+
+      order_id = Orders::Payment.where(id: @payment.id).pick(:order_id)
+      raise ActiveRecord::RecordNotFound unless order_id
+
       ActiveRecord::Base.transaction do
-        order_id = Orders::Payment.where(id: @payment.id).pick(:order_id)
+        CheckoutLock.acquire_for_order!(order_id:)
         order = Orders::Order.includes(:event).lock.find(order_id)
         event = Events::Event.lock.find(order.event_id)
         payment = Orders::Payment.lock.find(@payment.id)
@@ -36,6 +41,7 @@ module Orders
 
         payment.update!(accepted_at: now)
         order.update!(status: "paid", paid_at: now)
+        confirm_paid_registrations!(payment, order)
         commit_reservations!(order)
         commit_purchase_limits!(order)
         apply_promotion!(order)
@@ -60,6 +66,10 @@ module Orders
     end
 
     private
+
+    def payment_error(key, status: :unprocessable_entity)
+      Core::BusinessError.new(I18n.t("orders.payments.errors.#{key}"), code: key.to_s, status:)
+    end
 
     attr_reader :payment, :payment_event, :now
 
@@ -102,15 +112,32 @@ module Orders
       end
     end
 
+    def confirm_paid_registrations!(locked_payment, locked_order)
+      items = Orders::OrderItem.includes(:gift_purchase, registration: :user)
+        .where(order_id: locked_order.id).order(:id).to_a
+      items.each do |item|
+        next if item.gift_purchase
+
+        registration = item.registration
+        next unless registration
+
+        result = Ticketing::Registrations::ConfirmPaid.call(
+          registration:, payment: locked_payment, at: now
+        )
+        raise AcceptanceFailure, result.error if result.failure?
+      end
+    end
+
     def commit_purchase_limits!(locked_order)
-      items = Orders::OrderItem.where(order_id: locked_order.id).includes(:registration).to_a
+      items = Orders::OrderItem.includes(:gift_purchase, registration: :user)
+        .where(order_id: locked_order.id).order(:id).to_a
       items.each do |item|
         registration = item.registration
         next unless registration
         next unless Ticketing::PurchaseLimitAllocation.where(registration_id: registration.id, status: %w[reserved committed]).exists?
 
         result = Ticketing::PurchaseLimits::Commit.call(
-          registration:, user: Core::User.find(locked_order.buyer_user_id),
+          registration:, user: registration.user,
           idempotency_key: "orders-purchase-limit-#{item.id}", at: now
         )
         raise AcceptanceFailure, result.error if result.failure?

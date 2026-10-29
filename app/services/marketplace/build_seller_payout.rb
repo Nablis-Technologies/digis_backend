@@ -27,15 +27,14 @@ module Marketplace
       payout = Marketplace::ApplicationRecord.transaction do
         seller_payout_scope_lock(seller_user_id: seller_id, currency:, event_id:)
         seller = locked_seller(seller_id)
-        account = locked_account(account_id)
         existing = SellerPayout.lock.find_by(idempotency_key:)
         if existing
-          next existing if existing.seller_user_id == seller_id &&
-            existing.seller_payout_account_id == account_id && existing.currency == currency
+          next existing if matching_request?(existing)
 
           next payout_error(:seller_payout_scope_mismatch, code: "seller_payout_build_conflict", status: :conflict)
         end
 
+        account = locked_account(account_id)
         scope_error = account_scope_error(account, seller)
         next scope_error if scope_error
 
@@ -75,13 +74,25 @@ module Marketplace
       nil
     end
 
+    def matching_request?(payout)
+      return false unless payout.seller_user_id == seller_id &&
+        payout.seller_payout_account_id == account_id && payout.currency == currency
+      return false if requested_amount.present? && payout.amount_minor != requested_amount
+
+      event_ids = SellerPayoutAllocation.joins(:seller_ledger_entry)
+        .where(payout_id: payout.id)
+        .distinct
+        .pluck("marketplace_seller_ledger_entries.event_id")
+      event_id ? event_ids == [ event_id ] : event_ids.any?
+    end
+
     def locked_entries
       scope = SellerLedgerEntry
         .where(seller_user_id: seller_id, currency:)
         .where("available_at <= ?", cutoff_at)
         .where.not(type: "payout")
       scope = scope.where(event_id:) if event_id
-      scope.includes(event: :event_dates).order(:id).lock.to_a
+      scope.includes(:event).order(:id).lock.to_a
     end
 
     def locked_allocation_totals(entries)
@@ -97,19 +108,15 @@ module Marketplace
     end
 
     def calculate_candidate(entries, allocation_totals)
-      return payout_error(:seller_payout_event_scope_invalid) if entries.map(&:event_id).uniq.one? == false
-
       positive_entries = entries.select do |entry|
         remaining_ledger_amount(entry, allocation_totals).positive? &&
-          positive_entry_eligible?(entry)
+          positive_entry_eligible?(entry, at:)
       end
       negative_entries = entries.select do |entry|
         remaining_ledger_amount(entry, allocation_totals).positive? && entry.amount_minor.negative?
       end
 
       if positive_entries.empty?
-        return payout_error(:seller_payout_not_matured) if entries.any? { |entry| entry.amount_minor.positive? }
-
         return payout_error(:seller_payout_balance_not_positive)
       end
 
@@ -121,11 +128,6 @@ module Marketplace
       return payout_error(:seller_payout_amount_invalid) if amount > net_amount
 
       { amount_minor: amount, allocations: build_allocations(negative_entries, positive_entries, allocation_totals, amount) }
-    end
-
-    def positive_entry_eligible?(entry)
-      entry.amount_minor.positive? && entry.type.in?(Finance::PayoutSupport::POSITIVE_TYPES) &&
-        entry.event.present? && matured_event?(entry.event, at:)
     end
 
     def build_allocations(negative_entries, positive_entries, allocation_totals, target)

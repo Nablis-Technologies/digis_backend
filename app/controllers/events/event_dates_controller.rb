@@ -27,5 +27,9 @@ module Events
         params.require(:event_date).permit(:name)
       end
     end
+
+    def eager_load_config
+      { default: [ :venue ] }
+    end
   end
 end

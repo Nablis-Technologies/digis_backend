@@ -188,11 +188,6 @@ admin_attendee_export_accessibility:
   role_id: 019e5f6d-0002-7aaa-bbbb-ccccccccccc1
   permission_id: 019e5f6d-0001-7aaa-bbbb-ccccccccccc4
 
-organizer_attendee_export_request:
-  id: 019e5f6d-0003-7aaa-bbbb-ccccccccccc9
-  role_id: 019e5f6d-0002-7aaa-bbbb-ccccccccccc2
-  permission_id: 019e5f6d-0001-7aaa-bbbb-ccccccccccc1
-
 organizer_attendee_export_contact:
   id: 019e5f6d-0003-7aaa-bbbb-ccccccccccd0
   role_id: 019e5f6d-0002-7aaa-bbbb-ccccccccccc2

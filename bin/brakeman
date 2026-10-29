@@ -2,6 +2,10 @@
 require "rubygems"
 require "bundler/setup"
 
-ARGV.unshift("--ensure-latest")
+# The latest-release lookup depends on RubyGems remote metadata, which is not
+# always available in local/offline environments. CI keeps the freshness gate;
+# developers can opt into it explicitly without making the scanner itself
+# crash before analysis starts.
+ARGV.unshift("--ensure-latest") if ENV["CI"].to_s != "" || ENV["BRAKEMAN_ENSURE_LATEST"] == "1"
 
 load Gem.bin_path("brakeman", "brakeman")

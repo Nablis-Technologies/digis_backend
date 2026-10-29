@@ -8,7 +8,7 @@
   ticketing.package_refunded
   marketplace.resale_listing.reserved
 ].each do |event_type|
-  Rails.application.config.x.outbox_handlers[event_type] = lambda do |outbox_event|
+  Rails.application.config.x.outbox_handlers.register(event_type, priority: 100) do |outbox_event|
     result = Streaming::OutboxHandlers::RevokeTicketSessions.call(event: outbox_event)
     raise result.error if result.failure?
 

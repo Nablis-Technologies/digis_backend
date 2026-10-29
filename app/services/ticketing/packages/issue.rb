@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "set"
+
 require "bigdecimal"
 
 module Ticketing
@@ -38,9 +40,26 @@ module Ticketing
         Ticketing::Ticket.transaction do
           event = lock_event
           source = lock_source
-          existing = @existing_ticket_checked ? @existing_ticket : Ticketing::Ticket.find_by(source_key)
+          existing = @existing_ticket_checked ? @existing_ticket : find_existing_ticket
           if existing
-            outcome = success(existing)
+            unless credential_reconciliation_needed?(existing, event)
+              outcome = success(existing)
+              next
+            end
+
+            ensure_issuance_context!(event)
+            generation = Ticketing::CredentialGenerations::CreateInitialGroup.call(
+              ticket: existing,
+              issuance_context:,
+              event:,
+              index_lock_held: @index_lock_held
+            )
+            if generation.failure?
+              outcome = failure(generation.error)
+              raise ActiveRecord::Rollback
+            end
+
+            outcome = success(@reload_ticket ? existing.reload : existing)
             next
           end
 
@@ -50,6 +69,7 @@ module Ticketing
             raise ActiveRecord::Rollback
           end
 
+          ensure_issuance_context!(event)
           ticket = Ticketing::Ticket.create!(ticket_attributes(source))
           slots = create_slots!(ticket)
           generation = Ticketing::CredentialGenerations::CreateInitialGroup.call(
@@ -126,6 +146,40 @@ module Ticketing
         end
       end
 
+      def ensure_issuance_context!(event)
+        return if issuance_context.present?
+
+        Core::Database::AdvisoryLock.acquire_all!(
+          [ "ticketing-package-issuance", event.id ],
+          [ "ticketing-attendee-index", event.id ]
+        )
+        @index_lock_held = true
+        @issuance_context = {
+          reserved_lookup_codes: Ticketing::Credential.where(event_id: event.id)
+            .where.not(lookup_code: nil).pluck(:lookup_code).to_set
+        }
+      end
+
+      def find_existing_ticket
+        Ticketing::Ticket.includes(
+          :event,
+          :admission_slots,
+          { current_credential_generation: :credentials },
+          registration: :consent_requirements,
+          event_product: [ :ticket_type, { product_accesses: :event_date } ]
+        ).find_by(source_key)
+      end
+
+      def credential_reconciliation_needed?(ticket, event)
+        return false unless ticket.status == "active" && event.status != "cancelled"
+        return true if ticket.current_credential_generation_id.blank?
+
+        generation = ticket.current_credential_generation
+        return false unless generation&.version == 1
+
+        generation.credentials.any? { |credential| credential.status == "pending_requirements" }
+      end
+
       def verify_source(source, event:)
         if source.is_a?(Orders::OrderItem)
           verify_order_item(source, event:)
@@ -138,6 +192,8 @@ module Ticketing
         return failure(issuance_error(:event_cancelled, "event_cancelled", :conflict)) if event.status == "cancelled"
         return failure(issuance_error(:source_not_fulfillable, "ticket_source_not_fulfillable", :conflict)) unless
           item.fulfilled? && item.order.status == "fulfilled" && @unit_number <= item.quantity
+        return failure(issuance_error(:gift_claim_required, "gift_claim_required", :conflict)) if
+          item.registration&.status == "gift_pending_claim"
         return failure(issuance_error(:source_type_invalid, "ticket_source_type_invalid", :unprocessable_entity)) unless
           item.type_snapshot == item.event_product.type && item.event_product.credential_bearing?
         return failure(issuance_error(:product_access_missing, "ticket_product_access_missing", :unprocessable_entity)) if
@@ -172,14 +228,15 @@ module Ticketing
       def ticket_attributes(source)
         if source.is_a?(Orders::OrderItem)
           order = source.order
+          registration = source.registration
           {
             event: order.event,
             event_product: source.event_product,
-            registration: source.registration,
+            registration:,
             order_item: source,
             unit_number: @unit_number,
             admissions_per_unit_snapshot: source.admissions_per_unit_snapshot || 1,
-            owner_user: order.buyer_user,
+            owner_user: registration&.user || order.buyer_user,
             current_acquisition_type: order.sales_channel == "resale" ? "resale_purchase" : "primary_purchase",
             current_acquisition_order_item: source,
             current_acquisition_product_value_minor: settlement_unit_value(source),

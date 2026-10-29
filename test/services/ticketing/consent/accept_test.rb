@@ -44,6 +44,29 @@ module Ticketing
         assert_equal "pending", requirement.reload.status
       end
 
+      test "does not let a normal registration use checkbox as an identity-verification bypass" do
+        _document, version = create_consent_document(scope: "buyer")
+        @actor.update!(verified_at: nil)
+
+        result = Ticketing::Consent::BuildRequirements.call(
+          registration: @registration,
+          actor: @actor,
+          acceptances: [
+            {
+              consent_document_version_id: version.id,
+              request_uuid: SecureRandom.uuid,
+              idempotency_key: "unverified-checkbox-consent",
+              acceptance_method: "checkbox",
+              content_sha256: version.content_sha256
+            }
+          ]
+        )
+
+        assert_predicate result, :failure?
+        assert_equal "consent_subject_unverified", result.error.code
+        assert_empty Ticketing::RegistrationConsent.where(registration: @registration)
+      end
+
       test "requires a slot subject and records the attendee signer role" do
         _document, version = create_consent_document(scope: "admission_slot")
         requirement = build_consent_requirements.value.first

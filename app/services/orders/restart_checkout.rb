@@ -25,7 +25,7 @@ module Orders
 
       prepare_idempotency!
       ActiveRecord::Base.transaction do
-        Core::Database::AdvisoryLock.acquire!("orders-checkout", buyer.id, old_order.event_id)
+        CheckoutLock.acquire!(buyer_user_id: buyer.id, event_id: old_order.event_id)
         source = Orders::Order.lock.find(old_order.id)
 
         replay = replay_or_conflict!(source)

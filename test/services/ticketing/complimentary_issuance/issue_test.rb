@@ -76,7 +76,7 @@ module Ticketing
         )
 
         assert_predicate result, :success?
-        assert_equal phone, result.value.user.phone
+        assert_equal "+#{phone}", result.value.user.phone
         assert_nil result.value.user.verified_at
       end
 

@@ -69,6 +69,24 @@ module Ticketing
         assert result.failure?
       end
 
+      test "a bound invitation authorizes only its previously-claiming user" do
+        tt = ticket_product(audience: "invitation").ticket_type
+        raw = SecureRandom.hex(16)
+        invitation = create_invitation(tt, raw, status: "pending")
+        invitation.update!(invited_user: core_users(:attendee))
+
+        same_user = Ticketing::Audience::Authorize.new(
+          ticket_type: tt, invitation: raw, user: core_users(:attendee)
+        ).call
+        other_user = Ticketing::Audience::Authorize.new(
+          ticket_type: tt, invitation: raw, user: core_users(:support)
+        ).call
+
+        assert_predicate same_user, :success?
+        assert_predicate other_user, :failure?
+        assert_equal core_users(:attendee).id, invitation.reload.invited_user_id
+      end
+
       test "code_or_invitation accepts either a code or a token" do
         tt = ticket_product(audience: "code_or_invitation").ticket_type
         create_access_code(tt, "code-only", max_uses: 5)

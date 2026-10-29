@@ -172,7 +172,7 @@ class CreateTicketingRegistrationConsents < ActiveRecord::Migration[8.1]
           RAISE EXCEPTION 'consent evidence signer does not match the requirement subject'
             USING ERRCODE = '23514';
         END IF;
-        IF signer_verified_at IS NULL THEN
+        IF signer_verified_at IS NULL AND NEW.acceptance_method = 'otp' THEN
           RAISE EXCEPTION 'consent evidence signer must have verified OTP identity'
             USING ERRCODE = '23514';
         END IF;

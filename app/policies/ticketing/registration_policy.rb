@@ -17,9 +17,8 @@ module Ticketing
     def reject? = organizer?
     def reconsider? = organizer?
     def offer_next? = organizer?
-    def enqueue_waitlist? = organizer? || registrant?
-    def accept_waitlist_offer? = registrant?
     def complimentary? = organizer?
+    def release? = registrant? && record.status.in?(%w[pending_payment cancelled])
 
     VISIBILITY = {
       show: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
@@ -28,9 +27,8 @@ module Ticketing
       reject: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
       reconsider: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
       offer_next: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
-      enqueue_waitlist: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
-      accept_waitlist_offer: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
-      complimentary: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } }
+      complimentary: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
+      release: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } }
     }.freeze
 
     class Scope < Core::ApplicationPolicy::Scope

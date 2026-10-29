@@ -14,6 +14,7 @@ module Catalog
       ticket parking merchandise food donation digital_addon other
     ].freeze
     CREDENTIAL_PRODUCT_TYPES = %w[ticket parking].freeze
+    ADMISSION_ADD_ON_TYPES = %w[parking merchandise food donation digital_addon].freeze
     REFUND_POLICIES = %w[full_or_partial full_only].freeze
     INVENTORY_MODES = %w[unlimited event_wide per_date event_wide_and_per_date].freeze
     STATUSES = %w[draft active retired].freeze
@@ -73,13 +74,6 @@ module Catalog
 
     def credential_bearing?
       CREDENTIAL_PRODUCT_TYPES.include?(type)
-    end
-
-    def free?
-      # Free means every currently active price is zero; no active price is not
-      # a free product because it is not yet sellable.
-      active_prices = prices.active_at(Time.current)
-      active_prices.exists? && active_prices.where.not(amount_minor: 0).none?
     end
 
     def self.ransackable_attributes(_auth_object = nil)

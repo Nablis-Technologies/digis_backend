@@ -46,14 +46,18 @@ module Commercial
         @idempotency_key = normalize_idempotency_key(idempotency_key)
         @idempotency_key_digest = idempotency_digest("simulation", idempotency_key)
         raw = scenario.to_h.deep_stringify_keys
-        context_attributes = raw["resolution_context"] || raw
+        context_attributes = (raw["resolution_context"] || raw).dup
+        @caller_provided_quoted_at = context_attributes.key?("quoted_at") && context_attributes["quoted_at"].present?
+        context_attributes["quoted_at"] ||= Time.current
         @resolution_context = Commercial::Resolution::Context.new(context_attributes)
         @normalized_scenario = normalized_scenario_for(raw)
         @scenario_digest = fingerprint_for(normalized_scenario)
       end
 
       def normalized_scenario_for(raw)
-        normalized = { "resolution_context" => canonicalize(resolution_context.to_h) }
+        context_data = resolution_context.to_h
+        context_data = context_data.merge(quoted_at: nil) unless @caller_provided_quoted_at
+        normalized = { "resolution_context" => canonicalize(context_data) }
         %w[baseline proposed].each do |key|
           normalized[key] = canonicalize(raw[key]) if raw.key?(key)
         end

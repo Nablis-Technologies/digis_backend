@@ -33,6 +33,10 @@ production:
     class: Finance::ProviderReserveMonitorJob
     queue: default
     schedule: "*/5 * * * *"
+  complete_due_events:
+    class: Finance::CompleteDueEventsJob
+    queue: default
+    schedule: every minute
   expire_commercial_scheduled_state:
     class: Commercial::ExpireScheduledStateJob
     queue: default
@@ -49,18 +53,44 @@ production:
     class: Ticketing::ExpireInvitationsJob
     queue: default
     schedule: every minute
+  expire_organization_membership_invitations:
+    class: Organizations::ExpireMembershipInvitationsJob
+    queue: default
+    schedule: every minute
   expire_credential_claims:
     class: Ticketing::ExpireCredentialClaimsJob
+    queue: default
+    schedule: every minute
+  expire_scanner_invitations:
+    class: Ticketing::ExpireScannerInvitationsJob
+    queue: default
+    schedule: every minute
+  expire_staff_invitations:
+    class: Events::ExpireStaffInvitationsJob
     queue: default
     schedule: every minute
   expire_ticket_transfers:
     class: Ticketing::ExpireTransfersJob
     queue: default
     schedule: every minute
+  expire_gift_purchases:
+    class: Orders::ExpireGiftPurchasesJob
+    queue: default
+    schedule: every minute
   process_outbox:
     class: Core::ProcessOutboxJob
     queue: outbox
     schedule: every minute
+  reconcile_fast:
+    class: Reconciliation::SupervisorJob
+    queue: maintenance
+    args: [ "fast" ]
+    schedule: <%= ENV.fetch("RECONCILIATION_FAST_SCHEDULE", "every minute") %>
+  reconcile_slow:
+    class: Reconciliation::SupervisorJob
+    queue: maintenance
+    args: [ "slow" ]
+    schedule: <%= ENV.fetch("RECONCILIATION_SLOW_SCHEDULE", "every hour at minute 30") %>
   remind_pending_consents:
     class: Ticketing::ConsentReminderJob
     queue: default
@@ -69,6 +99,42 @@ production:
     class: Core::RetentionPurgeJob
     queue: default
     schedule: every hour at minute 5
+  process_messaging_notifications:
+    class: Messaging::ProcessNotificationsJob
+    queue: notifications
+    schedule: every minute
+  process_messaging_campaigns:
+    class: Messaging::ProcessScheduledCampaignsJob
+    queue: notifications
+    schedule: every minute
+  reconcile_messaging_campaigns:
+    class: Messaging::ReconcileCampaignsJob
+    queue: maintenance
+    schedule: every 10 minutes
+  purge_messaging_notification_payloads:
+    class: Messaging::PurgeNotificationPayloadsJob
+    queue: notifications
+    schedule: every hour at minute 10
+  purge_messaging_campaign_payloads:
+    class: Messaging::PurgeCampaignPayloadsJob
+    queue: notifications
+    schedule: every hour at minute 20
+  reconcile_messaging_credit_top_ups:
+    class: Messaging::ReconcileCreditTopUpsJob
+    queue: maintenance
+    schedule: every 10 minutes
+  reconcile_platform_billing_entries:
+    class: Finance::ReconcilePlatformBillingEntriesJob
+    queue: maintenance
+    schedule: every 10 minutes
+  reconcile_marketing_featured_placements:
+    class: Marketing::ReconcileFeaturedPlacementsJob
+    queue: maintenance
+    schedule: every 10 minutes
+  reconcile_messaging_credit_reservations:
+    class: Messaging::ReconcileCreditReservationsJob
+    queue: maintenance
+    schedule: every 10 minutes
   expire_attendee_exports:
     class: Ticketing::ExpireAttendeeExportsJob
     queue: default
@@ -76,6 +142,10 @@ production:
   expire_stream_sessions:
     class: Streaming::ExpireSessionsJob
     queue: streaming
+    schedule: every minute
+  expire_phone_verification_challenges:
+    class: Core::ExpirePhoneVerificationChallengesJob
+    queue: maintenance
     schedule: every minute
   purge_expired_short_link_clicks:
     class: Links::PurgeExpiredClicksJob

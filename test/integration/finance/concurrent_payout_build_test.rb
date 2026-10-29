@@ -29,6 +29,7 @@ module Finance
           Finance::Payout.where(id: payout_ids).update_all(status: "failed", failure_code: "test_cleanup")
           Finance::PayoutAllocation.where(payout_id: payout_ids).delete_all
           Finance::Payout.where(organization_id: @organization.id).delete_all
+          Finance::PayoutAccount.where(organization_id: @organization.id).delete_all
           Finance::LedgerEntry.where(organization_id: @organization.id).delete_all
           Events::Event.where(id: @event.id).delete_all
           Organizations::Organization.where(id: @organization.id).delete_all
@@ -41,35 +42,20 @@ module Finance
     end
 
     test "concurrent builders reserve a ledger fact at most once" do
-      ready = Queue.new
-      start = Queue.new
-      threads = 2.times.map do |index|
-        Thread.new do
-          ready << true
-          start.pop
-          Finance::ApplicationRecord.connection_pool.with_connection do
-            Finance::BuildPayout.call(
-              organization: Organizations::Organization.find(@organization.id),
-              currency: "ETB",
-              idempotency_key: "concurrent-payout-#{index}",
-              cutoff_at: @now,
-              at: @now
-            )
-          end
-        end
+      race = run_database_race do |index|
+        Finance::BuildPayout.call(
+          organization: Organizations::Organization.find(@organization.id), currency: "ETB",
+          idempotency_key: "concurrent-payout-#{index}", cutoff_at: @now, at: @now
+        )
       end
+      results = race.results
 
-      2.times { ready.pop }
-      2.times { start << true }
-      results = threads.map(&:value)
-
+      assert_empty race.errors, race.errors.inspect
       assert_equal 1, results.count(&:success?), results.map { |result| [ result.success?, result.error&.code ] }.inspect
       assert_equal 1, results.count(&:failure?), results.map { |result| [ result.success?, result.error&.code ] }.inspect
       assert_equal 1, Finance::Payout.where(organization_id: @organization.id, currency: "ETB").count
       assert_equal 1, Finance::PayoutAllocation.joins(:payout)
         .where(finance_payouts: { organization_id: @organization.id, currency: "ETB" }).count
-    ensure
-      threads&.each(&:join)
     end
   end
 end

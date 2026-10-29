@@ -58,6 +58,38 @@ module Commercial
         assert conflict.failure?
         assert_equal "idempotency_conflict", conflict.error.code
       end
+
+      test "accepts ISO8601 string quoted_at or defaults when omitted" do
+        string_result = Run.call(
+          version: @version, actor: core_users(:super_admin),
+          scenario: { resolution_context: simulation_scenario.merge(quoted_at: Time.current.iso8601) },
+          idempotency_key: "simulation-run-string-time"
+        )
+        assert string_result.success?, string_result.error&.message
+
+        omitted_scenario = simulation_scenario
+        omitted_scenario.delete(:quoted_at)
+        omitted_result = Run.call(
+          version: @version, actor: core_users(:super_admin),
+          scenario: { resolution_context: omitted_scenario },
+          idempotency_key: "simulation-run-omitted-time"
+        )
+        assert omitted_result.success?, omitted_result.error&.message
+      end
+
+      test "omitted quoted_at is stable across idempotent retries" do
+        omitted_scenario = simulation_scenario
+        omitted_scenario.delete(:quoted_at)
+        subject = lambda do
+          Run.call(
+            version: @version, actor: core_users(:super_admin),
+            scenario: { resolution_context: omitted_scenario },
+            idempotency_key: "simulation-run-omitted-stable"
+          )
+        end
+
+        assert_idempotent(subject, counter: -> { Simulation.count })
+      end
     end
   end
 end

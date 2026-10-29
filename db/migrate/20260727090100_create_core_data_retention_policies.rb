@@ -16,7 +16,7 @@ class CreateCoreDataRetentionPolicies < ActiveRecord::Migration[8.1]
     end
 
     add_check_constraint :core_data_retention_policies,
-      "category IN ('registration_free_text','registration_structured','consent_evidence','security_audit','financial_record')",
+      "category IN ('registration_free_text','registration_structured','consent_evidence','security_audit','financial_record','messaging_notification')",
       name: "core_retention_policies_category_check"
     add_check_constraint :core_data_retention_policies,
       "version > 0",

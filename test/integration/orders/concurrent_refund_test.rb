@@ -41,34 +41,22 @@ module Orders
     end
 
     test "concurrent item refunds cannot exceed the original item value" do
-      ready = Queue.new
-      start = Queue.new
-      threads = 2.times.map do |index|
-        Thread.new do
-          ready << true
-          start.pop
-          Orders::ApplicationRecord.connection_pool.with_connection do
-            Orders::CreateItemRefund.call(
-              payment: Orders::Payment.find(@payment.id),
-              order_item: Orders::OrderItem.find(@item.id), quantity: 1,
-              reason_code: "event_cancellation", idempotency_key: "concurrent-refund-#{index}"
-            )
-          end
-        end
+      race = run_database_race do |index|
+        Orders::CreateItemRefund.call(
+          payment: Orders::Payment.find(@payment.id),
+          order_item: Orders::OrderItem.find(@item.id), quantity: 1,
+          reason_code: "event_cancellation", idempotency_key: "concurrent-refund-#{index}"
+        )
       end
+      results = race.results
 
-      2.times { ready.pop }
-      2.times { start << true }
-      results = threads.map(&:value)
-
+      assert_empty race.errors, race.errors.inspect
       assert_equal 1, results.count(&:success?)
       assert_equal 1, results.count(&:failure?)
       assert_equal "refund_item_value_exceeded", results.find(&:failure?).error.code
       assert_equal 1, Orders::Refund.where(payment: @payment).count
       assert_equal 1_000, Orders::Refund.where(payment: @payment).sum(:amount_minor)
       assert_equal 1, Orders::RefundItem.where(order_item: @item).count
-    ensure
-      threads&.each(&:join)
     end
 
     private

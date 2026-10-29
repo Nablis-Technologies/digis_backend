@@ -60,37 +60,17 @@ module Orders
     end
 
     test "concurrent webhook and grace worker accept one success without reacquiring inventory" do
-      ready = Queue.new
-      start = Queue.new
-      results = []
-      mutex = Mutex.new
-
-      threads = [
-        Thread.new do
-          ready << true
-          start.pop
-          Orders::ApplicationRecord.connection_pool.with_connection do
-            result = Orders::ProcessPaymentEvent.call(event: @event_record)
-            mutex.synchronize { results << result }
-          end
-        end,
-        Thread.new do
-          ready << true
-          start.pop
-          Orders::ApplicationRecord.connection_pool.with_connection do
-            result = Orders::ExpireSettlementGrace.call(
-              payment: @payment,
-              now: @payment.settlement_grace_expires_at
-            )
-            mutex.synchronize { results << result }
-          end
+      race = run_database_race do |index|
+        if index.zero?
+          Orders::ProcessPaymentEvent.call(event_id: @event_record.id)
+        else
+          payment = Orders::Payment.find(@payment.id)
+          Orders::ExpireSettlementGrace.call(payment:, now: payment.settlement_grace_expires_at)
         end
-      ]
+      end
+      results = race.results
 
-      2.times { ready.pop }
-      2.times { start << true }
-      threads.each(&:join)
-
+      assert_empty race.errors, race.errors.inspect
       assert results.all?(&:success?), results.map { |result| result.error&.message }.inspect
       assert_equal 1, Orders::Payment.where(id: @payment.id).where.not(accepted_at: nil).count
       assert_equal "fulfilled", @order.reload.status

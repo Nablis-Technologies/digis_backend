@@ -32,7 +32,7 @@ class DeactivatedUserTest < ActionDispatch::IntegrationTest
     payload = Core::TokenService.access_token_payload(@user)
     token = Core::TokenService.issue(payload)
 
-    get auth_me_url, headers: { "Authorization" => "Bearer #{token}" }, as: :json
+    get "/user", headers: { "Authorization" => "Bearer #{token}" }, as: :json
     assert_response :success
   end
 end

@@ -109,6 +109,10 @@ module Commercial
       def normalize_time(value)
         return if value.nil?
         return value.to_time.utc.freeze if value.respond_to?(:to_time) && !value.is_a?(String)
+        if value.is_a?(String)
+          parsed = Time.zone.parse(value) rescue nil
+          return parsed.utc.freeze if parsed
+        end
 
         raise ArgumentError, I18n.t("commercial.resolution.errors.invalid_context_value", attribute: :quoted_at)
       end

@@ -74,7 +74,7 @@ This is a **modular monolith** Rails application. Each module is a self-containe
 | `Ticketing` | Ticket types, inventory, QR codes, scanning | `Core`, `Events` |
 | `Orders` | Checkout, payments, fees, invoices | `Core`, `Ticketing` |
 | `Organizations` | Orgs, memberships, roles | `Core` |
-| `Messaging` | SMS/email campaigns, credits, billing | `Core` |
+| `Messaging` | SMS/email campaigns, credits, billing | `Core`, `Orders` |
 | `BoxOffice` | On-site sales, will-call, guest lists | `Core`, `Ticketing`, `Orders` |
 | `ShortUrls` | dig.is link management, analytics | `Core` |
 

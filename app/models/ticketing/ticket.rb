@@ -43,6 +43,10 @@ module Ticketing
              class_name: "Ticketing::TicketTransfer",
              inverse_of: :ticket,
              dependent: :restrict_with_exception
+    has_one :pending_ticket_transfer,
+            -> { where(status: "pending").where("expires_at > ?", Time.current) },
+            class_name: "Ticketing::TicketTransfer",
+            inverse_of: :ticket
     has_one :revocation,
             class_name: "Ticketing::Revocation",
             dependent: :restrict_with_exception
@@ -82,7 +86,8 @@ module Ticketing
 
     def self.ransackable_associations(_auth_object = nil)
       %w[event event_product registration order_item owner_user current_credential_generation
-         admission_slots credential_generations credentials attendee_index_entries ticket_transfers revocation
+         admission_slots credential_generations credentials attendee_index_entries ticket_transfers
+         pending_ticket_transfer revocation
          ticket_suspensions stream_sessions]
     end
 
@@ -135,7 +140,9 @@ module Ticketing
       end
       errors.add(:registration, :invalid) if registration_event_id.present? && registration_event_id != event_id
 
-      order_event_id = if association(:order_item).loaded?
+      order_event_id = if order_item_id.blank?
+        nil
+      elsif association(:order_item).loaded?
         order_item&.order&.event_id
       else
         Orders::OrderItem.joins(:order).where(id: order_item_id).pick("orders_orders.event_id")

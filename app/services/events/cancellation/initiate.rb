@@ -33,6 +33,7 @@ module Events
           previous_status = event.status
           event.update!(status: "cancelled", cancelled_at: Time.current)
           stop_streams(event)
+          revoke_pending_staff_invitations!
           @cancellation = create_cancellation
 
           record_audit(previous_status)
@@ -43,6 +44,8 @@ module Events
         success(@cancellation)
       rescue ActiveRecord::RecordNotUnique
         already_cancelled_failure
+      rescue Core::Error => exception
+        failure(exception)
       end
 
       private
@@ -75,6 +78,11 @@ module Events
           .where(events_event_dates: { event_id: event.id })
           .where.not(status: "ended")
           .update_all(status: "ended", updated_at: Time.current)
+      end
+
+      def revoke_pending_staff_invitations!
+        result = Events::StaffInvitations::RevokeForCancellation.call(event:, actor:)
+        raise result.error if result.failure?
       end
 
       def record_audit(previous_status)

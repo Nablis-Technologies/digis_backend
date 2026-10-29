@@ -6,12 +6,16 @@ module Orders
   class PaymentWebhooksControllerTest < ActionDispatch::IntegrationTest
     class WebhookAdapter < Payments::Providers::Adapter
       attr_accessor :webhook_valid
+      attr_reader :last_webhook_request
 
       def initialize
         @webhook_valid = true
       end
 
-      def verify_webhook(**) = webhook_valid
+      def verify_webhook(**request)
+        @last_webhook_request = request
+        webhook_valid
+      end
 
       def create(**) = Payments::Providers::Result.unknown(raw_status: "pending")
 
@@ -47,7 +51,7 @@ module Orders
            headers: { "X-Provider-Signature" => "valid-signature" },
            as: :json
 
-      assert_response :accepted
+      assert_response :ok
       assert_equal true, response.parsed_body.fetch("success")
       assert_equal "evt-controller", response.parsed_body.dig("data", "provider_event_id")
       assert Orders::PaymentEvent.exists?(provider: "chapa", provider_event_id: "evt-controller")
@@ -66,6 +70,49 @@ module Orders
       assert_equal "invalid_webhook_signature", response.parsed_body.fetch("code")
       assert_not Orders::PaymentEvent.exists?(provider_event_id: "evt-rejected")
       assert_not Core::OutboxEvent.exists?(event_type: "orders.payment_event.received")
+    end
+
+    test "accepts Chapa's transaction webhook field names" do
+      payload = {
+        event: "charge.success",
+        type: "API",
+        reference: "AP-chapa-reference",
+        tx_ref: "chapa-transaction-reference",
+        status: "success"
+      }
+
+      post "/payments/chapa/webhook",
+           params: payload,
+           headers: { "X-Chapa-Signature" => "valid-signature" },
+           as: :json
+
+      assert_response :ok
+      assert_equal "AP-chapa-reference", response.parsed_body.dig("data", "provider_event_id")
+      assert Orders::PaymentEvent.exists?(provider_event_id: "AP-chapa-reference")
+    end
+
+    test "passes Chapa's signature header to the provider adapter" do
+      payload = { event_id: "evt-explicit-signature", type: "payment.success", status: "success" }
+
+      post "/payments/chapa/webhook",
+           params: payload,
+           headers: { "X-Chapa-Signature" => "header-signature" },
+           as: :json
+
+      assert_response :ok
+      assert_equal "header-signature", @adapter.last_webhook_request.fetch(:signature)
+    end
+
+    test "passes Chapa-Signature header without X- prefix to the provider adapter" do
+      payload = { event_id: "evt-explicit-signature-nox", type: "payment.success", status: "success" }
+
+      post "/payments/chapa/webhook",
+           params: payload,
+           headers: { "Chapa-Signature" => "header-signature-nox" },
+           as: :json
+
+      assert_response :ok
+      assert_equal "header-signature-nox", @adapter.last_webhook_request.fetch(:signature)
     end
   end
 end

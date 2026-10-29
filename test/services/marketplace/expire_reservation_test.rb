@@ -56,6 +56,67 @@ module Marketplace
       refute_equal @listing.id, replacement_listing.value.id
     end
 
+    test "acquires checkout advisory lock before listing and order locks" do
+      reserve_resale_listing
+      statements = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _start, _finish, _id, payload|
+        statements << payload[:sql]
+      end
+
+      result = ExpireReservation.call(listing: @listing, at: @expiry_at)
+
+      assert_predicate result, :success?, result.error&.message
+      advisory_index = statements.index { |sql| sql.include?("pg_advisory_xact_lock") }
+      listing_lock_index = statements.index do |sql|
+        sql.match?(/FROM\s+"marketplace_resale_listings".*FOR UPDATE/i)
+      end
+      order_lock_index = statements.index do |sql|
+        sql.match?(/FROM\s+"orders_orders".*FOR UPDATE/i)
+      end
+
+      assert_not_nil advisory_index, "expected the shared checkout advisory lock"
+      assert_not_nil listing_lock_index, "expected a listing row lock"
+      assert_not_nil order_lock_index, "expected a reserved order row lock"
+      assert_operator advisory_index, :<, listing_lock_index
+      assert_operator advisory_index, :<, order_lock_index
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+    end
+
+    test "policy disable acquires checkout advisory before locking reserved listings" do
+      reserve_resale_listing
+      statements = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _start, _finish, _id, payload|
+        statements << payload[:sql]
+      end
+
+      result = ConfigureTicketTypeResale.call(
+        ticket_type: @ticket_type,
+        actor: @owner,
+        attributes: { resale_enabled: false },
+        idempotency_key: "disable-resale-lock-order-#{SecureRandom.hex(4)}"
+      )
+
+      assert_predicate result, :success?, result.error&.message
+      ticket_type_lock_index = statements.index do |sql|
+        sql.match?(/FROM\s+"ticketing_ticket_types".*FOR UPDATE/i)
+      end
+      advisory_index = statements.index { |sql| sql.include?("pg_advisory_xact_lock") }
+      listing_lock_index = statements.index do |sql|
+        sql.match?(/FROM\s+"marketplace_resale_listings".*FOR UPDATE/i)
+      end
+
+      assert_not_nil ticket_type_lock_index, "expected a ticket-type policy lock"
+      assert_not_nil advisory_index, "expected the shared checkout advisory lock"
+      assert_not_nil listing_lock_index, "expected a listing row lock"
+      assert_operator ticket_type_lock_index, :<, advisory_index
+      assert_operator advisory_index, :<, listing_lock_index
+      assert_equal "cancelled", @listing.reload.status
+      assert_equal "expired", @order.reload.status
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+    end
+
     test "replays expiry without creating another seller generation" do
       reserve_resale_listing
       first = ExpireReservation.call(listing: @listing, at: @expiry_at)

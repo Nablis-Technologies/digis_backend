@@ -35,6 +35,7 @@ module Ticketing
         assert_predicate OfferNext.call(ticket_type:, idempotency_key: "offer-expiry"), :success?
         registration.reload
         registration.update_columns(offered_at: 2.minutes.ago, offer_expires_at: 1.second.ago)
+        expired_at = registration.offer_expires_at
 
         result = ExpireOffer.call(registration:, idempotency_key: "expire-offer")
 
@@ -43,19 +44,27 @@ module Ticketing
         assert_equal "waitlisted", registration.status
         assert_operator registration.waitlisted_at, :>, original_waitlisted_at
         assert_equal 0, Catalog::InventoryReservation.where(registration_id: registration.id, status: "held").count
+        event = Core::OutboxEvent.find_by!(
+          aggregate_id: registration.id,
+          event_type: "ticketing.registration.waitlist_offer_expired"
+        )
+        assert_equal registration.id, event.payload.fetch("registration_id")
+        assert_equal expired_at.iso8601, event.payload.fetch("offer_expires_at")
       end
 
-      test "free offer acceptance confirms while paid offer acceptance returns to payment" do
+      test "offer acceptance defers the price decision until the buyer selects a currency" do
         free_type = create_ticket_type(capacity: 1, amount_minor: 0)
         free_registration = create_waitlisted_registration(ticket_type: free_type)
         assert_predicate OfferNext.call(ticket_type: free_type, idempotency_key: "offer-free"), :success?
+        assert_equal "requires_order", free_registration.reload.next_action_snapshot
         free_result = AcceptOffer.call(
           registration: free_registration, actor: @attendee, idempotency_key: "accept-free"
         )
 
         assert_predicate free_result, :success?
-        assert_equal "confirmed", free_registration.reload.status
-        assert_equal "committed", Catalog::InventoryReservation.find_by!(registration_id: free_registration.id).status
+        assert_equal "pending_payment", free_registration.reload.status
+        assert_equal "requires_order", free_registration.next_action_snapshot
+        assert_equal "held", Catalog::InventoryReservation.find_by!(registration_id: free_registration.id).status
 
         paid_type = create_ticket_type(capacity: 1, amount_minor: 1)
         paid_registration = create_waitlisted_registration(ticket_type: paid_type)
@@ -156,24 +165,15 @@ module Ticketing
       end
 
       test "two workers cannot create duplicate offers" do
-        ready = Queue.new
-        start = Queue.new
-        workers = 2.times.map do |index|
-          Thread.new do
-            Ticketing::ApplicationRecord.connection_pool.with_connection do
-              ready << true
-              start.pop
-              Ticketing::Waitlist::OfferNext.call(
-                ticket_type: Ticketing::TicketType.find(@ticket_type.id),
-                idempotency_key: "concurrent-offer-#{index}"
-              )
-            end
-          end
+        race = run_database_race do |index|
+          Ticketing::Waitlist::OfferNext.call(
+            ticket_type: Ticketing::TicketType.find(@ticket_type.id),
+            idempotency_key: "concurrent-offer-#{index}"
+          )
         end
-        2.times { ready.pop }
-        2.times { start << true }
-        results = workers.map(&:value)
+        results = race.results
 
+        assert_empty race.errors, race.errors.inspect
         assert results.all?(&:success?)
         assert_equal 1, Ticketing::Registration.where(id: @registration.id, status: "offered").count
         assert_equal 1, Catalog::InventoryReservation.where(registration_id: @registration.id).count

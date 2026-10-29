@@ -22,7 +22,7 @@ class CreateCoreDataRetentionHolds < ActiveRecord::Migration[8.1]
       "num_nonnulls(event_id, registration_id, user_id) = 1",
       name: "core_retention_holds_one_scope_check"
     add_check_constraint :core_data_retention_holds,
-      "category IS NULL OR category IN ('registration_free_text','registration_structured','consent_evidence','security_audit','financial_record')",
+      "category IS NULL OR category IN ('registration_free_text','registration_structured','consent_evidence','security_audit','financial_record','messaging_notification')",
       name: "core_retention_holds_category_check"
     add_check_constraint :core_data_retention_holds,
       "reason_code IN ('legal_hold','litigation','regulatory_investigation','security_incident','security_hold','fraud_investigation','law_enforcement_request')",

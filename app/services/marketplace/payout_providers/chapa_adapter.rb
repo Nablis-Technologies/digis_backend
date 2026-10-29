@@ -12,13 +12,17 @@ module Marketplace
         @client = client
       end
 
-      def tokenize_payout_account(**request)
-        return { status: "unknown", raw_status: "unconfigured" } unless @client
+      def available_banks(**request)
+        return unless @client&.respond_to?(:available_banks)
 
-        normalize_tokenization(@client.public_send(:tokenize_payout_account, **request))
+        @client.public_send(:available_banks, **request)
       end
 
-      def verify_payout_account(**request) = delegate(:verify_payout_account, **request)
+      def verify_payout_account(**request)
+        return Result.unknown(raw_status: "unsupported") unless @client&.respond_to?(:verify_payout_account)
+
+        delegate(:verify_payout_account, **request)
+      end
 
       def payout(**request) = delegate(:payout, **request)
 
@@ -31,15 +35,26 @@ module Marketplace
       end
 
       def capabilities
-        @client&.public_send(:capabilities).to_h.deep_symbolize_keys.freeze || {}
+        return {} unless @client
+        return @client.public_send(:capabilities).to_h.deep_symbolize_keys.freeze if @client.respond_to?(:capabilities)
+
+        {}.freeze
       end
 
       private
 
       def delegate(operation, **request)
         return Result.unknown(raw_status: "unconfigured") unless @client
+        raise_not_implemented!(operation) unless @client.respond_to?(operation)
 
         normalize_result(@client.public_send(operation, **request))
+      end
+
+      def raise_not_implemented!(operation)
+        raise NotImplementedError, I18n.t(
+          "marketplace.resale.errors.payout_provider_operation_not_implemented",
+          adapter: self.class.name, operation:
+        )
       end
     end
   end

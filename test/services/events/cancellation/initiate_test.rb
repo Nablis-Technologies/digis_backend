@@ -90,6 +90,33 @@ module Events
           auditable_id: @event.id
         )
       end
+
+      test "revokes pending staff invitations as part of cancellation and keeps replay idempotent" do
+        invite = Events::StaffInvitations::Create.call(
+          event: @event,
+          actor: @actor,
+          phone: "+251911999403",
+          role: "staff",
+          idempotency_key: "cancel-flow-invite",
+          ip_address: "203.0.113.62"
+        )
+        assert_predicate invite, :success?, invite.error&.message
+        invitation = invite.value.record
+        token = invite.value.token
+
+        first = call(key: "cancel-with-invite")
+        replay = call(key: "cancel-with-invite")
+
+        assert_predicate first, :success?, first.error&.message
+        assert_predicate replay, :success?, replay.error&.message
+        assert_equal "revoked", invitation.reload.status
+        assert_nil invitation.claim_token_ciphertext
+        assert_equal 1, Core::AuditLog.where(
+          auditable: invitation,
+          action: "events.staff_invitation.revoked_for_cancellation"
+        ).count
+        refute_includes invitation.attributes.to_s, token
+      end
     end
   end
 end

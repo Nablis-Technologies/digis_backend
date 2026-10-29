@@ -44,6 +44,7 @@ module Orders
         scope = preloaded_scope || load_scope
         payment = scope.fetch(:payment)
         locked_items = scope.fetch(:locked_items)
+        locked_gifts = scope.fetch(:locked_gifts, [])
         locked_tickets = scope.fetch(:locked_tickets)
         locked_dates = scope.fetch(:locked_dates)
         prior_refunds = scope.fetch(:prior_refunds)
@@ -52,7 +53,7 @@ module Orders
           statuses[refund.id] = refund.status
         end
         refundable_prior_items = prior_items.select do |prior_item|
-          refundable_statuses[prior_item.refund_id].in?(%w[created pending_funds processing succeeded])
+          refundable_statuses[prior_item.refund_id].in?(Orders::Refund::OUTSTANDING_STATUSES)
         end
         locked_adjustments = scope.fetch(:locked_adjustments)
 
@@ -65,9 +66,13 @@ module Orders
         end
 
         item = locked_items.find { |row| row.id == @order_item.id }
+        gift_purchase = locked_gifts.find { |gift| gift.order_item_id == item&.id }
         ticket = locked_tickets.find { |row| row.id == @ticket&.id }
+        ticket ||= locked_tickets.find do |row|
+          gift_purchase && @ticket.nil? && row.order_item_id == item.id && row.unit_number == 1
+        end
         event_date = locked_dates.find { |row| row.id == @event_date&.id }
-        validate_request!(payment, item, ticket, event_date, refundable_prior_items)
+        validate_request!(payment, item, ticket, event_date, refundable_prior_items, gift_purchase:)
 
         calculation = refund_calculation(
           item:, event_date:, locked_items:, locked_adjustments:, prior_items: refundable_prior_items
@@ -123,7 +128,11 @@ module Orders
     def load_scope
       locked_payment = Orders::Payment.lock.find(@payment.id)
       locked_items = Orders::OrderItem.where(order_id: locked_payment.order_id).order(:id).lock.to_a
-      locked_tickets = Ticketing::Ticket.where(order_item_id: locked_items.map(&:id)).order(:id).lock.to_a
+      # Claims take these locks in item-then-gift order. Lock gifts before the
+      # ticket snapshot so a winning claim cannot leave a refund with no ticket.
+      locked_gifts = Orders::GiftPurchase.where(order_item_id: locked_items.map(&:id)).order(:id).lock.to_a
+      locked_tickets = Ticketing::Ticket.where(order_item_id: locked_items.map(&:id))
+        .includes(:current_credential_generation).order(:id).lock.to_a
       locked_dates = lock_dates
       prior_refunds = Orders::Refund.where(payment_id: locked_payment.id).order(:id).lock.to_a
       prior_items = Orders::RefundItem.where(refund_id: prior_refunds.map(&:id)).order(:id).lock.to_a
@@ -131,6 +140,7 @@ module Orders
       {
         payment: locked_payment,
         locked_items:,
+        locked_gifts:,
         locked_tickets:,
         locked_dates:,
         prior_refunds:,
@@ -146,7 +156,7 @@ module Orders
       Events::EventDate.where(id: ids).order(:id).lock.to_a
     end
 
-    def validate_request!(locked_payment, item, ticket, event_date, prior_items)
+    def validate_request!(locked_payment, item, ticket, event_date, prior_items, gift_purchase:)
       abort_with(:payment_not_refundable, code: "payment_not_refundable") unless
         locked_payment.status == "succeeded" && locked_payment.accepted_at.present?
       abort_with(:refund_scope_invalid, code: "refund_scope_invalid") unless item
@@ -157,22 +167,33 @@ module Orders
       if item.type_snapshot == "ticket"
         # A resale order item is a paid acquisition snapshot, not the row that
         # issued the continuing package ticket. Its chain refund deliberately
-        # omits ticket_id; only the original package acquisition owns that FK.
-        abort_with(:package_required, code: "package_required") unless ticket || item.resale_listing_id.present?
+        # omits ticket_id; a not-yet-claimed paid gift also has no ticket row.
+        # Both still refund through their immutable source order item.
+        gift_without_ticket = !ticket && gift_purchase.present?
+        abort_with(:package_required, code: "package_required") unless
+          ticket || item.resale_listing_id.present? || gift_without_ticket
       elsif ticket
         abort_with(:refund_scope_invalid, code: "refund_scope_invalid") unless ticket.order_item_id == item.id
       end
 
-      validate_ticket_scope!(item, ticket)
+      validate_ticket_scope!(item, ticket, gift_purchase:)
       validate_date_scope!(item, ticket, event_date, prior_items)
       validate_date_change_scope!(locked_payment, event_date)
     end
 
-    def validate_ticket_scope!(item, ticket)
+    def validate_ticket_scope!(item, ticket, gift_purchase:)
       return unless ticket
       abort_with(:refund_scope_invalid, code: "refund_scope_invalid") unless ticket.order_item_id == item.id
       abort_with(:package_quantity_invalid, code: "package_quantity_invalid") unless quantity == 1
-      abort_with(:package_already_refunded, code: "package_already_refunded") if ticket.package_dead?
+      return unless ticket.package_dead?
+      return if expired_incomplete_gift_ticket?(gift_purchase, ticket)
+
+      abort_with(:package_already_refunded, code: "package_already_refunded")
+    end
+
+    def expired_incomplete_gift_ticket?(gift_purchase, ticket)
+      gift_purchase&.status == "expired" && ticket.status == "void" &&
+        ticket.current_credential_generation&.revocation_reason == "gift_expired_before_consent"
     end
 
     def validate_date_scope!(item, ticket, event_date, prior_items)

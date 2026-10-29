@@ -14,6 +14,8 @@ module Marketplace
 
     def show? = payout_access?
 
+    def create? = record.seller_user_id == user&.id
+
     def dispatch? = finance_permission?("finance.payout.dispatch")
 
     def reconcile? = finance_permission?("finance.payout.reconcile")
@@ -21,6 +23,7 @@ module Marketplace
     VISIBILITY = {
       index: { default: { fields: SAFE_FIELDS, include: [] }, admin: { fields: SAFE_FIELDS, include: [] } },
       show: { default: { fields: SAFE_FIELDS, include: [] }, admin: { fields: SAFE_FIELDS, include: [] } },
+      create: { default: { fields: SAFE_FIELDS, include: [] }, admin: { fields: SAFE_FIELDS, include: [] } },
       dispatch: { default: { fields: SAFE_FIELDS, include: [] }, admin: { fields: SAFE_FIELDS, include: [] } },
       reconcile: { default: { fields: SAFE_FIELDS, include: [] }, admin: { fields: SAFE_FIELDS, include: [] } }
     }.freeze
@@ -37,6 +40,14 @@ module Marketplace
 
       def platform_admin?
         user.super_admin? || user.has_role?("ADMIN") || user.has_role?("CORE_ADMIN")
+      end
+    end
+
+    class SellerScope < Core::ApplicationPolicy::Scope
+      def resolve
+        return scope.none unless user
+
+        scope.where(seller_user_id: user.id)
       end
     end
 

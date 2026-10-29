@@ -9,16 +9,12 @@ module Ticketing
 
       setup do
         setup_package_workflow(admissions_per_unit: 2)
-        @device = Ticketing::ScannerDevice.create!(
-          organization: @event.organization,
-          device_identifier: "delta-scanner-#{SecureRandom.hex(4)}",
-          token_digest: Ticketing::ScannerDevice.token_digest_for(token: SecureRandom.hex(32))
-        )
-        @assignment = Ticketing::ScannerDeviceAssignment.create!(
-          scanner_device: @device,
+        @assignment = build_scanner_assignment(
           event: @event,
-          assigned_by: @manager
+          assigned_by: @manager,
+          device_identifier: "delta-scanner-#{SecureRandom.hex(4)}"
         )
+        @device = @assignment.scanner_device
       end
 
       test "publishes versioned revocation, attendee, schedule, and reversal feeds" do

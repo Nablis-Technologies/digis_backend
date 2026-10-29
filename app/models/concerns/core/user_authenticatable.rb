@@ -13,7 +13,10 @@ module Core
 
       validates :email, uniqueness: true, allow_blank: true
       validates :phone, uniqueness: true, allow_blank: true
+      validates :password, length: { minimum: 8 }, if: -> { password.present? }
+      validates :password, confirmation: true, if: -> { password.present? }
       validate :email_or_phone_present
+      validate :phone_format
 
       before_validation :normalize_identity_fields
     end
@@ -58,13 +61,24 @@ module Core
 
     def normalize_identity_fields
       self.email = email.to_s.strip.downcase.presence
-      self.phone = phone.to_s.strip.presence
+      normalized_phone = Core::PhoneIdentity::ResolveOrCreate.normalize(phone)
+      self.phone = if normalized_phone
+        "+#{normalized_phone}"
+      else
+        phone.to_s.strip.presence
+      end
     end
 
     def email_or_phone_present
       return unless email.blank? && phone.blank?
 
       errors.add(:base, I18n.t("user.errors.email_or_phone_required"))
+    end
+
+    def phone_format
+      return if phone.blank? || Core::PhoneIdentity::ResolveOrCreate.normalize(phone).present?
+
+      errors.add(:phone, I18n.t("user.errors.invalid_phone"))
     end
   end
 end

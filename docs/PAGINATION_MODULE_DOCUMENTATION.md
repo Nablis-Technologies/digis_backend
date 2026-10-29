@@ -189,7 +189,8 @@ GET /events?per_page=500  # Capped to max_per_page
 ## Best Practices
 
 1. **Always implement `allowed_order_columns`** — Prevents SQL injection via sorting
-2. **Use reasonable `per_page` limits** — Default 10, max 100
+2. **Use reasonable `per_page` limits** — Default 25, max 100; list actions
+   also cap requests without a `page` parameter at the default size
 3. **Combine with filtering** — Pagination works seamlessly with `Core::Filterable`
 4. **Use HATEOAS links for navigation** — Don't construct pagination URLs manually
 5. **Index sorted columns** — Add database indexes on frequently sorted columns

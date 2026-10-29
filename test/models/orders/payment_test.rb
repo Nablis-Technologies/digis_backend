@@ -35,6 +35,37 @@ module Orders
       assert_includes missing_signature.errors.attribute_names, :commercial_signature
     end
 
+    test "allows a provider attempt before a hosted checkout URL exists" do
+      payment = Orders::Payment.new(payment_attributes)
+
+      assert_predicate payment, :valid?, payment.errors.full_messages
+      assert_nil payment.checkout_url
+    end
+
+    test "accepts canonical CBE Birr and rejects non-canonical aliases" do
+      assert_equal %w[telebirr card bank cbebirr], Orders::Payment::PAYMENT_METHODS
+      assert_equal %w[telebirr card bank], Commercial::FeeComponent::PAYMENT_METHODS
+
+      canonical = Orders::Payment.new(payment_attributes(payment_method: "cbebirr"))
+      alias_method = Orders::Payment.new(payment_attributes(payment_method: "cbe"))
+
+      assert_predicate canonical, :valid?, canonical.errors.full_messages
+      assert_not alias_method.valid?
+      assert_includes alias_method.errors.attribute_names, :payment_method
+    end
+
+    test "normalizes and validates the provider merchant reference" do
+      payment = Orders::Payment.new(payment_attributes(provider_merchant_reference: "  ABC123  "))
+
+      assert_predicate payment, :valid?, payment.errors.full_messages
+      assert_equal "abc123", payment.provider_merchant_reference
+
+      invalid = Orders::Payment.new(payment_attributes(provider_merchant_reference: "a" * 21))
+
+      assert_not invalid.valid?
+      assert_includes invalid.errors.attribute_names, :provider_merchant_reference
+    end
+
     test "allows compatible cross-provider retries with the same commercial signature" do
       first = Orders::Payment.create!(payment_attributes(provider: "chapa", payment_method: "telebirr"))
       retry_payment = Orders::Payment.new(
@@ -224,6 +255,7 @@ module Orders
         provider_fee_currency: nil,
         idempotency_key: "payment-#{SecureRandom.hex(6)}",
         provider_reference: nil,
+        provider_merchant_reference: nil,
         settlement_grace_minutes: 5,
         settlement_grace_expires_at: 15.minutes.from_now,
         accepted_at: nil,

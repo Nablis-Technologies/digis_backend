@@ -139,6 +139,40 @@ module Ticketing
         assert_predicate result, :success?
         assert_equal 2, result.value.length
       end
+
+      test "accepts key-value hash and ActionController::Parameters answers" do
+        schema = [
+          {
+            key: "full_name",
+            type: "short_text",
+            response_scope: "registration",
+            required: true,
+            options: [],
+            validation_rules: {}
+          }
+        ]
+
+        result_hash = ValidateSubmission.call(
+          schema:,
+          submission: {
+            package_quantity: 1,
+            admissions_per_unit: 1,
+            answers: { "full_name" => "Ada Lovelace" }
+          }
+        )
+        assert_predicate result_hash, :success?
+
+        params = ActionController::Parameters.new({ "full_name" => "Ada Lovelace" })
+        result_params = ValidateSubmission.call(
+          schema:,
+          submission: {
+            package_quantity: 1,
+            admissions_per_unit: 1,
+            answers: params
+          }
+        )
+        assert_predicate result_params, :success?
+      end
     end
   end
 end

@@ -8,5 +8,11 @@ module Events
 
     attributes :id, :type, :role, :status, :organization_id, :event_id,
                :created_at, :updated_at
+
+    attribute :organization do
+      next unless object.organization
+
+      Events::Public::OrganizationSummarySerializer.new(object.organization).attributes
+    end
   end
 end

@@ -3,7 +3,7 @@ services:
     name: digis-backend-preview
     runtime: docker
     plan: free
-    branch: main
+    branch: feat/launch-hardening-telemetry
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /up
@@ -12,6 +12,8 @@ services:
         value: production
       - key: RENDER_PREVIEW
         value: "true"
+      - key: DIGIS_SEED_PROFILE
+        value: preview
       - key: RENDER_PREVIEW_DATABASE_URL
         fromDatabase:
           name: digis-backend-preview-db
@@ -19,17 +21,19 @@ services:
       - key: SECRET_KEY_BASE
         generateValue: true
       - key: APP_HOST
-        sync: false
+        value: digis-backend-preview.onrender.com
       - key: APP_PROTOCOL
         value: https
       - key: SOLID_QUEUE_IN_PUMA
         value: "true"
       - key: JOB_CONCURRENCY
         value: "1"
-      - key: WEB_CONCURRENCY
+      - key: JOB_THREADS
         value: "1"
+      - key: WEB_CONCURRENCY
+        value: "0"
       - key: RAILS_MAX_THREADS
-        value: "5"
+        value: "3"
       - key: RAILS_MASTER_KEY
         sync: false
       - key: CORE_ENCRYPTION_PRIMARY_KEY
@@ -54,6 +58,24 @@ services:
         sync: false
       - key: FIL_SECRET_KEY
         sync: false
+      - key: CHAPA_ENABLED
+        value: "true"
+      - key: CHAPA_PAYOUT_ENABLED
+        value: "true"
+      - key: CHAPA_MODE
+        value: test
+      - key: CHAPA_SECRET_KEY
+        sync: false
+      - key: CHAPA_WEBHOOK_SECRET
+        sync: false
+      - key: CHAPA_API_BASE_URL
+        value: https://api.chapa.global
+      - key: CHAPA_CALLBACK_URL
+        value: https://digis-backend-preview.onrender.com/payments/chapa/callback
+      - key: CHAPA_RETURN_URL
+        value: https://digis-backend-preview.onrender.com/payments/chapa/callback
+      - key: MARKETING_FEATURED_PLACEMENTS_ENABLED
+        value: "true"
 
 databases:
   - name: digis-backend-preview-db

@@ -15,17 +15,41 @@ module Orders
     end
 
     def call
+      unlocked_event = Orders::PaymentEvent.find(@event_id)
+      return success(unlocked_event) if unlocked_event.terminal?
+
+      preflight = chapa_success_preflight(unlocked_event)
+      verification = preflight&.[](:verification)
       result = ActiveRecord::Base.transaction do
         event = Orders::PaymentEvent.lock.find(@event_id)
         return success(event) if event.terminal?
 
         event.update!(status: "processing", attempts_count: event.attempts_count + 1, last_error: nil)
-        payment = locate_payment(event)
-        return finish_ignored!(event) unless payment
+        if chapa_success_event?(event) && verification
+          error = verification_error(event, verification)
+          return fail_event!(event, error) if error
+        end
+
+        payment = locate_payment(event, verification:, preflight_payment_id: preflight&.[](:payment_id))
+        unless payment
+          return fail_event!(event, provider_verification_error("payment_reference_unmatched")) if
+            chapa_success_event?(event)
+
+          return finish_ignored!(event)
+        end
+        error = payment_verification_error(event, payment, verification)
+        return fail_event!(event, error) if error
+
         event.update!(payment_id: payment.id) if event.payment_id.nil?
+        acquire_event_checkout_lock!(payment)
+        record_provider_reference!(payment, event, verification:)
 
         if success_event?(event)
-          acceptance = Orders::AcceptPayment.call(payment:, payment_event: event)
+          acceptance = if payment.billing_payment?
+            Orders::AcceptBillingPayment.call(payment:, payment_event: event)
+          else
+            Orders::AcceptPayment.call(payment:, payment_event: event)
+          end
           return fail_event!(event, acceptance.error) if acceptance.failure?
         else
           apply_non_success_state!(payment, event)
@@ -44,13 +68,111 @@ module Orders
 
     attr_reader :event, :event_id
 
-    def locate_payment(locked_event)
+    def locate_payment(locked_event, verification: nil, preflight_payment_id: nil)
       return Orders::Payment.find(locked_event.payment_id) if locked_event.payment_id
+      return Orders::Payment.find(preflight_payment_id) if preflight_payment_id.present?
+      if verification&.merchant_reference.present?
+        return Orders::Payment.find_by(
+          provider: locked_event.provider, provider_merchant_reference: verification.merchant_reference
+        )
+      end
 
-      reference = locked_event.payload.values_at("provider_reference", "tx_ref", "reference").compact.find(&:present?)
-      return unless reference
+      # Chapa V2 carries Digis's bounded merchant reference separately from
+      # the provider's own chapa_reference.
+      references = locked_event.payload.values_at(
+        "provider_reference", "chapa_reference", "merchant_reference", "tx_ref", "reference"
+      ).filter_map(&:presence).uniq
+      return if references.empty?
 
-      Orders::Payment.find_by(provider: locked_event.provider, provider_reference: reference)
+      scope = Orders::Payment.where(provider: locked_event.provider)
+      matches = scope.where(provider_merchant_reference: references)
+        .or(scope.where(provider_reference: references))
+        .or(scope.where(idempotency_key: references)).order(:id).to_a
+      references.each do |reference|
+        payment = matches.find do |candidate|
+          candidate.provider_merchant_reference == reference || candidate.provider_reference == reference ||
+            candidate.idempotency_key == reference
+        end
+        return payment if payment
+      end
+      nil
+    end
+
+    def chapa_success_preflight(unlocked_event)
+      return unless chapa_success_event?(unlocked_event)
+
+      return { payment_id: unlocked_event.payment_id } if unlocked_event.payment_id.present?
+
+      payment = locate_payment(unlocked_event)
+      return { payment_id: payment.id } if payment
+
+      { verification: verify_unmatched_chapa_success(unlocked_event) }
+    end
+
+    def verify_unmatched_chapa_success(unlocked_event)
+      references = unlocked_event.payload.values_at("chapa_reference", "provider_reference")
+        .filter_map(&:presence).uniq
+      return Payments::Providers::Result.failure(failure_code: "provider_reference_missing") if references.size > 1
+
+      provider_reference = references.first
+      merchant_reference = unlocked_event.payload["merchant_reference"].presence
+      if provider_reference.blank? && merchant_reference.blank?
+        return Payments::Providers::Result.failure(failure_code: "provider_reference_missing")
+      end
+
+      Payments::Providers::Registry.fetch("chapa").verify(
+        provider_reference:,
+        merchant_reference:
+      )
+    end
+
+    def chapa_success_event?(payment_event)
+      payment_event.provider == "chapa" && success_event?(payment_event)
+    end
+
+    def verification_error(payment_event, verified)
+      return provider_verification_error("provider_verification_failed") unless verified&.success?
+      return provider_verification_error("provider_verification_incomplete") if
+        verified.provider_reference.blank? || verified.merchant_reference.blank? ||
+        verified.amount_minor.nil? || verified.currency.blank?
+
+      references = payment_event.payload.values_at("chapa_reference", "provider_reference").filter_map(&:presence)
+      return provider_verification_error("provider_verification_mismatch") if
+        references.any? { |reference| reference != verified.provider_reference }
+
+      merchant_reference = payment_event.payload["merchant_reference"].presence
+      return provider_verification_error("provider_verification_mismatch") if
+        merchant_reference && merchant_reference != verified.merchant_reference
+
+      nil
+    end
+
+    def payment_verification_error(payment_event, payment, verified)
+      return unless chapa_success_event?(payment_event) && verified
+      return if payment.provider_merchant_reference.present? &&
+        verified.merchant_reference == payment.provider_merchant_reference &&
+        (payment.provider_reference.blank? || payment.provider_reference == verified.provider_reference) &&
+        verified.amount_minor == payment.amount_minor && verified.currency == payment.currency
+
+      provider_verification_error("provider_verification_mismatch")
+    end
+
+    def provider_verification_error(code)
+      processing_error(:payment_event_processing_failed, code:)
+    end
+
+    def acquire_event_checkout_lock!(payment)
+      return if payment.billing_payment?
+
+      Orders::CheckoutLock.acquire_for_order!(order_id: payment.order_id)
+    end
+
+    def record_provider_reference!(payment, locked_event, verification: nil)
+      reference = verification&.provider_reference.presence ||
+        locked_event.payload.values_at("provider_reference", "chapa_reference").filter_map(&:presence).first
+      return if reference.blank? || payment.provider_reference.present?
+
+      payment.update!(provider_reference: reference)
     end
 
     def success_event?(locked_event)
@@ -60,14 +182,78 @@ module Orders
 
     def apply_non_success_state!(payment, locked_event)
       status = locked_event.payload["status"].to_s.downcase
-      target = if FAILURE_EVENT_STATUSES.include?(status)
+      target = if payment.billing_payment? && %w[reversed refunded].include?(status)
+        "reversed"
+      elsif FAILURE_EVENT_STATUSES.include?(status)
         "failed"
       elsif CANCELLED_EVENT_STATUSES.include?(status)
         "cancelled"
       end
-      return unless target && payment.accepted_at.nil? && payment.status.in?(%w[created processing])
+      return unless target
+      if target == "reversed" && payment.billing_payment?
+        if payment.accepted_at.present?
+          payment.update!(failure_code: locked_event.payload["failure_code"].to_s.presence)
+          payment.billing_purchase.update!(status: "reversed")
+          publish_failure!(payment, locked_event, event_type: "orders.billing_payment.reversed")
+        elsif payment.succeeded_at.present?
+          # An unaccepted duplicate is already provider evidence; do not
+          # downgrade the valid purchase or revoke credits for another attempt.
+          payment.update!(failure_code: locked_event.payload["failure_code"].to_s.presence)
+        else
+          payment.update!(status: "reversed")
+          if billing_purchase_should_close?(payment, payment.billing_purchase)
+            payment.billing_purchase.update!(status: "reversed")
+            publish_failure!(payment, locked_event, event_type: "orders.billing_payment.reversed")
+          end
+        end
+        return
+      end
+      return unless payment.accepted_at.nil? && payment.status.in?(%w[created processing])
 
       payment.update!(status: target, failure_code: locked_event.payload["failure_code"].to_s.presence)
+      if target == "failed"
+        billing_purchase = payment.billing_purchase
+        billing_purchase.update!(status: "failed") if billing_purchase_should_close?(payment, billing_purchase)
+        publish_failure!(
+          payment, locked_event,
+          event_type: payment.billing_payment? ? "orders.billing_payment.failed" : "orders.payment.failed"
+        )
+      elsif target == "cancelled"
+        billing_purchase = payment.billing_purchase
+        billing_purchase.update!(status: "cancelled") if billing_purchase_should_close?(payment, billing_purchase)
+      end
+    end
+
+    def billing_purchase_should_close?(payment, purchase)
+      # Only the current, still-open attempt may close a billing purchase. A
+      # superseded or concurrently active attempt keeps the purchase retryable.
+      return false unless purchase && purchase.status.in?(%w[created pending_payment])
+      return false if payment.superseded_at.present?
+
+      !purchase.payments.where(status: %w[created processing succeeded]).where.not(id: payment.id).exists?
+    end
+
+    # The payment failure event is emitted in the same transaction as the
+    # authoritative status transition, so notification projection cannot race
+    # a still-processing payment or publish twice for one provider event.
+    def publish_failure!(payment, locked_event, event_type: "orders.payment.failed")
+      result = Core::Outbox::Publish.call(
+        topic: "orders",
+        event_type:,
+        aggregate: payment,
+        payload: {
+          payment_id: payment.id,
+          payment_event_id: locked_event.id,
+          order_id: payment.order_id,
+          event_id: payment.order&.event_id,
+          billing_purchase_id: payment.billing_purchase_id,
+          source_type: payment.billing_purchase&.source_type,
+          source_id: payment.billing_purchase&.source_id,
+          failure_code: payment.failure_code
+        }.compact,
+        idempotency_key: "orders-payment-failed-#{locked_event.id}"
+      )
+      raise result.error if result.failure?
     end
 
     def finish_ignored!(locked_event)

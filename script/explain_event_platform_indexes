@@ -1,0 +1,72 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "digest"
+require "json"
+
+# Prints production-shaped PostgreSQL plans for the launch-critical read and
+# reservation paths. This script is intentionally opt-in: EXPLAIN ANALYZE is a
+# real database workload and belongs in a release review, not ordinary CI.
+class EventPlatformIndexPlans
+  FAIL_ON_LARGE_SEQUENTIAL_SCAN = ENV["EVENT_PLATFORM_PERFORMANCE"] == "1"
+  LARGE_RESULT_THRESHOLD = 1_000
+
+  def call
+    plans.each { |name, relation| report(name, relation) }
+  end
+
+  private
+
+  def plans
+    event_id = Events::Event.order(:id).pick(:id)
+    organization_id = Organizations::Organization.order(:id).pick(:id)
+
+    [
+      [ "public_event_browse", Events::Event.publicly_visible.order(published_at: :desc).limit(20) ],
+      [ "inventory_reservation", Catalog::InventoryReservation.active
+        .where("expires_at <= ?", Time.current).order(:expires_at).limit(100).lock("FOR UPDATE SKIP LOCKED") ],
+      [ "checkout_idempotency_lookup", Orders::Order
+        .where(idempotency_key_digest: Digest::SHA256.hexdigest("index-plan")).limit(1) ],
+      [ "admission_first_scan", Ticketing::AdmissionUse
+        .where(credential_id: nil).order(:credential_id, :usage_number).limit(1) ],
+      [ "credential_revocation_delta", Ticketing::CredentialRevocation
+        .where(event_id:).where("revocation_version > ?", 0).order(:revocation_version, :id) ],
+      [ "settlement_ledger", Finance::LedgerEntry
+        .where(organization_id:).available.order(:available_at, :id).limit(100) ],
+      [ "active_resale_listing", Marketplace::ResaleListing
+        .where(status: "active").order(:created_at, :id).limit(100) ]
+    ]
+  end
+
+  def report(name, relation)
+    raw = ActiveRecord::Base.connection.select_value(
+      "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) #{relation.to_sql}"
+    )
+    root = JSON.parse(raw).fetch(0).fetch("Plan")
+    nodes = plan_nodes(root)
+    sequential_scans = nodes.select { |node| node["Node Type"] == "Seq Scan" }
+    largest_sequential_scan = sequential_scans.max_by { |node| node.fetch("Actual Rows", 0).to_i }
+
+    if FAIL_ON_LARGE_SEQUENTIAL_SCAN && large_scan?(largest_sequential_scan)
+      raise "#{name} uses a sequential scan over more than #{LARGE_RESULT_THRESHOLD} rows"
+    end
+
+    puts JSON.generate(
+      name:,
+      node_type: root["Node Type"],
+      actual_rows: root["Actual Rows"],
+      execution_time_ms: root["Actual Total Time"],
+      sequential_scan: largest_sequential_scan&.slice("Relation Name", "Actual Rows", "Actual Total Time")
+    )
+  end
+
+  def plan_nodes(node)
+    [ node ] + Array(node["Plans"]).flat_map { |child| plan_nodes(child) }
+  end
+
+  def large_scan?(node)
+    node && node.fetch("Actual Rows", 0).to_i > LARGE_RESULT_THRESHOLD
+  end
+end
+
+EventPlatformIndexPlans.new.call

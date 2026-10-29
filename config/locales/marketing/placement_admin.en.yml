@@ -1,0 +1,32 @@
+en:
+  marketing:
+    errors:
+      unauthorized: You are not authorized to manage featured-placement settings.
+      invalid_idempotency_key: A valid Idempotency-Key is required.
+      idempotency_conflict: This Idempotency-Key was already used for a different request.
+      idempotency_replay_missing: The original resource for this replay could not be found.
+      reason_required: A reason is required for this administrative action.
+      invalid_placement_offer: The featured-placement offer is invalid.
+      placement_offer_not_found: The featured-placement offer could not be found.
+      offer_not_draft: Only a draft offer can be activated.
+      offer_window_overlap: Another version of this offer code is active during the same interval.
+      offer_not_retirable: Only a draft or active offer can be retired.
+      invalid_placement_capacity_policy: The featured-placement capacity policy is invalid.
+      capacity_policy_not_found: The featured-placement capacity policy could not be found.
+      capacity_policy_not_draft: Only a draft capacity policy can be activated.
+      capacity_policy_window_overlap: Another capacity policy is active for this surface during the same interval.
+      capacity_policy_not_retirable: Only a draft or active capacity policy can be retired.
+      ambiguous_active_policies: Multiple active capacity policies match one surface and instant.
+    permissions:
+      placement_offer:
+        index: List featured-placement offer versions
+        show: View a featured-placement offer version
+        create: Create a featured-placement offer draft
+        activate: Activate a featured-placement offer version
+        retire: Retire a featured-placement offer version
+      placement_capacity_policy:
+        index: List featured-placement capacity policy versions
+        show: View a featured-placement capacity policy version
+        create: Create a featured-placement capacity policy draft
+        activate: Activate a featured-placement capacity policy version
+        retire: Retire a featured-placement capacity policy version

@@ -34,6 +34,24 @@ module Marketplace
       @initialization_error = error
     end
 
+    def self.replayable?(listing:, buyer:, idempotency_key:)
+      new(listing:, buyer:, idempotency_key:).replayable?
+    end
+
+    def replayable?
+      return false if @initialization_error || !@buyer.is_a?(Core::User)
+
+      prepare_keys
+      Orders::Order
+        .joins(:order_items)
+        .where(
+          idempotency_key_digest: @order_key_digest,
+          buyer_user_id: @buyer.id,
+          orders_order_items: { resale_listing_id: @listing.id }
+        )
+        .exists?
+    end
+
     def call
       return failure(error(:invalid_idempotency_key, :unprocessable_entity)) if @initialization_error
       return failure(error(:buyer_invalid, :unprocessable_entity)) unless @buyer.is_a?(Core::User)
@@ -41,6 +59,10 @@ module Marketplace
       prepare_keys
       outcome = nil
       ActiveRecord::Base.transaction do
+        ticket_type = Ticketing::TicketType.lock.find(@listing.ticket_type_id)
+        Orders::CheckoutLock.acquire!(
+          buyer_user_id: @buyer.id, event_id: ticket_type.event_product.event_id
+        )
         listing = ResaleListing.lock.find(@listing.id)
         existing = Orders::Order.lock.find_by(idempotency_key_digest: @order_key_digest)
         if existing
@@ -56,7 +78,6 @@ module Marketplace
 
         ticket = load_ticket(listing)
         verify_reservation_eligibility!(listing, ticket)
-        Core::Database::AdvisoryLock.acquire!("orders-checkout", @buyer.id, ticket.event_id)
         reject_existing_checkout!(ticket)
 
         registration = create_buyer_registration!(ticket)
@@ -172,7 +193,7 @@ module Marketplace
     def active_refund?(ticket)
       Orders::RefundItem
         .joins(:refund)
-        .where(ticket_id: ticket.id, orders_refunds: { status: %w[created pending_funds processing succeeded] })
+        .where(ticket_id: ticket.id, orders_refunds: { status: Orders::Refund::OUTSTANDING_STATUSES })
         .exists?
     end
 

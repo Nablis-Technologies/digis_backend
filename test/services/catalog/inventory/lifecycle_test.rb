@@ -81,6 +81,20 @@ module Catalog
         assert_equal 0, @event_date.reload.held_venue_count
       end
 
+      test "release treats an already expired group as an idempotent no-op" do
+        inventory_reservation.update!(status: "processing", expires_at: 1.minute.ago)
+        venue_reservation.update!(status: "processing", expires_at: 1.minute.ago)
+        expiry = Expire.call
+        assert_predicate expiry, :success?, expiry.error&.message
+
+        result = Release.call(reservation_group_id: @reservation_group_id)
+
+        assert result.success?, result.error&.message
+        assert result.value.all?(&:expired?)
+        assert_equal 0, @inventory.reload.held_count
+        assert_equal 0, @event_date.reload.held_venue_count
+      end
+
       test "mixed target and active states fail without changing counters or rows" do
         inventory_reservation.update_columns(status: "committed", committed_at: Time.current)
         before_inventory = @inventory.reload.attributes.slice("held_count", "sold_count")

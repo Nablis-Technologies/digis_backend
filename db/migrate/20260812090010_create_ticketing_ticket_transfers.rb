@@ -8,6 +8,7 @@ class CreateTicketingTicketTransfers < ActiveRecord::Migration[8.1]
       t.uuid :to_user_id, null: false
       t.uuid :initiated_by_id, null: false
       t.string :token_digest, limit: 64, null: false
+      t.text :token_ciphertext, null: false
       t.string :status, null: false, default: "pending"
       t.integer :previous_version, null: false
       t.integer :new_version

@@ -39,7 +39,7 @@ class CreateTicketingRegistrations < ActiveRecord::Migration[8.1]
       "source IN ('self_service','organizer_complimentary','walk_up')",
       name: "ticketing_registrations_source_check"
     add_check_constraint :ticketing_registrations,
-      "status IN ('pending_payment','pending_approval','waitlisted','offered','confirmed','rejected','cancelled','expired')",
+      "status IN ('pending_payment','gift_pending_claim','pending_approval','waitlisted','offered','confirmed','rejected','cancelled','expired')",
       name: "ticketing_registrations_status_check"
     add_check_constraint :ticketing_registrations,
       "next_action_snapshot IS NULL OR next_action_snapshot IN " \
@@ -87,7 +87,7 @@ class CreateTicketingRegistrations < ActiveRecord::Migration[8.1]
     add_index :ticketing_registrations,
       "ticket_type_id, identity_digest, COALESCE(selected_event_date_id, '00000000-0000-0000-0000-000000000000'::uuid)",
       unique: true,
-      where: "status IN ('pending_payment','pending_approval','waitlisted','offered','confirmed')",
+      where: "status IN ('pending_payment','gift_pending_claim','pending_approval','waitlisted','offered')",
       name: "idx_ticketing_registrations_active_identity"
     add_index :ticketing_registrations, :issuance_idempotency_key,
               unique: true,

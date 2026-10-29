@@ -447,12 +447,20 @@ module Ticketing
       def normalized_input_answers(raw_answers)
         return [] if raw_answers.nil?
         return raw_answers if raw_answers.is_a?(Array)
-        return unless raw_answers.is_a?(Hash)
 
-        attributes = attributes_for(raw_answers)
-        return [ raw_answers ] if attributes.key?(:question_key)
+        raw_hash = if raw_answers.is_a?(Hash)
+          raw_answers
+        elsif raw_answers.respond_to?(:to_unsafe_h)
+          raw_answers.to_unsafe_h
+        elsif raw_answers.respond_to?(:to_h)
+          raw_answers.to_h
+        end
+        return unless raw_hash
 
-        raw_answers.map { |key, value| { question_key: key, value: value } }
+        attributes = attributes_for(raw_hash)
+        return [ raw_hash ] if attributes.key?(:question_key)
+
+        raw_hash.map { |key, value| { question_key: key.to_s, value: value } }
       end
 
       def answer_value_present?(value)

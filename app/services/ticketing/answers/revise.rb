@@ -27,13 +27,7 @@ module Ticketing
             .includes(
               :revisions,
               :registration_question,
-              registration_form_submission: {
-                registration: [
-                  { ticket_type: { event_product: { product_accesses: :event_date } } },
-                  { event: :event_dates },
-                  :selected_event_date
-                ]
-              }
+              registration_form_submission: { registration: [ :ticket_type, :event ] }
             )
             .lock
             .first
@@ -135,17 +129,8 @@ module Ticketing
         return false unless source == "attendee_correction"
 
         registration = answer_record.registration_form_submission.registration
-        product = registration.ticket_type.event_product
-        accesses = product.product_accesses
-        access_dates = accesses.map(&:event_date)
-          .reject { |event_date| event_date.status == "cancelled" }
-        event_dates = accesses.any? ? access_dates : registration.event.event_dates.to_a
-        starts_at = registration.selected_event_date&.starts_at ||
-          event_dates.reject { |event_date| event_date.status == "cancelled" }
-            .map(&:starts_at).compact.min
-        return false unless starts_at
-
-        Time.current > starts_at - registration.ticket_type.transfer_cutoff_seconds_before_start.seconds
+        cutoff = Ticketing::Answers::CorrectionWindow.call(registration:)
+        cutoff.present? && Time.current > cutoff
       end
 
       def replay_result(existing, answer_record, request_digest)

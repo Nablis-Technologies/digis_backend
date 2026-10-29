@@ -33,7 +33,7 @@ module Ticketing
           lookup_via: values.fetch(:lookup_via, "qr"),
           reason_code: values[:reason_code],
           identity_check: values[:identity_check],
-          identity_checked_by: current_user
+          identity_checked_by: current_scanner_operator
         )
         return render_business_error(result.error) if result.failure?
 

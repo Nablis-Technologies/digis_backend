@@ -25,6 +25,8 @@ module Links
 
       event_link = Links::ShortLink.find_by!(canonical: true, target_type: "event", target_id: @event.id)
       assert_equal @event.slug, event_link.slug
+      ticket_link = Links::ShortLink.find_by!(canonical: true, target_type: "ticket", target_id: @ticket.id)
+      assert_match(/\At-[a-z0-9]{6}\z/, ticket_link.slug)
       assert_includes first_snapshot.map(&:first), "ticket"
       assert_includes first_snapshot.map(&:first), "organization"
 

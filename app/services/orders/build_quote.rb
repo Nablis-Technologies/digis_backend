@@ -15,7 +15,8 @@ module Orders
       event:, items:, charge_currency:, buyer: nil, settlement_currency: nil,
       sales_channel: "online", provider: nil, payment_method: nil,
       organizer_payer_selections: {}, promotion: nil, promotion_code: nil,
-      promotion_quote: nil, quoted_at: nil, expires_at: nil
+      promotion_quote: nil, quoted_at: nil, expires_at: nil,
+      require_registrations: true, gift_registration_ids: [], gift_line_ids: []
     )
       @event = event
       @buyer = buyer
@@ -29,6 +30,9 @@ module Orders
       @promotion = promotion
       @promotion_code = promotion_code
       @promotion_quote = promotion_quote
+      @require_registrations = require_registrations != false
+      @gift_registration_ids = Array(gift_registration_ids).map(&:to_s).uniq.freeze
+      @gift_line_ids = Array(gift_line_ids).map(&:to_s).uniq.freeze
       @quoted_at = (quoted_at || Time.current).to_time.utc.change(usec: 0)
       @expires_at = (expires_at || @quoted_at + HOLD_DURATION).to_time.utc.change(usec: 0)
     rescue NoMethodError, ArgumentError => error
@@ -81,9 +85,28 @@ module Orders
     end
 
     def build_priced_lines
-      requests = Array(@item_requests).map { |request| normalize_item_request(request) }
+      attributes = Array(@item_requests).map do |request|
+        request.respond_to?(:to_h) ? request.to_h.symbolize_keys : {}
+      end
+      products_by_id = load_products(attributes)
+      registrations_by_id = load_registrations(attributes)
+      requests = attributes.map do |request|
+        normalize_item_request(request, products_by_id:, registrations_by_id:)
+      end
       return requests.find { |request| request.is_a?(Core::BusinessError) } if requests.any? { |request| request.is_a?(Core::BusinessError) }
-      return checkout_error(:duplicate_product, code: "duplicate_product") unless requests.map { |request| request[:product_id] }.uniq.length == requests.length
+      return checkout_error(:invalid_quote, code: "invalid_quote") unless unique_line_ids?(requests)
+      return checkout_error(:duplicate_product, code: "duplicate_product") unless valid_product_line_groups?(requests)
+      return checkout_error(:quantity_outside_product_limit, code: "quantity_outside_product_limit") unless
+        valid_product_quantity_groups?(requests)
+
+      date_error = Orders::EventDateEligibility.error_for(
+        event:,
+        event_date_ids: requests.flat_map do |request|
+          Array(request[:event_date_ids]) + Array(request[:venue_event_date_ids])
+        end,
+        at: quoted_at
+      )
+      return date_error if date_error
 
       requests.map do |request|
         product = request[:product]
@@ -105,22 +128,29 @@ module Orders
       end
     end
 
-    def normalize_item_request(request)
-      attributes = request.respond_to?(:to_h) ? request.to_h.symbolize_keys : {}
-      product = load_product(attributes[:product] || attributes[:product_id])
+    def normalize_item_request(attributes, products_by_id:, registrations_by_id:)
+      product_value = attributes[:product] || attributes[:product_id]
+      product_id = product_value.respond_to?(:id) ? product_value.id : product_value
+      product = products_by_id[product_id.to_s]
       return checkout_error(:product_not_found, code: "product_not_found") unless product
       return checkout_error(:product_unavailable, code: "product_unavailable") unless product.status == "active"
       return checkout_error(:product_event_mismatch, code: "product_event_mismatch") unless product.event_id == event.id
 
       quantity = attributes[:quantity]
       return checkout_error(:quantity_invalid, code: "quantity_invalid") unless quantity.is_a?(Integer) && quantity.positive?
-      return checkout_error(:quantity_outside_product_limit, code: "quantity_outside_product_limit") unless product.min_per_order <= quantity && (product.max_per_order.nil? || quantity <= product.max_per_order)
 
-      registration = load_registration(attributes[:registration] || attributes[:registration_id])
-      if registration && (registration.event_id != event.id || (buyer && registration.user_id != buyer.id))
-        return checkout_error(:registration_scope_invalid, code: "registration_scope_invalid")
+      registration_id = registration_id_for(attributes[:registration] || attributes[:registration_id])
+      registration = registrations_by_id[registration_id.to_s]
+      if registration
+        return checkout_error(:registration_scope_invalid, code: "registration_scope_invalid") unless
+          registration_scope_valid?(registration, product)
+
+        payable = gift_registration?(registration) ? registration.status == "gift_pending_claim" : registration.pending_payment?
+        return checkout_error(:registration_not_payable, code: "registration_not_payable", status: :conflict) unless payable
       end
-      return checkout_error(:registration_required, code: "registration_required") if product.ticket? && registration.nil?
+      if product.ticket? && registration.nil? && @require_registrations
+        return checkout_error(:registration_required, code: "registration_required")
+      end
 
       ticket_type = product.ticket_type
       admissions = if product.ticket?
@@ -128,21 +158,17 @@ module Orders
       end
       return checkout_error(:admissions_invalid, code: "admissions_invalid") if product.ticket? && !admissions.to_i.positive?
 
-      event_date_ids = Array(attributes[:event_date_ids]).presence
-      if event_date_ids.blank? && product.ticket? && registration
-        event_date_ids = ticket_type.covered_date_ids(registration)
-      end
-      if event_date_ids.blank? && product.ticket? && ticket_type&.date_selection == "fixed"
-        event_date_ids = product.product_accesses.where(type: %w[venue parking]).pluck(:event_date_id)
-      end
+      event_date_ids, venue_event_date_ids = demand_for_product(attributes, product, registration, quantity, admissions)
+      return event_date_ids if event_date_ids.is_a?(Core::BusinessError)
       if product.inventory_mode.in?(%w[per_date event_wide_and_per_date]) && event_date_ids.blank?
         return checkout_error(:event_dates_required, code: "event_dates_required")
       end
 
-      venue_event_date_ids = Array(attributes[:venue_event_date_ids]).presence || event_date_ids || []
       {
         product:,
         product_id: product.id.to_s,
+        line_id: attributes[:line_id]&.to_s&.downcase,
+        line_key: line_key(product.id, attributes[:line_id]),
         name: product.name,
         type: product.type,
         quantity:,
@@ -153,24 +179,119 @@ module Orders
       }
     end
 
-    def load_product(value)
-      id = value.respond_to?(:id) ? value.id : value
-      return unless id
-
-      Catalog::EventProduct.includes(:prices, :ticket_type, :product_accesses).find_by(id:)
+    def unique_line_ids?(requests)
+      ids = requests.filter_map { |request| request[:line_id] }
+      ids.uniq.length == ids.length
     end
 
-    def load_registration(value)
-      id = value.respond_to?(:id) ? value.id : value
-      return unless id
+    def valid_product_line_groups?(requests)
+      requests.group_by { |request| request[:product_id] }.values.all? do |product_lines|
+        product_lines.one? || valid_gift_line_group?(product_lines)
+      end
+    end
 
-      Ticketing::Registration.find_by(id:)
+    def valid_gift_line_group?(lines)
+      return false unless lines.all? do |line|
+        line[:quantity] == 1 && line[:line_id].present? && gift_line?(line)
+      end
+
+      registration_ids = lines.filter_map { |line| line[:registration_id]&.to_s }
+      registration_ids.empty? || registration_ids.length == lines.length && registration_ids.uniq.length == registration_ids.length
+    end
+
+    def valid_product_quantity_groups?(requests)
+      requests.group_by { |request| request[:product_id] }.values.all? do |product_lines|
+        product = product_lines.first.fetch(:product)
+        quantity = product_lines.sum { |line| line.fetch(:quantity) }
+        product.min_per_order <= quantity && (product.max_per_order.nil? || quantity <= product.max_per_order)
+      end
+    end
+
+    def gift_line?(line)
+      @gift_line_ids.include?(line[:line_id]) || @gift_registration_ids.include?(line[:registration_id].to_s)
+    end
+
+    def line_key(product_id, line_id)
+      line_id.present? ? "client:#{line_id.to_s.downcase}" : "product:#{product_id}"
+    end
+
+    def demand_for_product(attributes, product, registration, quantity, admissions)
+      return non_ticket_demand(attributes) unless product.ticket?
+
+      ticket_type = product.ticket_type
+      requested_date_ids = Array(attributes[:event_date_ids]).map(&:to_s).uniq
+      selected_date_id = registration&.selected_event_date_id
+      if ticket_type.date_selection == "choose_one" && selected_date_id.blank? && requested_date_ids.one?
+        selected_date_id = requested_date_ids.sole
+      end
+      line = Catalog::Inventory::AdmissionLine.call(
+        product:, selected_event_date_id: selected_date_id,
+        package_quantity: quantity, admissions_per_unit: admissions
+      )
+      return [ checkout_error(:event_date_unavailable, code: "event_date_unavailable"), [] ] unless line
+      return [ checkout_error(:event_date_unavailable, code: "event_date_unavailable"), [] ] if
+        requested_date_ids.present? && requested_date_ids.sort != line.event_date_ids
+
+      requested_venue_ids = Array(attributes[:venue_event_date_ids]).map(&:to_s).uniq.sort
+      if attributes.key?(:venue_event_date_ids) && requested_venue_ids != line.venue_event_date_ids
+        return [ checkout_error(:event_date_unavailable, code: "event_date_unavailable"), [] ]
+      end
+
+      [ line.event_date_ids, line.venue_event_date_ids ]
+    end
+
+    def non_ticket_demand(attributes)
+      event_date_ids = Array(attributes[:event_date_ids]).presence
+      venue_event_date_ids = Array(attributes[:venue_event_date_ids]).presence || event_date_ids || []
+      [ event_date_ids, venue_event_date_ids ]
+    end
+
+    def load_products(requests)
+      product_ids = requests.filter_map do |attributes|
+        value = attributes[:product] || attributes[:product_id]
+        id = value.respond_to?(:id) ? value.id : value
+        id.to_s if id.present?
+      end.uniq
+
+      Catalog::EventProduct.includes(:prices, :ticket_type, :product_accesses)
+        .where(id: product_ids).index_by { |product| product.id.to_s }
+    end
+
+    def load_registrations(requests)
+      ids = requests.filter_map do |attributes|
+        registration_id_for(attributes[:registration] || attributes[:registration_id])&.to_s
+      end.uniq
+      return {} if ids.empty?
+
+      Ticketing::Registration.where(id: ids).index_by { |registration| registration.id.to_s }
+    end
+
+    def registration_id_for(value)
+      value.respond_to?(:id) ? value.id : value
+    end
+
+    def gift_registration?(registration)
+      @gift_registration_ids.include?(registration.id.to_s)
+    end
+
+    def registration_scope_valid?(registration, product)
+      valid_event_and_product = registration.event_id == event.id &&
+        registration.ticket_type_id == product.ticket_type&.id
+      return false unless valid_event_and_product
+
+      if gift_registration?(registration)
+        buyer.is_a?(Core::User) && registration.status == "gift_pending_claim" && buyer.id != registration.user_id
+      else
+        !buyer || registration.user_id == buyer.id
+      end
     end
 
     def base_amount_for(product, price_quote)
       return price_quote.amount_minor if price_quote.source_type != "exchange"
 
-      product.prices.base.active_at(quoted_at).find { |price| price.currency == price_quote.from_currency }&.amount_minor
+      Catalog::ProductPrice.active_at_in_memory(product.prices, at: quoted_at).find do |price|
+        price.type == "base" && price.currency == price_quote.from_currency
+      end&.amount_minor
     end
 
     def build_promotion_quote(lines)
@@ -188,7 +309,7 @@ module Orders
       Catalog::Promotions::Quote.call(
         promotion: @promotion,
         code: @promotion_code,
-        eligible_product_ids: eligible_lines.map { |line| line[:product_id] },
+        eligible_product_ids: eligible_lines.map { |line| line[:product_id] }.uniq,
         eligible_subtotal_minor: eligible_lines.sum { |line| line[:subtotal_minor] },
         charge_currency:,
         at: quoted_at
@@ -219,14 +340,14 @@ module Orders
       raise result.error if result.failure?
 
       amounts = result.value.index_by(&:id).transform_values(&:amount_minor)
-      lines.each { |line| line[:promotion_discount_minor] = amounts.fetch(line[:product_id], 0) }
+      lines.each { |line| line[:promotion_discount_minor] = amounts.fetch(line[:line_key], 0) }
     end
 
     def percentage_allocations(lines)
       total = lines.sum { |line| line[:subtotal_minor] }
       ranked = lines.map do |line|
         exact = Rational(line[:subtotal_minor] * Orders::LargestRemainderAllocator::BASIS_POINTS, total)
-        { id: line[:product_id], floor: exact.floor, remainder: exact - exact.floor }
+        { id: line[:line_key], floor: exact.floor, remainder: exact - exact.floor }
       end
       remaining = Orders::LargestRemainderAllocator::BASIS_POINTS - ranked.sum { |line| line[:floor] }
       ranked.sort_by { |line| [ -line[:remainder], line[:id] ] }.first(remaining).each { |line| line[:floor] += 1 }
@@ -273,6 +394,7 @@ module Orders
       quote_items = lines.zip(commercial_results).map do |line, commercial_result|
         Orders::QuoteItem.new(
           product_id: line[:product_id],
+          line_id: line[:line_id],
           name: line[:name],
           type: line[:type],
           quantity: line[:quantity],

@@ -11,17 +11,9 @@ module Ticketing
       setup do
         setup_package_workflow(admissions_per_unit: 2)
         @operator = @manager
-        @raw_token = SecureRandom.hex(32)
-        @device = Ticketing::ScannerDevice.create!(
-          organization: @event.organization,
-          device_identifier: "lookup-controller-#{SecureRandom.hex(4)}",
-          token_digest: Ticketing::ScannerDevice.token_digest_for(token: @raw_token)
-        )
-        @assignment = Ticketing::ScannerDeviceAssignment.create!(
-          scanner_device: @device,
-          event: @event,
-          assigned_by: @manager
-        )
+        @pairing = pair_scanner(event: @event, actor: @manager, operator: @operator)
+        @assignment = @pairing.session.scanner_device_assignment
+        @device = @assignment.scanner_device
         @event_date = @product.product_accesses.first.event_date
         @event_date.update_columns(starts_at: 1.hour.ago, ends_at: 2.hours.from_now)
       end
@@ -29,7 +21,6 @@ module Ticketing
       test "records a PNR lookup admission through the scanner endpoint" do
         process :post, "/scanner/events/#{@event.id}/lookups",
           params: {
-            device_identifier: @device.device_identifier,
             lookup: {
               method: "code",
               query: @ticket.current_credential_generation.credentials.first.lookup_code,
@@ -50,7 +41,6 @@ module Ticketing
       test "requires a reason code for manual lookup" do
         process :post, "/scanner/events/#{@event.id}/lookups",
           params: {
-            device_identifier: @device.device_identifier,
             lookup: {
               method: "code",
               query: @ticket.current_credential_generation.credentials.first.lookup_code,
@@ -68,7 +58,6 @@ module Ticketing
       test "allows an authorized online search without admission fields" do
         process :post, "/scanner/events/#{@event.id}/lookups",
           params: {
-            device_identifier: @device.device_identifier,
             lookup: {
               method: "online",
               query: @owner.phone,
@@ -85,10 +74,7 @@ module Ticketing
       private
 
       def scanner_headers
-        {
-          "Authorization" => "Bearer #{Core::TokenService.issue(Core::TokenService.access_token_payload(@operator))}",
-          "X-Scanner-Token" => @raw_token
-        }
+        { "Authorization" => "Bearer #{@pairing.scanner_session_token}" }
       end
     end
   end

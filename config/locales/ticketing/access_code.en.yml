@@ -14,3 +14,4 @@ en:
         required: "access code required"
         quantity_exceeds_per_use: "quantity exceeds per-use limit"
         quantity_exceeds_remaining: "quantity exceeds remaining uses"
+        quantity_invalid: "quantity must be a positive integer"

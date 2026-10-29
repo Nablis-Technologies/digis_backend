@@ -33,6 +33,17 @@ module Ticketing
         assert_not_nil result.value.accepted_at
       end
 
+      test "rejects a non-invitation object even when its id matches an invitation" do
+        impostor = Struct.new(:id).new(@invitation.id)
+
+        result = Ticketing::Invitations::Claim.new(
+          ticket_type: @ticket_type, invitation: impostor
+        ).call
+
+        assert_predicate result, :failure?
+        assert_equal "pending", @invitation.reload.status
+      end
+
       test "invalid token fails" do
         result = Ticketing::Invitations::Claim.new(
           ticket_type: @ticket_type, raw_token: "bogus"
@@ -55,6 +66,29 @@ module Ticketing
           ticket_type: @ticket_type, raw_token: @raw
         ).call
         assert result.failure?
+      end
+
+      test "quantity above invitation allowance fails without accepting it" do
+        result = Ticketing::Invitations::Claim.new(
+          ticket_type: @ticket_type, raw_token: @raw, quantity: 2
+        ).call
+
+        assert result.failure?
+        assert_equal "pending", @invitation.reload.status
+      end
+
+      test "a bound invitation cannot be claimed by another user" do
+        invited_user = core_users(:attendee)
+        claimant = core_users(:support)
+        @invitation.update!(invited_user: invited_user)
+
+        result = Ticketing::Invitations::Claim.new(
+          ticket_type: @ticket_type, raw_token: @raw, user: claimant
+        ).call
+
+        assert_predicate result, :failure?
+        assert_equal "pending", @invitation.reload.status
+        assert_equal invited_user.id, @invitation.invited_user_id
       end
 
       private

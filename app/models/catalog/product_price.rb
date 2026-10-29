@@ -31,6 +31,12 @@ module Catalog
     scope :overrides, -> { where(type: "override") }
     scope :base, -> { where(type: "base") }
 
+    def self.active_at_in_memory(prices, at:)
+      Array(prices).sort_by { |price| price.id.to_s }.select do |price|
+        price.active_from <= at && (price.active_to.nil? || price.active_to > at)
+      end
+    end
+
     def self.ransackable_attributes(_auth_object = nil)
       %w[
         id event_product_id ticket_type_id currency amount_minor type

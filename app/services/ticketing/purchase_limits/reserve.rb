@@ -129,9 +129,13 @@ module Ticketing
 
       def reserve_unit!(allocation, ticket_type, scope_event_date_id, unit_number)
         expected_key = "#{key_digest}:#{unit_number}"
-        if allocation&.status.in?(%w[reserved committed])
+        if allocation&.reserved?
+          return allocation if allocation.expires_at == expires_at && allocation.idempotency_key == expected_key
+
+          allocation.update!(expires_at:, idempotency_key: expected_key)
           return allocation
         end
+        return allocation if allocation&.committed?
 
         attributes = {
           ticket_type:,

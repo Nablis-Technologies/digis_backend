@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "digest"
+
 module Links
   # Owns system-generated canonical links separately from user-created links.
   # Only the enable-later backfill job calls this command, and it accepts
@@ -69,7 +71,7 @@ module Links
 
     def normalized_base_slug
       base = if @target_type == "ticket"
-        "ticket-#{@target.id}"
+        "t-#{Digest::SHA256.hexdigest(@target.id.to_s).first(6)}"
       else
         @target.slug
       end

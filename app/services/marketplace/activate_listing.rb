@@ -8,7 +8,6 @@ module Marketplace
   class ActivateListing < Core::BaseService
     PAID_ACQUISITION_TYPES = Ticketing::Ticket::PAID_ACQUISITION_TYPES.freeze
     ACTIVE_CLAIM_STATUSES = %w[pending accepted].freeze
-    ACTIVE_REFUND_STATUSES = %w[created pending_funds processing succeeded].freeze
 
     def initialize(ticket:, actor:, asking_amount_minor:, idempotency_key:, now: Time.current)
       @ticket = ticket
@@ -240,7 +239,7 @@ module Marketplace
     def active_refund?(locked_ticket)
       Orders::RefundItem
         .joins(:refund)
-        .where(ticket_id: locked_ticket.id, orders_refunds: { status: ACTIVE_REFUND_STATUSES })
+        .where(ticket_id: locked_ticket.id, orders_refunds: { status: Orders::Refund::OUTSTANDING_STATUSES })
         .exists?
     end
 

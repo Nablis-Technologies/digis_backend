@@ -1,5 +1,7 @@
 en:
   orders:
+    permissions:
+      billing_refund_resolve_manual: "Resolve manually reviewed billing purchase refunds"
     payments:
       errors:
         commercial_requote_required: "This payment option requires a new checkout quote"
@@ -20,6 +22,15 @@ en:
         payment_succeeded_pending_acceptance: "This order has a payment awaiting acceptance"
         payment_attempt_limit_reached: "The maximum number of payment attempts has been reached"
         provider_result_invalid: "The payment provider returned an invalid result"
+        billing_purchase_closed: "This billing purchase is already closed"
+        billing_purchase_expired: "This billing purchase has expired"
+        event_payment_required: "This operation only supports event-order payments"
+      refresh:
+        errors:
+          invalid_idempotency_key: "The payment refresh idempotency key is invalid"
+          payment_not_found: "The payment attempt could not be found"
+          payment_order_not_owned: "Only the order buyer can refresh this payment"
+          event_payment_required: "Only event-order payments can be refreshed"
       webhooks:
         received: "Payment notification received"
         errors:
@@ -28,10 +39,17 @@ en:
           invalid_webhook_signature: "The payment notification signature is invalid"
           payment_event_not_found: "The payment notification could not be found"
           payment_event_processing_failed: "The payment notification could not be processed"
+      callbacks:
+        received: "Payment callback verified"
+        errors:
+          invalid_callback: "The payment callback is invalid"
+          payment_not_found: "The payment callback does not match a payment attempt"
+          provider_unavailable: "The payment provider could not verify this callback"
       fulfillment:
         errors:
           order_not_paid: "The order is not ready for fulfillment"
           fulfillment_failed: "The order could not be fulfilled"
+          gift_purchase_unavailable: "The gift purchase cannot be made available"
           promotion_reservation_invalid: "The order promotion reservation is no longer available"
       grace:
         errors:
@@ -41,6 +59,7 @@ en:
         errors:
           invalid_reversal_reason: "The payment reversal reason is invalid"
           payment_not_reversible: "The payment cannot be reversed"
+          event_payment_required: "Payment reversals only support event-order payments"
           reversal_failed: "The payment reversal could not be recorded"
           reversal_conflict: "The payment reversal conflicts with an existing obligation"
         reasons:
@@ -67,6 +86,13 @@ en:
         idempotency_conflict: "The refund idempotency key conflicts with another obligation"
         refund_failed: "The item refund could not be recorded"
         refund_not_found: "The refund obligation could not be found"
+        refund_source_not_found: "The paid billing purchase could not be found"
+        refund_source_not_paid: "The billing purchase has not been paid"
+        refund_amount_exceeded: "The refund exceeds the remaining refundable amount"
+        invalid_refund: "The billing purchase refund is invalid"
+        manual_resolution_forbidden: "You are not authorized to resolve billing purchase refunds"
+        manual_resolution_invalid: "The manual refund resolution details are invalid"
+        refund_not_in_manual_review: "The refund is not awaiting manual review"
         invalid_provider_result: "The refund provider returned invalid evidence"
         provider_unavailable: "The refund provider is unavailable"
         provider_refund_unsupported: "The refund provider does not support refunds"
@@ -93,9 +119,15 @@ en:
         schedule_change: "The event schedule changed"
         legal_remedy: "A legal remedy requires this refund"
         platform_admin_correction: "The platform recorded an administrative correction"
+      billing_purchase_reasons:
+        featured_placement_cancelled: "The featured placement was cancelled"
+        event_cancelled: "The event was cancelled"
   payments:
     providers:
       errors:
         adapter_operation_not_implemented: "Payment provider operation is not implemented"
         invalid_grace_minutes: "Payment settlement grace must be between 3 and 15 minutes"
         invalid_result: "Payment provider returned an invalid result"
+        invalid_mode: "Chapa mode must be one of: %{modes}"
+        secrets_required: "Chapa secret and webhook secrets are required"
+        secret_prefix: "Chapa %{mode} secret key must start with %{prefix}"

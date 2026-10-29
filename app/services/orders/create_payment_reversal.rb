@@ -1,10 +1,11 @@
 # frozen_string_literal: true
 
 module Orders
-  # Creates the durable full-refund obligation for a succeeded payment that
-  # Orders did not accept. The payment and its prior refunds are locked before
-  # the deterministic payment-derived key is checked, so concurrent provider
-  # callbacks cannot create two reversals or mutate fulfillment state.
+  # Creates a durable full-refund obligation for a succeeded payment that
+  # should not retain provider funds. Event payments must be unaccepted;
+  # billing payments may also be accepted when a late or duplicate charge is
+  # being returned. The payment and prior refunds are locked before the
+  # deterministic payment-derived key is checked.
   class CreatePaymentReversal < Core::BaseService
     REASONS = Orders::Refund::PAYMENT_REVERSAL_REASONS
 
@@ -28,7 +29,9 @@ module Orders
           next existing
         end
 
-        unless payment.status == "succeeded" && payment.accepted_at.nil?
+        reversible = payment.status == "succeeded" &&
+          (payment.accepted_at.nil? || payment.billing_payment?)
+        unless reversible
           raise ReversalAbort, reversal_error(:payment_not_reversible, code: "payment_not_reversible")
         end
 

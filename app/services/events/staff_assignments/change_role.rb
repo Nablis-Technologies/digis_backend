@@ -14,7 +14,16 @@ module Events
         return permission_error unless Events::AuthorizationResolver.can_assign?(actor, assignment.event, role)
 
         Events::Event.transaction do
+          Events::Event.lock.find(assignment.event_id)
           assignment.lock!
+          if general_role?(role) && Events::EventStaffAssignment.active_general_role_conflict?(
+            event_id: assignment.event_id,
+            user_id: assignment.user_id,
+            except_id: assignment.id
+          )
+            return role_change_required
+          end
+
           previous = assignment.role
           assignment.update!(role:)
           assignment.record_audit!(
@@ -24,11 +33,25 @@ module Events
           )
           success(assignment)
         end
+      rescue ActiveRecord::RecordNotUnique
+        role_change_required
       end
 
       private
 
       attr_reader :assignment, :actor, :role
+
+      def general_role?(value)
+        Events::EventStaffAssignment::GENERAL_ROLES.include?(value.to_s)
+      end
+
+      def role_change_required
+        failure Core::BusinessError.new(
+          I18n.t("events.staff_assignment.errors.staff_assignment_role_change_required"),
+          code: "staff_assignment_role_change_required",
+          status: :conflict
+        )
+      end
 
       def role_error
         failure Core::BusinessError.new(

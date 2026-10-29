@@ -39,9 +39,8 @@ module Admin
       end
 
       def simulation_params
-        raw = params.require(:simulation).permit(:fee_schedule_version_id, :assignment_id, scenario: {})
-        raw[:scenario] = raw[:scenario].to_unsafe_h if raw[:scenario].respond_to?(:to_unsafe_h)
-        raw
+        params.require(:simulation).permit(:fee_schedule_version_id, :assignment_id, scenario: {})
+          .to_unsafe_h.deep_symbolize_keys
       end
     end
   end

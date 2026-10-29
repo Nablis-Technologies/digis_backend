@@ -1,0 +1,18 @@
+en:
+  ticketing:
+    guest_ticket:
+      errors:
+        invalid_view_token: "This ticket view link is invalid or has expired"
+        expiry_unavailable: "The ticket view expiry could not be determined"
+        sms_delivery_failed: "The guest ticket SMS could not be delivered"
+        verification_invalid: "The phone verification proof is invalid"
+        registration_not_found: "The guest registration was not found"
+        registration_not_claimable: "This registration cannot be claimed yet"
+        claim_user_mismatch: "The verification does not match this registration"
+        claim_phone_mismatch: "The verification does not match this phone"
+        claim_already_completed: "This guest identity has already been claimed"
+        password_invalid: "The password must be at least eight characters"
+        password_mismatch: "The password confirmation does not match"
+        invalid_idempotency_key: "The Idempotency-Key value is invalid"
+        idempotency_conflict: "The claim request conflicts with an existing idempotency key"
+        claim_invalid: "The guest account claim is invalid"

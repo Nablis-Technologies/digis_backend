@@ -50,12 +50,30 @@ module Orders
       assert_response :unauthorized
     end
 
+    test "returns the date availability error for a past event date selection" do
+      event_date = @event.event_dates.create!(
+        starts_at: @quoted_at - 1.day,
+        ends_at: @quoted_at - 1.day + 2.hours,
+        status: "completed"
+      )
+
+      post "/events/#{@event.id}/order_quotes",
+           params: quote_params(event_date_ids: [ event_date.id ]),
+           headers: user_headers,
+           as: :json
+
+      assert_response :conflict
+      assert_equal "event_date_unavailable", response.parsed_body.fetch("code")
+    end
+
     private
 
-    def quote_params
+    def quote_params(event_date_ids: nil)
+      item = { event_product_id: @product.id, quantity: 1 }
+      item[:event_date_ids] = event_date_ids if event_date_ids
       {
         charge_currency: "ETB",
-        items: [ { event_product_id: @product.id, quantity: 1 } ]
+        items: [ item ]
       }
     end
 

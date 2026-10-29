@@ -7,6 +7,7 @@ module Ticketing
     include Ticketing::PackageWorkflowTestHelpers
 
     setup do
+      create_messaging_policy
       setup_package_workflow(admissions_per_unit: 2)
       @payment = create_payment_for(@ticket.order_item)
     end
@@ -52,6 +53,30 @@ module Ticketing
       assert Core::OutboxEvent.exists?(
         event_type: "ticketing.package_refunded", aggregate_id: @ticket.id
       )
+    end
+
+    test "replaying a successful refund handler keeps the package transition stable" do
+      refund = cancel_package
+      refund.update!(status: "processing")
+      applied = Orders::ApplyRefundResult.call(
+        refund:,
+        result: Payments::Providers::Result.success(provider_reference: "refund-#{SecureRandom.hex(4)}")
+      )
+      assert_predicate applied, :success?, applied.error&.message
+      event = Core::OutboxEvent.find_by!(event_type: "orders.refund.succeeded")
+      handler = Rails.application.config.x.outbox_handlers.fetch(event.event_type)
+
+      first = handler.call(event)
+      revocation_count = Ticketing::CredentialRevocation.where(credential_id: @ticket.credentials.select(:id)).count
+      second = handler.call(event)
+
+      assert_predicate first, :success?, first.error&.message
+      assert_predicate second, :success?, second.error&.message
+      assert_equal revocation_count,
+        Ticketing::CredentialRevocation.where(credential_id: @ticket.credentials.select(:id)).count
+      assert_equal "refunded", @ticket.reload.status
+      notification = Messaging::Notification.find_by!(source: refund, notification_type: "refund_succeeded")
+      assert_equal @ticket.owner_user_id, notification.user_id
     end
 
     test "keeps the package suspended while funds are pending" do
@@ -154,13 +179,10 @@ module Ticketing
       access = @product.product_accesses.first
       date = access.event_date
       date.update_columns(starts_at: 1.hour.ago, ends_at: 2.hours.from_now)
-      device = Ticketing::ScannerDevice.create!(
-        organization: @event.organization,
-        device_identifier: "cancel-package-scanner-#{SecureRandom.hex(4)}",
-        token_digest: Ticketing::ScannerDevice.token_digest_for(token: SecureRandom.hex(32))
-      )
-      assignment = Ticketing::ScannerDeviceAssignment.create!(
-        scanner_device: device, event: @event, assigned_by: @manager
+      assignment = build_scanner_assignment(
+        event: @event,
+        assigned_by: @manager,
+        device_identifier: "cancel-package-scanner-#{SecureRandom.hex(4)}"
       )
       claims = Ticketing::Qr::Verifier.call(
         token: @ticket.current_credential_generation.credentials.first.qr_token

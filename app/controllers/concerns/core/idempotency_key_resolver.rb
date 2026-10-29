@@ -19,10 +19,15 @@ module Core
     def ensure_idempotency_key_present
       return if idempotency_key.present?
 
-      render json: {
-        error: I18n.t("idempotency.missing_key"),
+      # Rendered through Core::JsonResponse so the body is the standard
+      # `{ success: false, error:, code: }` envelope. A bare hash here would be
+      # unreadable to every envelope-aware client, which would fall back to the
+      # HTTP status text and show the user "Bad Request".
+      render_error(
+        I18n.t("idempotency.missing_key"),
+        status: :bad_request,
         code: "missing_idempotency_key"
-      }, status: :bad_request
+      )
     end
   end
 end

@@ -14,14 +14,16 @@ module Catalog
       end
 
       def call
-        override = @product.prices.overrides.active_at(@at).for_currency(@charge_currency).first
+        override = active_prices.find do |price|
+          price.type == "override" && price.currency == @charge_currency
+        end
         if override
           return success(build_quote(source_type: "override", amount_minor: override.amount_minor,
                                       from_currency: @charge_currency,
                                       exchange_rate_id: nil, exchange_rate_value: nil))
         end
 
-        base = @product.prices.base.active_at(@at).first
+        base = active_prices.find { |price| price.type == "base" }
         return failure_i18n("catalog.pricing.errors.no_active_price") if base.blank?
 
         conversion = CurrencyConverter.call(
@@ -43,6 +45,10 @@ module Catalog
       end
 
       private
+
+      def active_prices
+        @active_prices ||= Catalog::ProductPrice.active_at_in_memory(@product.prices, at: @at)
+      end
 
       def build_quote(source_type:, amount_minor:, from_currency:, exchange_rate_id:, exchange_rate_value:)
         Catalog::PriceQuote.new(

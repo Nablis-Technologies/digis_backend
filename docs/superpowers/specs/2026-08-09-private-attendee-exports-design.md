@@ -110,51 +110,50 @@ proof expiry alone.
 
 ## Authorization and visibility
 
-Add explicit permission codes:
+Field permission codes remain explicit:
 
-- `attendee_export.request` for lifecycle metadata and non-contact standard fields;
+- `attendee_export.request` for the platform-level expired-export tombstone path;
 - `attendee_export.contact` for the registration user's current email and phone;
 - `attendee_export.dietary` for dietary questions;
 - `attendee_export.accessibility` for accessibility questions.
 
-Default seed grants are exact: `SUPER_ADMIN` and `ADMIN` receive all four;
-`ORGANIZER` receives request and contact; `CORE_ADMIN`, `SUPPORT`, and `USER`
-receive none. Dietary/accessibility access is added only through an explicit
-custom/admin role assignment. An event manager who lacks
-`attendee_export.request` remains denied; granting a global export permission
-never expands the events made manageable by the event authorization resolver.
+Normal export eligibility is tenant-scoped, not a global permission grant.
+`Events::AuthorizationResolver` must authorize the actor for the event before
+any field can be exported. Active primary/co-organizer organization owners and
+admins, plus active event managers, may request standard fields for manageable
+events without global role promotion. Contact fields are available to active
+primary/co-organizer owners and admins, or through an explicit
+`attendee_export.contact` platform permission. Dietary/accessibility fields
+still require their explicit permissions; a business reason never grants them.
 
-`Ticketing::AttendeeExportPolicy` requires both the relevant permissions and
-event manageability through `Events::AuthorizationResolver.manageable_catalog_events`.
+`SUPER_ADMIN` and `ADMIN` retain the explicit field permissions needed for
+platform operations. `ORGANIZER` keeps only the explicit contact-field grant;
+its standard export access comes from current event manageability. `CORE_ADMIN`,
+`SUPPORT`, and `USER` receive no dietary/accessibility permissions by default.
+Global export permissions never expand the set of manageable events, and a
+staff/scanner assignment alone never grants export access.
 
-- platform administrators may manage any event;
-- primary/co-organizer owners and admins, plus active event managers, may request
-  only for manageable events and only when separately granted the required
-  export permission;
-- a staff/scanner assignment never grants export access; a separate platform
-  administrator or owner/admin/manager authority still takes precedence;
-- show and download are limited to the original requester or a platform
-  administrator, and both must still pass current event and field authorization;
-- dietary, accessibility, and contact fields require their narrow permission.
-
-Request, generation, show, and download authorization all recheck current
-permissions. Losing access makes the export unavailable and generation fails or
+Show and download remain limited to the original requester or platform
+administrator and recheck current event and field authorization. Losing the
+membership, assignment, or field permission removes access; generation fails or
 expires safely. Internal platform audit access is separate and never returns the
-artifact or selectors.
+artifact or selectors. The approved tenant-scoped model is recorded in
+`docs/superpowers/specs/2026-09-30-tenant-scoped-attendee-export-authorization-design.md`.
 
 ## Export field contract
 
 `Ticketing::Exports::FieldRegistry` is the only source of built-in fields,
-extractors, headings, permissions, and row-mode compatibility. Launch built-ins:
+extractors, headings, authorization requirements, and row-mode compatibility.
+Launch built-ins:
 
-| Selector | Permission | Row mode |
+| Selector | Authorization requirement | Row mode |
 |---|---|---|
-| `registration_id` | `attendee_export.request` | both |
-| `registration_status` | `attendee_export.request` | both |
-| `ticket_type_id` | `attendee_export.request` | both |
-| `selected_event_date_id` | `attendee_export.request` | both |
-| `package_unit_number` | `attendee_export.request` | admission only |
-| `admission_position` | `attendee_export.request` | admission only |
+| `registration_id` | Manageable event | both |
+| `registration_status` | Manageable event | both |
+| `ticket_type_id` | Manageable event | both |
+| `selected_event_date_id` | Manageable event | both |
+| `package_unit_number` | Manageable event | admission only |
+| `admission_position` | Manageable event | admission only |
 | `registration_user_email` | `attendee_export.contact` | both |
 | `registration_user_phone` | `attendee_export.contact` | both |
 
@@ -187,8 +186,8 @@ recursively sorted string keys and canonical JSON scalar/array encoding; array
 order remains significant except `allowed_option_keys`, which is sorted because
 the model defines it as a membership set.
 
-Standard questions require `attendee_export.request`; dietary and accessibility
-questions require their corresponding permission. A registration-row export
+Standard questions require manageable-event authority; dietary and accessibility
+questions require their corresponding explicit permission. A registration-row export
 rejects admission-scope questions. There is no caller-supplied extractor,
 heading, SQL expression, arbitrary JSON path, or formula.
 
@@ -563,7 +562,7 @@ Test-first implementation must prove:
   proof read/validation/consumption, plus mismatched replay conflict;
 - owner/admin/manager authorization, requester-only visibility, platform-admin
   override, staff/scanner denial, and unrelated-event denial;
-- standard/contact/dietary/accessibility permission separation;
+- tenant-standard/contact/dietary/accessibility authorization separation;
 - registration and admission row modes, group package coordinates, historical
   question compatibility, conflicting question definitions, and explicit
   registration-user contact repetition without implying a slot attendee;

@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "digest"
 require "test_helper"
 
 module Orders
@@ -61,6 +62,36 @@ module Orders
       assert_equal 25, refund.provider_fee_minor
       assert_equal "ETB", refund.provider_fee_currency
       assert_equal @refund.idempotency_key, @adapter.refund_requests.sole.fetch(:idempotency_key)
+    end
+
+    test "submits a billing payment reversal without posting an event ledger entry" do
+      purchase = Orders::BillingPurchase.create!(
+        organization: @event.organization, requested_by: @buyer,
+        kind: "messaging_credit_top_up", source_type: "Messaging::CreditTopUp", source_id: SecureRandom.uuid,
+        currency: "ETB", amount_minor: 1_000, price_digest: SecureRandom.hex(32), status: "paid",
+        idempotency_key_digest: SecureRandom.hex(32), expires_at: 30.minutes.from_now
+      )
+      billing_payment = Orders::Payment.create!(
+        billing_purchase: purchase, attempt_number: 1, provider: "chapa", payment_method: "telebirr",
+        status: "succeeded", amount_minor: 1_000, currency: "ETB", accepted_at: Time.current,
+        succeeded_at: Time.current, billing_purchase_price_digest: purchase.price_digest,
+        buyer_fee_minor: 0, organizer_fee_minor: 0, idempotency_key: "billing-submit-#{SecureRandom.hex(6)}",
+        provider_reference: "billing-provider-#{SecureRandom.hex(4)}",
+        settlement_grace_minutes: 5, settlement_grace_expires_at: purchase.expires_at + 5.minutes
+      )
+      refund = Orders::Refund.create!(
+        payment: billing_payment, type: "payment_reversal",
+        idempotency_key: "billing-submit-refund-#{SecureRandom.hex(6)}",
+        amount_minor: billing_payment.amount_minor, currency: billing_payment.currency,
+        status: "created", reason_code: "duplicate_payment"
+      )
+
+      result = Orders::SubmitRefund.call(refund:)
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "succeeded", refund.reload.status
+      assert_equal 1, @adapter.refund_requests.length
+      assert_empty Finance::LedgerEntry.where(refund_id: refund.id)
     end
 
     test "records a provider failure as a terminal failed refund" do
@@ -158,6 +189,25 @@ module Orders
       assert_empty @adapter.refund_requests
     end
 
+    test "keeps unsupported featured partial refunds as durable manual review obligations" do
+      refund = create_featured_billing_refund(amount_minor: 500)
+      @adapter = RefundAdapter.new(capabilities: { refunds: { supported: true, partial: false } })
+      Payments::Providers::Registry.register("chapa", @adapter)
+
+      first = Orders::SubmitRefund.call(refund:)
+      replay = Orders::SubmitRefund.call(refund:)
+
+      assert_predicate first, :success?, first.error&.message
+      assert_predicate replay, :success?, replay.error&.message
+      assert_equal "manual_review", first.value.status
+      assert_equal "provider_partial_refund_unsupported", first.value.pending_reason
+      assert_equal "manual_review", replay.value.status
+      assert_empty @adapter.refund_requests
+      assert_equal 1, Core::AuditLog.where(
+        action: "orders.billing_purchase_refund.manual_review", auditable_id: refund.id
+      ).count
+    end
+
     test "leaves processing when the provider call raises so reconciliation can verify it" do
       @adapter.refund_error = RuntimeError.new("provider unavailable")
 
@@ -191,6 +241,29 @@ module Orders
       )
       assert_predicate result, :success?, result.error&.message
       [ result.value, payment ]
+    end
+
+    def create_featured_billing_refund(amount_minor:)
+      price_digest = Digest::SHA256.hexdigest("submit-featured-price")
+      purchase = Orders::BillingPurchase.create!(
+        organization_id: @event.organization_id, requested_by: @buyer,
+        kind: "featured_placement", source_type: "Marketing::FeaturedPlacement", source_id: SecureRandom.uuid,
+        currency: "ETB", amount_minor: 1_000, price_digest:, status: "paid",
+        idempotency_key_digest: Digest::SHA256.hexdigest("submit-featured-purchase"),
+        expires_at: 30.minutes.from_now
+      )
+      payment = Orders::Payment.create!(
+        billing_purchase: purchase, attempt_number: 1, provider: "chapa", payment_method: "telebirr",
+        status: "succeeded", amount_minor: 1_000, currency: "ETB", accepted_at: Time.current,
+        succeeded_at: Time.current, billing_purchase_price_digest: price_digest,
+        buyer_fee_minor: 0, organizer_fee_minor: 0, idempotency_key: "submit-featured-payment",
+        settlement_grace_minutes: 5, settlement_grace_expires_at: purchase.expires_at + 5.minutes
+      )
+      Orders::Refund.create!(
+        payment:, billing_purchase: purchase, type: "billing_purchase_refund",
+        idempotency_key: Digest::SHA256.hexdigest("submit-featured-refund"), amount_minor:,
+        currency: "ETB", status: "created", reason_code: "featured_placement_cancelled"
+      )
     end
 
     def order_attributes

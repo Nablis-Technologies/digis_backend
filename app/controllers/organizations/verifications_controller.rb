@@ -12,6 +12,10 @@ module Organizations
     before_action :authorize_review_action!, only: %i[submit approve reject request_modification resubmit]
 
     AUTO_APPROVE_AUDIENCE = %w[under_100 100_500].freeze
+    VERIFICATION_RESPONSE_FIELDS = %i[
+      id verification_status verification_feedback has_business_license has_tin_certificate
+      membership_status membership_role archived
+    ].freeze
 
     def submit
       ensure!(submission_ready?, I18n.t("review.errors.documents_required"))
@@ -154,7 +158,11 @@ module Organizations
 
     def set_organization
       @clazz = Organizations::Organization
-      @organization = Organizations::Organization.find(params[:organization_id])
+      @organization = Organizations::Organization.includes(
+        :memberships, :reviews, :follows,
+        { profile_attachment: :blob, banner_attachment: :blob,
+          business_license_attachment: :blob, tin_certificate_attachment: :blob }
+      ).find(params[:organization_id])
     rescue ActiveRecord::RecordNotFound
       render_error(:"organization.errors.not_found", status: :not_found)
     end
@@ -169,6 +177,13 @@ module Organizations
         :estimated_audience, :event_frequency,
         social_links: {}
       )
+    end
+
+    def serializer_profile
+      {
+        submit: { fields: VERIFICATION_RESPONSE_FIELDS },
+        resubmit: { fields: VERIFICATION_RESPONSE_FIELDS }
+      }
     end
 
     def review_feedback_params

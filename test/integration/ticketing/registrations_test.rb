@@ -34,22 +34,46 @@ module Ticketing
 
       assert_response :created
       data = response.parsed_body.fetch("data")
-      assert_equal "requires_confirmation", data.dig("next_action", "type")
+      assert_equal "requires_order", data.dig("next_action", "type")
       assert_equal "pending_payment", data.dig("registration", "status")
       assert_not data.fetch("registration").key?("identity_digest")
     end
 
+    test "a guest submits a phone-confirmed registration as a passwordless shadow user" do
+      phone = "0911000021"
+      @event.update!(status: "published")
+
+      post "/guest/ticket_types/#{@ticket_type.id}/registrations",
+           params: registration_params.merge(
+             phone:, full_name: "Guest Buyer", email: "guest-21@example.com", phone_confirmation: true
+           ),
+           headers: { "Idempotency-Key" => "guest-registration-api-1" },
+           as: :json
+
+      assert_response :created
+      data = response.parsed_body.fetch("data")
+      assert_equal "pending_payment", data.dig("registration", "status")
+      refute data.key?("access_token")
+      user = Core::User.find_by(phone: "+251911000021")
+      assert user
+      assert_nil user.password_digest
+      assert_nil user.verified_at
+    end
+
+    test "a guest registration rejects missing phone confirmation before creating a shadow user" do
+      @event.update!(status: "published")
+      post "/guest/ticket_types/#{@ticket_type.id}/registrations",
+           params: registration_params.merge(phone: "0911000022"),
+           headers: { "Idempotency-Key" => "guest-registration-api-2" },
+           as: :json
+
+      assert_response :bad_request
+      assert_equal "phone_confirmation_required", response.parsed_body.fetch("code")
+      assert_nil Core::User.find_by(phone: "+251911000022")
+    end
+
     test "registration submission snapshots and accepts supplied buyer consent" do
       _document, version = create_consent_document(scope: "buyer", name: "API registration terms")
-      Core::DataRetentionPolicy.create!(
-        category: "consent_evidence",
-        version: 1,
-        retention_days: 30,
-        action: "erase_payload",
-        status: "active",
-        effective_at: 1.minute.ago,
-        created_by: core_users(:super_admin)
-      )
 
       post "/ticket_types/#{@ticket_type.id}/registrations",
            params: registration_params.merge(
@@ -114,6 +138,26 @@ module Ticketing
       assert_equal registration_id, response.parsed_body.dig("data", "registration", "id")
       assert_equal 1, Registration.count
       assert_equal 1, RegistrationFormSubmission.count
+    end
+
+    test "allows a repeat submission after the earlier registration is confirmed" do
+      post "/ticket_types/#{@ticket_type.id}/registrations",
+           params: registration_params,
+           headers: submission_headers("registration-confirmed-repeat-1"),
+           as: :json
+      assert_response :created
+      first_id = response.parsed_body.dig("data", "registration", "id")
+      Registration.find(first_id).update!(status: "confirmed", confirmed_at: Time.current)
+
+      post "/ticket_types/#{@ticket_type.id}/registrations",
+           params: registration_params,
+           headers: submission_headers("registration-confirmed-repeat-2"),
+           as: :json
+
+      assert_response :created
+      second_id = response.parsed_body.dig("data", "registration", "id")
+      refute_equal first_id, second_id
+      assert_equal 2, Registration.count
     end
 
     test "rejects a changed registration request under the same idempotency key" do
@@ -261,6 +305,43 @@ module Ticketing
       assert_equal registration.id, response.parsed_body.dig("data", "id")
       assert_not response.parsed_body.fetch("data").key?("identity_digest")
       assert_not response.parsed_body.fetch("data").key?("user_id")
+    end
+
+    test "a registrant can release a pending registration and replay it safely" do
+      registration = create_registration
+      headers = submission_headers("registration-release-1")
+
+      assert_recognizes(
+        { controller: "orders/registration_checkouts", action: "create", id: registration.id },
+        { path: "/registrations/#{registration.id}/release", method: :post }
+      )
+
+      post "/registrations/#{registration.id}/release", headers:, as: :json
+
+      assert_response :success
+      assert_equal "cancelled", response.parsed_body.dig("data", "status")
+      assert_equal "cancelled", registration.reload.status
+
+      post "/registrations/#{registration.id}/release", headers:, as: :json
+
+      assert_response :success
+      assert_equal "cancelled", response.parsed_body.dig("data", "status")
+      assert_equal 1, Core::AuditLog.where(
+        action: "ticketing.registration.pending_released", auditable_id: registration.id
+      ).count
+    end
+
+    test "registration release requires an idempotency key and registrant ownership" do
+      registration = create_registration
+
+      post "/registrations/#{registration.id}/release", headers: user_headers, as: :json
+      assert_response :bad_request
+      assert_equal "missing_idempotency_key", response.parsed_body["code"]
+
+      post "/registrations/#{registration.id}/release",
+           headers: owner_headers.merge("Idempotency-Key" => "registration-release-outsider"), as: :json
+      assert_response :forbidden
+      assert_equal "pending_payment", registration.reload.status
     end
 
     private

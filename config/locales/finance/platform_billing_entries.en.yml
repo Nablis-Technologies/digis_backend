@@ -1,0 +1,13 @@
+en:
+  finance:
+    platform_billing_entries:
+      errors:
+        source_not_found: The platform billing source could not be found.
+        invalid_source: The platform billing source does not match the payment evidence.
+        payment_source_mismatch: The payment does not match its billing purchase snapshot.
+        placement_source_missing: The featured placement billing source is missing.
+        placement_snapshot_mismatch: The featured placement does not match the billing purchase snapshot.
+        payment_not_accepted: The payment has not been accepted for platform posting.
+        refund_not_succeeded: The refund has not succeeded and cannot be posted.
+        idempotency_conflict: The platform billing entry key conflicts with a different fact.
+        invalid_entry_type: The platform billing entry type is invalid.

@@ -5,12 +5,17 @@ module Orders
   # only server-owned identifiers and snapshots; checkout reloads the records
   # it must lock without trusting a mutable Active Record object from the quote.
   QuoteItem = Data.define(
-    :product_id, :name, :type, :quantity, :registration_id,
+    :product_id, :line_id, :name, :type, :quantity, :registration_id,
     :event_date_ids, :venue_event_date_ids, :admissions_per_unit,
     :price_quote, :base_unit_amount_minor, :commercial_result, :subtotal_minor,
     :promotion_discount_minor
   ) do
+    def line_key
+      line_id.present? ? "client:#{line_id}" : "product:#{product_id}"
+    end
+
     def initialize(**attributes)
+      attributes[:line_id] = attributes[:line_id]&.to_s&.downcase&.freeze
       attributes[:event_date_ids] = Array(attributes[:event_date_ids]).map(&:to_s).sort.freeze
       attributes[:venue_event_date_ids] = Array(attributes[:venue_event_date_ids]).map(&:to_s).sort.freeze
       super(**attributes)

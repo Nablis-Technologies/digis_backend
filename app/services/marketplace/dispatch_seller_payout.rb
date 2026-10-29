@@ -21,13 +21,7 @@ module Marketplace
 
       payout = gate_result.value
       account = SellerPayoutAccount.find(payout.seller_payout_account_id)
-      result = normalize_provider_result(adapter.payout(
-        amount_minor: payout.amount_minor,
-        currency: payout.currency,
-        destination_token: account.account_token,
-        idempotency_key: payout.idempotency_key,
-        payout_id: payout.id
-      ))
+      result = normalize_provider_result(adapter.payout(**destination_payload(payout, account)))
       handle_provider_result(result)
     rescue ActiveRecord::RecordNotFound
       failure(payout_error(:seller_payout_not_found, code: "seller_payout_not_found", status: :not_found))
@@ -42,6 +36,18 @@ module Marketplace
     private
 
     attr_reader :payout_id, :adapter, :at
+
+    def destination_payload(payout, account)
+      {
+        amount_minor: payout.amount_minor,
+        currency: payout.currency,
+        idempotency_key: payout.idempotency_key,
+        payout_id: payout.id,
+        account_number: account.account_number,
+        account_name: account.holder_name,
+        bank_slug: account.bank_slug
+      }
+    end
 
     def persist_processing_intent
       payout = Marketplace::ApplicationRecord.transaction do
@@ -74,7 +80,7 @@ module Marketplace
     def locked_allocations(payout)
       SellerPayoutAllocation
         .where(payout_id: payout.id, status: "reserved")
-        .includes(seller_ledger_entry: { event: :event_dates })
+        .includes(seller_ledger_entry: :event)
         .order(:id)
         .lock
         .to_a
@@ -83,11 +89,11 @@ module Marketplace
     def dispatch_gate_error(payout, allocations)
       return payout_error(:seller_payout_not_dispatchable) if allocations.empty?
       return payout_error(:seller_payout_scope_mismatch) unless signed_allocation_total(allocations) == payout.amount_minor
-      return payout_error(:seller_payout_event_scope_invalid) unless allocations.map { |allocation| allocation.seller_ledger_entry.event_id }.uniq.one?
       return payout_error(:seller_payout_scope_mismatch) unless allocations.all? { |allocation| allocation_scope_valid?(payout, allocation) }
 
       balance_result = provider_balance(adapter, payout.currency)
       return balance_result.error if balance_result.failure?
+      return nil if balance_result.value[:balance_api_supported] == false
 
       target = provider_reserve_target(provider: payout.provider, currency: payout.currency)
       return payout_error(:seller_payout_provider_reserve_breach) if balance_result.value.fetch(:amount_minor) < payout.amount_minor + target

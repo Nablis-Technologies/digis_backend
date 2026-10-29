@@ -8,6 +8,7 @@ module Ticketing
       include ActiveJob::TestHelper
 
       setup do
+        create_messaging_policy
         @event = events_events(:ready_listing)
         @buyer = core_users(:attendee)
         @manager = core_users(:super_admin)
@@ -47,6 +48,14 @@ module Ticketing
         assert_equal @buyer.id, ticket.owner_user_id
       end
 
+      test "issues every missing unit through the registration command" do
+        result = Ticketing::Registrations::IssuePackages.call(registration_id: @registration.id)
+
+        assert_predicate result, :success?, result.error&.message
+        assert result.value.complete
+        assert_equal [ 1 ], result.value.tickets.map(&:unit_number)
+      end
+
       test "leaves the group credential pending when a personal requirement is incomplete" do
         create_pending_personal_requirement
 
@@ -57,6 +66,74 @@ module Ticketing
         assert_equal "pending_requirements", credential.status
         assert_nil credential.qr_token
         assert_nil credential.lookup_code
+        assert_empty Ticketing::AttendeeIndexEntry.where(credential_id: credential.id)
+      end
+
+      test "replaying package issuance activates a pending credential after its requirement is accepted" do
+        @registration.update!(admissions_per_unit_snapshot: 1, party_size: 1)
+        version = create_pending_personal_requirement
+        first = Ticketing::Packages::Issue.call(registration: @registration, unit_number: 1)
+        acceptance = Ticketing::Consent::BuildRequirements.call(
+          registration: @registration,
+          actor: @buyer,
+          acceptances: (1..@registration.admissions_per_unit_snapshot).map do |admission_position|
+            {
+              consent_document_version_id: version.id,
+              package_unit_number: 1,
+              admission_position:,
+              request_uuid: SecureRandom.uuid,
+              acceptance_method: "otp",
+              content_sha256: version.content_sha256,
+              idempotency_key: "accept-replayed-package-requirement-#{admission_position}-#{SecureRandom.hex(5)}"
+            }
+          end
+        )
+
+        assert_predicate first, :success?, first.error&.message
+        assert_predicate acceptance, :success?, acceptance.error&.message
+        assert_equal "pending_requirements", first.value.current_credential_generation.credentials.sole.status
+        assert_empty Ticketing::RegistrationConsentRequirement.where(
+          registration: @registration, consent_document_version: version, status: "pending"
+        )
+        assert_equal "qr", @product.ticket_type.reload.entry_validation_mode
+
+        replay = Ticketing::Packages::Issue.call(registration: @registration, unit_number: 1)
+
+        assert_predicate replay, :success?, replay.error&.message
+        assert_equal first.value.id, replay.value.id
+        credential = replay.value.current_credential_generation.credentials.sole
+        assert_equal "active", credential.status
+        assert_predicate credential.qr_token, :present?
+        assert_equal 1, Ticketing::AttendeeIndexEntry.where(credential_id: credential.id).count
+      end
+
+      test "does not activate an existing credential after the event is cancelled" do
+        @registration.update!(admissions_per_unit_snapshot: 1, party_size: 1)
+        version = create_pending_personal_requirement
+        first = Ticketing::Packages::Issue.call(registration: @registration, unit_number: 1)
+        acceptance = Ticketing::Consent::BuildRequirements.call(
+          registration: @registration,
+          actor: @buyer,
+          acceptances: [ {
+            consent_document_version_id: version.id,
+            package_unit_number: 1,
+            admission_position: 1,
+            request_uuid: SecureRandom.uuid,
+            acceptance_method: "otp",
+            content_sha256: version.content_sha256,
+            idempotency_key: "accept-cancelled-package-requirement-#{SecureRandom.hex(5)}"
+          } ]
+        )
+        assert_predicate first, :success?, first.error&.message
+        assert_predicate acceptance, :success?, acceptance.error&.message
+        @event.update!(status: "cancelled")
+
+        replay = Ticketing::Packages::Issue.call(registration: @registration, unit_number: 1)
+
+        assert_predicate replay, :success?, replay.error&.message
+        credential = replay.value.current_credential_generation.credentials.sole
+        assert_equal "pending_requirements", credential.status
+        assert_nil credential.qr_token
         assert_empty Ticketing::AttendeeIndexEntry.where(credential_id: credential.id)
       end
 
@@ -103,9 +180,11 @@ module Ticketing
           { ticket_id: ticket.id, version: 1, idempotency_key: event.idempotency_key },
           delivered
         )
+        notification = Messaging::Notification.find_by!(source: ticket, notification_type: "ticket_issued")
+        assert_equal ticket.owner_user_id, notification.user_id
       end
 
-      test "issues every ticket unit from the order fulfillment event" do
+      test "replaying the order fulfillment handler does not issue duplicate tickets" do
         item = create_fulfilled_order_item(quantity: 2)
         event = Core::Outbox::Publish.call(
           topic: "orders",
@@ -115,13 +194,13 @@ module Ticketing
           idempotency_key: "orders-fulfilled-for-ticketing-#{item.order_id}"
         ).value
 
-        result = Rails.application.config.x.outbox_handlers.fetch(event.event_type).call(event)
+        subject = -> { Rails.application.config.x.outbox_handlers.fetch(event.event_type).call(event) }
+        assert_idempotent(subject, counter: -> { Ticketing::Ticket.where(order_item_id: item.id).count })
 
-        assert_predicate result, :success?, result.error&.message
         assert_equal [ 1, 2 ], Ticketing::Ticket.where(order_item_id: item.id).order(:unit_number).pluck(:unit_number)
       end
 
-      test "issues confirmed registration units and retains the notification handoff" do
+      test "replaying registration issuance does not issue duplicate tickets" do
         event = Core::Outbox::Publish.call(
           topic: "ticketing",
           event_type: "ticketing.registration.issuance_ready",
@@ -130,13 +209,9 @@ module Ticketing
           idempotency_key: "registration-issuance-ready-#{@registration.id}"
         ).value
 
-        assert_enqueued_with(
-          job: Ticketing::RegistrationNotificationJob,
-          args: [ @registration.id, event.event_type ]
-        ) do
-          result = Rails.application.config.x.outbox_handlers.fetch(event.event_type).call(event)
-          assert_predicate result, :success?, result.error&.message
-        end
+        subject = -> { Rails.application.config.x.outbox_handlers.fetch(event.event_type).call(event) }
+        assert_idempotent(subject, counter: -> { Ticketing::Ticket.where(registration_id: @registration.id).count })
+
         assert_equal 1, Ticketing::Ticket.where(registration_id: @registration.id).count
       end
 
@@ -236,6 +311,14 @@ module Ticketing
       end
 
       def create_pending_personal_requirement
+        Core::DataRetentionPolicy.find_or_create_by!(category: "consent_evidence", status: "active") do |policy|
+          policy.version = 1
+          policy.retention_days = 30
+          policy.action = "erase_payload"
+          policy.effective_at = 1.minute.ago
+          policy.created_by = @manager
+        end
+
         document = Events::ConsentDocument.create!(
           event: @event,
           name: "Personal requirement #{SecureRandom.hex(4)}",
@@ -267,6 +350,27 @@ module Ticketing
           required_by: @manager,
           required_at: Time.current
         )
+        version
+      end
+    end
+  end
+end
+
+module Ticketing
+  module Packages
+    class GiftIssueGuardTest < ActiveSupport::TestCase
+      include Orders::GiftPurchaseTestHelpers
+
+      setup do
+        setup_gift_purchase_context
+      end
+
+      test "does not issue a gift package before the recipient completes the claim" do
+        result = Issue.call(order_item: @gift_order_item, unit_number: 1)
+
+        assert_predicate result, :failure?
+        assert_equal "gift_claim_required", result.error.code
+        assert_empty Ticketing::Ticket.where(order_item_id: @gift_order_item.id)
       end
     end
   end

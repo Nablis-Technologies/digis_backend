@@ -18,6 +18,22 @@ module Finance
         organizer_type: "company",
         category: "music"
       )
+      @payout_account = Finance::PayoutAccount.create!(
+        organization: @organization,
+        type: "bank",
+        provider: "chapa",
+        bank_slug: "cbe",
+        account_number: "1000000000001",
+        account_name: "Payout Test Organizer",
+        account_label: "Payout test destination",
+        account_number_digest: Core::KeyedDigest.digest(
+          namespace: @organization.id, value: "1000000000001"
+        ),
+        status: "verified",
+        verification_source: "test_fixture",
+        verified_at: @now,
+        is_default: true
+      )
       @event = Events::Event.create!(
         organization: @organization,
         created_by: core_users(:super_admin),

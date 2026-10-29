@@ -56,12 +56,30 @@ module Core
       end
 
       # Handlers are registered per event_type via
-      # Rails.application.config.x.outbox_handlers. Each handler is responsible
-      # for its own idempotency using the event's idempotency_key.
+      # Rails.application.config.x.outbox_handlers. Exact handlers always win;
+      # opted-in namespace handlers acknowledge evidence-only events when no
+      # downstream consumer exists. Security events must remain explicit.
       def handler_for(event)
-        Rails.application.config.x.outbox_handlers.fetch(event.event_type) do
-          raise MissingHandler, I18n.t("core.errors.outbox_handler_missing", event_type: event.event_type)
-        end
+        exact_handler = fetch_exact_handler(event.event_type)
+        return exact_handler if exact_handler
+
+        namespace_handler = namespace_handler_for(event)
+        return namespace_handler if namespace_handler
+
+        raise MissingHandler, I18n.t("core.errors.outbox_handler_missing", event_type: event.event_type)
+      end
+
+      def namespace_handler_for(event)
+        return if event.topic.to_s == "security"
+
+        namespace = event.event_type.to_s.split(".", 2).first
+        registry = Rails.application.config.x.outbox_namespace_handlers
+        registry.fetch_namespace(namespace)
+      end
+
+      def fetch_exact_handler(event_type)
+        registry = Rails.application.config.x.outbox_handlers
+        registry.fetch(event_type)
       end
 
       # Conditional update: only flips rows still unpublished, so a duplicate

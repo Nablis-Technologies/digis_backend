@@ -101,6 +101,27 @@ module Ticketing
         assert_equal 4, export.reload.row_count
       end
 
+      test "exports account holder name as a separate column from attendee form answer" do
+        Core::UserProfile.create!(user: @registration.user, first_name: "Account", last_name: "Holder")
+        _answer, selector = create_export_answer(registration: @registration, key: "name", value: "Registered Guest")
+        export = create_export(
+          event: @event,
+          actor: @actor,
+          overrides: {
+            field_keys: [ "registration_user_full_name", selector ],
+            data_cutoff_at: 1.minute.from_now
+          }
+        )
+
+        result = Generate.call(attendee_export_id: export.id)
+
+        assert_predicate result, :success?, result.error&.message
+        assert_equal "ready", export.reload.status
+        row = CSV.parse(export.file.download, headers: true).sole
+        assert_equal "Account Holder", row["Registration Account Holder Name"]
+        assert_equal "Registered Guest", row["Name"]
+      end
+
       test "shortens expiry to the earliest represented retention deadline" do
         answer, selector = create_export_answer(
           registration: @registration,

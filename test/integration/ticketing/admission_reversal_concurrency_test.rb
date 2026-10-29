@@ -54,12 +54,11 @@ module Ticketing
     private
 
     def create_assignment
-      device = ScannerDevice.create!(
-        organization: @event.organization,
-        device_identifier: "reversal-race-scanner-#{SecureRandom.hex(4)}",
-        token_digest: ScannerDevice.token_digest_for(token: SecureRandom.hex(32))
+      build_scanner_assignment(
+        event: @event,
+        assigned_by: @manager,
+        device_identifier: "reversal-race-scanner-#{SecureRandom.hex(4)}"
       )
-      ScannerDeviceAssignment.create!(scanner_device: device, event: @event, assigned_by: @manager)
     end
 
     def consume

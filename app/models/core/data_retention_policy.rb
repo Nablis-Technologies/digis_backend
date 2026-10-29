@@ -11,6 +11,7 @@ module Core
 
     CATEGORIES = %w[
       registration_free_text registration_structured consent_evidence security_audit financial_record
+      messaging_notification
     ].freeze
     ACTIONS = %w[erase_payload retain].freeze
     STATUSES = %w[draft active retired].freeze

@@ -6,49 +6,55 @@ module Ticketing
     class FieldRegistry < Core::BaseService
       BUILT_INS = {
         "registration_id" => {
-          permission: "attendee_export.request",
+          authorization: :event_manager,
           row_modes: %w[registration admission],
           heading_key: "ticketing.attendee_exports.fields.registration_id",
           extractor: ->(row) { row.registration.id }
         },
         "registration_status" => {
-          permission: "attendee_export.request",
+          authorization: :event_manager,
           row_modes: %w[registration admission],
           heading_key: "ticketing.attendee_exports.fields.registration_status",
           extractor: ->(row) { row.registration.status }
         },
         "ticket_type_id" => {
-          permission: "attendee_export.request",
+          authorization: :event_manager,
           row_modes: %w[registration admission],
           heading_key: "ticketing.attendee_exports.fields.ticket_type_id",
           extractor: ->(row) { row.registration.ticket_type_id }
         },
         "selected_event_date_id" => {
-          permission: "attendee_export.request",
+          authorization: :event_manager,
           row_modes: %w[registration admission],
           heading_key: "ticketing.attendee_exports.fields.selected_event_date_id",
           extractor: ->(row) { row.registration.selected_event_date_id }
         },
         "package_unit_number" => {
-          permission: "attendee_export.request",
+          authorization: :event_manager,
           row_modes: [ "admission" ],
           heading_key: "ticketing.attendee_exports.fields.package_unit_number",
           extractor: ->(row) { row.package_unit_number }
         },
         "admission_position" => {
-          permission: "attendee_export.request",
+          authorization: :event_manager,
           row_modes: [ "admission" ],
           heading_key: "ticketing.attendee_exports.fields.admission_position",
           extractor: ->(row) { row.admission_position }
         },
+        "registration_user_full_name" => {
+          authorization: "attendee_export.contact",
+          row_modes: %w[registration admission],
+          heading_key: "ticketing.attendee_exports.fields.registration_user_full_name",
+          extractor: ->(row) { row.registration.user&.profile&.full_name }
+        },
         "registration_user_email" => {
-          permission: "attendee_export.contact",
+          authorization: "attendee_export.contact",
           row_modes: %w[registration admission],
           heading_key: "ticketing.attendee_exports.fields.registration_user_email",
           extractor: ->(row) { row.registration.user&.email }
         },
         "registration_user_phone" => {
-          permission: "attendee_export.contact",
+          authorization: "attendee_export.contact",
           row_modes: %w[registration admission],
           heading_key: "ticketing.attendee_exports.fields.registration_user_phone",
           extractor: ->(row) { row.registration.user&.phone }
@@ -123,7 +129,7 @@ module Ticketing
 
         success(
           selector: selector,
-          permission: question_permission(question),
+          authorization: question_authorization(question),
           row_modes: row_modes,
           heading: normalize_text(question.label),
           extractor: ->(row) { row.answer_by_selector&.fetch(selector, nil) }
@@ -162,9 +168,9 @@ module Ticketing
         end
       end
 
-      def question_permission(question)
+      def question_authorization(question)
         {
-          "standard" => "attendee_export.request",
+          "standard" => :event_manager,
           "dietary" => "attendee_export.dietary",
           "accessibility" => "attendee_export.accessibility"
         }.fetch(question.sensitivity)

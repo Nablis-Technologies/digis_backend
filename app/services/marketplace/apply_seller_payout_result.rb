@@ -45,7 +45,7 @@ module Marketplace
         payout.update!(status: "succeeded", provider_reference: result.provider_reference,
           processed_at: at, failure_code: nil)
         allocations.each { |allocation| allocation.update!(status: "consumed", consumed_at: at, released_at: nil) }
-        create_payout_ledger_entry!(payout, allocations)
+        create_payout_ledger_entries!(payout, allocations)
         payout
       end
     end
@@ -85,23 +85,62 @@ module Marketplace
       )
     end
 
-    def create_payout_ledger_entry!(payout, allocations)
-      event_ids = allocations.map { |allocation| allocation.seller_ledger_entry.event_id }.uniq
-      raise ActiveRecord::RecordInvalid.new(payout) if event_ids.one? == false
+    def create_payout_ledger_entries!(payout, allocations)
+      debits_by_event = calculate_debits_by_event(payout, allocations)
+      rows = payout_ledger_rows(payout, debits_by_event)
+      existing_keys = SellerLedgerEntry.where(idempotency_key: rows.map { |row| row.fetch(:idempotency_key) })
+        .pluck(:idempotency_key).index_with(true)
+      new_rows = rows.reject { |row| existing_keys.key?(row.fetch(:idempotency_key)) }
+      # The payout and its locked allocations establish these ledger attributes;
+      # use one insert so multi-event payouts do not run per-row uniqueness queries.
+      SellerLedgerEntry.insert_all!(new_rows, record_timestamps: false) if new_rows.any?
+    end
 
-      SellerLedgerEntry.find_by(idempotency_key: "marketplace-seller-payout-#{payout.id}") ||
-        SellerLedgerEntry.create!(
+    def calculate_debits_by_event(payout, allocations)
+      remaining_amount = payout.amount_minor
+      debits_by_event = Hash.new(0)
+
+      positive_events = event_net_allocations(allocations)
+        .select { |_event_id, net| net.positive? }
+        .sort_by(&:first)
+
+      positive_events.each do |event_id, net_capacity|
+        break if remaining_amount.zero?
+
+        debit = [ net_capacity, remaining_amount ].min
+        debits_by_event[event_id] = debit
+        remaining_amount -= debit
+      end
+      raise ActiveRecord::RecordInvalid.new(payout) if remaining_amount.positive?
+
+      debits_by_event
+    end
+
+    def event_net_allocations(allocations)
+      net_by_event = Hash.new(0)
+      allocations.each do |allocation|
+        entry = allocation.seller_ledger_entry
+        multiplier = entry.amount_minor.positive? ? 1 : -1
+        net_by_event[entry.event_id] += allocation.amount_minor * multiplier
+      end
+      net_by_event
+    end
+
+    def payout_ledger_rows(payout, debits_by_event)
+      debits_by_event.select { |_event_id, debit| debit.positive? }.sort.map do |event_id, debit|
+        {
           seller_user_id: payout.seller_user_id,
-          event_id: event_ids.first,
+          event_id:,
           seller_payout_id: payout.id,
           type: "payout",
-          amount_minor: -payout.amount_minor,
+          amount_minor: -debit,
           currency: payout.currency,
           available_at: at,
-          idempotency_key: "marketplace-seller-payout-#{payout.id}",
+          idempotency_key: "marketplace-seller-payout-#{payout.id}-#{event_id}",
           description: I18n.t("marketplace.resale.ledger_descriptions.seller_payout"),
           created_at: at
-        )
+        }
+      end
     end
   end
 end

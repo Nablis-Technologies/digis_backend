@@ -10,7 +10,12 @@ module Ticketing
       current_acquisition_type current_acquisition_product_value_minor current_acquisition_currency
       completed_resale_count credential_mode credential_version status issued_at created_at updated_at
     ].freeze
+    WALLET_FIELDS = %i[
+      id status unit_number admissions_per_unit_snapshot credential_mode credential_version
+      event product ticket_type event_dates admission_slots credentials pending_transfer
+    ].freeze
 
+    def index? = user.present?
     def show? = owner?
     def delegate? = owner?
     def cancel_delegation? = owner?
@@ -22,6 +27,7 @@ module Ticketing
     def cancel? = manage_event?
 
     VISIBILITY = {
+      index: { default: { fields: WALLET_FIELDS, include: [] }, admin: { fields: WALLET_FIELDS, include: [] } },
       show: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
       delegate: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },
       cancel_delegation: { default: { fields: FIELDS, include: [] }, admin: { fields: :all, include: :all } },

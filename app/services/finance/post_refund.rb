@@ -16,6 +16,8 @@ module Finance
       entry = ActiveRecord::Base.transaction do
         refund = Orders::Refund.lock.find(@refund_id)
         payment = Orders::Payment.lock.find(refund.payment_id)
+        next if payment.billing_payment?
+
         order = Orders::Order.lock.find(payment.order_id)
         event = Events::Event.lock.find(order.event_id)
         next unless refund.status == "succeeded" && refund.type == "item_refund" && payment.accepted_at.present?

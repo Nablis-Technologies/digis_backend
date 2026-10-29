@@ -6,6 +6,7 @@ module Ticketing
   module CredentialGenerations
     class ReplaceTest < ActiveSupport::TestCase
       setup do
+        create_messaging_policy
         @event = events_events(:ready_listing)
         @buyer = core_users(:attendee)
         @manager = core_users(:super_admin)
@@ -152,6 +153,8 @@ module Ticketing
           { ticket_id: @ticket.id, version: 2, idempotency_key: event.idempotency_key },
           delivered
         )
+        notification = Messaging::Notification.find_by!(source: @ticket, notification_type: "credential_replaced")
+        assert_equal @ticket.owner_user_id, notification.user_id
       end
 
       private

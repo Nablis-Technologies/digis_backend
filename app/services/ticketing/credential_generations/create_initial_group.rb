@@ -22,10 +22,13 @@ module Ticketing
         ticket = load_ticket
         existing = if skip_existing_lookup
           nil
+        elsif ticket.association(:current_credential_generation).loaded? &&
+            ticket.current_credential_generation&.version == 1
+          ticket.current_credential_generation
         else
           Ticketing::CredentialGeneration.includes(:credentials).find_by(ticket_id: ticket.id, version: 1)
         end
-        return success(existing.credentials.sole) if existing
+        return activate_existing_if_ready(ticket, existing.credentials.sole) if existing
 
         generation = ticket.credential_generations.create!(
           version: 1,
@@ -45,16 +48,7 @@ module Ticketing
 
         return success(credential) unless activatable?(ticket)
 
-        activation = Ticketing::Credentials::Activate.call(
-          credential:,
-          loaded_credential: credential,
-          issuance_context:,
-          event: @event,
-          index_lock_held: @index_lock_held
-        )
-        return failure(activation.error) if activation.failure?
-
-        success(activation.value)
+        activate_credential(credential)
       rescue ActiveRecord::RecordInvalid => error
         failure(
           Core::BusinessError.new(
@@ -77,6 +71,7 @@ module Ticketing
         Ticketing::Ticket.includes(
           :event,
           :admission_slots,
+          { current_credential_generation: :credentials },
           registration: :consent_requirements,
           event_product: [ :ticket_type, { product_accesses: :event_date } ]
         ).lock.find(ticket.id)
@@ -98,6 +93,25 @@ module Ticketing
           requirement.required? && requirement.acceptance_scope == "admission_slot" &&
             requirement.package_unit_number == loaded_ticket.unit_number && requirement.pending?
         end
+      end
+
+      def activate_existing_if_ready(loaded_ticket, credential)
+        return success(credential) unless credential.status == "pending_requirements" && activatable?(loaded_ticket)
+
+        activate_credential(credential)
+      end
+
+      def activate_credential(credential)
+        activation = Ticketing::Credentials::Activate.call(
+          credential:,
+          loaded_credential: credential,
+          issuance_context:,
+          event: @event,
+          index_lock_held: @index_lock_held
+        )
+        return failure(activation.error) if activation.failure?
+
+        success(activation.value)
       end
 
       def identity_name_required?(loaded_ticket)

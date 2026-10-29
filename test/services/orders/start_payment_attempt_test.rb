@@ -7,7 +7,7 @@ module Orders
     self.use_transactional_tests = false
 
     class FakeAdapter < Payments::Providers::Adapter
-      attr_accessor :result, :raise_on_create
+      attr_accessor :result, :raise_on_create, :capabilities
       attr_reader :create_calls, :cancel_calls, :payment_present_at_create
 
       def initialize(result: Payments::Providers::Result.unknown(raw_status: "pending"),
@@ -42,6 +42,10 @@ module Orders
 
       def verify_refund(**) = Payments::Providers::Result.unknown(raw_status: "pending")
 
+      def merchant_reference(subject_id:, idempotency_key:, attempt_number:)
+        "fake-ref-#{attempt_number}"
+      end
+
       def available_balance(**) = { amount_minor: 100_000, currency: "ETB" }
 
       def capabilities = @capabilities
@@ -57,7 +61,7 @@ module Orders
       Orders::OrderAdjustment.create!(buyer_fee_adjustment_attributes)
       @order.update!(status: "pending_payment")
       @chapa = FakeAdapter.new(
-        capabilities: { currencies: [ "ETB" ], payment_methods: [ "telebirr", "card" ] }
+        capabilities: { currencies: [ "ETB" ], payment_methods: [ "telebirr", "card", "cbebirr" ] }
       )
       @stripe = FakeAdapter.new(
         capabilities: { currencies: [ "ETB" ], payment_methods: [ "card" ] }
@@ -87,8 +91,53 @@ module Orders
       assert_equal 1, payment.attempt_number
       assert_equal @order.commercial_signature, payment.commercial_signature
       assert_equal @order.expires_at + 5.minutes, payment.settlement_grace_expires_at
+      assert_equal "fake-ref-1", payment.provider_merchant_reference
+      assert_equal "fake-ref-1", @chapa.create_calls.sole.fetch(:merchant_reference)
       assert_equal [ true ], @chapa.payment_present_at_create
       assert_equal 1, Orders::Payment.current.where(order: @order).count
+    end
+
+    test "acquires checkout advisory before order, event, and payment locks" do
+      statements = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _start, _finish, _id, payload|
+        statements << payload[:sql]
+      end
+
+      result = start(provider: "chapa", payment_method: "telebirr", key: "attempt-lock-order")
+
+      assert_predicate result, :success?, result.error&.message
+      advisory_indexes = statements.each_index.select { |index| statements[index].include?("pg_advisory_xact_lock") }
+      order_lock_indexes = statements.each_index.select do |index|
+        statements[index].match?(/FROM\s+"orders_orders".*FOR UPDATE/i)
+      end
+      event_lock_index = statements.index { |sql| sql.match?(/FROM\s+"events_events".*FOR UPDATE/i) }
+      payment_lock_indexes = statements.each_index.select do |index|
+        statements[index].match?(/FROM\s+"orders_payments".*FOR UPDATE/i)
+      end
+
+      assert_operator advisory_indexes.length, :>=, 2, "expected locks for attempt reservation and provider-result persistence"
+      assert_not_nil order_lock_indexes.first, "expected an order row lock"
+      assert_not_nil event_lock_index, "expected an event row lock"
+      assert_not_nil payment_lock_indexes.last, "expected the final payment row lock"
+      assert_operator advisory_indexes.first, :<, order_lock_indexes.first
+      assert_operator order_lock_indexes.first, :<, event_lock_index
+      assert_operator event_lock_index, :<, payment_lock_indexes.first
+      assert_operator advisory_indexes.last, :<, payment_lock_indexes.last
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+    end
+
+    test "persists the buyer-safe hosted checkout URL returned by the provider" do
+      @chapa.result = Payments::Providers::Result.unknown(
+        provider_reference: "checkout-ref",
+        checkout_url: "https://checkout.chapa.test/checkout-ref",
+        raw_status: "pending"
+      )
+
+      result = start(provider: "chapa", payment_method: "telebirr", key: "checkout-url")
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "https://checkout.chapa.test/checkout-ref", result.value.checkout_url
     end
 
     test "records a provider failure and permits the next sequential attempt" do
@@ -104,6 +153,21 @@ module Orders
       assert_equal 500, first.value.buyer_fee_minor
       assert_predicate second, :success?, second.error&.message
       assert_equal 2, second.value.attempt_number
+    end
+
+    test "persists a missing hosted checkout URL as a retryable failed attempt" do
+      @chapa.result = Payments::Providers::Result.failure(
+        failure_code: "checkout_url_missing", raw_status: "checkout_url_missing"
+      )
+
+      first = start(provider: "chapa", payment_method: "telebirr", key: "missing-checkout")
+      replay = start(provider: "chapa", payment_method: "telebirr", key: "missing-checkout")
+
+      assert_predicate first, :success?, first.error&.message
+      assert_equal "failed", first.value.status
+      assert_equal "checkout_url_missing", first.value.failure_code
+      assert_equal first.value.id, replay.value.id
+      assert_equal 1, @chapa.create_calls.length
     end
 
     test "rejects a request from a different buyer" do
@@ -147,6 +211,23 @@ module Orders
 
       assert_predicate result, :failure?
       assert_equal "payment_method_unsupported", result.error.code
+      assert_empty Orders::Payment.where(order: @order)
+    end
+
+    test "persists and dispatches the canonical CBE Birr payment method" do
+      result = start(provider: "chapa", payment_method: "cbebirr", key: "canonical-cbebirr")
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "cbebirr", result.value.payment_method
+      assert_equal "cbebirr", @chapa.create_calls.sole.fetch(:payment_method)
+    end
+
+    test "rejects the non-canonical CBE alias before provider dispatch" do
+      result = start(provider: "chapa", payment_method: "cbe", key: "alias-cbe")
+
+      assert_predicate result, :failure?
+      assert_equal "invalid_payment_method", result.error.code
+      assert_empty @chapa.create_calls
       assert_empty Orders::Payment.where(order: @order)
     end
 
@@ -194,6 +275,17 @@ module Orders
       assert_equal first.value.id, @chapa.cancel_calls.first.fetch(:payment_id)
       assert_equal 1, Orders::Payment.current.where(order: @order).count
       assert_equal second.value.id, Orders::Payment.current.find_by(order: @order).id
+    end
+
+    test "does not request cancellation when the provider explicitly disables it" do
+      @chapa.capabilities = @chapa.capabilities.merge(cancel: false)
+
+      first = start(provider: "chapa", payment_method: "telebirr", key: "no-cancel-1")
+      second = start(provider: "stripe", payment_method: "card", key: "no-cancel-2")
+
+      assert_predicate first, :success?, first.error&.message
+      assert_predicate second, :success?, second.error&.message
+      assert_empty @chapa.cancel_calls
     end
 
     test "allows at most three attempts" do

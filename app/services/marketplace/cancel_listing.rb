@@ -20,14 +20,36 @@ module Marketplace
       return failure(error(:invalid_idempotency_key, :unprocessable_entity)) if @initialization_error
       return failure(error(:cancellation_reason_invalid, :unprocessable_entity)) unless CANCELLATION_REASONS.include?(@reason)
 
+      ticket_type_id = ResaleListing.where(id: @listing.id).pick(:ticket_type_id)
+      return failure(error(:listing_not_found, :not_found)) unless ticket_type_id
+      reservation_identity = reserved_checkout_identity
+      return failure(error(:listing_not_open, :conflict)) if
+        reservation_identity && reservation_identity[:buyer_user_id].blank?
+
       outcome = nil
       ResaleListing.transaction do
+        locked_ticket_type = Ticketing::TicketType.lock.find(ticket_type_id)
+        if reservation_identity
+          Orders::CheckoutLock.acquire!(
+            buyer_user_id: reservation_identity.fetch(:buyer_user_id),
+            event_id: reservation_identity.fetch(:event_id)
+          )
+        end
         listing = ResaleListing.lock.find(@listing.id)
+        if listing.ticket_type_id != locked_ticket_type.id
+          outcome = failure(error(:listing_not_open, :conflict))
+          next
+        end
         if listing.status == "cancelled"
           outcome = success(listing)
           next
         end
         unless listing.open?
+          outcome = failure(error(:listing_not_open, :conflict))
+          next
+        end
+
+        if listing.status == "reserved" && listing.reserved_order_id != reservation_identity&.fetch(:order_id)
           outcome = failure(error(:listing_not_open, :conflict))
           next
         end
@@ -65,12 +87,25 @@ module Marketplace
 
     attr_reader :listing, :idempotency_key, :reason
 
+    def reserved_checkout_identity
+      order_id = ResaleListing.where(id: @listing.id, status: "reserved").pick(:reserved_order_id)
+      return unless order_id
+
+      identity = Orders::Order.where(id: order_id).pick(:buyer_user_id, :event_id)
+      {
+        order_id:,
+        buyer_user_id: identity&.first,
+        event_id: identity&.last
+      }
+    end
+
     def release_reserved_checkout!(listing)
       order = Orders::Order.lock.find(listing.reserved_order_id)
-      payment = order.payments.where(superseded_at: nil).lock.order(:id).last
+      payments = order.payments.where(superseded_at: nil).lock.order(:id).to_a
+      payment = payments.last
       return failure(error(:reservation_payment_accepted, :conflict)) if order.paid? || payment&.accepted?
 
-      released = Orders::ReleaseCheckout.call(order:, at: Time.current)
+      released = Orders::ReleaseCheckout.call_locked(order:, at: Time.current, payment_rows_locked: true)
       return released if released.failure?
 
       restored = RestoreSellerAccess.call(listing:, at: Time.current, reason: "resale_checkout_cancelled")

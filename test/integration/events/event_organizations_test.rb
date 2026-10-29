@@ -82,16 +82,45 @@ module Events
       assert_equal "active", org.reload.status
     end
 
-    test "index synthesizes the event owner as a primary_owner entry" do
+    test "index returns a stable primary organization and collaborator summaries" do
+      collaborator = Events::EventOrganization.create!(
+        event: @event,
+        organization: @org_three,
+        type: "co_organizer",
+        role: "collaborator",
+        status: "active"
+      )
+
       get "/events/#{@event.id}/event_organizations", headers: owner_headers, as: :json
       assert_response :ok
 
-      entries = JSON.parse(response.body)["data"]
-      owner_entry = entries.find { |e| e["role"] == "primary_owner" }
+      data = JSON.parse(response.body).fetch("data")
+      assert_equal @event.organization_id, data.dig("primary_organization", "id")
+      assert_equal @event.organization.name, data.dig("primary_organization", "name")
+      collaborator_data = data.fetch("collaborators").find { |entry| entry.fetch("id") == collaborator.id }
+      assert_equal @org_three.name, collaborator_data.dig("organization", "name")
+      assert_equal "active", collaborator_data.fetch("status")
+    end
 
-      assert owner_entry, "expected the event owner to appear as a primary_owner entry"
-      assert_equal @event.organization_id, owner_entry["organization_id"]
-      assert_nil owner_entry["id"], "synthesized owner must not be a real, targetable row"
+    test "index bounds and paginates persisted collaborators" do
+      Events::EventOrganization.create!(
+        event: @event, organization: @org_three, type: "co_organizer", role: "collaborator", status: "active"
+      )
+      Organizations::Organization.create!(
+        name: "Pagination Partner #{SecureRandom.hex(4)}",
+        organizer_type: "company", category: "conference"
+      ).tap do |organization|
+        Events::EventOrganization.create!(
+          event: @event, organization:, type: "sponsor", role: "sponsor", status: "active"
+        )
+      end
+
+      get "/events/#{@event.id}/event_organizations?page=2&per_page=1", headers: owner_headers, as: :json
+
+      assert_response :ok
+      assert_equal 1, response.parsed_body.dig("data", "collaborators").length
+      assert_equal 2, response.parsed_body.dig("pagination", "total_count")
+      assert_equal 2, response.parsed_body.dig("pagination", "current_page")
     end
   end
 end

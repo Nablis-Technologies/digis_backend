@@ -1,0 +1,22 @@
+en:
+  marketing:
+    featured_placements:
+      errors:
+        event_ineligible: This event is not eligible for a featured placement.
+        event_schedule_unavailable: The event does not have a future scheduled start.
+        event_registration_closed: This event is not currently accepting public registrations.
+        offer_unavailable: The selected featured placement offer is unavailable.
+        feature_disabled: Featured placements are not enabled for this environment.
+        invalid_schedule: The selected placement schedule does not meet the offer requirements.
+        capacity_unavailable: Featured placement inventory is not configured.
+        capacity_full: Featured placement inventory is full for the selected period.
+        purchase_forbidden: You are not authorized to purchase a featured placement for this event.
+        idempotency_conflict: This idempotency key was already used for a different placement request.
+        billing_purchase_unavailable: The billing purchase for this placement is unavailable.
+        billing_payment_unavailable: The paid featured placement is missing accepted payment evidence.
+        invalid_placement: The featured placement could not be saved.
+        provider_payment_failed: Checkout could not be initialized for this featured placement.
+        billing_payment_mismatch: The billing payment does not match this featured placement.
+        cancellation_forbidden: You are not authorized to cancel this featured placement.
+        placement_not_cancellable: This featured placement can no longer be cancelled.
+        placement_not_found: The featured placement could not be found.

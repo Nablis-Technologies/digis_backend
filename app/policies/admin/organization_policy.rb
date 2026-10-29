@@ -10,6 +10,12 @@ module Admin
       allowed?(:transfer_ownership)
     end
 
+    # Verification documents are never returned as blob URLs; platform admins
+    # receive them only through the authenticated short-lived download action.
+    def download_documents?
+      user&.super_admin? || user&.has_role?("ADMIN") || user&.has_role?("CORE_ADMIN")
+    end
+
     VISIBILITY = {
       index: { admin: { include: :all, fields: :all } },
       show: { admin: { include: :all, fields: :all } },

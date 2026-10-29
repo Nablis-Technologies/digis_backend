@@ -6,13 +6,15 @@ module Marketplace
   # rows are not summed because negative correction facts are allocated by
   # absolute value while the payout itself is a signed balance obligation.
   class SellerBalanceReport < Core::BaseService
-    def initialize(seller:, currency: nil)
+    def initialize(seller:, currency: nil, at: Time.current)
       @seller_id = seller.id
       @currency = currency.to_s.strip.upcase.presence
+      @at = at.to_time.utc
     end
 
     def call
       ledger_totals = ledger_scope.group(:currency).sum(:amount_minor)
+      available_totals = ledger_scope.where("available_at <= ?", at).group(:currency).sum(:amount_minor)
       reserved_totals = reserved_scope.group(:currency).sum(:amount_minor)
       currencies = (ledger_totals.keys | reserved_totals.keys).sort
 
@@ -21,23 +23,25 @@ module Marketplace
         reserved = reserved_totals.fetch(currency, 0)
         {
           currency:, ledger_total_minor: ledger_total,
-          reserved_minor: reserved, available_minor: ledger_total - reserved
+          reserved_minor: reserved, available_minor: available_totals.fetch(currency, 0) - reserved
         }
       end)
     end
 
     private
 
-    attr_reader :seller_id, :currency
+    attr_reader :seller_id, :currency, :at
 
     def ledger_scope
       scope = SellerLedgerEntry.where(seller_user_id: seller_id)
-      currency.present? ? scope.where(currency:) : scope
+      scope = scope.where(currency:) if currency
+      scope
     end
 
     def reserved_scope
       scope = SellerPayout.where(seller_user_id: seller_id, status: %w[pending processing])
-      currency.present? ? scope.where(currency:) : scope
+      scope = scope.where(currency:) if currency
+      scope
     end
   end
 end

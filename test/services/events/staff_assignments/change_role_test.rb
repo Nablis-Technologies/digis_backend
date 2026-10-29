@@ -45,6 +45,29 @@ module Events
         refute result.success?
         assert_equal "invalid_role", result.error.code
       end
+
+      test "cannot promote scanner while the user holds another active general role" do
+        scanner_assignment = Events::EventStaffAssignment.create!(
+          event: @event,
+          user: @user,
+          organization: @organization,
+          role: "scanner",
+          status: "active"
+        )
+
+        result = Events::StaffAssignments::ChangeRole.call(
+          assignment: scanner_assignment,
+          actor: @actor,
+          role: "manager"
+        )
+
+        refute_predicate result, :success?
+        assert_equal "staff_assignment_role_change_required", result.error.code
+        assert_equal "scanner", scanner_assignment.reload.role
+        assert_equal [ "staff" ], @event.event_staff_assignments.where(
+          event_id: @event.id, user_id: @user.id, status: "active"
+        ).where(role: %w[manager staff contractor]).pluck(:role)
+      end
     end
   end
 end

@@ -38,7 +38,7 @@ module Links
       assert_equal 0, @link.reload.click_count
     end
 
-    test "keeps ticket targets as page routes rather than credentials" do
+    test "keeps ticket targets as signed public page routes rather than credentials" do
       ticket_link = create_link(
         slug: "ticket-#{SecureRandom.hex(4)}",
         target_type: "ticket",
@@ -48,7 +48,22 @@ module Links
       get "/#{ticket_link.slug}", headers: { "HOST" => "links.test" }
 
       assert_response :redirect
-      assert_equal "/tickets/#{@ticket.id}", redirect_path
+      location = URI.parse(response.headers.fetch("Location"))
+      assert_equal "/public/tickets/#{@ticket.id}", location.path
+      assert location.query.include?("view_token=")
+    end
+
+    test "matches the configured branded host and port" do
+      config = Rails.application.config.x.short_links
+      config.port = 3000
+
+      get "/#{@link.slug}", headers: { "HOST" => "links.test:3000" }
+
+      assert_response :redirect
+
+      get "/#{@link.slug}", headers: { "HOST" => "links.test:3001" }
+
+      assert_response :not_found
     end
 
     test "returns gone for an expired link" do
@@ -65,6 +80,7 @@ module Links
       config = Rails.application.config.x.short_links
       config.enabled = enabled if config
       config.host = "links.test" if config
+      config.port = nil if config
     end
 
     def create_link(slug:, target_type:, target_id:)
@@ -101,6 +117,18 @@ module Links
         created_at: now,
         updated_at: now
       } ])
+      event_date = Events::EventDate.create!(
+        event: @event,
+        starts_at: now + 1.day,
+        ends_at: now + 1.day + 2.hours,
+        status: "scheduled"
+      )
+      Catalog::ProductAccess.create!(
+        event_product_id: product_id,
+        event_date:,
+        type: "venue",
+        usage_limit: 1
+      )
       Orders::Order.insert_all!([ {
         id: order_id,
         event_id: @event.id,

@@ -61,6 +61,7 @@ module Ticketing
             from_user: ticket.owner_user,
             to_user: identity.value.user,
             initiated_by: @actor,
+            token:,
             token_digest: Ticketing::TicketTransfer.token_digest_for(token:),
             status: "pending",
             previous_version: ticket.credential_version,

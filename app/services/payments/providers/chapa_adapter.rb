@@ -4,7 +4,7 @@ module Payments
   module Providers
     # Chapa's HTTP client is injected so this adapter remains a deterministic
     # boundary in tests and does not let provider payloads or fee math leak
-    # into Orders. Actual request orchestration belongs to Orders Task 6.
+    # into Orders.
     class ChapaAdapter < Adapter
       PROVIDER = "chapa"
 
@@ -15,6 +15,14 @@ module Payments
       end
 
       def create(**request) = delegate(:create, **request)
+
+      def merchant_reference(**request)
+        return unless @client&.respond_to?(:merchant_reference)
+
+        @client.public_send(:merchant_reference, **request)
+      end
+
+      def direct_charge(**request) = delegate(:direct_charge, **request)
 
       def cancel(**request) = delegate(:cancel, **request)
 

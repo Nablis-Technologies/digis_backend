@@ -2,10 +2,10 @@
 
 module Marketplace
   # Shared seller-payout gates. Building and dispatching repeat the same
-  # maturity, account, signed-ledger, and provider-liquidity checks so a
+  # availability, account, signed-ledger, and provider-liquidity checks so a
   # payout cannot become valid merely because the provider call happens later.
   module SellerPayoutSupport
-    include Finance::PayoutSupport
+    POSITIVE_LEDGER_TYPES = %w[resale_proceeds cancellation_reversal adjustment].freeze
 
     private
 
@@ -42,6 +42,11 @@ module Marketplace
         (provider.blank? || account.provider == provider)
     end
 
+    def positive_entry_eligible?(entry, at:)
+      entry.amount_minor.positive? && entry.type.in?(POSITIVE_LEDGER_TYPES) &&
+        entry.available_at <= at && entry.event.present?
+    end
+
     def remaining_ledger_amount(entry, allocation_totals)
       entry.amount_minor.abs - allocation_totals.fetch(entry.id, 0)
     end
@@ -54,6 +59,11 @@ module Marketplace
     end
 
     def provider_balance(adapter, currency)
+      capabilities = adapter.capabilities.to_h.deep_symbolize_keys
+      if capabilities.dig(:balance_api, :supported) == false
+        return success(balance_api_supported: false, currency: currency)
+      end
+
       balance = adapter.available_balance(currency:)
       return failure(payout_error(:seller_payout_provider_unavailable)) if balance.nil?
 

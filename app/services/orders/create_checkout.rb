@@ -13,7 +13,8 @@ module Orders
 
     def initialize(
       quote:, event:, buyer:, idempotency_key:, sales_channel: nil,
-      initiated_by: nil, replaces_order: nil, at: nil
+      initiated_by: nil, replaces_order: nil, recovery_context: nil, at: nil,
+      gift_intents_by_line_key: {}
     )
       @quote = quote
       @event = event
@@ -22,6 +23,8 @@ module Orders
       @sales_channel = (sales_channel || quote.sales_channel).to_s.downcase
       @initiated_by = initiated_by
       @replaces_order = replaces_order
+      @recovery_context = recovery_context
+      @gift_intents_by_line_key = gift_intents_by_line_key.to_h.transform_keys(&:to_s).freeze
       @now = (at || Time.current).to_time.utc.change(usec: 0)
     rescue NoMethodError, ArgumentError => error
       @initialization_error = error
@@ -30,15 +33,17 @@ module Orders
     def call
       return failure(checkout_error(:invalid_checkout, code: "invalid_checkout")) if @initialization_error
       return failure(checkout_error(:invalid_checkout, code: "invalid_checkout")) unless quote.is_a?(Orders::Quote)
+      return failure(checkout_error(:invalid_gift_intent, code: "invalid_gift_intent")) unless valid_gift_line_mapping?
 
       prepare_idempotency!
       ActiveRecord::Base.transaction do
+        CheckoutLock.acquire!(buyer_user_id: buyer.id, event_id: event.id)
         locked_event = Events::Event.lock.find(event.id)
         abort_with(checkout_error(:event_cancelled, code: "event_cancelled", status: :conflict)) if locked_event.status == "cancelled"
-        Core::Database::AdvisoryLock.acquire!("orders-checkout", buyer.id, event.id)
         replay = replay_or_conflict!
         return replay if replay
         return failure(checkout_error(:quote_expired, code: "quote_expired", status: :conflict)) if quote_expired?
+        validate_event_date_eligibility!(locked_event)
         active_checkout_conflict!
 
         order = create_order!
@@ -76,7 +81,7 @@ module Orders
 
     private
 
-    attr_reader :quote, :event, :buyer, :sales_channel, :initiated_by, :replaces_order, :now,
+    attr_reader :quote, :event, :buyer, :sales_channel, :initiated_by, :replaces_order, :recovery_context, :now,
                 :idempotency_key, :idempotency_key_digest, :creation_request_digest
 
     def prepare_idempotency!
@@ -88,8 +93,34 @@ module Orders
         sales_channel:,
         initiated_by_id: initiated_by&.id,
         replaces_order_id: replaces_order&.id,
-        quote_signature: quote.signature
+        quote_signature: quote.signature,
+        gift_intents: gift_intent_fingerprints
       )))
+    end
+
+    def gift_intent_fingerprints
+      @gift_intents_by_line_key.map do |line_key, intent|
+        {
+          line_key:,
+          registration_id: intent.registration.id,
+          recipient_user_id: intent.recipient.id,
+          recipient_phone_digest: intent.recipient_phone_digest,
+          recipient_email_digest: intent.recipient_email_digest,
+          note_digest: Core::KeyedDigest.digest(
+            namespace: "orders-gift-purchase-note",
+            value: intent.note.to_s
+          ),
+          expires_at: intent.expires_at.iso8601
+        }
+      end.sort_by { |attributes| attributes.fetch(:line_key) }
+    end
+
+    def valid_gift_line_mapping?
+      quote_lines_by_key = quote.items.index_by(&:line_key)
+      @gift_intents_by_line_key.all? do |line_key, intent|
+        line = quote_lines_by_key[line_key]
+        line && line.quantity == 1 && line.registration_id.to_s == intent.registration.id.to_s
+      end
     end
 
     def replay_or_conflict!
@@ -101,9 +132,24 @@ module Orders
     end
 
     def active_checkout_conflict!
-      return unless Orders::Order.active_checkouts.lock.where(event:, buyer_user: buyer).exists?
+      active_order = Orders::Order.active_checkouts.lock.find_by(event:, buyer_user: buyer)
+      return unless active_order
 
-      abort_with(checkout_error(:active_checkout_exists, code: "active_checkout_exists", status: :conflict))
+      recovery = Orders::ActiveCheckoutRecovery.call(order: active_order, context: recovery_context)
+      abort_with(checkout_error(
+        :active_checkout_exists,
+        code: "active_checkout_exists",
+        status: :conflict,
+        meta: recovery.present? ? { active_checkout: recovery } : nil
+      ))
+    end
+
+    def validate_event_date_eligibility!(locked_event)
+      event_date_ids = quote.items.flat_map do |item|
+        Array(item.event_date_ids) + Array(item.venue_event_date_ids)
+      end
+      error = Orders::EventDateEligibility.error_for(event: locked_event, event_date_ids:, at: now)
+      abort_with(error) if error
     end
 
     def create_order!
@@ -141,7 +187,15 @@ module Orders
     def create_items_and_adjustments!(order)
       quote.items.map do |quote_item|
         product = lock_product!(quote_item.product_id)
-        registration = lock_registration!(quote_item.registration_id)
+        gift_intent = gift_intent_for(quote_item.line_key)
+        if gift_intent && !product.ticket?
+          abort_with(checkout_error(:invalid_checkout, code: "invalid_gift_intent"))
+        end
+        registration = lock_registration!(
+          quote_item.registration_id,
+          product:,
+          gift_intent:
+        )
         item = order.order_items.create!(
           event_product: product,
           registration:,
@@ -168,24 +222,63 @@ module Orders
 
         promotion_discount = quote_item.promotion_discount_minor.to_i
         create_promotion_adjustment!(order, item, promotion_discount) if promotion_discount.positive?
-        { quote_item:, product:, registration:, order_item: item }
+        gift_purchase = create_gift_purchase!(order_item: item, intent: gift_intent, line_id: quote_item.line_id) if gift_intent
+        { quote_item:, product:, registration:, order_item: item, gift_intent:, gift_purchase: }
       end
     end
 
+    def gift_intent_for(line_key)
+      @gift_intents_by_line_key[line_key.to_s]
+    end
+
+    def create_gift_purchase!(order_item:, intent:, line_id:)
+      token = SecureRandom.urlsafe_base64(32)
+      Orders::GiftPurchase.create!(
+        order_item:,
+        recipient_user: intent.recipient,
+        recipient_phone: intent.recipient_phone,
+        recipient_phone_digest: intent.recipient_phone_digest,
+        recipient_email: intent.recipient_email,
+        recipient_email_digest: intent.recipient_email_digest,
+        note: intent.note,
+        token:,
+        token_digest: Orders::GiftPurchase.token_digest_for(token:),
+        client_line_id: line_id,
+        status: "pending_payment",
+        delivery_status: "pending",
+        expires_at: intent.expires_at
+      )
+    end
+
     def lock_product!(product_id)
-      product = Catalog::EventProduct.lock.find(product_id)
-      abort_with(checkout_error(:product_unavailable, code: "product_unavailable")) unless product.event_id == event.id && product.status == "active"
+      @locked_products ||= {}
+      product = @locked_products[product_id.to_s] ||= begin
+        Catalog::EventProduct.includes(:ticket_type).lock.find(product_id).tap do |product|
+          abort_with(checkout_error(:product_unavailable, code: "product_unavailable")) unless
+            product.event_id == event.id && product.status == "active"
+        end
+      end
       product
     rescue ActiveRecord::RecordNotFound
       abort_with(checkout_error(:product_not_found, code: "product_not_found"))
     end
 
-    def lock_registration!(registration_id)
+    def lock_registration!(registration_id, product:, gift_intent: nil)
       return unless registration_id
 
       registration = Ticketing::Registration.lock.find(registration_id)
-      valid = registration.event_id == event.id && registration.user_id == buyer.id
+      valid_event_and_product = registration.event_id == event.id &&
+        registration.ticket_type_id == product.ticket_type&.id
+      valid_gift = gift_intent && product.ticket? && registration.id == gift_intent.registration.id &&
+        registration.user_id == gift_intent.recipient.id && registration.status == "gift_pending_claim"
+      valid = if gift_intent
+        valid_event_and_product && valid_gift && gift_intent.recipient.id != buyer.id
+      else
+        valid_event_and_product && registration.user_id == buyer.id
+      end
       abort_with(checkout_error(:registration_scope_invalid, code: "registration_scope_invalid")) unless valid
+      payable = gift_intent ? registration.status == "gift_pending_claim" : registration.pending_payment?
+      abort_with(checkout_error(:registration_not_payable, code: "registration_not_payable", status: :conflict)) unless payable
       registration
     rescue ActiveRecord::RecordNotFound
       abort_with(checkout_error(:registration_scope_invalid, code: "registration_scope_invalid"))
@@ -344,15 +437,18 @@ module Orders
         next unless record[:product].ticket? && record[:registration]
 
         key = "orders-purchase-limit-#{record[:order_item].id}"
+        allocation_user = record[:registration].user
         result = Ticketing::PurchaseLimits::Reserve.call(
           registration: record[:registration],
-          user: buyer,
+          user: allocation_user,
           quantity: record[:order_item].quantity,
           expires_at: quote.expires_at,
           idempotency_key: key
         )
         abort_with(purchase_limit_error(result.error)) if result.failure?
-        { registration: record[:registration], key: }
+        next if result.value.empty?
+
+        { registration: record[:registration], user: allocation_user, key: }
       end
     end
 
@@ -437,13 +533,35 @@ module Orders
 
     def accept_zero_total!(order, item_records)
       order.update!(status: "paid", paid_at: now)
+      confirm_free_order_registrations!(order, item_records)
       commit_inventory!(item_records)
       commit_purchase_limits!
       apply_promotion!(order)
       commit_subsidies!(order)
-      # A free confirmation fulfills the buyer's order, but it is not the
-      # first accepted paid order for Commercial volume or entitlement rules.
-      # The later verified-payment acceptance path records those transitions.
+      result = Orders::FulfillOrder.call(
+        order:, payment: nil, idempotency_key: "orders-free-fulfilled-#{order.id}"
+      )
+      abort_with(result.error) if result.failure?
+      order.reload
+    end
+
+    def confirm_free_order_registrations!(order, item_records)
+      item_records.each do |record|
+        registration = record[:registration]
+        next unless registration
+        next if record[:gift_intent]
+
+        result = Ticketing::Registrations::ConfirmFreeOrder.call(
+          registration:,
+          order_id: order.id,
+          actor: buyer,
+          idempotency_key: "orders-zero-total-registration-#{order.id}-#{registration.id}",
+          at: now
+        )
+        abort_with(result.error) if result.failure?
+
+        record[:registration] = result.value
+      end
     end
 
     def commit_inventory!(item_records)
@@ -459,7 +577,7 @@ module Orders
     def commit_purchase_limits!
       Array(@purchase_limit_records).each do |record|
         result = Ticketing::PurchaseLimits::Commit.call(
-          registration: record[:registration], user: buyer, idempotency_key: record[:key]
+          registration: record[:registration], user: record[:user], idempotency_key: record[:key]
         )
         abort_with(purchase_limit_error(result.error)) if result.failure?
       end
@@ -527,9 +645,9 @@ module Orders
       raise CheckoutAbort, error
     end
 
-    def checkout_error(key, code:, status: :unprocessable_entity, errors: nil)
+    def checkout_error(key, code:, status: :unprocessable_entity, errors: nil, meta: nil)
       Core::BusinessError.new(
-        I18n.t("orders.checkout.errors.#{key}"), code:, status:, errors:
+        I18n.t("orders.checkout.errors.#{key}"), code:, status:, errors:, meta:
       )
     end
 

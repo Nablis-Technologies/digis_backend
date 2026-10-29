@@ -8,19 +8,21 @@ module Finance
     include PayoutTestHelpers
 
     class FakePayoutAdapter
-      attr_reader :payout_calls, :verify_calls
+      attr_reader :payout_calls, :verify_calls, :payout_requests
       attr_accessor :balance, :payout_result, :verify_result
 
       def initialize(balance: { amount_minor: 20_000, currency: "ETB" })
         @balance = balance
         @payout_calls = 0
         @verify_calls = 0
+        @payout_requests = []
         @payout_result = Finance::PayoutProviders::Result.success(provider_reference: "provider-payout-1")
         @verify_result = @payout_result
       end
 
-      def payout(**)
+      def payout(**request)
         @payout_calls += 1
+        payout_requests << request
         payout_result
       end
 
@@ -59,6 +61,8 @@ module Finance
       payout_entry = Finance::LedgerEntry.find_by!(idempotency_key: "finance-payout-#{@payout.id}")
       assert_equal(-@payout.amount_minor, payout_entry.amount_minor)
       assert_equal 1, Finance::LedgerEntry.where(idempotency_key: "finance-payout-#{@payout.id}").count
+      assert_equal "1000000000001", @adapter.payout_requests.sole.fetch(:account_number)
+      assert_equal "cbe", @adapter.payout_requests.sole.fetch(:bank_slug)
 
       second = Finance::DispatchPayout.call(payout: @payout, adapter: @adapter, at: @now)
       assert_predicate second, :success?, second.error&.message
@@ -74,6 +78,19 @@ module Finance
       assert_equal "provider_reserve_breach", result.error.code
       assert_equal "pending", @payout.reload.status
       assert_equal [ "reserved" ], @payout.allocations.reload.pluck(:status).uniq
+      assert_equal 0, @adapter.payout_calls
+    end
+
+    test "does not dispatch through a suspended payout destination" do
+      @payout.payout_account.update!(
+        status: "suspended", is_default: false,
+        verification_source: nil, verified_at: nil
+      )
+
+      result = Finance::DispatchPayout.call(payout: @payout, adapter: @adapter, at: @now)
+
+      assert_predicate result, :failure?
+      assert_equal "payout_account_required", result.error.code
       assert_equal 0, @adapter.payout_calls
     end
 

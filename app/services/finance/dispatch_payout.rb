@@ -23,8 +23,12 @@ module Finance
         amount_minor: gate_result.value.amount_minor,
         currency: gate_result.value.currency,
         idempotency_key: gate_result.value.idempotency_key,
-        payout_id: gate_result.value.id
+        payout_id: gate_result.value.id,
+        account_number: gate_result.value.payout_account.account_number,
+        account_name: gate_result.value.payout_account.account_name,
+        bank_slug: gate_result.value.payout_account.bank_slug
       ))
+      mark_payout_account_used!(gate_result.value)
       handle_provider_result(result)
     rescue ActiveRecord::RecordNotFound
       failure(finance_error(:payout_not_found, code: "payout_not_found", status: :not_found))
@@ -42,7 +46,7 @@ module Finance
 
     def persist_processing_intent
       payout = Finance::ApplicationRecord.transaction do
-        current = Finance::Payout.lock.includes(:organization).find(payout_id)
+        current = Finance::Payout.lock.includes(:organization, :payout_account).find(payout_id)
         return success(current) if current.paid?
         return failure(finance_error(:payout_not_dispatchable, code: "payout_not_dispatchable")) unless current.pending?
         return failure(finance_error(:payout_provider_unavailable, code: "payout_provider_unavailable")) if current.provider.blank? && adapter_provider.blank?
@@ -70,6 +74,7 @@ module Finance
       return finance_error(:payout_not_dispatchable, code: "payout_not_dispatchable") if allocations.empty?
       return finance_error(:payout_scope_mismatch, code: "payout_scope_mismatch") unless allocations.sum(&:amount_minor) == payout.amount_minor
       return finance_error(:payout_scope_mismatch, code: "payout_scope_mismatch") unless allocations.all? { |allocation| allocation_scope_valid?(payout, allocation) }
+      return finance_error(:payout_account_required, code: "payout_account_required") unless payout_account_dispatchable?(payout)
 
       balance = provider_balance(payout.currency)
       if balance.nil?
@@ -88,6 +93,16 @@ module Finance
       nil
     rescue KeyError
       finance_error(:provider_balance_invalid, code: "provider_balance_invalid")
+    end
+
+    def payout_account_dispatchable?(payout)
+      payout.payout_account&.verified?
+    end
+
+    # Records the destination use attempt after the provider boundary returns;
+    # provider success is recorded separately on the payout itself.
+    def mark_payout_account_used!(payout)
+      Finance::PayoutAccount.where(id: payout.payout_account_id).update_all(last_used_at: at)
     end
 
     def provider_balance(currency)

@@ -53,7 +53,7 @@ class CreateOrderItems < ActiveRecord::Migration[8.1]
     add_index :orders_order_items, :event_product_id, name: "idx_order_items_on_event_product"
     add_index :orders_order_items, %i[order_id fulfillment_status],
               name: "idx_order_items_on_order_fulfillment"
-    add_index :orders_order_items, %i[registration_id],
+    add_index :orders_order_items, %i[registration_id order_id],
               unique: true,
               where: "registration_id IS NOT NULL",
               name: "idx_one_order_item_per_registration"

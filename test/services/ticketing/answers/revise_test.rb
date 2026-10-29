@@ -205,6 +205,31 @@ module Ticketing
         assert_predicate result, :failure?
         assert_equal "correction_window_closed", result.error.code
       end
+
+      test "allows an attendee correction at the exact ticket cutoff" do
+        registration = @answer.registration_form_submission.registration
+        cutoff_seconds = 3_600
+        registration.ticket_type.update!(transfer_cutoff_seconds_before_start: cutoff_seconds)
+        starts_at = 4.hours.from_now
+        event_date = registration.event.event_dates.create!(
+          starts_at:, ends_at: starts_at + 2.hours, status: "scheduled"
+        )
+        registration.ticket_type.event_product.product_accesses.create!(
+          event_date:, type: "venue", usage_limit: nil
+        )
+
+        travel_to(starts_at - cutoff_seconds.seconds) do
+          result = Revise.call(
+            answer: @answer,
+            revised_by: core_users(:attendee),
+            value: "At cutoff",
+            source: "attendee_correction",
+            idempotency_key: "revision-command-exact-cutoff"
+          )
+
+          assert_predicate result, :success?, result.error&.message
+        end
+      end
     end
   end
 end

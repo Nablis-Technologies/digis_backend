@@ -35,6 +35,12 @@ module Ticketing
             decision_reason: reason,
             next_action_snapshot: nil
           )
+          unwrap(Ticketing::Registrations::AudienceProof::Release.call(
+            registration: locked,
+            reason: "organizer_rejected",
+            transition_key: audit_key,
+            at: now
+          ))
           record_decision_audit!(
             action: "rejected",
             audit_key:,

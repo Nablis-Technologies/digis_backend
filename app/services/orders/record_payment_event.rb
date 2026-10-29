@@ -30,6 +30,7 @@ module Orders
       adapter = Payments::Providers::Registry.fetch(provider)
       valid_signature = adapter.verify_webhook(
         payload: raw_payload,
+        parsed_payload: payload,
         signature:,
         headers:,
         provider_event_id:,

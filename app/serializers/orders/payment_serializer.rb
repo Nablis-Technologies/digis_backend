@@ -8,7 +8,7 @@ module Orders
     include Core::AttributeVisibilitySerializer
 
     attributes :id, :order_id, :attempt_number, :provider, :payment_method,
-               :status, :amount_minor, :currency, :provider_reference,
+               :status, :amount_minor, :currency, :provider_reference, :checkout_url,
                :settlement_grace_minutes, :settlement_grace_expires_at,
                :created_at, :updated_at
   end

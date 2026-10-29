@@ -40,6 +40,63 @@ module Orders
       end
     end
 
+    test "restarting an active ticket checkout retains the registration and audience proof" do
+      buyer = core_users(:support)
+      product, ticket_type = create_ticket_product
+      access_code = Ticketing::AccessCode.create!(
+        ticket_type:,
+        code_digest: Ticketing::AccessCode.code_digest_for(
+          event_id: @event.id, code: "RESTART-CODE-#{SecureRandom.hex(4)}"
+        ),
+        max_uses: 5,
+        used_count: 1,
+        max_quantity_per_use: 1,
+        active: true
+      )
+      registration = Ticketing::Registration.create!(
+        event: @event,
+        ticket_type:,
+        user: buyer,
+        created_by: buyer,
+        source: "self_service",
+        identity_digest: SecureRandom.hex(32),
+        package_quantity: 1,
+        admissions_per_unit_snapshot: 1,
+        party_size: 1,
+        status: "pending_payment",
+        next_action_snapshot: "requires_order",
+        submitted_at: @quoted_at,
+        access_code:
+      )
+      quote_result = Orders::BuildQuote.call(
+        event: @event,
+        buyer:,
+        items: [ { product:, registration_id: registration.id, quantity: 1 } ],
+        charge_currency: "ETB",
+        quoted_at: @quoted_at
+      )
+      assert_predicate quote_result, :success?, quote_result.error&.message
+      source_result = Orders::CreateCheckout.call(
+        quote: quote_result.value,
+        event: @event,
+        buyer:,
+        idempotency_key: "ticket-restart-source-#{SecureRandom.hex(4)}"
+      )
+      assert_predicate source_result, :success?, source_result.error&.message
+
+      replacement = Orders::RestartCheckout.call(
+        old_order: source_result.value,
+        buyer:,
+        quote: quote_result.value,
+        idempotency_key: "ticket-restart-#{SecureRandom.hex(4)}"
+      )
+
+      assert_predicate replacement, :success?, "#{replacement.error&.code}: #{replacement.error&.message}"
+      assert_equal "pending_payment", registration.reload.status
+      assert_equal 1, access_code.reload.used_count
+      assert_equal registration.id, replacement.value.order_items.sole.registration_id
+    end
+
     test "limits replacements to two per buyer and event in a rolling hour" do
       first = restart("restart-limit-1")
       assert_predicate first, :success?, first.error&.message
@@ -155,6 +212,34 @@ module Orders
       )
       Catalog::ProductInventory.create!(event_product: product, capacity: 1)
       product
+    end
+
+    def create_ticket_product
+      result = Catalog::Products::CreateDraft.call(
+        event: @event,
+        actor: core_users(:super_admin),
+        product_attributes: { name: "Restart ticket #{SecureRandom.hex(4)}", type: "ticket" },
+        ticket_type_attributes: {
+          audience: "access_code", approval_mode: "automatic", date_selection: "fixed",
+          admissions_per_unit: 1
+        },
+        price_attributes: {
+          type: "base", currency: "ETB", amount_minor: 1_000, active_from: @quoted_at - 1.hour
+        },
+        inventory_configuration: { mode: "unlimited" }
+      )
+      assert_predicate result, :success?, result.error&.message
+      product = result.value
+      event_date = @event.event_dates.create!(
+        name: "Restart ticket date #{SecureRandom.hex(3)}",
+        starts_at: @quoted_at + 1.day,
+        ends_at: @quoted_at + 1.day + 2.hours,
+        status: "scheduled"
+      )
+      product.product_accesses.create!(event_date:, type: "venue")
+      activated = Catalog::Products::Activate.call(product:, actor: core_users(:super_admin))
+      assert_predicate activated, :success?, activated.error&.message
+      [ activated.value, activated.value.ticket_type ]
     end
   end
 end

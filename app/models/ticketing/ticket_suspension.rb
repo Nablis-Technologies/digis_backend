@@ -9,7 +9,9 @@ module Ticketing
 
     REASON_CODES = %w[suspected_fraud identity_review chargeback_review safety_review organizer_cancellation].freeze
     STATUSES = %w[active restored revoked_free cancelled_refunded expired].freeze
-    RESOLUTION_REASONS = %w[review_cleared organizer_cancellation refund_succeeded review_deadline_expired].freeze
+    RESOLUTION_REASONS = %w[
+      review_cleared organizer_cancellation refund_succeeded review_deadline_expired gift_claim_expired
+    ].freeze
 
     belongs_to :ticket, class_name: "Ticketing::Ticket", inverse_of: :ticket_suspensions
     belongs_to :event, class_name: "Events::Event"
@@ -76,7 +78,7 @@ module Ticketing
         errors.add(:resolution_reason, :present) if resolution_reason.present?
         errors.add(:resolved_at, :present) if resolved_at.present?
       else
-        errors.add(:resolved_by, :blank) if resolved_by_id.blank?
+        errors.add(:resolved_by, :blank) if resolved_by_id.blank? && resolution_reason != "gift_claim_expired"
         errors.add(:resolution_reason, :blank) if resolution_reason.blank?
         errors.add(:resolved_at, :blank) if resolved_at.blank?
       end

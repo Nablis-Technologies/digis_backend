@@ -1,0 +1,7 @@
+# frozen_string_literal: true
+
+en:
+  event:
+    errors:
+      featured_events_unavailable: "Featured events are temporarily unavailable"
+      invalid_public_event_filter: "One or more event discovery filters are invalid"

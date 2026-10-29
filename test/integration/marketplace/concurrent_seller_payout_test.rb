@@ -36,37 +36,21 @@ module Marketplace
     end
 
     test "concurrent builders reserve seller proceeds at most once" do
-      ready = Queue.new
-      start = Queue.new
-      threads = 2.times.map do |index|
-        Thread.new do
-          ready << true
-          start.pop
-          Marketplace::ApplicationRecord.connection_pool.with_connection do
-            Marketplace::BuildSellerPayout.call(
-              seller: Core::User.find(@seller.id),
-              account: Marketplace::SellerPayoutAccount.find(@account.id),
-              event: Events::Event.find(@event.id),
-              currency: "ETB",
-              idempotency_key: "concurrent-seller-payout-#{index}",
-              cutoff_at: @now,
-              at: @now
-            )
-          end
-        end
+      race = run_database_race do |index|
+        Marketplace::BuildSellerPayout.call(
+          seller: Core::User.find(@seller.id), account: Marketplace::SellerPayoutAccount.find(@account.id),
+          event: Events::Event.find(@event.id), currency: "ETB",
+          idempotency_key: "concurrent-seller-payout-#{index}", cutoff_at: @now, at: @now
+        )
       end
+      results = race.results
 
-      2.times { ready.pop }
-      2.times { start << true }
-      results = threads.map(&:value)
-
+      assert_empty race.errors, race.errors.inspect
       assert_equal 1, results.count(&:success?), results.map { |r| [ r.success?, r.error&.code ] }.inspect
       assert_equal 1, results.count(&:failure?), results.map { |r| [ r.success?, r.error&.code ] }.inspect
       assert_equal 1, SellerPayout.where(seller_user_id: @seller.id).count
       assert_equal 1, SellerPayoutAllocation.joins(:payout)
         .where(marketplace_seller_payouts: { seller_user_id: @seller.id }).count
-    ensure
-      threads&.each(&:join)
     end
   end
 end

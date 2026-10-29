@@ -111,6 +111,34 @@ class AuthorizationResolverServiceTest < ActiveSupport::TestCase
       assert_equal :scanner, Events::AuthorizationResolver.role_for(@attendee, @event_one)
     end
 
+    test "scanner assignment remains effective when the user also has a general staff assignment" do
+      %w[staff scanner].each do |role|
+        Events::EventStaffAssignment.create!(
+          event: @event_one,
+          user: @attendee,
+          organization: @org_one,
+          role:,
+          status: "active"
+        )
+      end
+
+      assert_equal :scanner, Events::AuthorizationResolver.role_for(@attendee, @event_one)
+    end
+
+    test "manager assignment takes precedence over scanner assignment" do
+      %w[scanner manager].each do |role|
+        Events::EventStaffAssignment.create!(
+          event: @event_one,
+          user: @attendee,
+          organization: @org_one,
+          role:,
+          status: "active"
+        )
+      end
+
+      assert_equal :manager, Events::AuthorizationResolver.role_for(@attendee, @event_one)
+    end
+
     test "role_for returns :none for outsider" do
       assert_equal :none, Events::AuthorizationResolver.role_for(@attendee, @event_one)
     end

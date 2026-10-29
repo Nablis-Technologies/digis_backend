@@ -6,6 +6,8 @@ module Orders
   # local attempt before provider I/O so a timeout remains verifiable rather
   # than silently creating a duplicate charge.
   class StartPaymentAttempt < Core::BaseService
+    include PaymentAttemptSupport
+
     MAX_ATTEMPTS = 3
     FEE_TYPES = %w[service_fee platform_fee processing_fee resale_platform_fee].freeze
 
@@ -35,7 +37,7 @@ module Orders
       cancel_superseded_attempt!(state[:superseded_payment])
       provider_result = create_with_provider(adapter.value, state[:payment])
       persist_provider_result(state[:payment].id, provider_result)
-    rescue AttemptAbort => error
+    rescue PaymentAttemptSupport::AttemptAbort => error
       failure(error.business_error)
     rescue ArgumentError
       failure(payment_error(:invalid_idempotency_key, code: "invalid_idempotency_key"))
@@ -52,29 +54,17 @@ module Orders
     attr_reader :order, :buyer, :provider, :payment_method, :raw_idempotency_key, :now,
                 :idempotency_key
 
-    def prepare_idempotency!
-      key = Core::IdempotencyKey.new(raw_idempotency_key)
-      @idempotency_key = key.to_s
-    end
-
     def resolve_adapter
-      return failure_result(:invalid_provider, code: "invalid_payment_provider") unless Payment::PROVIDERS.include?(provider)
-      return failure_result(:invalid_payment_method, code: "invalid_payment_method") unless Payment::PAYMENT_METHODS.include?(payment_method)
-
-      adapter = Payments::Providers::Registry.fetch(provider)
-      return failure_result(:provider_method_unsupported, code: "payment_method_unsupported", status: :unprocessable_entity) unless supported?(adapter, :payment_methods, payment_method)
-      return failure_result(:provider_currency_unsupported, code: "payment_currency_unsupported", status: :unprocessable_entity) unless supported?(adapter, :currencies, order_currency)
-
-      success(adapter)
-    rescue KeyError
-      failure_result(:provider_unavailable, code: "payment_provider_unavailable", status: :service_unavailable)
-    rescue ArgumentError
-      failure_result(:provider_unavailable, code: "payment_provider_unavailable", status: :service_unavailable)
+      resolve_payment_adapter(currency: order_currency, invalid_provider_key: :invalid_provider)
     end
 
     def reserve_attempt!(adapter)
+      checkout_identity = Orders::Order.where(id: order.id).pick(:buyer_user_id, :event_id)
+      raise ActiveRecord::RecordNotFound unless checkout_identity
+
       state = {}
       ActiveRecord::Base.transaction do
+        CheckoutLock.acquire!(buyer_user_id: checkout_identity.first, event_id: checkout_identity.last)
         locked_order = Orders::Order.includes(:event).lock.find(order.id)
         event = Events::Event.lock.find(locked_order.event_id)
         validate_order!(locked_order, event)
@@ -146,6 +136,9 @@ module Orders
         buyer_fee_minor:,
         organizer_fee_minor:,
         idempotency_key:,
+        provider_merchant_reference: adapter.merchant_reference(
+          subject_id: locked_order.id, idempotency_key:, attempt_number:
+        ),
         settlement_grace_minutes: adapter.settlement_grace_minutes,
         settlement_grace_expires_at: locked_order.expires_at + adapter.settlement_grace_minutes.minutes
       )
@@ -176,6 +169,8 @@ module Orders
     end
 
     def cancellation_supported?(adapter)
+      return false unless adapter.respond_to?(:cancel)
+
       value = capability(adapter, :cancel)
       return true if value.nil?
 
@@ -193,6 +188,9 @@ module Orders
         currency: payment.currency,
         commercial_signature: payment.commercial_signature,
         idempotency_key: payment.idempotency_key,
+        merchant_reference: payment.provider_merchant_reference,
+        email: buyer.email,
+        phone_number: buyer.phone,
         expires_at: payment.order.expires_at,
         settlement_grace_minutes: payment.settlement_grace_minutes
       )
@@ -202,71 +200,36 @@ module Orders
     end
 
     def persist_provider_result(payment_id, result)
-      payment = Orders::Payment.lock.find(payment_id)
-      status = payment_status_for(result)
-      payment.update!(
-        status:,
-        provider_reference: result.provider_reference,
-        failure_code: result.failure_code,
-        provider_fee_minor: result.provider_fee_minor,
-        provider_fee_currency: result.provider_fee_currency,
-        raw_status: result.raw_status.presence || result.status
-      )
-      success(payment.reload)
-    rescue ActiveRecord::RecordInvalid
-      payment.update_columns(
-        status: "processing",
-        provider_reference: result.provider_reference,
-        failure_code: nil,
-        provider_fee_minor: nil,
-        provider_fee_currency: nil,
-        raw_status: "provider_result_invalid",
-        updated_at: Time.current
-      )
-      success(payment.reload)
-    end
+      order_id = Orders::Payment.where(id: payment_id).pick(:order_id)
+      raise ActiveRecord::RecordNotFound unless order_id
 
-    def payment_status_for(result)
-      return "processing" if result.status.in?(%w[unknown timeout])
+      checkout_identity = Orders::Order.where(id: order_id).pick(:buyer_user_id, :event_id)
+      raise ActiveRecord::RecordNotFound unless checkout_identity
 
-      { "success" => "succeeded", "failure" => "failed", "cancelled" => "cancelled" }.fetch(result.status)
-    end
-
-    def supported?(adapter, key, expected)
-      values = capability(adapter, key)
-      return true if values.blank?
-
-      Array(values).map { |value| value.to_s.downcase }.include?(expected.to_s.downcase)
-    end
-
-    def capability(adapter, key)
-      capabilities = adapter.capabilities.to_h
-      capabilities[key] || capabilities[key.to_s]
+      ActiveRecord::Base.transaction do
+        CheckoutLock.acquire!(buyer_user_id: checkout_identity.first, event_id: checkout_identity.last)
+        locked_order = Orders::Order.lock.find(order_id)
+        payment = Orders::Payment.lock.find_by!(id: payment_id, order_id: locked_order.id)
+        begin
+          status = payment_status_for(result)
+          payment.update!(
+            status:,
+            provider_reference: result.provider_reference,
+            failure_code: result.failure_code,
+            provider_fee_minor: result.provider_fee_minor,
+            provider_fee_currency: result.provider_fee_currency,
+            checkout_url: result.checkout_url || payment.checkout_url,
+            raw_status: result.raw_status.presence || result.status
+          )
+          success(payment.reload)
+        rescue ActiveRecord::RecordInvalid
+          recover_invalid_provider_result(payment:, result:)
+        end
+      end
     end
 
     def order_currency
       order.charge_currency.to_s.upcase
-    end
-
-    def failure_result(key, code:, status: :unprocessable_entity)
-      failure(payment_error(key, code:, status:))
-    end
-
-    def payment_error(key, code:, status: :unprocessable_entity)
-      Core::BusinessError.new(I18n.t("orders.payments.errors.#{key}"), code:, status:)
-    end
-
-    def abort_with(error)
-      raise AttemptAbort, error
-    end
-
-    class AttemptAbort < Core::Error
-      attr_reader :business_error
-
-      def initialize(error)
-        @business_error = error
-        super(error.message)
-      end
     end
   end
 end

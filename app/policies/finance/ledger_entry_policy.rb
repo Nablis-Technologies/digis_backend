@@ -7,7 +7,7 @@ module Finance
   class LedgerEntryPolicy < Core::ApplicationPolicy
     SAFE_FIELDS = %i[
       id organization_id event_id order_id refund_id type amount_minor currency
-      available_at description created_at
+      available_at description event created_at
     ].freeze
 
     def index? = organization_access?

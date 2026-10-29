@@ -25,6 +25,20 @@ module Core
         assert_predicate result, :failure?
         assert_equal "phone_identity_invalid", result.error.code
       end
+
+      test "resolves a manager recipient against the existing canonical user" do
+        users_before = Core::User.count
+
+        result = ResolveOrCreate.call(
+          phone: "251911000002",
+          actor: @actor,
+          allow_actor_mismatch: true
+        )
+
+        assert_predicate result, :success?, result.error&.message
+        assert_equal core_users(:core_admin).id, result.value.user.id
+        assert_equal users_before, Core::User.count
+      end
     end
   end
 end

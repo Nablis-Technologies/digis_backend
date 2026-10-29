@@ -3,11 +3,79 @@ Rails.application.routes.draw do
 
   scope module: :core do
     post "auth/login", to: "auth#login"
+    post "auth/signup/request_otp", to: "auth#signup_request_otp"
     post "auth/signup", to: "auth#signup"
     post "auth/refresh", to: "auth#refresh"
     post "auth/logout", to: "auth#logout"
     post "auth/reauthenticate", to: "auth#reauthenticate"
-    get "auth/me", to: "auth#me"
+    resource :user, only: %i[show update], controller: "users"
+    get "user/avatar", to: "users#avatar", as: :user_avatar
+    put "user/avatar", to: "users#update_avatar", as: :update_user_avatar
+    delete "user/avatar", to: "users#remove_avatar", as: :remove_user_avatar
+    post "auth/phone_verifications", to: "phone_verifications#create"
+  end
+
+  resources :notifications, only: %i[index show], controller: "messaging/notifications" do
+    post :read, on: :member
+  end
+  resource :notification_preferences, only: %i[show update],
+    controller: "messaging/notification_preferences"
+
+  scope "organizations/:organization_id/messaging", module: :messaging do
+    resources :credits, only: :index, controller: "credit_accounts"
+    resources :credit_ledger, only: :index, controller: "credit_ledger"
+    resources :credit_rates, only: :index
+    resources :credit_estimates, only: :create
+    resources :credit_top_ups, only: %i[create show]
+  end
+
+  scope "organizations/:organization_id", module: :messaging do
+    resources :campaigns, only: %i[index show create update] do
+    post :estimate, on: :member
+    post :attest, on: :member
+    post :launch, on: :member
+    post :pause, on: :member
+    post :resume, on: :member
+    post :cancel, on: :member
+      post :abort, on: :member
+      get :analytics, on: :member
+    end
+    resources :campaign_contact_lists, only: %i[index show create update destroy] do
+      post :import, on: :member
+      post :append, on: :member
+      post :replace, on: :member
+      resources :entries, controller: "campaign_contact_list_entries", only: %i[create destroy]
+    end
+    resources :campaign_templates, only: %i[index show create update]
+    get "campaign_contact_lists/:id/imports/:import_id", to: "campaign_contact_list_imports#show"
+    get "campaign_contact_lists/:id/imports/:import_id/report", to: "campaign_contact_list_imports#report"
+  end
+
+  post "messaging/webhooks/:provider/inbound", to: "messaging/campaign_webhooks#create"
+  get "messaging/unsubscribe/:token", to: "messaging/campaign_unsubscribes#show"
+  post "messaging/unsubscribe/:token", to: "messaging/campaign_unsubscribes#create"
+
+  scope "events/:event_id/featured_placements", module: :marketing do
+    get "offers", to: "featured_placements#offers"
+    post "quote", to: "featured_placements#quote"
+    get "", to: "featured_placements#index"
+    post "", to: "featured_placements#create"
+    get ":id", to: "featured_placements#show"
+    post ":id/cancel", to: "featured_placements#cancel"
+  end
+
+  namespace :admin do
+    namespace :messaging do
+      resources :credit_rates, only: %i[index show create] do
+        post :activate, on: :member
+        post :retire, on: :member
+      end
+      resources :campaigns, only: %i[index show]
+      resources :campaign_templates, only: %i[index show create update]
+      resources :campaign_volume_policies, only: %i[index show update]
+    end
+    post "organizations/:organization_id/messaging/credit_adjustments",
+      to: "messaging/credit_adjustments#create"
   end
 
   scope ":followable_type", constraints: { followable_type: %r{venues|artists|organizations} } do
@@ -18,7 +86,17 @@ Rails.application.routes.draw do
     end
   end
 
+  get "public/featured_events", to: "public/events#featured"
+  get "public/events", to: "public/events#index", as: :public_events
+  get "public/events/:slug/dates", to: "public/events#dates", as: :public_event_dates
+  get "public/events/:slug", to: "public/events#show", as: :public_event
+  post "admin/orders/refunds/:id/resolve_manual",
+    to: "admin/orders/refund_resolutions#resolve_manual"
+
   scope module: :events do
+    post "events/staff_invitations/claim", to: "staff_invitations#claim"
+    post "events/staff_invitations/preview", to: "staff_invitations#preview"
+
     resources :categories, only: %i[index show]
     resources :venues, only: %i[index show]
     resources :artists, only: %i[index show]
@@ -29,12 +107,17 @@ Rails.application.routes.draw do
         post :revoke, on: :member
         post :activate, on: :member
       end
-      resources :event_staff_assignments, only: %i[index show create update destroy] do
+      resources :event_staff_assignments, only: %i[index show] do
         post :suspend, on: :member
         post :revoke, on: :member
         post :activate, on: :member
         post :change_role, on: :member
       end
+      resources :staff_invitations, only: %i[index create] do
+        post :resend, on: :member
+        post :revoke, on: :member
+      end
+      get :staff_roster, on: :member, to: "staff_rosters#show"
       resources :event_dates, only: %i[index show create update destroy]
       resources :event_participants, only: %i[index show create update destroy]
       resources :access_zones, only: %i[index show create update destroy]
@@ -54,12 +137,23 @@ Rails.application.routes.draw do
         post :deactivate, on: :member
       end
     end
-    resources :public_events, only: %i[index show], param: :slug, path: "public/events"
   end
 
   get "public/events/:event_slug/products", to: "catalog/public_products#index"
   get "public/events/:event_slug/ticket_types/:ticket_type_id/consent_requirements",
       to: "ticketing/public_consent_requirements#index"
+  get "public/events/:event_slug/ticket_types/:ticket_type_id/registration_schema",
+      to: "ticketing/public_registration_schemas#show"
+  post "public/events/:event_slug/admission_selections/request_otp",
+       to: "orders/admission_selections#request_otp"
+  post "public/events/:event_slug/admission_selections",
+       to: "orders/admission_selections#create"
+  post "public/events/:event_slug/admission_offers/:event_product_id/waitlist/request_otp",
+       to: "ticketing/public_waitlists#request_otp"
+  post "public/events/:event_slug/admission_offers/:event_product_id/waitlist",
+       to: "ticketing/public_waitlists#create"
+  post "guest/ticket_types/:ticket_type_id/registrations",
+       to: "ticketing/guest_registrations#create"
 
   get "events/:event_id/add_on_reports", to: "catalog/event_add_on_reports#index",
       as: :event_add_on_reports
@@ -102,12 +196,37 @@ Rails.application.routes.draw do
     resources :orders, only: :create, controller: "orders/orders"
   end
 
+  post "guest/events/:event_id/order_quotes", to: "orders/guest_order_quotes#create"
+  post "guest/events/:event_id/orders", to: "orders/guest_orders#create"
+  post "guest/orders", to: "orders/guest_orders#create"
+  post "guest/orders/:order_id/payment_attempts", to: "orders/guest_payment_attempts#create"
+  post "guest/payments/:payment_id/refresh", to: "orders/guest_payment_refresh#create"
+
+  get "public/tickets/:ticket_id", to: "ticketing/public_ticket_views#show"
+  post "public/gift_purchases/:id/resolve", to: "orders/public_gift_purchases#resolve"
+  post "public/gift_purchases/:id/claim", to: "orders/public_gift_purchases#claim"
+  get "public/ticket_transfers/:id", to: "ticketing/public_ticket_transfers#show"
+  post "public/ticket_transfers/:id/request_otp", to: "ticketing/public_ticket_transfers#request_otp"
+  post "public/ticket_transfers/:id/accept_guest", to: "ticketing/public_ticket_transfers#accept_guest"
+  post "public/ticket_views/:token/request_otp", to: "core/phone_verifications#create"
+  post "phone_verifications/:id/verify", to: "core/phone_verifications#verify"
+  post "registrations/:id/claim_guest", to: "ticketing/guest_registrations#claim_guest"
+
+  # Finance owns completion because it triggers the payout-maturity boundary;
+  # the URL remains event-scoped for organizer operations.
+  post "events/:event_id/complete", to: "finance/event_completions#complete"
+
   resources :orders, only: [] do
     resources :payment_attempts, only: :create, controller: "orders/payment_attempts"
+    resources :gift_purchases, only: :index, controller: "orders/gift_purchases" do
+      post :resend, on: :member
+    end
     post :restart, on: :member, controller: "orders/orders"
   end
 
   post "payments/:provider/webhook", to: "orders/payment_webhooks#create"
+  get "payments/:provider/callback", to: "orders/payment_callbacks#show"
+  post "payments/:payment_id/refresh", to: "orders/payment_refresh#create"
 
   resources :events, only: [] do
     resources :registration_forms, controller: "ticketing/registration_forms", only: %i[index show create update destroy] do
@@ -146,14 +265,14 @@ Rails.application.routes.draw do
 
   # Workflow endpoints delegate all state transitions to idempotent commands.
   resources :registrations, only: :show, controller: "ticketing/registrations"
+  get "registrations/:id/answers", to: "ticketing/registration_answers#answers"
+  post "registrations/:id/release", to: "orders/registration_checkouts#create"
 
   resources :registrations, only: [] do
     member do
       post :approve, controller: "ticketing/registration_decisions"
       post :reject, controller: "ticketing/registration_decisions"
       post :reconsider, controller: "ticketing/registration_decisions"
-      post :enqueue_waitlist, controller: "ticketing/waitlist_offers", action: :enqueue
-      post :accept_waitlist_offer, controller: "ticketing/waitlist_offers", action: :accept
     end
   end
 
@@ -173,7 +292,19 @@ Rails.application.routes.draw do
   end
 
   post "ticketing/audience_authorizations", to: "ticketing/audience_authorizations#create"
-  post "scanner/auth", to: "ticketing/scanner/auth#create"
+  post "events/:event_id/scanner_invitations", to: "ticketing/scanner_invitations#create"
+  get "events/:event_id/scanners", to: "ticketing/scanner_rosters#index"
+  patch "events/:event_id/scanner_device_assignments/:id", to: "ticketing/scanner_device_assignments#update"
+  resources :scanner_invitations, only: [], controller: "ticketing/scanner_invitations" do
+    post :resend, on: :member
+    post :reset_pairing, on: :member
+    post :revoke, on: :member
+  end
+  get "organizations/:organization_id/scanner_devices", to: "ticketing/scanner_devices#index"
+  post "scanner/pair", to: "ticketing/scanner/pair#create"
+  resources :scanner_devices, only: [] do
+    post :revoke, on: :member, controller: "ticketing/scanner_devices"
+  end
   get "scanner/events/:event_id/sync", to: "ticketing/scanner/event_sync#show"
   post "scanner/events/:event_id/scan_uploads", to: "ticketing/scanner/scan_uploads#create"
   post "scanner/events/:event_id/lookups", to: "ticketing/scanner/lookups#create"
@@ -181,7 +312,7 @@ Rails.application.routes.draw do
   post "checkin_logs/:id/identity_override", to: "ticketing/checkin_identity_overrides#create"
   post "checkin_logs/:id/admission_use_reversal", to: "ticketing/admission_use_reversals#create"
 
-  resources :tickets, only: [] do
+  resources :tickets, only: :index, controller: "ticketing/tickets" do
     resources :stream_sessions, only: :create, controller: "ticketing/stream_sessions"
     post :resale, on: :member, controller: "marketplace/resale_listings", action: :create
     resource :suspension, only: :create, controller: "ticketing/suspensions" do
@@ -203,7 +334,9 @@ Rails.application.routes.draw do
 
   post "tickets/:ticket_id/cancel", to: "ticketing/cancellations#create"
 
-  resources :resale_listings, only: %i[index show], controller: "marketplace/resale_listings"
+  resources :resale_listings, only: %i[index show], controller: "marketplace/resale_listings" do
+    get :mine, on: :collection
+  end
   post "resale_listings/:resale_listing_id/purchase", to: "marketplace/resale_purchases#create"
   post "resale_listings/:id/cancel", to: "marketplace/resale_listings#cancel"
   resource :resale_policy, only: %i[show update],
@@ -214,7 +347,11 @@ Rails.application.routes.draw do
     get "seller/balance", to: "marketplace/seller_reports#balance"
     get "seller/history", to: "marketplace/seller_reports#history"
     scope path: "seller" do
-      resources :payout_accounts, only: %i[index create], controller: "marketplace/seller_payout_accounts"
+      resources :payout_accounts, only: %i[index create], controller: "marketplace/seller_payout_accounts" do
+        get :destinations, on: :collection
+        post :set_default, on: :member
+      end
+      resources :payouts, only: %i[index show create], controller: "marketplace/seller_payouts"
     end
   end
 
@@ -232,6 +369,12 @@ Rails.application.routes.draw do
 
   scope path: :finance, module: :finance do
     resources :organizations, only: [] do
+      resources :payout_accounts, only: %i[index create], controller: "payout_accounts" do
+        post :verify, on: :member
+        post :set_default, on: :member
+        post :suspend, on: :member
+        post :close, on: :member
+      end
       resources :payouts, only: %i[index show create], controller: "payouts" do
         post :dispatch, on: :member, action: :dispatch_payout
         post :reconcile, on: :member
@@ -244,7 +387,24 @@ Rails.application.routes.draw do
   end
 
   namespace :admin do
+    get "system/readiness", to: "system/readiness#show"
+
+    namespace :marketing do
+      resources :placement_offers, only: %i[index show create] do
+        post :activate, on: :member
+        post :retire, on: :member
+      end
+      resources :placement_capacity_policies, only: %i[index show create] do
+        post :activate, on: :member
+        post :retire, on: :member
+      end
+    end
+
     namespace :marketplace do
+      resources :seller_payout_accounts, only: %i[index show], controller: "seller_payout_accounts" do
+        post :verify, on: :member
+      end
+
       resources :seller_payouts, only: %i[index show], controller: "seller_payouts" do
         post :dispatch, on: :member, action: :dispatch_payout
         post :reconcile, on: :member
@@ -302,6 +462,7 @@ Rails.application.routes.draw do
     resources :organizations, except: %i[new edit] do
       member do
         post :transfer_ownership
+        get "documents/:document_type", to: "organizations#download", as: :download_document
       end
       resources :memberships, only: %i[index show create update destroy]
     end
@@ -326,15 +487,23 @@ Rails.application.routes.draw do
   end
 
   scope module: :organizations do
+    post "organizations/membership_invitations/claim", to: "owner_membership_invitations#claim"
+    post "organizations/membership_invitations/preview", to: "owner_membership_invitations#preview"
+
     resources :owner_organizations, only: %i[index show create update destroy],
               path: "organizations/owner" do
-      resources :memberships, only: %i[index show create update destroy],
+      resources :memberships, only: %i[index show update destroy],
                 controller: "owner_memberships" do
         member do
           patch :suspend
           patch :activate
         end
       end
+      resources :membership_invitations, only: %i[index create], controller: "owner_membership_invitations" do
+        post :resend, on: :member
+        post :revoke, on: :member
+      end
+      get :team_roster, on: :member, to: "owner_team_rosters#show"
       member do
         patch :documents
         get "documents/:document_type", to: "owner_organizations#download", as: :download_document
@@ -360,7 +529,11 @@ Rails.application.routes.draw do
     get "feed", to: "feed#index"
   end
 
-  constraints(lambda { |request| request.host == Rails.application.config.x.short_links.host }) do
+  constraints(lambda do |request|
+    config = Rails.application.config.x.short_links
+    request.host == config.host &&
+      (config.port.blank? || request.port == config.port.to_i)
+  end) do
     get "/:slug", to: "links/redirects#show", as: :branded_redirect
   end
 end

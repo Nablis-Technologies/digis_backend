@@ -15,3 +15,23 @@ en:
       sole_owner_suspend: "Cannot suspend the sole owner. Transfer ownership first."
       sole_owner_demotion: "Cannot demote the sole owner. Transfer ownership first."
       sole_owner_removal: "Cannot remove the sole owner. Transfer ownership first."
+  organizations:
+    membership_invitation:
+      errors:
+        invalid_idempotency_key: "The invitation idempotency key is invalid"
+        idempotency_conflict: "The invitation key was reused for a different request"
+        invalid_role: "The selected organization role cannot be invited"
+        invitation_forbidden: "You are not allowed to manage invitations for this organization"
+        invitation_contact_invalid: "Enter one valid phone number"
+        invitation_channel_not_enabled: "Email invitations are not available yet"
+        invitation_already_pending: "An invitation is already pending for this phone number"
+        invalid: "The invitation could not be saved"
+        membership_invitation_claim_invalid: "This invitation is invalid, expired, or no longer available"
+        invitation_phone_unverified: "Verify your account phone number before claiming this invitation"
+        invitation_contact_mismatch: "This invitation was sent to a different phone number"
+        membership_not_active: "Your existing organization membership is not active"
+        membership_role_change_required: "Ask an organization manager to change your existing role"
+        invitation_not_resendable: "This invitation can no longer be resent"
+        invitation_not_revocable: "This invitation can no longer be revoked"
+        batch_size_invalid: "The invitation expiration batch size is invalid"
+        delivery_failed: "Invitation delivery could not be confirmed"

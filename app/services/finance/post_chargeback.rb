@@ -16,9 +16,12 @@ module Finance
 
     def call
       return failure(finance_error(:chargeback_amount_invalid, code: "chargeback_amount_invalid")) unless amount_minor.is_a?(Integer) && amount_minor.positive?
+      payment = Orders::Payment.find(@payment_id)
+      return failure(finance_error(:billing_payment_not_supported, code: "billing_payment_not_supported")) if payment.billing_payment?
 
       entry = ActiveRecord::Base.transaction do
         payment = Orders::Payment.lock.find(@payment_id)
+
         order = Orders::Order.lock.find(payment.order_id)
         event = Events::Event.lock.find(order.event_id)
         next unless payment.status == "succeeded" && payment.accepted_at.present?

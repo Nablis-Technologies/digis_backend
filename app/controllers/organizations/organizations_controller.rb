@@ -6,7 +6,7 @@ module Organizations
     self.list_serializer = Organizations::Public::OrganizationListSerializer
     self.detail_serializer = Organizations::Public::OrganizationDetailSerializer
 
-    ATTACHMENT_NAMES = %w[profile banner business_license tin_certificate].freeze
+    ATTACHMENT_NAMES = %w[profile banner].freeze
 
     def index
       records = build_base_scope
@@ -40,15 +40,13 @@ module Organizations
 
     def base_scope
       Organizations::Organization.all.with_attached_profile
-                   .with_attached_banner.with_attached_business_license
-                   .with_attached_tin_certificate
+                   .with_attached_banner
                    .includes(:reviews)
     end
 
     def detail_scope
       Organizations::Organization.all.with_attached_profile
-                   .with_attached_banner.with_attached_business_license
-                   .with_attached_tin_certificate
+                   .with_attached_banner
                    .includes(:reviews)
     end
 

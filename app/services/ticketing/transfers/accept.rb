@@ -6,17 +6,16 @@ module Ticketing
     # before replacement so the new group generation and attendee projection
     # are created for the recipient in the same transaction.
     class Accept < Core::BaseService
-      def initialize(token:, actor:)
-        @token = token
+      def initialize(actor:, token: nil, transfer_id: nil)
+        @token = token.to_s.presence
+        @transfer_id = transfer_id.to_s.presence
         @actor = actor
       end
 
       def call
         outcome = nil
         Ticketing::TicketTransfer.transaction do
-          transfer = Ticketing::TicketTransfer.lock.find_by(
-            token_digest: Ticketing::TicketTransfer.token_digest_for(token: @token)
-          )
+          transfer = find_transfer_for_acceptance
           unless transfer
             outcome = failure(error(:transfer_invalid, :not_found))
             raise ActiveRecord::Rollback
@@ -90,6 +89,17 @@ module Ticketing
       end
 
       private
+
+      def find_transfer_for_acceptance
+        return if @transfer_id.blank? && @token.blank?
+        return if @token.blank? && !@actor.is_a?(Core::User)
+
+        scope = Ticketing::TicketTransfer.lock
+        scope = scope.where(id: @transfer_id) if @transfer_id
+        scope = scope.where(token_digest: Ticketing::TicketTransfer.token_digest_for(token: @token)) if @token
+        scope = scope.where(to_user_id: @actor.id) if @token.blank?
+        scope.first
+      end
 
       def validate(transfer)
         return error(:transfer_recipient_mismatch, :forbidden) unless @actor.is_a?(Core::User) && transfer.to_user_id == @actor.id

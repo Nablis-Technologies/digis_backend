@@ -11,9 +11,10 @@ module Admin
       record
     end
 
-    def policy_scope(scope)
+    def policy_scope(scope, policy_scope_class: nil)
       admin_policy = resolve_admin_policy(scope)
-      admin_policy.class::Scope.new(pundit_user, scope).resolve
+      scope_class = policy_scope_class || admin_policy.class::Scope
+      scope_class.new(pundit_user, scope).resolve
     rescue NameError
       Core::ApplicationPolicy::Scope.new(pundit_user, scope).resolve
     end
@@ -28,8 +29,13 @@ module Admin
 
     def resolve_admin_policy(record)
       klass = policy_target_class(record)
-      simple_name = klass.name.demodulize
-      "Admin::#{simple_name}Policy".constantize.new(pundit_user, record)
+      policy_class = [
+        "Admin::#{klass.name}Policy",
+        "Admin::#{klass.name.demodulize}Policy"
+      ].uniq.filter_map(&:safe_constantize).first
+      raise NameError, I18n.t("core.errors.admin_policy_not_found", model: klass.name) unless policy_class
+
+      policy_class.new(pundit_user, record)
     end
 
     def policy_target_class(record)

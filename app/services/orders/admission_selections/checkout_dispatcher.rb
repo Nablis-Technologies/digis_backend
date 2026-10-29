@@ -1,0 +1,111 @@
+# frozen_string_literal: true
+
+module Orders
+  module AdmissionSelections
+    # Quotes and dispatches the selected registrations as one order. It runs
+    # under Create's transaction so registration, inventory, audit, and order
+    # effects still commit or roll back together.
+    class CheckoutDispatcher < Core::BaseService
+      class Abort < Core::Error
+        attr_reader :business_error
+
+        def initialize(business_error)
+          @business_error = business_error
+          super(business_error.message)
+        end
+      end
+
+      def initialize(context:, registrations_by_line_key:, gift_intents_by_line_key: {},
+        inventory_lines_by_line_key:)
+        @context = context
+        @registrations_by_line_key = registrations_by_line_key
+        @gift_intents_by_line_key = gift_intents_by_line_key
+        @inventory_lines_by_line_key = inventory_lines_by_line_key
+      end
+
+      def call
+        quote = build_quote
+        require_guest_proof!(quote)
+        dispatch_order(quote)
+      rescue Abort => error
+        failure(error.business_error)
+      end
+
+      private
+
+      attr_reader :context, :registrations_by_line_key, :gift_intents_by_line_key,
+                  :inventory_lines_by_line_key
+
+      def build_quote
+        result = Orders::BuildQuote.call(
+          event: context.event,
+          buyer: context.buyer,
+          items: quote_items,
+          charge_currency: context.charge_currency,
+          gift_registration_ids: gift_intents_by_line_key.values.map { |intent| intent.registration.id },
+          promotion: context.promotion,
+          promotion_code: context.promotion_code,
+          quoted_at: context.quoted_at
+        )
+        abort_with(result.error) if result.failure?
+
+        result.value
+      end
+
+      def quote_items
+        context.items.map do |item|
+          product_id = item.fetch(:event_product_id).to_s
+          line_key = item.line_key
+          line = inventory_lines_by_line_key.fetch(line_key)
+          registration = registrations_by_line_key[line_key]
+          {
+            product_id:,
+            line_id: item.line_id,
+            registration_id: registration&.id,
+            quantity: item.fetch(:quantity),
+            event_date_ids: line.event_date_ids,
+            venue_event_date_ids: line.venue_event_date_ids
+          }
+        end
+      end
+
+      def require_guest_proof!(quote)
+        return unless context.guest && quote.total_minor.zero? && !context.guest_otp_verified
+
+        abort_with(selection_error("phone_verification_required"))
+      end
+
+      def dispatch_order(quote)
+        result = Orders::CreateCheckout.call(
+          quote:,
+          event: context.event,
+          buyer: context.buyer,
+          idempotency_key: order_idempotency_key,
+          gift_intents_by_line_key: gift_intents_by_line_key,
+          recovery_context: context
+        )
+        abort_with(result.error) if result.failure?
+
+        success(result.value)
+      end
+
+      def order_idempotency_key
+        Digest::SHA256.hexdigest(
+          "admission-order:#{context.event.id}:#{context.buyer.id}:#{context.idempotency_key.digest}"
+        )
+      end
+
+      def selection_error(code)
+        Core::BusinessError.new(
+          I18n.t("orders.checkout.errors.#{code}"),
+          code:,
+          status: :unprocessable_entity
+        )
+      end
+
+      def abort_with(business_error)
+        raise Abort, business_error
+      end
+    end
+  end
+end

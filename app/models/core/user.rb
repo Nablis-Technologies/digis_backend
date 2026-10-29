@@ -8,6 +8,11 @@ module Core
              foreign_key: :user_id,
              dependent: :destroy,
              inverse_of: :user
+    has_one :profile,
+            class_name: "Core::UserProfile",
+            foreign_key: :user_id,
+            dependent: :destroy,
+            inverse_of: :user
     has_many :roles,
              through: :user_roles,
              class_name: "Core::Role"
@@ -83,6 +88,14 @@ module Core
              class_name: "Ticketing::StreamSession",
              inverse_of: :user,
              dependent: :restrict_with_exception
+    has_many :notifications,
+             class_name: "Messaging::Notification",
+             dependent: :restrict_with_exception,
+             inverse_of: :user
+    has_many :notification_preferences,
+             class_name: "Messaging::NotificationPreference",
+             dependent: :destroy,
+             inverse_of: :user
 
     has_many :legal_documents,
              class_name: "Legal::LegalDocument",

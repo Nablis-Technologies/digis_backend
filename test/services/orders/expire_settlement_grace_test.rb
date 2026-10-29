@@ -48,6 +48,8 @@ module Orders
     test "accepts a verified success at the grace boundary without releasing capacity" do
       payment = create_payment
       Orders::ExpireCheckout.call(now: @now)
+      assert_equal "pending_payment", @registration.reload.status
+      assert_equal 1, @access_code.reload.used_count
       adapter = register_adapter(Payments::Providers::Result.success(
         provider_reference: payment.provider_reference, raw_status: "paid"
       ))
@@ -58,6 +60,8 @@ module Orders
       assert_equal 1, adapter.verify_calls.length
       assert_equal "fulfilled", @order.reload.status
       assert payment.reload.accepted?
+      assert_equal "confirmed", @registration.reload.status
+      assert_equal 1, @access_code.reload.used_count
       assert @reservation.reload.committed?
       assert_equal "applied", @redemption.reload.status
       assert_equal 0, @inventory.reload.held_count
@@ -67,6 +71,8 @@ module Orders
     test "releases unresolved processing holds and closes the order at grace expiry" do
       payment = create_payment
       Orders::ExpireCheckout.call(now: @now)
+      assert_equal "pending_payment", @registration.reload.status
+      assert_equal 1, @access_code.reload.used_count
       register_adapter(Payments::Providers::Result.unknown(raw_status: "pending"))
 
       result = ExpireSettlementGrace.call(payment: payment, now: payment.settlement_grace_expires_at)
@@ -75,6 +81,8 @@ module Orders
       assert_equal "expired", @order.reload.status
       assert_equal "checkout_expired", @order.closed_reason
       assert_equal "unknown", payment.reload.status
+      assert_equal "expired", @registration.reload.status
+      assert_equal 0, @access_code.reload.used_count
       assert @reservation.reload.released?
       assert_equal "released", @redemption.reload.status
       assert_equal 0, @inventory.reload.held_count
@@ -86,6 +94,8 @@ module Orders
     test "failure verification releases immediately without accepting payment" do
       payment = create_payment
       Orders::ExpireCheckout.call(now: @now)
+      assert_equal "pending_payment", @registration.reload.status
+      assert_equal 1, @access_code.reload.used_count
       register_adapter(Payments::Providers::Result.failure(
         failure_code: "declined", raw_status: "declined"
       ))
@@ -96,6 +106,8 @@ module Orders
       assert_equal "expired", @order.reload.status
       assert_equal "failed", payment.reload.status
       assert_nil payment.accepted_at
+      assert_equal "expired", @registration.reload.status
+      assert_equal 0, @access_code.reload.used_count
       assert @reservation.reload.released?
     end
 
@@ -113,19 +125,67 @@ module Orders
 
     def build_checkout_graph
       @order = Orders::Order.create!(order_attributes)
-      @product = Catalog::EventProduct.create!(
+      product_result = Catalog::Products::CreateDraft.call(
         event: @event,
-        name: "Grace parking",
-        type: "parking",
-        status: "active",
-        inventory_mode: "event_wide"
+        actor: core_users(:super_admin),
+        product_attributes: { name: "Grace ticket #{SecureRandom.hex(4)}", type: "ticket" },
+        ticket_type_attributes: {
+          audience: "access_code", approval_mode: "automatic", date_selection: "fixed",
+          admissions_per_unit: 1
+        },
+        price_attributes: {
+          type: "base", currency: "ETB", amount_minor: 10_000, active_from: @now - 1.minute
+        },
+        inventory_configuration: { mode: "event_wide", capacity: 2 }
       )
+      assert_predicate product_result, :success?, product_result.error&.message
+      draft_product = product_result.value
+      event_date = @event.event_dates.create!(
+        name: "Grace ticket date #{SecureRandom.hex(3)}",
+        starts_at: @now + 1.day,
+        ends_at: @now + 1.day + 2.hours,
+        status: "scheduled"
+      )
+      draft_product.product_accesses.create!(event_date:, type: "venue")
+      activation = Catalog::Products::Activate.call(
+        product: draft_product, actor: core_users(:super_admin)
+      )
+      assert_predicate activation, :success?, activation.error&.message
+      @product = activation.value
+      @ticket_type = @product.ticket_type
+      @registration = Ticketing::Registration.create!(
+        event: @event,
+        ticket_type: @ticket_type,
+        user: @buyer,
+        created_by: @buyer,
+        source: "self_service",
+        identity_digest: SecureRandom.hex(32),
+        package_quantity: 1,
+        admissions_per_unit_snapshot: 1,
+        party_size: 1,
+        status: "pending_payment",
+        next_action_snapshot: "requires_order",
+        submitted_at: @now
+      )
+      raw_code = "GRACE-CODE-#{SecureRandom.hex(4)}"
+      @access_code = Ticketing::AccessCode.create!(
+        ticket_type: @ticket_type,
+        code: raw_code,
+        code_digest: Ticketing::AccessCode.code_digest_for(event_id: @event.id, code: raw_code),
+        max_uses: 5,
+        used_count: 1,
+        max_quantity_per_use: 1,
+        active: true
+      )
+      @registration.update!(access_code: @access_code)
       @item = Orders::OrderItem.create!(
         order: @order,
         event_product: @product,
+        registration: @registration,
         name_snapshot: @product.name,
-        type_snapshot: @product.type,
+        type_snapshot: "ticket",
         quantity: 1,
+        admissions_per_unit_snapshot: 1,
         base_currency: "ETB",
         base_unit_amount_minor: 10_000,
         charge_currency: "ETB",
@@ -135,11 +195,8 @@ module Orders
         total_minor: 10_000,
         fulfillment_status: "pending"
       )
-      @inventory = Catalog::ProductInventory.create!(
-        event_product: @product,
-        capacity: 2,
-        held_count: 1
-      )
+      @inventory = @product.inventories.first
+      @inventory.update!(held_count: 1)
       @reservation = Catalog::InventoryReservation.create!(
         product_inventory: @inventory,
         order_item_id: @item.id,

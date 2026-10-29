@@ -19,12 +19,19 @@ module Ticketing
       )
       @device = ScannerDevice.create!(
         organization: @event.organization,
-        device_identifier: "device-#{SecureRandom.hex(6)}",
-        token_digest: SecureRandom.hex(32)
+        device_identifier: "device-#{SecureRandom.hex(6)}"
+      )
+      @scanner_staff_assignment = Events::EventStaffAssignment.create!(
+        event: @event,
+        user: @manager,
+        organization: @event.organization,
+        role: "scanner",
+        status: "active"
       )
       @assignment = ScannerDeviceAssignment.create!(
         scanner_device: @device,
         event: @event,
+        event_staff_assignment: @scanner_staff_assignment,
         assigned_by: @manager
       )
     end

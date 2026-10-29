@@ -6,7 +6,7 @@ module Marketplace
   # those facts belong to operational reconciliation, not seller history.
   class SellerLedgerEntryPolicy < Core::ApplicationPolicy
     SAFE_FIELDS = %i[
-      id seller_user_id event_id resale_sale_id type amount_minor currency available_at description created_at
+      id seller_user_id event_id resale_sale_id type amount_minor currency available_at description event created_at
     ].freeze
 
     def index? = seller_access?

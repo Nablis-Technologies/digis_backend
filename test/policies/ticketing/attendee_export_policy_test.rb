@@ -61,20 +61,16 @@ module Ticketing
       )
     end
 
-    test "requires request permission in addition to event manageability" do
-      make_admin(@requester)
+    test "allows a primary organization owner to export standard fields without a global export role" do
+      make_owner(@requester)
       export = build_export(requested_by: @requester)
 
-      grant(@requester, "attendee_export.contact")
-      assert_not policy_for(@requester, export).create?
-
-      grant(@requester, "attendee_export.request")
+      grant(@requester)
       assert policy_for(@requester, export).create?
     end
 
-    test "allows primary owners and admins with the request permission" do
-      make_admin(@requester)
-      grant(@requester, "attendee_export.request")
+    test "allows primary organization owners and admins to request standard fields" do
+      make_owner(@requester)
       assert policy_for(@requester, build_export).create?
 
       admin = core_users(:support)
@@ -84,7 +80,6 @@ module Ticketing
         role: "admin",
         status: "active"
       )
-      grant(admin, "attendee_export.request")
       assert policy_for(admin, build_export(requested_by: admin)).create?
     end
 
@@ -98,9 +93,12 @@ module Ticketing
         role: "collaborator",
         status: "active"
       )
-      grant(owner, "attendee_export.request")
 
       assert policy_for(owner, build_export(requested_by: owner)).create?
+      assert policy_for(
+        owner,
+        build_export(requested_by: owner, field_keys: [ "registration_user_email" ])
+      ).create?
     end
 
     test "allows an active event manager but not an inactive manager" do
@@ -112,11 +110,16 @@ module Ticketing
         role: "manager",
         status: "active"
       )
-      grant(manager, "attendee_export.contact")
-      assert_not policy_for(manager, build_export(requested_by: manager)).create?
-
-      grant(manager, "attendee_export.request")
       assert policy_for(manager, build_export(requested_by: manager)).create?
+
+      contact_export = build_export(requested_by: manager, field_keys: [ "registration_user_email" ])
+      account_name_export = build_export(requested_by: manager, field_keys: [ "registration_user_full_name" ])
+      assert_not policy_for(manager, contact_export).create?
+      assert_not policy_for(manager, account_name_export).create?
+
+      grant(manager, "attendee_export.contact")
+      assert policy_for(manager, contact_export).create?
+      assert policy_for(manager, account_name_export).create?
 
       assignment.update!(status: "suspended")
       assert_not policy_for(manager, build_export(requested_by: manager)).create?
@@ -179,18 +182,19 @@ module Ticketing
     end
 
     test "rechecks current field permissions for show and download" do
-      make_admin(@requester)
+      manager = core_users(:support)
+      create_assignment(manager, role: "manager")
       export = build_export(
-        requested_by: @requester,
+        requested_by: manager,
         field_keys: [ "registration_user_email" ]
       )
-      grant(@requester, "attendee_export.request", "attendee_export.contact")
-      assert policy_for(@requester, export).show?
-      assert policy_for(@requester, export).download_authorizations?
+      grant(manager, "attendee_export.contact")
+      assert policy_for(manager, export).show?
+      assert policy_for(manager, export).download_authorizations?
 
-      grant(@requester, "attendee_export.request")
-      assert_not policy_for(@requester, export).show?
-      assert_not policy_for(@requester, export).download_authorizations?
+      grant(manager)
+      assert_not policy_for(manager, export).show?
+      assert_not policy_for(manager, export).download_authorizations?
     end
 
     test "does not expose an expired tombstone to a requester without current field authorization" do
@@ -223,24 +227,23 @@ module Ticketing
     end
 
     test "does not let a business reason grant a missing field permission" do
-      make_admin(@requester)
+      manager = core_users(:support)
+      create_assignment(manager, role: "manager")
       export = build_export(
-        requested_by: @requester,
-        field_keys: [ "registration_user_email" ],
+        requested_by: manager,
+        field_keys: [ question_selector(@dietary_question) ],
         reason_code: "dietary_accommodation"
       )
-      grant(@requester, "attendee_export.request")
 
-      assert_not policy_for(@requester, export).create?
+      assert_not policy_for(manager, export).create?
     end
 
-    test "requires the request permission as a base for every field and action" do
-      make_admin(@requester)
+    test "global export permissions never bypass event manageability" do
       export = build_export(
         requested_by: @requester,
         field_keys: [ "registration_user_email" ]
       )
-      grant(@requester, "attendee_export.contact")
+      grant(@requester, "attendee_export.request", "attendee_export.contact")
 
       assert_not policy_for(@requester, export).create?
       assert_not policy_for(@requester, export).show?
@@ -280,28 +283,60 @@ module Ticketing
       assert_not policy_for(@requester, oversized_filter).create?
     end
 
-    test "requires contact, dietary, and accessibility permissions separately from request permission" do
-      make_admin(@requester)
-      grant(@requester, "attendee_export.request")
+    test "tenant ownership grants contact fields but not dietary or accessibility fields" do
+      make_owner(@requester)
 
       contact = build_export(field_keys: [ "registration_user_phone" ])
       dietary = build_export(field_keys: [ question_selector(@dietary_question) ])
       accessibility = build_export(field_keys: [ question_selector(@accessibility_question) ])
 
-      assert_not policy_for(@requester, contact).create?
+      assert policy_for(@requester, contact).create?
       assert_not policy_for(@requester, dietary).create?
       assert_not policy_for(@requester, accessibility).create?
 
-      grant(@requester, "attendee_export.request", "attendee_export.contact")
-      assert policy_for(@requester, contact).create?
       grant(
         @requester,
-        "attendee_export.request",
         "attendee_export.dietary",
         "attendee_export.accessibility"
       )
       assert policy_for(@requester, dietary).create?
       assert policy_for(@requester, accessibility).create?
+    end
+
+    test "suspending or demoting an organization admin removes tenant-derived contact access" do
+      membership = Organizations::Membership.create!(
+        organization: @event.organization,
+        user: @requester,
+        role: "admin",
+        status: "active"
+      )
+      export = build_export(requested_by: @requester, field_keys: [ "registration_user_email" ])
+
+      assert policy_for(@requester, export).create?
+
+      membership.update!(status: "suspended")
+      assert_not policy_for(@requester, export).create?
+
+      membership.update!(status: "active", role: "staff")
+      assert_not policy_for(@requester, export).create?
+    end
+
+    test "revoking a co-organizer link removes its owner's tenant-derived contact access" do
+      owner = core_users(:support)
+      ensure_membership(owner, organizations_organizations(:three), role: "owner")
+      event_organization = Events::EventOrganization.create!(
+        event: @event,
+        organization: organizations_organizations(:three),
+        type: "co_organizer",
+        role: "collaborator",
+        status: "active"
+      )
+      export = build_export(requested_by: owner, field_keys: [ "registration_user_email" ])
+
+      assert policy_for(owner, export).create?
+
+      event_organization.update!(status: "revoked")
+      assert_not policy_for(owner, export).create?
     end
 
     private
@@ -348,6 +383,10 @@ module Ticketing
         role: "admin",
         status: "active"
       )
+    end
+
+    def make_owner(actor)
+      @event.organization.memberships.active.owner.first!.update!(user: actor)
     end
 
     def ensure_membership(user, organization, role:)

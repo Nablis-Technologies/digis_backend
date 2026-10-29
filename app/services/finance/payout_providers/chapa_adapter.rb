@@ -16,6 +16,18 @@ module Finance
 
       def verify_payout(**request) = delegate(:verify_payout, **request)
 
+      def verify_payout_account(**request)
+        return Result.unknown(raw_status: "unsupported") unless @client&.respond_to?(:verify_payout_account)
+
+        delegate(:verify_payout_account, **request)
+      end
+
+      def available_banks(**request)
+        return unless @client&.respond_to?(:available_banks)
+
+        @client.public_send(:available_banks, **request)
+      end
+
       def available_balance(**request)
         return unless @client
 

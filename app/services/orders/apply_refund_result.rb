@@ -23,6 +23,7 @@ module Orders
         locked_refund = Orders::Refund.lock.find(@refund.id)
         if locked_refund.status == "succeeded"
           apply_late_fee!(locked_refund) if @result.success? && provider_fee_present?
+          revoke_gift_purchases!(locked_refund)
           post_finance_refund!(locked_refund)
           next locked_refund
         end
@@ -41,12 +42,8 @@ module Orders
             next_retry_at: nil
           )
         when "failure", "cancelled"
-          locked_refund.update!(
-            status: "failed",
-            provider_reference: @result.provider_reference.presence || locked_refund.provider_reference,
-            pending_reason: @result.failure_code.presence || "provider_#{@result.status}",
-            next_retry_at: nil
-          )
+          update_definitive_failure!(locked_refund)
+          record_manual_review!(locked_refund) if locked_refund.status == "manual_review"
         when "unknown", "timeout"
           locked_refund.update!(
             status: "processing",
@@ -57,7 +54,10 @@ module Orders
         else
           raise ArgumentError, I18n.t("orders.refunds.errors.unsupported_provider_refund_status")
         end
-        post_finance_refund!(locked_refund) if locked_refund.status == "succeeded"
+        if locked_refund.status == "succeeded"
+          revoke_gift_purchases!(locked_refund)
+          post_finance_refund!(locked_refund)
+        end
         publish_terminal_status!(locked_refund) if previous_status != locked_refund.status
         locked_refund
       end
@@ -131,11 +131,48 @@ module Orders
       raise result.error if result.failure?
     end
 
+    def update_definitive_failure!(locked_refund)
+      billing_refund = locked_refund.type == "billing_purchase_refund"
+      locked_refund.update!(
+        status: billing_refund ? "manual_review" : "failed",
+        provider_reference: @result.provider_reference.presence || locked_refund.provider_reference,
+        pending_reason: @result.failure_code.presence || "provider_#{@result.status}",
+        next_retry_at: nil
+      )
+    end
+
+    def record_manual_review!(locked_refund)
+      audit = Core::Audit::Record.call(
+        audit_key: "orders-billing-refund-manual-review-#{locked_refund.id}",
+        action: "orders.billing_purchase_refund.manual_review",
+        auditable_type: locked_refund.class.name, auditable_id: locked_refund.id,
+        audited_changes: { status: [ "processing", "manual_review" ] },
+        metadata: { failure_code: locked_refund.pending_reason }
+      )
+      raise audit.error if audit.failure?
+    end
+
     # Refund state and its organizer reversal are committed together; a retry
     # reuses the refund-derived ledger key and therefore remains a no-op.
     def post_finance_refund!(locked_refund)
       result = Finance::PostRefund.call(refund: locked_refund, at: @now)
       raise result.error if result.failure?
+    end
+
+    def revoke_gift_purchases!(locked_refund)
+      item_ids = Orders::RefundItem.where(refund_id: locked_refund.id).select(:order_item_id)
+      gifts = Orders::GiftPurchase.where(order_item_id: item_ids)
+        .includes(
+          :recipient_user,
+          order_item: { registration: [ :user, :created_by, :event, { ticket_type: { event_product: :event } } ] }
+        )
+        .lock.order(:id)
+      gifts.each do |gift_purchase|
+        result = GiftPurchases::Revoke.call(
+          gift_purchase:, reason: "refunded", at: @now, row_locked: true
+        )
+        raise result.error if result.failure?
+      end
     end
 
     def refund_error(key, code:, errors: nil)

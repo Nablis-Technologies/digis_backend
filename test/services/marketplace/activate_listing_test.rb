@@ -104,12 +104,14 @@ module Marketplace
     end
 
     test "rejects a package with a pending transfer" do
+      token = SecureRandom.hex(16)
       Ticketing::TicketTransfer.create!(
         ticket: @ticket,
         from_user: @owner,
         to_user: @recipient,
         initiated_by: @owner,
-        token_digest: Ticketing::TicketTransfer.token_digest_for(token: SecureRandom.hex(16)),
+        token:,
+        token_digest: Ticketing::TicketTransfer.token_digest_for(token:),
         status: "pending",
         previous_version: @ticket.credential_version,
         expires_at: 1.hour.from_now

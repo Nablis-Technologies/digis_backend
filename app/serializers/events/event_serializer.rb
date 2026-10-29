@@ -6,7 +6,7 @@ module Events
 
     attributes :id, :slug, :title, :description, :status, :visibility,
                :timezone, :currency, :version, :published_at, :cancelled_at,
-               :created_at, :updated_at
+               :created_at, :updated_at, :organization_id
 
     belongs_to :organization, serializer: Organizations::OrganizationSerializer
     has_one :event_setting, serializer: Events::EventSettingSerializer

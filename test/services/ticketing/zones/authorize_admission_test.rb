@@ -10,19 +10,12 @@ module Ticketing
       setup do
         setup_package_workflow(admissions_per_unit: 2)
         @product_access = @product.product_accesses.first
-        @device = Ticketing::ScannerDevice.create!(
-          organization: @event.organization,
-          device_identifier: "scanner-#{SecureRandom.hex(4)}",
-          token_digest: Core::KeyedDigest.digest(
-            namespace: "ticketing-scanner-device",
-            value: SecureRandom.hex(32)
-          )
-        )
-        @assignment = Ticketing::ScannerDeviceAssignment.create!(
-          scanner_device: @device,
+        @assignment = build_scanner_assignment(
           event: @event,
-          assigned_by: @manager
+          assigned_by: @manager,
+          device_identifier: "scanner-#{SecureRandom.hex(4)}"
         )
+        @device = @assignment.scanner_device
       end
 
       test "allows nil zone when the event has no active zones for the product access" do

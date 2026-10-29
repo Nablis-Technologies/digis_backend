@@ -1,0 +1,22 @@
+en:
+  messaging:
+    errors:
+      credit_account_scope_invalid: "The credit account does not belong to this organization"
+      credit_idempotency_conflict: "The credit idempotency key was reused for a different request"
+      insufficient_credits: "The organization does not have enough messaging credits"
+      invalid_credit_operation: "The credit operation is invalid"
+      invalid_credit_quantity: "Credit quantity must be a positive integer"
+      rate_unavailable: "No messaging rate is available for this channel and quantity"
+      reason_required: "A reason is required"
+      reservation_already_resolved: "The credit reservation has already been resolved"
+      adjustment_requires_admin: "Only a platform administrator can adjust credits"
+      delivery_result_invalid: "The delivery result is invalid"
+      unauthorized: "You are not authorized to perform this credit operation"
+      invalid_idempotency_key: "The idempotency key is invalid"
+      rate_not_draft: "Only draft rates can be activated"
+      rate_not_active: "Only active rates can be retired"
+      rate_overlap: "The rate overlaps another active rate"
+      top_up_payment_mismatch: "The billing payment does not match this credit top-up"
+      top_up_already_paid: "This credit top-up has already been paid"
+      top_up_not_paid: "This credit top-up has not been granted yet"
+      credit_ledger_immutable: "Messaging credit ledger entries are append-only"

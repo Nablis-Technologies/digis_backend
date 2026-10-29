@@ -21,6 +21,10 @@ module Orders
     belongs_to :registration,
                class_name: "Ticketing::Registration",
                optional: true
+    has_one :gift_purchase,
+            class_name: "Orders::GiftPurchase",
+            inverse_of: :order_item,
+            dependent: :restrict_with_exception
 
     has_many :order_adjustments,
              class_name: "Orders::OrderAdjustment",

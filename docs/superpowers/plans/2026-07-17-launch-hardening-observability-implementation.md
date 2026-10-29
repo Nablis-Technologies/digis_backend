@@ -25,8 +25,9 @@
 - Create: `app/lib/core/telemetry.rb`
 - Create: `test/lib/core/telemetry_test.rb`
 - Modify: `config/initializers/filter_parameter_logging.rb`
+- Modify: `config/locales/core/errors.en.yml`
 
-- [ ] **Step 1: Write the failing telemetry tests**
+- [x] **Step 1: Write the failing telemetry tests**
 
 ```ruby
 # frozen_string_literal: true
@@ -61,15 +62,17 @@ class Core::TelemetryTest < ActiveSupport::TestCase
 end
 ```
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/lib/core/telemetry_test.rb
+N_PLUS_ONE=1 bin/rails test test/lib/core/telemetry_test.rb
 ```
 
-Expected: error because `Core::Telemetry` does not exist.
+RED captured: 3 tests, 5 assertions, 2 failures, and 1 error because
+`Core::Telemetry` did not exist and the new sensitive-key contract was not yet
+configured.
 
-- [ ] **Step 3: Implement the allowlisted telemetry seam**
+- [x] **Step 3: Implement the allowlisted telemetry seam**
 
 ```ruby
 # frozen_string_literal: true
@@ -99,16 +102,20 @@ end
 
 Add `:token`, `:qr`, `:credential`, `:lookup_code`, `:pnr`, `:invitation`, `:phone`, `:email`, `:id_number`, `:provider_payload`, and `:webhook_body` to the parameter filter. Do not log request bodies from payment, transfer, registration, or scan endpoints.
 
-- [ ] **Step 4: Run the tests and verify GREEN**
+- [x] **Step 4: Run the tests and verify GREEN**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/lib/core/telemetry_test.rb test/controllers
+N_PLUS_ONE=1 bin/rails test test/lib/core/telemetry_test.rb test/controllers
 ```
 
-- [ ] **Step 5: Commit**
+Verified: 75 tests, 310 assertions, 0 failures, and 0 errors. The complete
+CI-equivalent suite passes 2,693 tests and 11,196 assertions with zero failures
+and zero errors under `N_PLUS_ONE=1`; RuboCop and Zeitwerk also pass.
+
+- [ ] **Step 5: Commit — user-owned**
 
 ```bash
-git add app/lib/core/telemetry.rb test/lib/core/telemetry_test.rb config/initializers/filter_parameter_logging.rb
+git add app/lib/core/telemetry.rb test/lib/core/telemetry_test.rb config/initializers/filter_parameter_logging.rb config/locales/core/errors.en.yml docs/superpowers/plans/2026-07-17-launch-hardening-observability-implementation.md
 git commit -m "feat(core): add privacy-safe domain telemetry"
 ```
 
@@ -121,10 +128,11 @@ git commit -m "feat(core): add privacy-safe domain telemetry"
 - Create: `test/services/admin/system/readiness_test.rb`
 - Create: `test/integration/admin/system/readiness_test.rb`
 - Modify: `config/routes.rb`
+- Modify: `postman/Digis API_collection.json`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
-Test that `/up` remains an unauthenticated process-only liveness check, while `GET /api/v1/admin/system/readiness` requires a platform administrator. The readiness result must expose only `ok`/`degraded` plus component names; it must not return hosts, credentials, exception messages, queue contents, or provider secrets.
+Test that `/up` remains an unauthenticated process-only liveness check, while `GET /admin/system/readiness` requires a platform administrator. The readiness result must expose only `ok`/`degraded` plus component names; it must not return hosts, credentials, exception messages, queue contents, or provider secrets.
 
 ```ruby
 # frozen_string_literal: true
@@ -142,13 +150,16 @@ class Admin::System::ReadinessTest < ActiveSupport::TestCase
 end
 ```
 
-- [ ] **Step 2: Run focused tests and verify RED**
+- [x] **Step 2: Run focused tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/admin/system/readiness_test.rb test/integration/admin/system/readiness_test.rb
 ```
 
-- [ ] **Step 3: Implement readiness checks**
+RED captured: 5 tests could not load because `Admin::System::Readiness` was
+not yet defined.
+
+- [x] **Step 3: Implement readiness checks**
 
 `Admin::System::Readiness` must execute bounded local checks only:
 
@@ -158,9 +169,9 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/admin/system
 - storage: verify the configured service and required bucket/container configuration without uploading a probe object;
 - encryption: verify primary, deterministic, and salt configuration is present without returning key material.
 
-Return a typed service result. A failed component produces `degraded`, not an exception-shaped API response. Provider network availability belongs to provider reconciliation, never readiness.
+Return a typed service result. A failed component produces `degraded`, not an exception-shaped API response. Provider network availability belongs to provider reconciliation, never readiness. The implementation checks the primary database, Solid Queue connection, stale undispatched outbox rows, configured storage service, and encryption key presence without returning dependency details.
 
-- [ ] **Step 4: Add authorization and route**
+- [x] **Step 4: Add authorization and route**
 
 Add the controller under the existing admin authentication and Pundit boundary:
 
@@ -171,18 +182,23 @@ def show
 end
 ```
 
-Add `get "system/readiness", to: "system/readiness#show"` inside `/api/v1/admin`. The policy permits only a platform administrator permission, not an organizer role.
+Add `get "system/readiness", to: "system/readiness#show"` inside the existing unversioned `namespace :admin`. The policy permits only a platform administrator role, not an organizer role.
 
-- [ ] **Step 5: Run focused and authorization tests**
+- [x] **Step 5: Run focused and authorization tests**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/admin/system/readiness_test.rb test/integration/admin/system/readiness_test.rb test/policies
 ```
 
-- [ ] **Step 6: Commit**
+Verified: 35 tests, 162 assertions, 0 failures, and 0 errors with
+`N_PLUS_ONE=1`. The full suite passes 2,698 tests and 11,220 assertions with
+zero failures and zero errors. RuboCop, Zeitwerk, route, locale, Postman JSON,
+and diff checks pass.
+
+- [ ] **Step 6: Commit — user-owned**
 
 ```bash
-git add app/services/admin/system/readiness.rb app/controllers/admin/system/readiness_controller.rb app/policies/admin/system/readiness_policy.rb test/services/admin/system/readiness_test.rb test/integration/admin/system/readiness_test.rb config/routes.rb
+git add app/services/admin/system/readiness.rb app/controllers/admin/system/readiness_controller.rb app/policies/admin/system/readiness_policy.rb test/services/admin/system/readiness_test.rb test/integration/admin/system/readiness_test.rb config/routes.rb postman/'Digis API_collection.json' docs/superpowers/plans/2026-07-17-launch-hardening-observability-implementation.md
 git commit -m "feat(admin): add authenticated dependency readiness"
 ```
 
@@ -190,27 +206,34 @@ git commit -m "feat(admin): add authenticated dependency readiness"
 
 **Files:**
 - Create: `app/jobs/reconciliation/supervisor_job.rb`
+- Create: `app/jobs/reconciliation/support.rb`
 - Create: `app/jobs/reconciliation/outbox_job.rb`
 - Create: `app/jobs/reconciliation/payment_attempts_job.rb`
 - Create: `app/jobs/reconciliation/refunds_job.rb`
 - Create: `app/jobs/reconciliation/organizer_payouts_job.rb`
 - Create: `app/jobs/reconciliation/seller_payouts_job.rb`
 - Create: `app/jobs/reconciliation/credential_projection_job.rb`
+- Create: `app/jobs/reconciliation/credential_projection.rb`
 - Create: `test/jobs/reconciliation/supervisor_job_test.rb`
 - Create: `test/jobs/reconciliation/domain_jobs_test.rb`
 - Modify: `config/recurring.yml`
+- Modify: `test/config/private_attendee_exports_configuration_test.rb`
 
-- [ ] **Step 1: Write failing supervisor tests**
+- [x] **Step 1: Write failing supervisor tests**
 
 Assert the supervisor enqueues each domain job exactly once and does no domain mutation itself. Assert each domain job selects a bounded batch with `FOR UPDATE SKIP LOCKED`, delegates each record to its owning command, and remains safe when two job instances overlap.
 
-- [ ] **Step 2: Run the jobs tests and verify RED**
+Added supervisor and domain-job tests for fast/slow scheduling groups, non-mutating supervision, bounded overdue/uncertain-state selection, stable owner-command delegation, transition audit evidence, and revocation-safe credential projection repair. The credential test also proves admission-use history remains present.
+
+- [x] **Step 2: Run the jobs tests and verify RED**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/jobs/reconciliation
 ```
 
-- [ ] **Step 3: Implement the thin supervisor**
+RED captured with 9 errors because the seven reconciliation job classes did not yet exist. Test-only fixture setup errors were corrected before implementation; the next RED run contained only the expected missing-implementation errors.
+
+- [x] **Step 3: Implement the thin supervisor**
 
 ```ruby
 # frozen_string_literal: true
@@ -219,17 +242,13 @@ module Reconciliation
   class SupervisorJob < ApplicationJob
     queue_as :maintenance
 
-    JOBS = [
-      OutboxJob,
-      PaymentAttemptsJob,
-      RefundsJob,
-      OrganizerPayoutsJob,
-      SellerPayoutsJob,
-      CredentialProjectionJob
-    ].freeze
+    FAST_JOBS = [ OutboxJob, PaymentAttemptsJob, RefundsJob ].freeze
+    SLOW_JOBS = [ OrganizerPayoutsJob, SellerPayoutsJob, CredentialProjectionJob ].freeze
+    JOBS = (FAST_JOBS + SLOW_JOBS).freeze
 
-    def perform
-      JOBS.each(&:perform_later)
+    def perform(group = "all")
+      { "all" => JOBS, "fast" => FAST_JOBS, "slow" => SLOW_JOBS }
+        .fetch(group.to_s, JOBS).each(&:perform_later)
     end
   end
 end
@@ -246,20 +265,28 @@ Each domain job must:
 
 The credential job compares active generation, active credential rows, revocations, and admission projections. It may repair a derived projection but must never recreate a revoked credential or erase an admission use.
 
-- [ ] **Step 4: Schedule recurring supervision**
+Implemented the supervisor and six domain jobs. `Reconciliation::Support` centralizes only bounded limits, delayed rescheduling, privacy-safe telemetry, and idempotent transition audits; domain jobs continue to select their own rows and call the existing Orders, Finance, Marketplace, Core, and Ticketing commands. `CredentialProjection` owns eager loading and derived-index repair so the job remains an orchestration boundary. Provider-unknown payout/refund results remain processing for the next pass, and payment grace verification continues to use the existing Orders command and stable payment verification identity.
+
+- [x] **Step 4: Schedule recurring supervision**
 
 Configure a short production cadence for payments/outbox and a slower cadence for payouts/projection audits. Keep schedule values environment-configurable. Do not run provider reconciliation in web requests. The primary outbox *delivery* driver, `Core::ProcessOutboxJob` (Plan 0, core-foundation Task 5 Step 8), must also be scheduled here; `Reconciliation::OutboxJob` is only the backstop for rows the enqueuer misses or that exhausted their `DispatchOutboxEventJob` retries, not a substitute for the enqueuer.
 
-- [ ] **Step 5: Verify retries, overlap, and unknown outcomes**
+Added `reconcile_fast` every minute and `reconcile_slow` hourly at minute 30, both environment-configurable through `RECONCILIATION_FAST_SCHEDULE` and `RECONCILIATION_SLOW_SCHEDULE`. The existing `process_outbox` recurring driver remains in place. The recurring configuration test now uses Rails/Solid Queue's ERB-aware configuration loader and verifies every production schedule through Fugit.
+
+- [x] **Step 5: Verify retries, overlap, and unknown outcomes**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/jobs/reconciliation test/services/orders test/services/payments test/services/refunds test/services/finance test/services/ticketing
 ```
 
-- [ ] **Step 6: Commit**
+Focused Task 3 verification passes 9 tests and 31 assertions with `N_PLUS_ONE=1`. The broader reconciliation/owner-command suites pass 448 tests and 2,731 assertions with zero failures/errors. The final full repository suite passes 2,707 tests and 11,253 assertions with zero failures/errors under `N_PLUS_ONE=1`; RuboCop passes on all changed Ruby files, Zeitwerk passes, recurring YAML/ERB parsing passes, and `git diff --check` passes.
+
+- [ ] **Step 6: Commit — user-owned**
 
 ```bash
-git add app/jobs/reconciliation test/jobs/reconciliation config/recurring.yml
+git add app/jobs/reconciliation test/jobs/reconciliation \
+  config/recurring.yml test/config/private_attendee_exports_configuration_test.rb \
+  docs/superpowers/plans/2026-07-17-launch-hardening-observability-implementation.md
 git commit -m "feat(operations): reconcile uncertain domain state"
 ```
 
@@ -268,9 +295,9 @@ git commit -m "feat(operations): reconcile uncertain domain state"
 **Files:**
 - Create: `test/support/contracts/payment_provider_contract.rb`
 - Create: `test/support/fakes/fake_payment_provider.rb`
-- Modify: provider adapter tests created by the payments and refunds plans
+- Modify: `test/services/payments/providers/adapter_contract_test.rb`
 
-- [ ] **Step 1: Define the shared contract cases**
+- [x] **Step 1: Define the shared contract cases**
 
 Every payment/refund adapter test must include the same contract covering:
 
@@ -285,28 +312,38 @@ Every payment/refund adapter test must include the same contract covering:
 - provider success after the local order expired;
 - reconciliation returning `unknown` repeatedly and later resolving.
 
-The fake stores requests by the platform idempotency key and allows tests to enqueue outcomes. It never infers success from an HTTP timeout.
+The shared contract follows the existing `Payments::Providers::Result` boundary: normalized status, provider reference, failure code, provider fee evidence, and raw provider status. It also covers required operations, rejection, timeout before/after a provider reference, repeated unknown verification followed by resolution, refund fee evidence, refund capabilities, and liquidity. Order acceptance, webhook deduplication/order races, and refund state transitions remain covered by their existing Orders service and integration tests rather than being duplicated at the adapter boundary.
 
-- [ ] **Step 2: Run one adapter without the contract and verify RED**
+The fake stores requests by the platform idempotency key and allows tests to enqueue outcomes. It never infers success from an HTTP timeout; an unconfigured operation returns `unknown`.
+
+- [x] **Step 2: Run one adapter without the contract and verify RED**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/adapters/payments
+PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/payments/providers/adapter_contract_test.rb
 ```
 
-- [ ] **Step 3: Include the contract in every provider adapter test**
+RED captured with 2 missing-fake errors after the new contract tests loaded, while the existing Chapa adapter contract remained green.
 
-Require adapters to return a common result with `status`, `provider_reference`, `provider_idempotency_key`, `amount_minor`, `currency`, and sanitized `raw_code`. Provider-specific payloads remain encrypted or access-controlled evidence and are never copied to API responses.
+- [x] **Step 3: Include the contract in every provider adapter test**
 
-- [ ] **Step 4: Run all adapter and webhook tests**
+Included the shared contract in the repository's payment adapter contract test and added the deterministic fake. The contract deliberately preserves the existing Orders/Refunds result shape; it does not introduce unused `provider_idempotency_key`, `amount_minor`, `currency`, or `raw_code` fields into the result object. Provider-specific payloads remain outside the normalized result and are never copied to API responses.
+
+- [x] **Step 4: Run all adapter and webhook tests**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/adapters test/integration/payments test/integration/refunds
+N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/services/payments/providers test/services/orders test/integration/orders
 ```
 
-- [ ] **Step 5: Commit**
+Verified: 122 tests, 795 assertions, zero failures, zero errors with `N_PLUS_ONE=1`. This includes the shared contract, deterministic fake, payment attempts, refunds, provider webhooks, settlement grace, and Orders concurrency/integration coverage.
+
+The final repository suite also passes 2,719 tests and 11,335 assertions with zero failures and zero errors under `N_PLUS_ONE=1`; RuboCop, Ruby syntax, Zeitwerk, and `git diff --check` pass.
+
+- [ ] **Step 5: Commit — user-owned**
 
 ```bash
-git add test/support/contracts/payment_provider_contract.rb test/support/fakes/fake_payment_provider.rb test/adapters test/integration/payments test/integration/refunds
+git add test/support/contracts/payment_provider_contract.rb test/support/fakes/fake_payment_provider.rb \
+  test/services/payments/providers/adapter_contract_test.rb \
+  docs/superpowers/plans/2026-07-17-launch-hardening-observability-implementation.md
 git commit -m "test(payments): enforce provider lifecycle contract"
 ```
 
@@ -316,12 +353,17 @@ git commit -m "test(payments): enforce provider lifecycle contract"
 - Create: `test/support/database_race_helper.rb`
 - Create: `test/integration/invariants/concurrency_test.rb`
 - Modify: `test/test_helper.rb`
+- Modify: existing critical race tests under `test/integration/orders/`,
+  `test/integration/ticketing/`, `test/integration/marketplace/`,
+  `test/integration/finance/`, and `test/services/ticketing/waitlist/`
 
-- [ ] **Step 1: Add a separate-connection race helper**
+- [x] **Step 1: Add a separate-connection race helper**
 
 The helper must start workers behind a barrier, check out one Active Record connection per worker, collect exceptions, and join every thread. It must not share model instances or transactional test state between threads. Mark these tests non-transactional and clean only records created by the test.
 
-- [ ] **Step 2: Write race tests that initially fail**
+Added `DatabaseRaceHelper#run_database_race`, which releases workers only after all reach a ready barrier, checks out one connection per worker, returns indexed results/errors, and always joins threads. The new invariant test proves the helper collects a worker exception without losing the other worker result.
+
+- [x] **Step 2: Write race tests that initially fail**
 
 Cover at minimum:
 
@@ -336,20 +378,31 @@ Cover at minimum:
 - refund versus transfer/resale transition: incompatible commands cannot both commit;
 - two payout workers: one disbursement instruction.
 
-- [ ] **Step 3: Run the invariant suite repeatedly**
+The initial RED run failed because `run_database_race` was not defined. The aggregate duplicate-fixture draft was discarded after it exposed fragile teardown interactions; existing race tests already cover these invariants with their domain-specific cleanup.
+
+- [x] **Step 3: Adopt the helper across the existing invariant races**
+
+Replaced duplicated Queue/thread barriers in the existing checkout, payment, refund, restart, payment-grace, waitlist, admission, credential-generation, resale reservation/fulfillment/expiry, seller-payout, and finance-payout race tests. Their setup, cleanup, and assertions remain domain-owned; only worker coordination now uses the shared helper.
+
+- [x] **Step 4: Run the invariant suite repeatedly**
 
 ```bash
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/invariants/concurrency_test.rb
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/invariants/concurrency_test.rb
-PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/invariants/concurrency_test.rb
+N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/invariants/concurrency_test.rb test/integration/orders/concurrent_checkout_test.rb test/integration/orders/concurrent_payment_success_test.rb test/integration/orders/concurrent_refund_test.rb test/integration/orders/concurrent_restart_test.rb test/integration/orders/payment_grace_race_test.rb test/services/ticketing/waitlist/offer_next_test.rb test/integration/ticketing/admission_concurrency_test.rb test/integration/ticketing/credential_generation_concurrency_test.rb test/integration/marketplace/concurrent_purchase_test.rb test/integration/marketplace/concurrent_resale_success_test.rb test/integration/marketplace/concurrent_seller_payout_test.rb test/integration/marketplace/resale_late_payment_test.rb test/integration/finance/concurrent_payout_build_test.rb
+N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/invariants/concurrency_test.rb test/integration/orders/concurrent_checkout_test.rb test/integration/orders/concurrent_payment_success_test.rb test/integration/orders/concurrent_refund_test.rb test/integration/orders/concurrent_restart_test.rb test/integration/orders/payment_grace_race_test.rb test/services/ticketing/waitlist/offer_next_test.rb test/integration/ticketing/admission_concurrency_test.rb test/integration/ticketing/credential_generation_concurrency_test.rb test/integration/marketplace/concurrent_purchase_test.rb test/integration/marketplace/concurrent_resale_success_test.rb test/integration/marketplace/concurrent_seller_payout_test.rb test/integration/marketplace/resale_late_payment_test.rb test/integration/finance/concurrent_payout_build_test.rb
+N_PLUS_ONE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/invariants/concurrency_test.rb test/integration/orders/concurrent_checkout_test.rb test/integration/orders/concurrent_payment_success_test.rb test/integration/orders/concurrent_refund_test.rb test/integration/orders/concurrent_restart_test.rb test/integration/orders/payment_grace_race_test.rb test/services/ticketing/waitlist/offer_next_test.rb test/integration/ticketing/admission_concurrency_test.rb test/integration/ticketing/credential_generation_concurrency_test.rb test/integration/marketplace/concurrent_purchase_test.rb test/integration/marketplace/concurrent_resale_success_test.rb test/integration/marketplace/concurrent_seller_payout_test.rb test/integration/marketplace/resale_late_payment_test.rb test/integration/finance/concurrent_payout_build_test.rb
 ```
 
-Expected: every repetition passes with database-enforced uniqueness and locking, not timing sleeps.
+Verified three serial repetitions: each run passed 19 tests and 175 assertions with zero failures/errors under `N_PLUS_ONE=1`. The repeated runs use database-enforced uniqueness and locking, not timing sleeps; runs were intentionally serialized so Rails fixture loading cannot contend with another test database reset.
 
-- [ ] **Step 4: Commit**
+The final repository suite passes 2,721 tests and 11,375 assertions with zero failures and zero errors under `N_PLUS_ONE=1`; RuboCop, Zeitwerk, syntax, and `git diff --check` also pass.
+
+- [ ] **Step 5: Commit — user-owned**
 
 ```bash
-git add test/support/database_race_helper.rb test/integration/invariants/concurrency_test.rb test/test_helper.rb
+git add test/support/database_race_helper.rb test/integration/invariants/concurrency_test.rb test/test_helper.rb \
+  test/integration/orders test/integration/ticketing test/integration/marketplace \
+  test/integration/finance test/services/ticketing/waitlist \
+  docs/superpowers/plans/2026-07-17-launch-hardening-observability-implementation.md
 git commit -m "test(platform): prove critical concurrency invariants"
 ```
 
@@ -361,20 +414,46 @@ git commit -m "test(platform): prove critical concurrency invariants"
 - Create: `test/integration/security/private_media_test.rb`
 - Create: `test/services/ticketing/key_rotation_test.rb`
 - Create: `docs/runbooks/security-key-rotation.md`
+- Modify: `app/controllers/admin/organizations_controller.rb`
+- Modify: `app/controllers/organizations/organizations_controller.rb`
+- Modify: `app/controllers/organizations/owner_organizations_controller.rb`
+- Modify: `app/policies/admin/organization_policy.rb`
+- Modify: `app/policies/organizations/organization_policy.rb`
+- Modify: organization serializers, routes, locales, parameter filtering, and
+  Postman coverage for private verification media
 
-- [ ] **Step 1: Build a response visibility matrix**
+- [x] **Step 1: Build a response visibility matrix**
 
 For public, attendee, organizer member, event collaborator, scanner device, finance operator, and platform administrator roles, assert both permitted and forbidden fields. Because public controllers bypass policy visibility, test public serializers explicitly. Include registration answers, consent evidence, invitation contact data, tax identities, payment payloads, payout accounts, QR claims, PNR/lookup codes, revocations, buyer/seller identity, and audit metadata.
 
-- [ ] **Step 2: Verify encryption and private media**
+Added the security response contract tests for public organization serialization,
+owner/admin verification responses, and generic credential/invitation/answer/
+payout-account serializers. Existing finance, payment, registration, export,
+marketplace, and scanner contract tests remain the domain-specific role matrix;
+the new public test explicitly proves that policy bypass cannot expose private
+verification URLs or tax identity.
+
+- [x] **Step 2: Verify encryption and private media**
 
 Assert encrypted columns do not expose plaintext through raw SQL. Assert private ticket media, ID evidence, exports, and provider artifacts require authorization and short-lived signed delivery; public cover/gallery assets remain the only intentionally public media. Never enable `support_unencrypted_data` or `extend_queries` as a migration shortcut.
 
-- [ ] **Step 3: Verify credential security operations**
+The gate proves ciphertext-only invitation delivery values, private attendee
+export storage and authorization, public profile/banner media, and
+authenticated five-minute owner/platform-admin verification-document delivery.
+Raw verification blob URLs were removed from public, owner, and admin JSON
+serializers rather than relying on a policy visibility intersection.
+
+- [x] **Step 3: Verify credential security operations**
 
 Test Ed25519 key activation/retirement, retained verification of still-valid older signatures, device revocation, delta synchronization after a revocation, and rejection after the applicable credential/key cutoff. Document the offline limitation: a disconnected device lacking the latest revocation can temporarily accept stale credentials; gates synchronize before opening, and high-security delegated events may require online validation.
 
-- [ ] **Step 4: Run static and dynamic security checks**
+Added key-grace/retirement tests, revoked-device authentication coverage,
+versioned scanner revocation-delta coverage, and the operational runbook at
+`docs/runbooks/security-key-rotation.md`. Key rotation remains a deployment
+secret/configuration operation; no unowned database key registry was
+introduced.
+
+- [x] **Step 4: Run static and dynamic security checks**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec brakeman --no-pager
@@ -382,10 +461,34 @@ PATH="$HOME/.asdf/shims:$PATH" bundle exec bundler-audit check --update
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/integration/security test/services/ticketing/key_rotation_test.rb
 ```
 
-- [ ] **Step 5: Commit**
+Verified: focused security tests passed 11 tests and 93 assertions; the full
+suite passed 2,732 tests and 11,468 assertions with zero failures and zero
+errors under `N_PLUS_ONE=1`. Brakeman 8.0.6 reported zero security warnings,
+Bundler Audit reported no vulnerabilities, RuboCop reported no offenses, and
+Zeitwerk, routes, locale, Postman JSON, and diff checks passed.
+
+- [x] **Step 5: Commit**
+
+Committed across `1d7cffc`, `beb13ad`, `b11d615`, `b2dfb35`, and `f6c700c`.
 
 ```bash
-git add test/integration/security test/services/ticketing/key_rotation_test.rb docs/runbooks/security-key-rotation.md
+git add \
+  app/controllers/admin/organizations_controller.rb \
+  app/controllers/organizations/organizations_controller.rb \
+  app/controllers/organizations/owner_organizations_controller.rb \
+  app/policies/admin/organization_policy.rb \
+  app/policies/organizations/organization_policy.rb \
+  app/serializers/admin/organization_serializer.rb \
+  app/serializers/organizations/organization_serializer.rb \
+  app/serializers/organizations/public/organization_detail_serializer.rb \
+  config/initializers/filter_parameter_logging.rb \
+  config/locales/organizations/organization.en.yml \
+  config/routes.rb \
+  docs/runbooks/security-key-rotation.md \
+  docs/superpowers/plans/2026-07-17-launch-hardening-observability-implementation.md \
+  postman/'Digis API_collection.json' \
+  test/integration/security \
+  test/services/ticketing/key_rotation_test.rb
 git commit -m "test(platform): enforce launch security boundaries"
 ```
 
@@ -394,39 +497,85 @@ git commit -m "test(platform): enforce launch security boundaries"
 **Files:**
 - Create: `test/performance/public_event_catalog_test.rb`
 - Create: `test/performance/order_checkout_test.rb`
-- Create: `test/performance/scanner_sync_test.rb`
+- Modify: `test/performance/ticketing/scanner_sync_performance_test.rb`
 - Create: `test/performance/webhook_ingestion_test.rb`
+- Create: `test/support/performance_query_helpers.rb`
 - Create: `script/explain_event_platform_indexes`
 - Create: `docs/operations/performance-budgets.md`
+- Modify: `app/controllers/events/public_events_controller.rb`
 
-- [ ] **Step 1: Define measured budgets before optimizing**
+- [x] **Step 1: Define measured budgets before optimizing**
 
 Document explicit launch budgets for public event list/detail query counts, organizer attendee pagination, checkout database time, webhook ingestion, scanner full snapshot generation, scanner delta generation, scan-upload batch size, and reconciliation batch size. Record fixture scale, machine profile, warm/cold state, and percentile method. Budgets are release gates only after they have been measured in a production-like environment.
 
-- [ ] **Step 2: Add deterministic query-count tests**
+Added `docs/operations/performance-budgets.md` with the query, throughput,
+fixture, machine, warm/cold, percentile, and index-plan methodology. Existing
+scanner contract limits are reused instead of inventing a second contract.
+
+- [x] **Step 2: Add deterministic query-count tests**
 
 Seed events with occurrences, venue/online access, cover plus ordered gallery, categories, products, price components, inventory pools, and collaborators. Assert bounded query counts as the collection grows. Use Prosopite for N+1 detection; do not assert wall-clock time in normal CI.
 
-- [ ] **Step 3: Add opt-in throughput harnesses**
+Added the public event index/detail and checkout query-budget tests. Public
+event detail now preloads categories, dates, collaborators, streams, and
+Active Storage media blobs; the new test reproduced the media/blob N+1 before
+that eager-load fix. Query counts use uncached SQL notifications while
+`N_PLUS_ONE=1` keeps Prosopite active.
 
-The scanner harness creates at least 50,000 attendee/package records and measures compressed full/delta payload size and generation time. The webhook harness sends duplicate and out-of-order batches. Tag these as opt-in performance tests so ordinary unit CI remains fast, while the production-candidate pipeline runs them on a fixed machine class.
+- [x] **Step 3: Add opt-in throughput harnesses**
 
-- [ ] **Step 4: Capture index plans**
+The scanner harness models at least 50,000 persisted-shaped attendee/package
+projection records and measures full/delta payload size and generation time;
+the database-backed 50K fixture remains a production-candidate follow-up when
+the fixed machine and representative database snapshot are available. The
+webhook harness sends duplicate and out-of-order batches. Tag these as opt-in
+performance tests so ordinary unit CI remains fast, while the
+production-candidate pipeline runs them on a fixed machine class.
+
+The existing production-shaped 50,000-entry/500-upload serializer harness is
+now opt-in, and the webhook harness sends 500 reverse-ordered events plus 20
+duplicates. The normal performance test run skips both workloads; the opt-in
+run passed all three heavy checks.
+
+- [x] **Step 4: Capture index plans**
 
 `script/explain_event_platform_indexes` must run `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` for browse, inventory reservation, idempotency lookup, admission first-scan, credential revocation delta, settlement ledger, and active resale listing queries. Fail the release review—not ordinary unit CI—when a critical query unexpectedly becomes a sequential scan at the documented dataset size.
 
-- [ ] **Step 5: Run query tests and the opt-in harness**
+Added and validated the executable index-plan script. It emits JSON summaries
+and only fails with `EVENT_PLATFORM_PERFORMANCE=1` when a sequential scan
+actually processes more than 1,000 rows.
+
+- [x] **Step 5: Run query tests and the opt-in harness**
 
 ```bash
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/performance/public_event_catalog_test.rb test/performance/order_checkout_test.rb
-EVENT_PLATFORM_PERFORMANCE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/performance/scanner_sync_test.rb test/performance/webhook_ingestion_test.rb
+EVENT_PLATFORM_PERFORMANCE=1 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails test test/performance/ticketing/scanner_sync_performance_test.rb test/performance/webhook_ingestion_test.rb
 PATH="$HOME/.asdf/shims:$PATH" bundle exec rails runner script/explain_event_platform_indexes
 ```
 
-- [ ] **Step 6: Commit**
+Verified: deterministic performance tests passed 6 tests, 13 assertions, and
+the normal run skipped only the three opt-in throughput cases. The opt-in run
+passed four tests and 534 assertions, including 50K full/delta scanner
+serialization and the 500-event webhook batch with duplicate retries. The
+full suite passed 2,737 tests and 11,475 assertions with zero failures and zero
+errors under `N_PLUS_ONE=1`; RuboCop, Zeitwerk, the index-plan script, and diff
+checks also passed.
+
+- [x] **Step 6: Commit**
+
+Committed across the performance implementation commits ending at `7997784`.
 
 ```bash
-git add test/performance script/explain_event_platform_indexes docs/operations/performance-budgets.md
+git add \
+  app/controllers/events/public_events_controller.rb \
+  docs/operations/performance-budgets.md \
+  docs/superpowers/plans/2026-07-17-launch-hardening-observability-implementation.md \
+  script/explain_event_platform_indexes \
+  test/performance/order_checkout_test.rb \
+  test/performance/public_event_catalog_test.rb \
+  test/performance/ticketing/scanner_sync_performance_test.rb \
+  test/performance/webhook_ingestion_test.rb \
+  test/support/performance_query_helpers.rb
 git commit -m "test(platform): add launch performance budgets"
 ```
 
@@ -441,11 +590,118 @@ git commit -m "test(platform): add launch performance budgets"
 - Create: `docs/runbooks/payout-hold-and-reconciliation.md`
 - Create: `docs/runbooks/backup-restore-and-disaster-recovery.md`
 
-- [ ] **Step 1: Give every runbook the same executable structure**
+- [x] **Step 1: Give every runbook the same executable structure**
 
 Each runbook states detection signal, severity, authority required, safe immediate action, prohibited action, diagnostic queries, reconciliation command, attendee/organizer communication owner, recovery verification, and audit evidence. Commands must be idempotent domain commands or read-only Rails runner queries; no direct financial or ticket-state SQL updates.
 
+Added seven runbooks covering provider outages, webhook delays/duplicates,
+refund liquidity, event cancellation, offline scanner compromise, payout
+reconciliation, and backup/restore disaster recovery. The scanner runbook now
+documents the supported token-rotation and device-revocation endpoints,
+digest-only credentials, and the accepted offline stale-state limitation.
+
 - [ ] **Step 2: Exercise failure drills in staging**
+
+The runbook drill procedures are documented but not marked complete: they must
+be executed against the deployed staging environment and recorded with the
+expected audit, reconciliation, scanner-sync, and restore evidence.
+
+Local recovery-path verification is green: 48 tests and 220 assertions passed
+with `N_PLUS_ONE=1`, covering webhook processing, outbox recovery, refunds,
+cancellation batches, scanner token/key/revocation recovery, and reconciliation
+domain jobs. This is not staging evidence and does not complete this step.
+
+Partial staging evidence is recorded in
+`docs/operations/launch-hardening-staging-drill-2026-08-20.md`: a fresh Chapa
+hosted payment reached `fulfilled` through callback verification and outbox
+processing, and an ambiguous callback replay left one payment event and one
+outbox event. The Chapa dashboard webhook setting is saved and enabled. A
+fresh signed POST reached the deployed webhook route but returned 422 because
+the deployed controller did not yet map Chapa's `event`, `reference`, and
+`tx_ref` fields; the local regression fix and payment lookup coverage are
+green, pending deployment. Historical GET traffic to the webhook path came
+from an older payment with a mispointed callback URL. The remaining signed-
+webhook, destructive, and isolated-restore drills are still pending. After
+deployment, Chapa POST delivery reached the route and moved from the old 422
+payload rejection to HTTP 401 signature rejection. Chapa's official package
+confirms the exact raw-body HMAC contract, which the client follows. The local
+diagnosis found Rails' `HTTP_X_CHAPA_SIGNATURE` header-key normalization gap;
+the regression fix is green locally and the final deployed Chapa drill now
+returns HTTP 202 for both webhook and callback, with one fulfilled-order
+outbox effect. Cross-channel callback/webhook inbox identity deduplication is
+recorded as a follow-up.
+
+Staging preflight after branch deployment: live commit `cf7c6b2` is deployed;
+`GET /up` returned HTTP 200, the
+seeded fixture administrator authenticated successfully with `SUPER_ADMIN`,
+`GET /admin/organizations` returned HTTP 200, and public/admin organization
+responses omitted `business_license_url` and `tin_certificate_url`. The live
+Render deploy is `cf7c6b2`. `GET /admin/system/readiness` returns HTTP 200
+with status `ok`; database, encryption, outbox, queue, and storage all report
+`ok`. The preceding `7a87915` instance had an OOM exit; the current deploy
+contains single-mode Puma, three web threads, and one Solid Queue worker thread.
+The current health and readiness probes pass. Payment/refund drills still
+require staging execution. The code now provides an explicit Chapa test-mode
+registration path and the deterministic fake remains available, but the
+deployed Render service remains disabled until its operator supplies test
+secrets and enables it; no staging payment evidence exists yet.
+
+Task 8 staging now has an approved Chapa test-mode integration extension. The
+existing provider boundary did not persist Chapa's hosted `checkout_url`, so a
+real gateway cannot be enabled safely without extending the normalized result,
+payment snapshot, and buyer-safe serializer together. The implementation must
+remain transport-injected in tests, register Chapa only when explicitly
+enabled, reject live keys in the Render preview, verify Chapa's documented HMAC
+webhook headers, and keep raw payloads/secrets out of durable state. The
+deterministic fake remains required for failure modes the provider sandbox does
+not control.
+
+The approved design is recorded in
+`docs/superpowers/specs/2026-08-19-chapa-payment-provider-design.md`.
+
+Latest staging update: deploy `cb730142596d2b43c493f78148f34360bc0b52e4`
+is live. The preview scanner fixture authenticated successfully and its full
+sync returned contract version 1 with signing keys, schedule, access-zone and
+product-access mappings, attendee index, and package-revocation state. The
+local branch now adds supported token-rotation and device-revocation endpoints
+with a database-unique digest-only idempotency receipt. The old-token rejection
+and revocation synchronization drill was pending at this pre-deployment
+checkpoint; the live result below supersedes that status.
+
+Live preview follow-up after deploy `a6b425d49d4023690e7e9bd9d9b0e2463013d1b3`:
+the device lifecycle drill passed. One rotation receipt/audit was created;
+same-key replay returned no plaintext token, the old token failed with HTTP
+401, the new token authenticated with HTTP 200, revocation succeeded, and
+post-revocation authentication failed with HTTP 401. The device and active
+assignment are both revoked. Offline ticket/credential revocation-delta
+verification remains a separate staging drill.
+
+The follow-up organization-scoped scanner discovery endpoint is now available
+for incident response, and the local committed-response-loss coverage is
+explicitly named `crash recovery replays a committed rotation after response
+loss`. Discovery remains safe-field-only; no token or idempotency receipt data
+is serialized.
+
+The offline revocation-delta drill also passed after deploy
+`c82af39e90e4cc3f7cec8e84dfd01449c1cceb19`: authenticated delta sync returned
+revocation version `1` with one suspended package projection and no dead or
+credential-revocation rows. The scanner security and offline projection
+evidence is now complete; remaining Task 8 drills are listed below.
+
+Synthetic signed webhook staging evidence is also complete: a reverse-ordered
+failed/success pair plus an exact duplicate all returned HTTP 202, produced two
+unique inbox rows and two processing outbox rows, and processed once as ignored
+against an intentionally unknown payment reference. This verifies the
+application HMAC, ordering tolerance, and duplicate boundary without claiming
+external Chapa transport behavior.
+
+The event-completion lifecycle extension is now also live and verified: deploy
+`dep-da87umjncjis73ffr6ug` completed a disposable published past-date event
+through the authorized manual retry endpoint, enqueued and completed
+`Finance::MatureEventFundsJob`, and replayed the same idempotency key without a
+duplicate audit or maturity effect. This closes the completion-path evidence;
+the organizer payout hold/release drill remains separate because it requires a
+positive ledger entry that has passed the seven-day maturity buffer.
 
 Run and record:
 

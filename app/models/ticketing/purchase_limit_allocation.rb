@@ -7,7 +7,7 @@ module Ticketing
     self.table_name = "ticketing_purchase_limit_allocations"
 
     STATUSES = %w[reserved committed released].freeze
-    RELEASE_REASONS = %w[expired checkout_expired cancelled refunded void resale_replaced].freeze
+    RELEASE_REASONS = %w[expired checkout_expired buyer_requested cancelled refunded void resale_replaced].freeze
 
     belongs_to :ticket_type, class_name: "Ticketing::TicketType"
     belongs_to :user, class_name: "Core::User"

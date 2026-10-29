@@ -15,9 +15,25 @@ class RenderPreviewConfigurationTest < ActiveSupport::TestCase
     assert_equal "free", service.fetch("plan")
     assert_equal "./Dockerfile", service.fetch("dockerfilePath")
     assert_equal "/up", service.fetch("healthCheckPath")
-    assert_equal "main", service.fetch("branch")
+    assert_equal "feat/launch-hardening-telemetry", service.fetch("branch")
     assert_equal "free", database.fetch("plan")
-    keys = service.fetch("envVars").map { |entry| entry.fetch("key") }
+    env_vars = service.fetch("envVars").to_h { |entry| [ entry.fetch("key"), entry["value"] ] }
+    assert_equal "0", env_vars.fetch("WEB_CONCURRENCY")
+    assert_equal "3", env_vars.fetch("RAILS_MAX_THREADS")
+    assert_equal "1", env_vars.fetch("JOB_THREADS")
+    assert_equal "digis-backend-preview.onrender.com", env_vars.fetch("APP_HOST")
+    assert_equal "true", env_vars.fetch("CHAPA_ENABLED")
+    assert_equal "true", env_vars.fetch("CHAPA_PAYOUT_ENABLED")
+    assert_equal "test", env_vars.fetch("CHAPA_MODE")
+    assert_equal "https://api.chapa.global", env_vars.fetch("CHAPA_API_BASE_URL")
+    assert_equal "https://digis-backend-preview.onrender.com/payments/chapa/callback",
+      env_vars.fetch("CHAPA_CALLBACK_URL")
+    assert_equal "https://digis-backend-preview.onrender.com/payments/chapa/callback",
+      env_vars.fetch("CHAPA_RETURN_URL")
+    %w[CHAPA_SECRET_KEY CHAPA_WEBHOOK_SECRET].each do |key|
+      assert service.fetch("envVars").any? { |entry| entry.fetch("key") == key && entry.fetch("sync") == false }
+    end
+    keys = env_vars.keys
     assert_includes keys, "RENDER_PREVIEW"
     assert_includes keys, "RENDER_PREVIEW_DATABASE_URL"
     assert_includes keys, "SOLID_QUEUE_IN_PUMA"
@@ -78,10 +94,21 @@ class RenderPreviewConfigurationTest < ActiveSupport::TestCase
 
     assert_equal "S3", private_exports.fetch("service")
     assert_equal "https://eu-west-1.s3.fil.one", private_exports.fetch("endpoint")
+    assert_equal true, private_exports.fetch("force_path_style")
     assert_equal "eu-west-1", private_exports.fetch("region")
     assert_equal "preview-bucket", private_exports.fetch("bucket")
     assert_equal "preview-access", private_exports.fetch("access_key_id")
     assert_equal "preview-secret", private_exports.fetch("secret_access_key")
+  end
+
+  test "preview uses durable S3-compatible storage for ordinary media" do
+    storage = evaluate_storage_configuration(preview: true)
+    preview = storage.fetch("preview")
+
+    assert_equal "S3", preview.fetch("service")
+    assert_equal "https://eu-west-1.s3.fil.one", preview.fetch("endpoint")
+    assert_equal true, preview.fetch("force_path_style")
+    assert_equal "preview-bucket", preview.fetch("bucket")
   end
 
   test "non-preview private export storage remains local disk" do
@@ -105,6 +132,30 @@ class RenderPreviewConfigurationTest < ActiveSupport::TestCase
     assert_includes entrypoint, "DISABLE_DATABASE_ENVIRONMENT_CHECK=1 SCHEMA_FORMAT=ruby"
     assert_includes entrypoint, 'SCHEMA="db/${database}_schema.rb"'
     assert_includes entrypoint, "db:schema:load:${database}"
+  end
+
+  test "preview server seeds the shared fixture after preparing the database" do
+    entrypoint = Rails.root.join("bin/docker-entrypoint").read
+
+    assert_includes entrypoint, 'if [ "${RENDER_PREVIEW}" == "true" ]; then'
+    assert_includes entrypoint, "./bin/rails db:migrate"
+    assert_includes entrypoint, "./bin/rails db:seed"
+    assert_includes entrypoint, 'if [ "${DIGIS_FORCE_SEED}" == "true" ]; then'
+    refute_includes entrypoint, 'return 0 if [ "${DIGIS_FORCE_SEED}" == "true" ]'
+    assert_operator entrypoint.index("./bin/rails db:migrate"), :<,
+                    entrypoint.index('prepare_preview_schema "queue"')
+    assert_operator entrypoint.index('prepare_preview_schema "cable"'), :<,
+                    entrypoint.index("\n      ./bin/rails db:seed\n")
+  end
+
+  test "preview reset is explicit and guarded by the preview database URL" do
+    entrypoint = Rails.root.join("bin/docker-entrypoint").read
+
+    assert_includes entrypoint, 'if [ "${DIGIS_RESET_DATABASE}" != "true" ]'
+    assert_includes entrypoint, "DIGIS_RESET_DATABASE=true requires RENDER_PREVIEW_DATABASE_URL"
+    assert_includes entrypoint, "DISABLE_DATABASE_ENVIRONMENT_CHECK=1 ./bin/rails db:seed:replant"
+    assert_operator entrypoint.index("if reset_preview_database;"), :<,
+                    entrypoint.index("elif preview_seed_required;")
   end
 
   test "production URL defaults are environment-backed" do

@@ -8,7 +8,7 @@ class AdminUsersTest < ActionDispatch::IntegrationTest
                 fixture_keys: %i[super_admin core_admin support attendee],
                 path: "/admin/users",
                 except: %i[destroy],
-                create_params: -> { { user: { email: "new_#{SecureRandom.hex(8)}@example.com", phone: "+251#{SecureRandom.hex(8)}", password: "password123" } } },
+                create_params: -> { { user: { email: "new_#{SecureRandom.hex(8)}@example.com", phone: "+2519#{rand(10_000_000..99_999_999)}", password: "password123" } } },
                 update_params: ->(record) { { user: { email: "updated_#{SecureRandom.hex(4)}@example.com" } } },
                 check_attributes: {
                   index: %w[id email phone verified_at],

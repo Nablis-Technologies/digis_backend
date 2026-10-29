@@ -17,6 +17,16 @@ module Finance
         end
       end
 
+      # Beneficiary verification is provider-specific. Unsupported providers
+      # remain pending instead of being treated as verified by local syntax.
+      def verify_payout_account(**)
+        Result.unknown(raw_status: "unsupported")
+      end
+
+      def available_banks(**)
+        nil
+      end
+
       private
 
       def normalize_result(response)

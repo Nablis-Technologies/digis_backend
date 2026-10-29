@@ -10,21 +10,29 @@ module Marketplace
       @account = create_payout_account(status: "verified", verified_at: @now)
     end
 
-    def create_payout_account(status: "pending_verification", verified_at: nil)
+    def create_payout_account(status: "pending_verification", verified_at: nil,
+      account_number: "1000000000001")
+      number = account_number
       SellerPayoutAccount.create!(
         user: @seller,
-        type: "mobile_money",
-        provider: "telebirr",
-        account_token: "seller-token-#{SecureRandom.hex(8)}",
-        account_label_ciphertext: "Seller wallet",
-        holder_name_ciphertext: "Seller Holder",
+        type: "bank",
+        provider: "chapa",
+        bank_slug: "cbe",
+        account_number: number,
+        account_number_digest: Core::PayoutAccountDigest.call(
+          namespace: @seller.id, account_number: number
+        ),
+        account_label: "Seller bank account",
+        holder_name: "Seller Holder",
         status:,
-        verified_at:
+        verification_source: status == "verified" ? "test_fixture" : nil,
+        verified_at:,
+        is_default: false
       )
     end
 
     def create_seller_ledger_entry(amount_minor:, type: "adjustment", currency: "ETB",
-      available_at: @now - 1.day, event: @event)
+      available_at: @now - 1.day, event: @event, created_at: available_at)
       SellerLedgerEntry.create!(
         seller_user: @seller,
         event:,
@@ -34,7 +42,7 @@ module Marketplace
         available_at:,
         idempotency_key: "seller-ledger-test-#{SecureRandom.hex(8)}",
         description: "Seller payout test fact",
-        created_at: available_at
+        created_at:
       )
     end
 

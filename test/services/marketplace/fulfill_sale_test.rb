@@ -61,6 +61,32 @@ module Marketplace
       ).count
     end
 
+    test "locks the ticket type and checkout before locking the listing" do
+      statements = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _start, _finish, _id, payload|
+        statements << payload[:sql]
+      end
+
+      result = FulfillSale.call(listing: @listing, order: @order, payment: @payment)
+
+      assert_predicate result, :success?, result.error&.message
+      ticket_type_lock_index = statements.index do |sql|
+        sql.match?(/FROM\s+"ticketing_ticket_types".*FOR UPDATE/i)
+      end
+      checkout_lock_index = statements.index { |sql| sql.include?("pg_advisory_xact_lock") }
+      listing_lock_index = statements.index do |sql|
+        sql.match?(/FROM\s+"marketplace_resale_listings".*FOR UPDATE/i)
+      end
+
+      assert_not_nil ticket_type_lock_index, "expected the ticket-type policy lock"
+      assert_not_nil checkout_lock_index, "expected the shared checkout advisory lock"
+      assert_not_nil listing_lock_index, "expected the resale-listing lock"
+      assert_operator ticket_type_lock_index, :<, checkout_lock_index
+      assert_operator checkout_lock_index, :<, listing_lock_index
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+    end
+
     test "rejects a succeeded payment that was not accepted" do
       @payment.update_columns(accepted_at: nil)
 
@@ -106,6 +132,18 @@ module Marketplace
       assert_empty Core::OutboxEvent.where(
         aggregate_id: @order.id, event_type: "orders.payment.fulfilled"
       )
+    end
+
+    test "fulfills a resale when ticket type has no purchase limit configured" do
+      @ticket_type.update_columns(max_packages_per_user: nil)
+      Ticketing::PurchaseLimitAllocation.where(registration_id: @order_item.registration_id).delete_all
+
+      result = FulfillSale.call(listing: @listing, order: @order, payment: @payment)
+
+      assert_predicate result, :success?, result.error&.errors&.inspect || result.error&.message
+      assert_equal "sold", @listing.reload.status
+      assert_equal "fulfilled", @order.reload.status
+      assert_equal @buyer.id, @ticket.reload.owner_user_id
     end
   end
 end

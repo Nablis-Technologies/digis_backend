@@ -2,18 +2,17 @@
 
 require "test_helper"
 require "fugit"
-require "yaml"
 
 class PrivateAttendeeExportsConfigurationTest < ActiveSupport::TestCase
   test "production schedules bounded attendee export expiry" do
-    production = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true).fetch("production")
+    production = recurring_production_schedule
 
     assert_equal "Ticketing::ExpireAttendeeExportsJob", production.fetch("expire_attendee_exports").fetch("class")
     assert_equal "*/5 * * * *", production.fetch("expire_attendee_exports").fetch("schedule")
   end
 
   test "production recurring schedules are supported by Solid Queue" do
-    production = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true).fetch("production")
+    production = recurring_production_schedule
 
     production.each do |key, configuration|
       schedule = Fugit.parse(configuration.fetch("schedule"), multi: :fail)
@@ -30,5 +29,13 @@ class PrivateAttendeeExportsConfigurationTest < ActiveSupport::TestCase
     end
 
     assert_equal I18n.t("core.private_attendee_exports.errors.insecure_storage"), error.message
+  end
+
+  private
+
+  def recurring_production_schedule
+    ActiveSupport::ConfigurationFile
+      .parse(Rails.root.join("config/recurring.yml"))
+      .fetch("production")
   end
 end

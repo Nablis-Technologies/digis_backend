@@ -26,8 +26,12 @@ module Marketplace
     end
 
     def call
+      ticket_type_id = ResaleListing.where(id: @listing.id).pick(:ticket_type_id)
+      raise ActiveRecord::RecordNotFound unless ticket_type_id
+
       outcome = nil
       ActiveRecord::Base.transaction do
+        Orders::CheckoutLock.acquire_for_order!(order_id: @order.id, ticket_type_ids: [ ticket_type_id ])
         listing = ResaleListing.lock.find(@listing.id)
         existing = ResaleSale.lock.find_by(resale_listing_id: listing.id)
         if existing
@@ -186,9 +190,21 @@ module Marketplace
         ticket_type_id: ticket_type.id,
         status: %w[reserved committed]
       ).lock.order(:unit_number).to_a
-      abort_with(error(:buyer_allocation_missing, :conflict)) unless allocations.one?
+      if purchase_limit_enforced?(ticket_type, registration, buyer_id)
+        abort_with(error(:buyer_allocation_missing, :conflict)) unless allocations.one?
+      end
 
       allocations
+    end
+
+    def purchase_limit_enforced?(ticket_type, registration, buyer_id)
+      return true if ticket_type.max_packages_per_user.present?
+
+      Ticketing::PurchaseLimitOverride.where(
+        registration_id: registration.id,
+        ticket_type_id: ticket_type.id,
+        user_id: buyer_id
+      ).exists?
     end
 
     def resolve_resale_component!(listing, order, event, ticket)
@@ -267,6 +283,7 @@ module Marketplace
     end
 
     def commit_buyer_allocation!(registration, buyer, item, allocations)
+      return if allocations.empty?
       return if allocations.all?(&:committed?)
 
       result = Ticketing::PurchaseLimits::Commit.call(
@@ -305,23 +322,16 @@ module Marketplace
 
     def post_seller_ledger!(sale, event)
       Core::Database::AdvisoryLock.acquire!("marketplace-seller-ledger", sale.seller_user_id, event.id, sale.currency)
-      available_at = seller_ledger_available_at(event)
       create_or_replay_ledger_entry!(
         sale:, event:, type: "resale_proceeds", amount_minor: sale.gross_amount_minor,
-        available_at:, idempotency_key: "marketplace-resale-proceeds-#{sale.id}",
+        available_at: now, idempotency_key: "marketplace-resale-proceeds-#{sale.id}",
         description: I18n.t("marketplace.resale.ledger_descriptions.resale_proceeds")
       )
       create_or_replay_ledger_entry!(
         sale:, event:, type: "marketplace_fee", amount_minor: -sale.marketplace_fee_minor,
-        available_at:, idempotency_key: "marketplace-resale-fee-#{sale.id}",
+        available_at: now, idempotency_key: "marketplace-resale-fee-#{sale.id}",
         description: I18n.t("marketplace.resale.ledger_descriptions.marketplace_fee")
       )
-    end
-
-    def seller_ledger_available_at(event)
-      final_event_end = Events::EventDate.where(event_id: event.id)
-        .where.not(status: "cancelled").maximum(:ends_at)
-      [ now, (final_event_end || now) + Finance::PayoutSupport::DEFAULT_MATURITY_BUFFER ].max
     end
 
     def create_or_replay_ledger_entry!(sale:, event:, type:, amount_minor:, available_at:, idempotency_key:, description:)
@@ -413,7 +423,7 @@ module Marketplace
     def active_refund?(ticket)
       Orders::RefundItem
         .joins(:refund)
-        .where(ticket_id: ticket.id, orders_refunds: { status: %w[created pending_funds processing succeeded] })
+        .where(ticket_id: ticket.id, orders_refunds: { status: Orders::Refund::OUTSTANDING_STATUSES })
         .exists?
     end
 

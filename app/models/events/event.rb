@@ -13,7 +13,8 @@ module Events
     MAX_CATEGORIES = 3
 
 
-    belongs_to :organization, class_name: "Organizations::Organization"
+    belongs_to :organization, class_name: "Organizations::Organization",
+               inverse_of: :events, counter_cache: :events_count
     belongs_to :created_by, class_name: "Core::User"
 
     has_one :event_setting, class_name: "Events::EventSetting",
@@ -26,6 +27,8 @@ module Events
     has_many :collaborators, through: :event_organizations, source: :organization
     has_many :event_staff_assignments, class_name: "Events::EventStaffAssignment",
               dependent: :destroy, inverse_of: :event
+    has_many :staff_invitations, class_name: "Events::StaffInvitation",
+             dependent: :destroy, inverse_of: :event
     has_many :event_dates, class_name: "Events::EventDate",
              dependent: :destroy, inverse_of: :event
     has_many :finance_ledger_entries,
@@ -157,6 +160,28 @@ module Events
 
        errors.add(:categories, I18n.t("errors.messages.too_many_categories",
                                      max: MAX_CATEGORIES))
+    end
+
+    # SECURITY: explicit Ransack allowlist.
+    #
+    # Ransack 4.x raises when a model defines neither `ransackable_attributes`
+    # nor `ransackable_associations`, and Core::Filterable rescues that error and
+    # returns the unfiltered relation. Without this method every `q[...]` param on
+    # GET /events was therefore silently ignored - a filter UI built on top of it
+    # would have displayed unfiltered rows while claiming they were filtered.
+    #
+    # Keep the list explicit; it is the only thing between user input and the
+    # events table.
+    def self.ransackable_attributes(_auth_object = nil)
+      %w[
+        id organization_id created_by_id slug title description status
+        visibility timezone currency version published_at cancelled_at
+        completed_at created_at updated_at
+      ]
+    end
+
+    def self.ransackable_associations(_auth_object = nil)
+      %w[organization categories event_dates]
     end
   end
 end

@@ -22,10 +22,10 @@ module Organizations
     end
 
     def set_object
-      @obj = @clazz.joins(:memberships)
-                   .where(organizations_memberships: { user_id: current_user.id, status: :active })
-                   .includes(eager_loaded_associations)
-                   .find(params[:id])
+      scope = @clazz.joins(:memberships)
+                    .where(organizations_memberships: { user_id: current_user.id, status: :active })
+                    .includes(eager_loaded_associations)
+      @obj = with_authoritative_event_count(scope).find(params[:id])
     end
 
     def documents
@@ -60,8 +60,9 @@ module Organizations
     end
 
     def apply_index_scope(scope)
-      scope.joins(:memberships)
-           .where(organizations_memberships: { user_id: current_user.id })
+      managed = scope.joins(:memberships)
+                    .where(organizations_memberships: { user_id: current_user.id })
+      with_authoritative_event_count(managed)
     end
 
     def model_params
@@ -95,14 +96,17 @@ module Organizations
       {
         index: { fields: %i[id name slug description profile_url
                             city region events_count follower_count
-                            memberships_count verified created_at] },
+                            memberships_count verified membership_status
+                            membership_role archived created_at] },
         show: { fields: %i[id name slug description profile_url banner_url
-                           business_license_url tin_certificate_url
                            social_links follower_count memberships_count
                            organizer_type category contact_phone contact_email website_url
                            tin_number address_line1 address_line2 city region
                            estimated_audience event_frequency
-                           events_count verified is_following created_at] },
+                           events_count verified is_following
+                           verification_status verification_feedback
+                           has_business_license has_tin_certificate
+                           membership_status membership_role archived created_at] },
         create: { fields: %i[id name slug description created_at] },
         update: { fields: %i[id name slug description created_at] }
       }
@@ -114,6 +118,16 @@ module Organizations
                      banner_attachment: :blob,
                      business_license_attachment: :blob,
                      tin_certificate_attachment: :blob } ] }
+    end
+
+    def with_authoritative_event_count(scope)
+      # Counter caches handle normal writes; this correlated count also keeps
+      # read responses correct when a preview database skipped reconciliation.
+      scope.select(
+        "organizations_organizations.*",
+        "(SELECT COUNT(*) FROM events_events " \
+        "WHERE events_events.organization_id = organizations_organizations.id) AS events_count"
+      )
     end
   end
 end

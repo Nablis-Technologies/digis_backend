@@ -8,6 +8,7 @@ en:
         selected_event_date_id: "Selected Event Date ID"
         package_unit_number: "Package Unit Number"
         admission_position: "Admission Position"
+        registration_user_full_name: "Registration Account Holder Name"
         registration_user_email: "Registration User Email"
         registration_user_phone: "Registration User Phone"
       errors:

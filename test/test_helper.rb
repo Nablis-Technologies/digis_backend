@@ -32,6 +32,9 @@ Dir[Rails.root.join("test/support/**/*.rb")].each { |f| require f }
 
 module ActiveSupport
   class TestCase
+    include DatabaseRaceHelper
+    include Ticketing::ScannerTestHelpers
+
     # Fork-based parallelism is fast, but on macOS forking crashes under the
     # Objective-C runtime (+[NSNumber initialize]...) unless the shell exports
     # OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES before running tests. Set it
