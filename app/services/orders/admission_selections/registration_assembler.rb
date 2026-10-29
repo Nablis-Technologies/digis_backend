@@ -5,7 +5,7 @@ module Orders
     # Submits/reuses registrations and transfers waitlist-offer holds. It runs
     # inside Create's transaction and never opens a separate commit boundary.
     class RegistrationAssembler < Core::BaseService
-      Assembly = Data.define(:registrations_by_product_id, :gift_intents_by_product_id)
+      Assembly = Data.define(:registrations_by_line_key, :gift_intents_by_line_key)
 
       class Abort < Core::Error
         attr_reader :business_error
@@ -22,21 +22,21 @@ module Orders
       end
 
       def call
-        registrations_by_product_id = {}
-        gift_intents_by_product_id = {}
+        registrations_by_line_key = {}
+        gift_intents_by_line_key = {}
         context.items.each do |item|
           product = products.fetch(item.fetch(:event_product_id))
           next unless product.ticket?
 
           if item[:gift].present?
             gift = prepare_gift(item, product)
-            registrations_by_product_id[product.id.to_s] = gift.registration
-            gift_intents_by_product_id[product.id.to_s] = gift
+            registrations_by_line_key[item.line_key] = gift.registration
+            gift_intents_by_line_key[item.line_key] = gift
           else
-            registrations_by_product_id[product.id.to_s] = assemble(item, product)
+            registrations_by_line_key[item.line_key] = assemble(item, product)
           end
         end
-        success(Assembly.new(registrations_by_product_id:, gift_intents_by_product_id:))
+        success(Assembly.new(registrations_by_line_key:, gift_intents_by_line_key:))
       rescue Abort => error
         failure(error.business_error)
       end
@@ -63,7 +63,7 @@ module Orders
           note: item[:gift][:note],
           package_quantity: item[:quantity],
           selected_event_date_id: item[:selected_event_date_id],
-          idempotency_key: registration_idempotency_key(product)
+          idempotency_key: registration_idempotency_key(product, item.line_key)
         )
         abort_with(result.error) if result.failure?
 
@@ -98,7 +98,7 @@ module Orders
           phone: context.phone.presence || context.buyer.phone,
           submission: submission(item),
           audience_proof: audience_proof(item[:audience_proof]),
-          idempotency_key: registration_idempotency_key(product),
+          idempotency_key: registration_idempotency_key(product, item.line_key),
           guest: context.guest,
           phone_confirmation: context.guest && (context.phone_confirmation || context.guest_otp_verified),
           email: context.email,
@@ -134,9 +134,9 @@ module Orders
         { access_code: proof[:access_code], invitation: proof[:invitation_token] || proof[:invitation] }
       end
 
-      def registration_idempotency_key(product)
+      def registration_idempotency_key(product, line_key)
         Digest::SHA256.hexdigest(
-          "admission-registration:#{context.event.id}:#{context.buyer.id}:#{context.idempotency_key.digest}:#{product.id}"
+          "admission-registration:#{context.event.id}:#{context.buyer.id}:#{context.idempotency_key.digest}:#{line_key}"
         )
       end
 

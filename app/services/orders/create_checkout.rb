@@ -14,7 +14,7 @@ module Orders
     def initialize(
       quote:, event:, buyer:, idempotency_key:, sales_channel: nil,
       initiated_by: nil, replaces_order: nil, recovery_context: nil, at: nil,
-      gift_intents_by_product_id: {}
+      gift_intents_by_line_key: {}
     )
       @quote = quote
       @event = event
@@ -24,7 +24,7 @@ module Orders
       @initiated_by = initiated_by
       @replaces_order = replaces_order
       @recovery_context = recovery_context
-      @gift_intents_by_product_id = gift_intents_by_product_id.to_h.transform_keys(&:to_s).freeze
+      @gift_intents_by_line_key = gift_intents_by_line_key.to_h.transform_keys(&:to_s).freeze
       @now = (at || Time.current).to_time.utc.change(usec: 0)
     rescue NoMethodError, ArgumentError => error
       @initialization_error = error
@@ -33,6 +33,7 @@ module Orders
     def call
       return failure(checkout_error(:invalid_checkout, code: "invalid_checkout")) if @initialization_error
       return failure(checkout_error(:invalid_checkout, code: "invalid_checkout")) unless quote.is_a?(Orders::Quote)
+      return failure(checkout_error(:invalid_gift_intent, code: "invalid_gift_intent")) unless valid_gift_line_mapping?
 
       prepare_idempotency!
       ActiveRecord::Base.transaction do
@@ -98,9 +99,9 @@ module Orders
     end
 
     def gift_intent_fingerprints
-      @gift_intents_by_product_id.map do |product_id, intent|
+      @gift_intents_by_line_key.map do |line_key, intent|
         {
-          product_id:,
+          line_key:,
           registration_id: intent.registration.id,
           recipient_user_id: intent.recipient.id,
           recipient_phone_digest: intent.recipient_phone_digest,
@@ -111,7 +112,15 @@ module Orders
           ),
           expires_at: intent.expires_at.iso8601
         }
-      end.sort_by { |attributes| attributes.fetch(:product_id) }
+      end.sort_by { |attributes| attributes.fetch(:line_key) }
+    end
+
+    def valid_gift_line_mapping?
+      quote_lines_by_key = quote.items.index_by(&:line_key)
+      @gift_intents_by_line_key.all? do |line_key, intent|
+        line = quote_lines_by_key[line_key]
+        line && line.quantity == 1 && line.registration_id.to_s == intent.registration.id.to_s
+      end
     end
 
     def replay_or_conflict!
@@ -178,7 +187,7 @@ module Orders
     def create_items_and_adjustments!(order)
       quote.items.map do |quote_item|
         product = lock_product!(quote_item.product_id)
-        gift_intent = gift_intent_for(product.id)
+        gift_intent = gift_intent_for(quote_item.line_key)
         if gift_intent && !product.ticket?
           abort_with(checkout_error(:invalid_checkout, code: "invalid_gift_intent"))
         end
@@ -213,16 +222,16 @@ module Orders
 
         promotion_discount = quote_item.promotion_discount_minor.to_i
         create_promotion_adjustment!(order, item, promotion_discount) if promotion_discount.positive?
-        gift_purchase = create_gift_purchase!(order_item: item, intent: gift_intent) if gift_intent
+        gift_purchase = create_gift_purchase!(order_item: item, intent: gift_intent, line_id: quote_item.line_id) if gift_intent
         { quote_item:, product:, registration:, order_item: item, gift_intent:, gift_purchase: }
       end
     end
 
-    def gift_intent_for(product_id)
-      @gift_intents_by_product_id[product_id.to_s]
+    def gift_intent_for(line_key)
+      @gift_intents_by_line_key[line_key.to_s]
     end
 
-    def create_gift_purchase!(order_item:, intent:)
+    def create_gift_purchase!(order_item:, intent:, line_id:)
       token = SecureRandom.urlsafe_base64(32)
       Orders::GiftPurchase.create!(
         order_item:,
@@ -234,6 +243,7 @@ module Orders
         note: intent.note,
         token:,
         token_digest: Orders::GiftPurchase.token_digest_for(token:),
+        client_line_id: line_id,
         status: "pending_payment",
         delivery_status: "pending",
         expires_at: intent.expires_at
@@ -241,8 +251,13 @@ module Orders
     end
 
     def lock_product!(product_id)
-      product = Catalog::EventProduct.includes(:ticket_type).lock.find(product_id)
-      abort_with(checkout_error(:product_unavailable, code: "product_unavailable")) unless product.event_id == event.id && product.status == "active"
+      @locked_products ||= {}
+      product = @locked_products[product_id.to_s] ||= begin
+        Catalog::EventProduct.includes(:ticket_type).lock.find(product_id).tap do |product|
+          abort_with(checkout_error(:product_unavailable, code: "product_unavailable")) unless
+            product.event_id == event.id && product.status == "active"
+        end
+      end
       product
     rescue ActiveRecord::RecordNotFound
       abort_with(checkout_error(:product_not_found, code: "product_not_found"))

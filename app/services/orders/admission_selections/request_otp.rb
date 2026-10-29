@@ -10,7 +10,8 @@ module Orders
       def initialize(event:, items:, charge_currency:, phone:, idempotency_key:,
         promotion_code: nil, quoted_at: nil)
         @event = event
-        @items = Orders::AdmissionSelectionEnvelope.new(items:).items
+        @envelope = Orders::AdmissionSelectionEnvelope.new(items:)
+        @items = @envelope.items
         @charge_currency = charge_currency.to_s.upcase
         @phone = phone
         @raw_idempotency_key = idempotency_key
@@ -59,12 +60,13 @@ module Orders
         abort_with(selection_error("items_required")) if items.empty?
         ids = items.map { |item| item.fetch(:event_product_id) }
         abort_with(selection_error("admission_selection_invalid")) if ids.any?(&:blank?)
-        abort_with(selection_error("duplicate_product")) unless ids.uniq.length == ids.length
+        abort_with(selection_error("duplicate_product")) unless @envelope.valid_repeated_gift_lines?
+        product_ids = ids.uniq
 
-        products = Catalog::EventProduct.where(event_id: @event.id, id: ids)
+        products = Catalog::EventProduct.where(event_id: @event.id, id: product_ids)
           .includes(:prices, :ticket_type, { inventories: :event_date }, product_accesses: :event_date)
           .index_by { |product| product.id.to_s }
-        abort_with(selection_error("product_not_found", status: :not_found)) unless products.size == ids.size
+        abort_with(selection_error("product_not_found", status: :not_found)) unless products.size == product_ids.size
         abort_with(selection_error("admission_selection_manual_approval_mixed")) if
           items.size > 1 && products.values.any? { |product| product.ticket_type&.approval_mode == "manual" }
 
@@ -84,12 +86,14 @@ module Orders
           add_on_lines << line unless product.ticket?
           {
             product:,
+            line_id: item.line_id,
             registration: nil,
             quantity: item.fetch(:quantity),
             event_date_ids: line.event_date_ids,
             venue_event_date_ids: line.venue_event_date_ids
           }
         end
+        validate_product_quantities!(products)
         abort_with(selection_error("admission_selection_invalid")) if ticket_count.zero?
         validate_add_on_inventory_configuration!(add_on_lines, products.values)
 
@@ -100,7 +104,8 @@ module Orders
           promotion: @promotion,
           promotion_code: @promotion_code,
           quoted_at: @quoted_at,
-          require_registrations: false
+          require_registrations: false,
+          gift_line_ids: items.filter_map { |item| item.line_id if item[:gift].present? }
         )
         abort_with(quote.error) if quote.failure?
 
@@ -113,8 +118,6 @@ module Orders
         abort_with(selection_error("product_unavailable", status: :conflict)) unless product.status == "active"
         quantity = item[:quantity]
         abort_with(selection_error("quantity_invalid")) unless quantity.is_a?(Integer) && quantity.positive?
-        abort_with(selection_error("quantity_outside_product_limit")) unless
-          product.min_per_order <= quantity && (product.max_per_order.nil? || quantity <= product.max_per_order)
         abort_with(selection_error("product_unavailable", status: :conflict)) unless
           Catalog::Products::SalesWindow.open?(product)
 
@@ -123,6 +126,15 @@ module Orders
         validate_ticket_line!(item, product) if validation.value == :ticket
 
         validation.value
+      end
+
+      def validate_product_quantities!(products)
+        items.group_by { |item| item.fetch(:event_product_id) }.each do |product_id, product_items|
+          product = products.fetch(product_id)
+          quantity = product_items.sum { |item| item.fetch(:quantity) }
+          valid = product.min_per_order <= quantity && (product.max_per_order.nil? || quantity <= product.max_per_order)
+          abort_with(selection_error("quantity_outside_product_limit")) unless valid
+        end
       end
 
       def validate_ticket_line!(item, product)
@@ -185,10 +197,9 @@ module Orders
       end
 
       def validate_form!(item, ticket_type)
-        schema = Ticketing::Forms::ApplicableSchema.call(event: @event, ticket_type:)
-        abort_with(schema.error) if schema.failure?
+        schema = applicable_form_schema(ticket_type)
         result = Ticketing::Forms::ValidateSubmission.call(
-          schema: schema.value,
+          schema:,
           submission: {
             package_quantity: item[:quantity],
             admissions_per_unit: ticket_type.admissions_per_unit,
@@ -198,6 +209,16 @@ module Orders
           }
         )
         abort_with(result.error) if result.failure?
+      end
+
+      def applicable_form_schema(ticket_type)
+        schemas = (@form_schemas_by_ticket_type_id ||= {})
+        schemas.fetch(ticket_type.id) do
+          result = Ticketing::Forms::ApplicableSchema.call(event: @event, ticket_type:)
+          abort_with(result.error) if result.failure?
+
+          schemas[ticket_type.id] = result.value
+        end
       end
 
       def resolve_guest_identity!

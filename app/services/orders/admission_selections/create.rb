@@ -24,7 +24,8 @@ module Orders
         @event = event
         @buyer = buyer
         @selection = selection.to_h.symbolize_keys
-        @items = AdmissionSelectionEnvelope.new(items: @selection[:items]).items
+        @envelope = AdmissionSelectionEnvelope.new(items: @selection[:items])
+        @items = @envelope.items
         @charge_currency = @selection[:charge_currency].to_s.upcase
         @raw_idempotency_key = idempotency_key
         @guest = @selection[:guest] == true
@@ -68,10 +69,10 @@ module Orders
           context = command_context
           assembly = RegistrationAssembler.call(context:, products:)
           abort_with(assembly.error) if assembly.failure?
-          registrations_by_product_id = assembly.value.registrations_by_product_id
-          gift_intents_by_product_id = assembly.value.gift_intents_by_product_id
-          if manual_request_without_checkout?(products, registrations_by_product_id)
-            registration = registrations_by_product_id.values.sole
+          registrations_by_line_key = assembly.value.registrations_by_line_key
+          gift_intents_by_line_key = assembly.value.gift_intents_by_line_key
+          if manual_request_without_checkout?(products, registrations_by_line_key)
+            registration = registrations_by_line_key.values.sole
             record_registration_request!(registration)
             result = success(result_for_registration(registration))
             next
@@ -79,9 +80,9 @@ module Orders
 
           dispatch = CheckoutDispatcher.call(
             context:,
-            registrations_by_product_id:,
-            gift_intents_by_product_id:,
-            inventory_lines_by_product_id: @inventory_lines_by_product_id
+            registrations_by_line_key:,
+            gift_intents_by_line_key:,
+            inventory_lines_by_line_key: @inventory_lines_by_line_key
           )
           abort_with(dispatch.error) if dispatch.failure?
           order = dispatch.value
@@ -104,7 +105,7 @@ module Orders
         abort_with(selection_error("items_required")) if @normalized_items.empty?
         ids = @normalized_items.map { |item| item.fetch(:event_product_id) }
         abort_with(selection_error("admission_selection_invalid")) if ids.any?(&:blank?)
-        abort_with(selection_error("duplicate_product")) unless ids.uniq.length == ids.length
+        abort_with(selection_error("duplicate_product")) unless @envelope.valid_repeated_gift_lines?
       rescue ArgumentError => error
         abort_with(selection_error("invalid_idempotency_key", status: :bad_request, message: error.message))
       end
@@ -192,7 +193,7 @@ module Orders
       end
 
       def product_ids
-        @normalized_items.map { |item| item.fetch(:event_product_id) }.sort
+        @normalized_items.map { |item| item.fetch(:event_product_id) }.uniq.sort
       end
 
       def validate_selection!(products)
@@ -212,20 +213,30 @@ module Orders
             manual << item if product.ticket_type.approval_mode == "manual"
           end
         end
+        validate_product_quantities!(products)
         abort_with(selection_error("admission_selection_invalid")) if ticket_count.zero?
         abort_with(selection_error("admission_selection_manual_approval_mixed")) if
           manual.any? && @normalized_items.length > 1
       end
 
+      def validate_product_quantities!(products)
+        @normalized_items.group_by { |item| item.fetch(:event_product_id) }.each do |product_id, items|
+          product = products.fetch(product_id)
+          quantity = items.sum { |item| item.fetch(:quantity) }
+          valid = product.min_per_order <= quantity && (product.max_per_order.nil? || quantity <= product.max_per_order)
+          abort_with(selection_error("quantity_outside_product_limit")) unless valid
+        end
+      end
+
       def preflight_inventory!(products)
-        @inventory_lines_by_product_id = {}
+        @inventory_lines_by_line_key = {}
         lines = @normalized_items.filter_map do |item|
           product = products.fetch(item.fetch(:event_product_id))
           next if new_manual_application?(item, product)
 
           line = inventory_check_line(item, product)
           abort_with(selection_error("event_date_unavailable", status: :unprocessable_entity)) unless line
-          @inventory_lines_by_product_id[product.id.to_s] = line
+          @inventory_lines_by_line_key[item.line_key] = line
           next if offered_registration?(item, product)
 
           validate_sales_window!(product)
@@ -235,7 +246,7 @@ module Orders
         result = Catalog::Inventory::CheckAvailability.call(lines:)
         abort_with(inventory_preflight_error(result.error)) if result.failure?
 
-        unavailable = result.value.unavailable_product_ids
+        unavailable = result.value.unavailable_product_ids.uniq.sort
         unavailable.each do |product_id|
           product = products.fetch(product_id)
           abort_with(selection_error("inventory_unavailable", status: :conflict)) unless
@@ -302,12 +313,12 @@ module Orders
         )
       end
 
-      def manual_request_without_checkout?(products, registrations_by_product_id)
+      def manual_request_without_checkout?(products, registrations_by_line_key)
         return false unless @normalized_items.one?
 
         item = @normalized_items.sole
         product = products.fetch(item.fetch(:event_product_id))
-        registration = registrations_by_product_id.fetch(product.id.to_s)
+        registration = registrations_by_line_key.fetch(item.line_key)
         registration.status == "pending_approval" ||
           (item[:registration_id].blank? && product.ticket_type.approval_mode == "manual")
       end
@@ -376,6 +387,7 @@ module Orders
           gift = item.gift_purchase
           {
             id: gift.id,
+            line_id: gift.client_line_id,
             status: gift.status,
             expires_at: gift.expires_at,
             delivery_status: gift.delivery_status
