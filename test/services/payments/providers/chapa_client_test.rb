@@ -71,6 +71,31 @@ module Payments
         refute_equal client_key, merchant_reference
       end
 
+      test "verify preserves the Chapa reference, merchant reference, amount, and currency" do
+        transport = FakeTransport.new(
+          Response.new(status: 200, body: {
+            status: "success",
+            data: {
+              status: "SUCCESS",
+              chapa_reference: "CHAPA-REF-1",
+              merchant_reference: "DIGIS-REF-1",
+              amount: 41_000,
+              currency: "ETB"
+            }
+          })
+        )
+
+        result = build_client(transport:).verify(provider_reference: "CHAPA-REF-1")
+
+        assert_predicate result, :success?
+        assert_respond_to result, :merchant_reference
+        assert_equal "CHAPA-REF-1", result.provider_reference
+        assert_equal "DIGIS-REF-1", result.merchant_reference
+        assert_equal 41_000, result.amount_minor
+        assert_equal "ETB", result.currency
+        assert_equal "/v2/payments/CHAPA-REF-1/verify", transport.requests.sole.fetch(:path)
+      end
+
       test "omits absent customer fields from the V2 hosted payload" do
         transport = FakeTransport.new(Response.new(status: 200, body: { status: "success", data: {} }))
 

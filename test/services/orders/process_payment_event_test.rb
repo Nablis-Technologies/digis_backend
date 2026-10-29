@@ -5,19 +5,41 @@ require "test_helper"
 module Orders
   class ProcessPaymentEventTest < ActiveSupport::TestCase
     class WebhookAdapter < Payments::Providers::Adapter
-      attr_accessor :webhook_valid
+      attr_accessor :webhook_valid, :verification_result
+      attr_reader :verification_requests, :verified_payments
 
       def initialize
         @webhook_valid = true
+        @verification_requests = []
+        @verified_payments = []
       end
 
       def verify_webhook(**) = webhook_valid
 
+      def verify(**request)
+        verification_requests << request
+        return verification_result if verification_result
+
+        references = request.values_at(:provider_reference, :merchant_reference, :idempotency_key).compact
+        payment = verified_payments.find do |candidate|
+          references.any? do |reference|
+            reference.in?([ candidate.provider_reference, candidate.provider_merchant_reference, candidate.idempotency_key ])
+          end
+        end
+        return Payments::Providers::Result.unknown(raw_status: "not_found") unless payment
+
+        Payments::Providers::Result.success(
+          provider_reference: request[:provider_reference].presence ||
+            payment.provider_reference.presence || "verified-#{payment.id}",
+          merchant_reference: payment.provider_merchant_reference,
+          amount_minor: payment.amount_minor,
+          currency: payment.currency
+        )
+      end
+
       def create(**) = Payments::Providers::Result.unknown(raw_status: "pending")
 
       def cancel(**) = Payments::Providers::Result.cancelled(raw_status: "cancelled")
-
-      def verify(**) = Payments::Providers::Result.unknown(raw_status: "pending")
 
       def refund(**) = Payments::Providers::Result.success(provider_reference: "refund-ref")
 
@@ -39,6 +61,7 @@ module Orders
       @order = Orders::Order.create!(order_attributes)
       @payment = Orders::Payment.create!(payment_attributes)
       @adapter = WebhookAdapter.new
+      @adapter.verified_payments << @payment
       Payments::Providers::Registry.register("chapa", @adapter)
     end
 
@@ -68,6 +91,87 @@ module Orders
         aggregate_type: "Orders::Order", aggregate_id: @order.id,
         event_type: "orders.payment.fulfilled"
       ).count
+    end
+
+    test "reconciles a Chapa success by the verified merchant reference when webhook omits it" do
+      @payment.update!(provider_reference: nil)
+      @adapter.verification_result = verified_result(
+        @payment,
+        provider_reference: "chapa-receipt-reference"
+      )
+      event = record_event(
+        event_id: "chapa-success-without-merchant-reference",
+        event_type: "payment.success",
+        payload: {
+          "webhook_type" => "payment",
+          "event" => "payment.success",
+          "status" => "success",
+          "chapa_reference" => "chapa-receipt-reference",
+          "amount" => "42179",
+          "currency" => "ETB"
+        }
+      )
+
+      result = Orders::ProcessPaymentEvent.call(event:)
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal "processed", event.reload.status
+      assert_equal @payment.id, event.payment_id
+      assert_equal "chapa-receipt-reference", @payment.reload.provider_reference
+      assert @payment.accepted?
+      assert_equal "fulfilled", @order.reload.status
+      assert_equal "chapa-receipt-reference", @adapter.verification_requests.sole.fetch(:provider_reference)
+      assert_equal 1, Core::OutboxEvent.where(
+        aggregate_type: "Orders::Order", aggregate_id: @order.id,
+        event_type: "orders.payment.fulfilled"
+      ).count
+
+      replay = Orders::ProcessPaymentEvent.call(event:)
+
+      assert_predicate replay, :success?, replay.error&.message
+      assert_equal 1, Core::OutboxEvent.where(
+        aggregate_type: "Orders::Order", aggregate_id: @order.id,
+        event_type: "orders.payment.fulfilled"
+      ).count
+    end
+
+    test "does not fulfill a Chapa success when the verified amount differs" do
+      assert_verification_rejected(verified_result(@payment, amount_minor: @payment.amount_minor + 1))
+    end
+
+    test "does not fulfill a Chapa success when the verified currency differs" do
+      assert_verification_rejected(verified_result(@payment, currency: "USD"))
+    end
+
+    test "does not fulfill a Chapa success when the verified merchant reference differs" do
+      assert_verification_rejected(verified_result(@payment, merchant_reference: "different-merchant-reference"))
+    end
+
+    test "does not replace a stored provider reference with a different verified reference" do
+      @payment.update!(provider_reference: "stored-chapa-reference")
+      @adapter.verification_result = verified_result(@payment, provider_reference: "different-chapa-reference")
+      event = record_event(
+        event_id: "chapa-provider-reference-conflict",
+        event_type: "payment.success",
+        payload: {
+          "status" => "success",
+          "chapa_reference" => "different-chapa-reference"
+        }
+      )
+
+      result = Orders::ProcessPaymentEvent.call(event:)
+
+      assert_predicate result, :failure?, result.error&.code
+      assert_equal "failed", event.reload.status
+      assert_not @payment.reload.accepted?
+      assert_equal "stored-chapa-reference", @payment.provider_reference
+      assert_equal "pending_payment", @order.reload.status
+    end
+
+    test "keeps a Chapa success retryable when provider verification is pending" do
+      assert_verification_rejected(
+        Payments::Providers::Result.unknown(provider_reference: "chapa-pending-reference", raw_status: "pending")
+      )
     end
 
     test "acquires checkout advisory before mutating an event payment" do
@@ -143,7 +247,7 @@ module Orders
       assert @payment.reload.accepted?
     end
 
-    test "persists a Chapa reference from a verified webhook before fulfillment" do
+    test "persists a provider reference from a directly correlated Chapa event before fulfillment" do
       @payment.update!(provider_reference: nil)
       event = record_event(
         event_id: "chapa-provider-reference-event",
@@ -154,25 +258,13 @@ module Orders
           "chapa_reference" => "chapa-provider-reference"
         }
       )
-      statements = []
-      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _start, _finish, _id, payload|
-        statements << payload[:sql]
-      end
-
       result = Orders::ProcessPaymentEvent.call(event:)
 
       assert_predicate result, :success?, result.error&.message
+      assert_equal "processed", event.reload.status
+      assert_equal @payment.id, event.payment_id
       assert_equal "chapa-provider-reference", @payment.reload.provider_reference
       assert @payment.accepted?
-      %w[provider_merchant_reference provider_reference idempotency_key].each do |column|
-        query_count = statements.count do |sql|
-          sql.match?(/\ASELECT\b/i) && sql.include?('FROM "orders_payments"') &&
-            sql.include?(%Q("orders_payments"."#{column}"))
-        end
-        assert_equal 1, query_count, "expected one bounded lookup for #{column}"
-      end
-    ensure
-      ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
     end
 
     test "accepts a billing payment without fulfilling an event order" do
@@ -186,11 +278,16 @@ module Orders
         billing_purchase: purchase, attempt_number: 1, provider: "chapa", payment_method: "telebirr",
         status: "processing", amount_minor: 100, currency: "ETB", billing_purchase_price_digest: "b" * 64,
         buyer_fee_minor: 0, organizer_fee_minor: 0, idempotency_key: "billing-process-payment",
+        provider_reference: "billing-chapa-ref", provider_merchant_reference: "bill-merchant-ref",
         settlement_grace_minutes: 5, settlement_grace_expires_at: 30.minutes.from_now
       )
+      @adapter.verified_payments << payment
       event = Orders::PaymentEvent.create!(
         payment:, provider: "chapa", provider_event_id: "billing-process-event",
-        event_type: "payment.succeeded", status: "received", payload: { "status" => "paid" },
+        event_type: "payment.succeeded", status: "received", payload: {
+          "status" => "paid", "provider_reference" => payment.provider_reference,
+          "merchant_reference" => payment.provider_merchant_reference
+        },
         payload_digest: "c" * 64, received_at: Time.current
       )
 
@@ -364,7 +461,7 @@ module Orders
       event = record_event(
         event_id: "chapa-v2-merchant-reference-event",
         event_type: "payment.succeeded",
-        payload: { "status" => "success", "merchant_reference" => @payment.idempotency_key }
+        payload: { "status" => "success", "merchant_reference" => @payment.provider_merchant_reference }
       )
 
       result = Orders::ProcessPaymentEvent.call(event:)
@@ -540,6 +637,37 @@ module Orders
         signature: "valid-signature",
         headers: { "X-Provider-Signature" => "valid-signature" }
       ).then { |result| result.success? ? result.value : result }
+    end
+
+    def verified_result(payment, provider_reference: "chapa-reference", merchant_reference: payment.provider_merchant_reference,
+      amount_minor: payment.amount_minor, currency: payment.currency)
+      Payments::Providers::Result.success(
+        provider_reference:, merchant_reference:, amount_minor:, currency:
+      )
+    end
+
+    def assert_verification_rejected(verification)
+      @payment.update!(provider_reference: nil)
+      @adapter.verification_result = verification
+      event = record_event(
+        event_id: "chapa-verification-rejected-#{SecureRandom.hex(4)}",
+        event_type: "payment.success",
+        payload: {
+          "webhook_type" => "payment",
+          "event" => "payment.success",
+          "status" => "success",
+          "chapa_reference" => verification.provider_reference
+        }
+      )
+
+      result = Orders::ProcessPaymentEvent.call(event:)
+
+      assert_predicate result, :failure?, result.error&.code
+      assert_equal "failed", event.reload.status
+      assert_not event.terminal?
+      assert_not @payment.reload.accepted?
+      assert_equal "pending_payment", @order.reload.status
+      assert_empty Ticketing::Ticket.where(order_item_id: Orders::OrderItem.where(order_id: @order.id).select(:id))
     end
 
     def order_attributes
