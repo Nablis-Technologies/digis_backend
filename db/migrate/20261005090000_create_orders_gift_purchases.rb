@@ -4,6 +4,7 @@ class CreateOrdersGiftPurchases < ActiveRecord::Migration[8.1]
   def change
     create_table :orders_gift_purchases, id: :uuid, default: -> { "uuidv7()" } do |t|
       t.uuid :order_item_id, null: false
+      t.uuid :client_line_id
       t.uuid :recipient_user_id, null: false
       t.text :recipient_phone_ciphertext, null: false
       t.string :recipient_phone_digest, limit: 64, null: false
