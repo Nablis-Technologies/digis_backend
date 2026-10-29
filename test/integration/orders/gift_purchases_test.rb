@@ -194,6 +194,7 @@ module Orders
       assert_equal "no-store", response.headers.fetch("Cache-Control")
       data = response.parsed_body.fetch("data").sole
       assert_equal @gift_purchase.id, data.fetch("id")
+      assert_nil data.fetch("line_id")
       assert_equal "ready", data.fetch("status")
       assert_equal "pending", data.fetch("delivery_status")
       refute_includes response.body, @gift_phone

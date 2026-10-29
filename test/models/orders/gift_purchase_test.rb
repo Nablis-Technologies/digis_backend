@@ -48,6 +48,19 @@ module Orders
       assert_includes gift.errors.attribute_names, :expires_at
     end
 
+    test "persists line identity and prevents changing it after creation" do
+      line_id = "c865cacc-b477-4f4b-851c-c1e64716a740"
+      gift = build_gift(client_line_id: line_id)
+      gift.save!
+
+      assert_equal line_id, gift.reload.client_line_id
+      assert_equal line_id, gift.payer_status_payload.fetch(:line_id)
+
+      gift.client_line_id = "e9c02143-2de4-41b2-8f5a-c7f1eceb9df8"
+      assert_not gift.valid?
+      assert_includes gift.errors.attribute_names, :client_line_id
+    end
+
     test "allows one gift intent per order item and rejects a duplicate" do
       build_gift.save!
       duplicate = build_gift(token: "another-gift-capability")
@@ -67,9 +80,10 @@ module Orders
 
     private
 
-    def build_gift(note: "A note for the recipient", token: "opaque-gift-capability")
+    def build_gift(note: "A note for the recipient", token: "opaque-gift-capability", client_line_id: nil)
       GiftPurchase.new(
         order_item: @order_item,
+        client_line_id:,
         recipient_user: @owner,
         recipient_phone: @owner.phone,
         recipient_phone_digest: GiftPurchase.recipient_phone_digest_for(phone: @owner.phone),

@@ -167,11 +167,65 @@ module Orders
 
       assert_response :created
       gift = response.parsed_body.dig("data", "gift_purchases").sole
-      assert_equal %w[delivery_status expires_at id status], gift.keys.sort
+      assert_equal %w[delivery_status expires_at id line_id status], gift.keys.sort
+      assert_nil gift.fetch("line_id")
       assert_equal "pending_payment", gift.fetch("status")
       refute_includes response.body, "0911000199"
       refute_includes response.body, "recipient@example.com"
       refute_includes response.body, "A private gift note"
+    end
+
+    test "creates and replays two same-product gifts with stable line mappings" do
+      product = create_ticket_product(name: "Same-product gifts", amount_minor: 1_500)
+      first_line_id = "c865cacc-b477-4f4b-851c-c1e64716a740"
+      second_line_id = "e9c02143-2de4-41b2-8f5a-c7f1eceb9df8"
+      payload = selection_payload(product)
+      first_line = payload.dig(:admission_selection, :items).sole
+      first_line.merge!(line_id: first_line_id, gift: { recipient_phone: "0911000111", note: "First" })
+      second_line = first_line.deep_dup.merge(
+        line_id: second_line_id,
+        gift: { recipient_phone: "0911000112", note: "Second" }
+      )
+      payload.dig(:admission_selection, :items) << second_line
+      headers = user_headers.merge("Idempotency-Key" => "same-product-gift-integration")
+
+      with_per_item_write_fanout_paused do
+        post selection_path, params: payload, headers:, as: :json
+      end
+
+      assert_response :created
+      data = response.parsed_body.fetch("data")
+      gifts_by_line_id = data.fetch("gift_purchases").index_by { |gift| gift.fetch("line_id") }
+      assert_equal [ first_line_id, second_line_id ].sort, gifts_by_line_id.keys.sort
+      order = Orders::Order.find(data.dig("order", "id"))
+      assert_equal 2, order.order_items.count
+      assert_equal [ product.id, product.id ], order.order_items.pluck(:event_product_id)
+      assert_equal 3_000, order.subtotal_minor
+      registrations_by_phone = order.order_items.includes(:gift_purchase, registration: :user).index_by do |item|
+        item.registration.user.phone
+      end
+      assert_equal first_line_id, registrations_by_phone.fetch("+251911000111").gift_purchase.client_line_id
+      assert_equal second_line_id, registrations_by_phone.fetch("+251911000112").gift_purchase.client_line_id
+      refute_includes response.body, "0911000111"
+      refute_includes response.body, "0911000112"
+      refute_includes response.body, "First"
+      refute_includes response.body, "Second"
+
+      post selection_path, params: payload, headers:, as: :json
+
+      assert_response :created
+      replay = response.parsed_body.fetch("data")
+      assert_equal order.id, replay.dig("order", "id")
+      assert_equal data.fetch("gift_purchases").sort_by { |gift| gift.fetch("line_id") },
+        replay.fetch("gift_purchases").sort_by { |gift| gift.fetch("line_id") }
+      assert_equal 1, Orders::Order.where(id: order.id).count
+      assert_equal 2, order.order_items.count
+
+      get "/orders/#{order.id}/gift_purchases", headers: user_headers, as: :json
+
+      assert_response :ok
+      status_by_line_id = response.parsed_body.fetch("data").index_by { |gift| gift.fetch("line_id") }
+      assert_equal [ first_line_id, second_line_id ].sort, status_by_line_id.keys.sort
     end
 
     test "accepted payment keeps a gift registration pending and commits limits for the recipient" do

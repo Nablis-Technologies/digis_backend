@@ -207,6 +207,121 @@ module Orders
       assert_equal registration.id, result.value.items.sole.registration_id
     end
 
+    test "quotes distinct same-product gift lines with stable line identities" do
+      product, first_registration = create_ticket_registration(
+        status: "gift_pending_claim",
+        user: core_users(:support)
+      )
+      second_registration = Ticketing::Registration.create!(
+        event: @event,
+        ticket_type: product.ticket_type,
+        user: core_users(:core_admin),
+        created_by: @buyer,
+        source: "self_service",
+        identity_digest: SecureRandom.hex(32),
+        package_quantity: 1,
+        admissions_per_unit_snapshot: 1,
+        party_size: 1,
+        status: "gift_pending_claim",
+        submitted_at: @quoted_at
+      )
+      first_line_id = "c865cacc-b477-4f4b-851c-c1e64716a740"
+      second_line_id = "e9c02143-2de4-41b2-8f5a-c7f1eceb9df8"
+
+      result = Orders::BuildQuote.call(
+        event: @event,
+        buyer: @buyer,
+        items: [
+          { product:, registration_id: first_registration.id, line_id: first_line_id, quantity: 1 },
+          { product:, registration_id: second_registration.id, line_id: second_line_id, quantity: 1 }
+        ],
+        gift_registration_ids: [ first_registration.id, second_registration.id ],
+        charge_currency: "ETB",
+        quoted_at: @quoted_at
+      )
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal 2_000, result.value.subtotal_minor
+      assert_equal [ first_line_id, second_line_id ].sort, result.value.items.map(&:line_id).sort
+      assert_equal [ "client:#{first_line_id}", "client:#{second_line_id}" ].sort,
+        result.value.items.map(&:line_key).sort
+    end
+
+    test "rejects repeated ordinary product lines without trusted gift context" do
+      product = create_product(name: "Repeated ordinary quote", price_minor: 1_000)
+
+      result = Orders::BuildQuote.call(
+        event: @event,
+        buyer: @buyer,
+        items: [ { product:, quantity: 1 }, { product:, quantity: 1 } ],
+        charge_currency: "ETB",
+        quoted_at: @quoted_at
+      )
+
+      assert_predicate result, :failure?
+      assert_equal "duplicate_product", result.error.code
+    end
+
+    test "applies per-order product limits to the aggregate of gift lines" do
+      product, = create_ticket_registration(status: "pending_payment")
+      product.update!(max_per_order: 1)
+      line_ids = [ "c865cacc-b477-4f4b-851c-c1e64716a740", "e9c02143-2de4-41b2-8f5a-c7f1eceb9df8" ]
+
+      result = Orders::BuildQuote.call(
+        event: @event,
+        buyer: @buyer,
+        items: line_ids.map { |line_id| { product:, line_id:, quantity: 1 } },
+        gift_line_ids: line_ids,
+        charge_currency: "ETB",
+        require_registrations: false,
+        quoted_at: @quoted_at
+      )
+
+      assert_predicate result, :failure?
+      assert_equal "quantity_outside_product_limit", result.error.code
+    end
+
+    test "does not map one trusted gift registration to multiple quote lines" do
+      product, registration = create_ticket_registration(
+        status: "gift_pending_claim",
+        user: core_users(:support)
+      )
+      line_ids = [ "c865cacc-b477-4f4b-851c-c1e64716a740", "e9c02143-2de4-41b2-8f5a-c7f1eceb9df8" ]
+
+      result = Orders::BuildQuote.call(
+        event: @event,
+        buyer: @buyer,
+        items: line_ids.map do |line_id|
+          { product:, registration_id: registration.id, line_id:, quantity: 1 }
+        end,
+        gift_registration_ids: [ registration.id ],
+        charge_currency: "ETB",
+        quoted_at: @quoted_at
+      )
+
+      assert_predicate result, :failure?
+      assert_equal "duplicate_product", result.error.code
+    end
+
+    test "satisfies a product minimum across separate same-product gift lines" do
+      product, = create_ticket_registration(status: "pending_payment")
+      product.update!(min_per_order: 2)
+      line_ids = [ "c865cacc-b477-4f4b-851c-c1e64716a740", "e9c02143-2de4-41b2-8f5a-c7f1eceb9df8" ]
+
+      result = Orders::BuildQuote.call(
+        event: @event,
+        buyer: @buyer,
+        items: line_ids.map { |line_id| { product:, line_id:, quantity: 1 } },
+        gift_line_ids: line_ids,
+        charge_currency: "ETB",
+        require_registrations: false,
+        quoted_at: @quoted_at
+      )
+
+      assert_predicate result, :success?, result.error&.message
+      assert_equal 2_000, result.value.subtotal_minor
+    end
+
     test "rejects a recipient-owned gift registration when trusted scope is absent" do
       product, registration = create_ticket_registration(
         status: "gift_pending_claim",

@@ -75,10 +75,123 @@ module Orders
         assert_equal "Happy birthday!", gift.note
         assert_empty result.value.registrations
         assert_equal [ { id: gift.id, status: "pending_payment", expires_at: gift.expires_at,
-                         delivery_status: "pending" } ], result.value.gift_purchases
+                         delivery_status: "pending", line_id: nil } ], result.value.gift_purchases
         assert_empty Ticketing::Ticket.where(order_item_id: item.id)
         refute_includes result.value.gift_purchases.to_json, gift_input[:recipient_phone]
         refute_includes result.value.gift_purchases.to_json, gift_input[:note]
+      end
+
+      test "rejects repeated gift lines that exceed the shared product capacity atomically" do
+        product = create_ticket_product(
+          name: "Same-product gift capacity",
+          etb_minor: 1_500,
+          inventory_mode: "event_wide",
+          capacity: 1
+        )
+        items = [
+          { event_product_id: product.id, line_id: "c865cacc-b477-4f4b-851c-c1e64716a740",
+            quantity: 1, answers: [], consents: [], gift: { recipient_phone: "0911000111" } },
+          { event_product_id: product.id, line_id: "e9c02143-2de4-41b2-8f5a-c7f1eceb9df8",
+            quantity: 1, answers: [], consents: [], gift: { recipient_phone: "0911000112" } }
+        ]
+
+        result = call_selection(items:, key: "batch-gift-over-capacity")
+
+        assert_predicate result, :failure?
+        assert_equal "inventory_unavailable", result.error.code
+        assert_empty Orders::Order.where(event: @event)
+        assert_empty Ticketing::Registration.where(ticket_type: product.ticket_type)
+        assert_equal 0, product.inventories.sole.held_count
+      end
+
+      test "does not bypass the product per-order maximum by splitting gifts into lines" do
+        product = create_ticket_product(name: "Gift line order limit", etb_minor: 1_500)
+        product.update!(max_per_order: 1)
+        items = [
+          { event_product_id: product.id, line_id: "c865cacc-b477-4f4b-851c-c1e64716a740",
+            quantity: 1, answers: [], consents: [], gift: { recipient_phone: "0911000111" } },
+          { event_product_id: product.id, line_id: "e9c02143-2de4-41b2-8f5a-c7f1eceb9df8",
+            quantity: 1, answers: [], consents: [], gift: { recipient_phone: "0911000112" } }
+        ]
+
+        result = call_selection(items:, key: "batch-gift-over-product-limit")
+
+        assert_predicate result, :failure?
+        assert_equal "quantity_outside_product_limit", result.error.code
+        assert_empty Ticketing::Registration.where(ticket_type: product.ticket_type)
+        assert_empty Orders::Order.where(event: @event, buyer_user: @buyer)
+      end
+
+      test "creates replayable separate gifts for the same ticket product" do
+        product = create_ticket_product(name: "Batch gift offer", etb_minor: 1_500)
+        product.update!(min_per_order: 2)
+        promotion = Catalog::Promotion.create!(
+          event: @event,
+          name: "Batch gift discount",
+          type: "percentage",
+          percentage_basis_points: 1_000,
+          currency: "ETB",
+          status: "active",
+          per_user_limit: 1
+        )
+        Catalog::PromotionCode.create!(
+          promotion:,
+          code: "BATCH10",
+          code_digest: Catalog::PromotionCode.code_digest_for(event_id: @event.id, code: "BATCH10")
+        )
+        first_line_id = "c865cacc-b477-4f4b-851c-c1e64716a740"
+        second_line_id = "e9c02143-2de4-41b2-8f5a-c7f1eceb9df8"
+        items = [
+          {
+            event_product_id: product.id, line_id: first_line_id, quantity: 1,
+            answers: [], consents: [], gift: { recipient_phone: "0911000111", note: "First" }
+          },
+          {
+            event_product_id: product.id, line_id: second_line_id, quantity: 1,
+            answers: [], consents: [], gift: { recipient_phone: "0911000112", note: "Second" }
+          }
+        ]
+        key = "batch-gift-same-product-#{SecureRandom.hex(4)}"
+
+        result = call_selection(items:, key:, promotion_code: "BATCH10")
+
+        assert_predicate result, :success?, error_detail(result)
+        order = result.value.order
+        order_items = order.order_items.includes(:gift_purchase, registration: :user).order(:id).to_a
+        assert_equal 2, order_items.length
+        assert_equal [ product.id, product.id ], order_items.map(&:event_product_id)
+        assert_equal 3_000, order.subtotal_minor
+        assert_equal 300, order.discount_minor
+        assert_equal [ -150, -150 ], order.order_adjustments.where(type: "discount").order(:order_item_id)
+          .pluck(:amount_minor)
+        items_by_line_id = order_items.index_by { |item| item.gift_purchase.client_line_id }
+        assert_equal [ first_line_id, second_line_id ].sort, items_by_line_id.keys.sort
+        assert_equal "+251911000111", items_by_line_id.fetch(first_line_id).registration.user.phone
+        assert_equal "+251911000112", items_by_line_id.fetch(second_line_id).registration.user.phone
+        assert_equal "First", items_by_line_id.fetch(first_line_id).gift_purchase.note
+        assert_equal "Second", items_by_line_id.fetch(second_line_id).gift_purchase.note
+        assert_equal [ first_line_id, second_line_id ].sort,
+          result.value.gift_purchases.map { |gift| gift.fetch(:line_id) }.sort
+
+        counts = [ Orders::Order.count, Orders::OrderItem.count, Orders::GiftPurchase.count,
+                   Ticketing::Registration.count ]
+        replay = call_selection(items:, key:, promotion_code: "BATCH10")
+
+        assert_predicate replay, :success?, error_detail(replay)
+        assert_equal order.id, replay.value.order.id
+        assert_equal result.value.gift_purchases.sort_by { |gift| gift.fetch(:line_id) },
+          replay.value.gift_purchases.sort_by { |gift| gift.fetch(:line_id) }
+        assert_equal counts, [ Orders::Order.count, Orders::OrderItem.count, Orders::GiftPurchase.count,
+                               Ticketing::Registration.count ]
+
+        changed_items = items.deep_dup
+        changed_items.first[:line_id] = "aabccacc-b477-4f4b-851c-c1e64716a740"
+        conflict = call_selection(items: changed_items, key:, promotion_code: "BATCH10")
+
+        assert_predicate conflict, :failure?
+        assert_equal "idempotency_conflict", conflict.error.code
+        assert_equal counts, [ Orders::Order.count, Orders::OrderItem.count, Orders::GiftPurchase.count,
+                               Ticketing::Registration.count ]
       end
 
       test "does not bypass a recipient's package purchase limit with a gift" do
@@ -1318,7 +1431,8 @@ module Orders
           answers: [],
           consents: [],
           audience_proof: {},
-          gift: nil
+          gift: nil,
+          line_id: nil
         )
       end
 
@@ -1374,7 +1488,8 @@ module Orders
           answers: [],
           consents: [],
           audience_proof: {},
-          gift: nil
+          gift: nil,
+          line_id: nil
         )
       end
 
