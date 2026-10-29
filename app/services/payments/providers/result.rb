@@ -6,8 +6,9 @@ module Payments
     # raw provider status is retained for reconciliation, while orchestration
     # uses only this finite, provider-neutral status set.
     Result = Data.define(
-      :status, :provider_reference, :failure_code, :provider_fee_minor,
-      :provider_fee_currency, :raw_status, :checkout_url, :auth_type, :request_id
+      :status, :provider_reference, :merchant_reference, :amount_minor, :currency,
+      :failure_code, :provider_fee_minor, :provider_fee_currency, :raw_status,
+      :checkout_url, :auth_type, :request_id
     ) do
       STATUSES = %w[success failure cancelled unknown timeout].freeze
       STATUS_MAP = {
@@ -20,11 +21,15 @@ module Payments
         "unknown" => "unknown", "pending" => "unknown", "processing" => "unknown"
       }.freeze
 
-      def initialize(status:, provider_reference: nil, failure_code: nil, provider_fee_minor: nil,
-                     provider_fee_currency: nil, raw_status: nil, checkout_url: nil,
-                     auth_type: nil, request_id: nil)
+      def initialize(status:, provider_reference: nil, merchant_reference: nil, amount_minor: nil, currency: nil,
+                     failure_code: nil, provider_fee_minor: nil, provider_fee_currency: nil,
+                     raw_status: nil, checkout_url: nil, auth_type: nil, request_id: nil)
         normalized_status = STATUS_MAP.fetch(status.to_s.downcase, "unknown")
         normalized_currency = provider_fee_currency.to_s.upcase.presence
+        currency = currency.to_s.strip.upcase.presence
+        if amount_minor.present? && (!amount_minor.is_a?(Integer) || amount_minor.negative?)
+          fail ArgumentError, I18n.t("payments.providers.errors.invalid_result")
+        end
         if provider_fee_minor.present? && provider_fee_minor.to_i.negative?
           fail ArgumentError, I18n.t("payments.providers.errors.invalid_result")
         end
@@ -32,6 +37,9 @@ module Payments
         super(
           status: normalized_status,
           provider_reference: provider_reference.to_s.presence,
+          merchant_reference: merchant_reference.to_s.strip.presence,
+          amount_minor:,
+          currency:,
           failure_code: failure_code.to_s.presence,
           provider_fee_minor: provider_fee_minor,
           provider_fee_currency: normalized_currency,
@@ -45,7 +53,8 @@ module Payments
       def self.from_provider_response(response)
         attributes = response.to_h.symbolize_keys
         new(**attributes.slice(
-          :status, :provider_reference, :failure_code, :provider_fee_minor,
+          :status, :provider_reference, :merchant_reference, :amount_minor, :currency,
+          :failure_code, :provider_fee_minor,
           :provider_fee_currency, :raw_status, :checkout_url, :auth_type, :request_id
         ))
       end

@@ -226,6 +226,9 @@ module Payments
           status:,
           provider_reference: data[:chapa_reference].presence || data[:reference].presence ||
             data[:ref_id].presence || data[:tx_ref].presence,
+          merchant_reference: data[:merchant_reference],
+          amount_minor: response_amount_minor(data[:amount]),
+          currency: data[:currency],
           failure_code:,
           provider_fee_minor: minor_amount(data[:service_fee].presence || data[:charge]),
           provider_fee_currency: data[:currency],
@@ -234,6 +237,13 @@ module Payments
           auth_type: data[:auth_type],
           request_id: data[:request_id]
         )
+      end
+
+      def response_amount_minor(value)
+        return value if value.is_a?(Integer) && value >= 0
+        return unless value.is_a?(String) && value.match?(/\A\d+\z/)
+
+        Integer(value, 10)
       end
 
       def missing_checkout_url_result(response)
